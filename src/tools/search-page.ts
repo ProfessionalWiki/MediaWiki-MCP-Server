@@ -29,7 +29,6 @@ export function searchPageTool( server: McpServer ): RegisteredTool {
 
 async function handleSearchPageTool( query: string ): Promise< CallToolResult > {
 	const searchUrl = `${ WIKI_SERVER() }${ SCRIPT_PATH() }/rest.php/v1/search/page`;
-	console.error( 'searchUrl', searchUrl );
 	const searchData = await makeApiRequest<MwRestApiSearchPageResponse>(
 		searchUrl, { q: query, limit: '10' }
 	);
