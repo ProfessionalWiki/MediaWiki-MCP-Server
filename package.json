@@ -21,12 +21,11 @@
 	"license": "",
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.11.3",
-		"@types/node-fetch": "^2.6.12",
-		"mwn": "^3.0.1",
 		"node-fetch": "^3.3.2"
 	},
 	"devDependencies": {
 		"@types/node": "^22.15.17",
+		"@types/node-fetch": "^2.6.12",
 		"@wmde/eslint-config-wikimedia-typescript": "^0.2.13",
 		"eslint-config-wikimedia": "^0.29.1",
 		"typescript": "^5.8.3"
