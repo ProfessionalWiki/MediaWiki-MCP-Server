@@ -1,7 +1,7 @@
 // TODO: Make tools into an interface
 
 /* eslint-disable n/no-missing-import */
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { z } from 'zod';
@@ -10,12 +10,19 @@ import type { MwRestApiSearchPageResponse, MwRestApiSearchResult } from '../type
 import { WIKI_SERVER, ARTICLE_PATH, SCRIPT_PATH } from '../config.js';
 
 // TODO: Decide how to register the tool
-export function searchPageTool( server: McpServer ): void {
-	server.tool(
+export function searchPageTool( server: McpServer ): RegisteredTool {
+	// TODO: Not having named parameters is a pain,
+	// but using low-level Server type or using a wrapper function are addedd complexity
+	return server.tool(
 		'search-page',
 		'Search for a page on the wiki',
 		{
 			query: z.string().describe( 'The query to search for' )
+		},
+		{
+			title: 'Search Page',
+			readOnlyHint: true,
+			destructiveHint: false
 		},
 		async ( { query } ) => handleSearchPageTool( query )
 	);
