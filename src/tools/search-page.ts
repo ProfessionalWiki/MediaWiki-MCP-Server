@@ -32,7 +32,8 @@ async function handleSearchPageTool( query: string ): Promise< CallToolResult > 
 			content: [
 				/** @type {TextContent} */
 				{ type: 'text', text: 'Failed to retrieve search data' }
-			]
+			],
+			isError: true
 		};
 	}
 
@@ -42,7 +43,8 @@ async function handleSearchPageTool( query: string ): Promise< CallToolResult > 
 			content: [
 				/** @type {TextContent} */
 				{ type: 'text', text: `No pages found for ${ query }` }
-			]
+			],
+			isError: true
 		};
 	}
 
