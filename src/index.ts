@@ -2,11 +2,14 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 /* eslint-enable n/no-missing-import */
 
-// TODO: Register tools in a way that is easier to manage
-import { searchPageTool } from './tools/search-page.js';
 import { server } from './server.js';
 
+// TODO: Register tools in a way that is easier to manage
+import { searchPageTool } from './tools/search-page.js';
+import { setWikiTool } from './tools/set-wiki.js';
+
 // Register tools
+setWikiTool( server );
 searchPageTool( server );
 
 async function main(): Promise<void> {

@@ -1,13 +1,12 @@
 // TODO: Make tools into an interface
-
+import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
 import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { z } from 'zod';
 import { makeApiRequest } from '../common/utils.js';
 import type { MwRestApiSearchPageResponse, MwRestApiSearchResult } from '../types/mwRestApiSearch.js';
-import { WIKI_SERVER, ARTICLE_PATH, SCRIPT_PATH } from '../config.js';
+import { WIKI_SERVER, ARTICLE_PATH, SCRIPT_PATH } from '../common/config.js';
 
 // TODO: Decide how to register the tool
 export function searchPageTool( server: McpServer ): RegisteredTool {
@@ -15,12 +14,12 @@ export function searchPageTool( server: McpServer ): RegisteredTool {
 	// but using low-level Server type or using a wrapper function are addedd complexity
 	return server.tool(
 		'search-page',
-		'Search for a page on the wiki',
+		'Search for a wiki page',
 		{
 			query: z.string().describe( 'The query to search for' )
 		},
 		{
-			title: 'Search Page',
+			title: 'Search page',
 			readOnlyHint: true,
 			destructiveHint: false
 		} as ToolAnnotations,
@@ -29,7 +28,8 @@ export function searchPageTool( server: McpServer ): RegisteredTool {
 }
 
 async function handleSearchPageTool( query: string ): Promise< CallToolResult > {
-	const searchUrl = `${ WIKI_SERVER }${ SCRIPT_PATH }/rest.php/v1/search/page`;
+	const searchUrl = `${ WIKI_SERVER() }${ SCRIPT_PATH() }/rest.php/v1/search/page`;
+	console.error( 'searchUrl', searchUrl );
 	const searchData = await makeApiRequest<MwRestApiSearchPageResponse>(
 		searchUrl, { q: query, limit: '10' }
 	);
@@ -67,7 +67,7 @@ function getSearchResultToolResult( result: MwRestApiSearchResult ): TextContent
 			`Description: ${ result.description ?? 'Not available' }`,
 			`Thumbnail: ${ result.thumbnail?.url ?? 'Not available' }`,
 			`Page ID: ${ result.id }`,
-			`URL: ${ `${ WIKI_SERVER }${ ARTICLE_PATH }/${ result.key }` }`
+			`URL: ${ `${ WIKI_SERVER() }${ ARTICLE_PATH() }/${ result.key }` }`
 		].join( '\n' )
 	};
 }
