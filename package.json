@@ -26,6 +26,8 @@
 	"devDependencies": {
 		"@types/node": "^22.15.17",
 		"@types/node-fetch": "^2.6.12",
+		"@typescript-eslint/eslint-plugin": "^7.18.0",
+		"@typescript-eslint/parser": "^7.18.0",
 		"@wmde/eslint-config-wikimedia-typescript": "^0.2.13",
 		"eslint-config-wikimedia": "^0.29.1",
 		"typescript": "^5.8.3"
