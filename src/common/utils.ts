@@ -4,16 +4,13 @@ import { SERVER_NAME, SERVER_VERSION } from '../server.js';
 const USER_AGENT: string = `${ SERVER_NAME }/${ SERVER_VERSION }`;
 
 export async function makeApiRequest<T>(
-	apiBase: string,
-	path: string,
+	url: string,
 	params?: Record<string, string>
 ): Promise<T | null> {
 	const headers = {
 		'User-Agent': USER_AGENT,
 		Accept: 'application/json'
 	};
-
-	let url = `${ apiBase }${ path }`;
 
 	if ( params ) {
 		url = url + '?' + new URLSearchParams( params ).toString();
