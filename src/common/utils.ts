@@ -16,11 +16,7 @@ export async function makeApiRequest<T>(
 	let url = `${ apiBase }${ path }`;
 
 	if ( params ) {
-		const query = Object.keys( params )
-			.map( ( k ) => k + '=' + encodeURIComponent( params[ k ] ) )
-			.join( '&' );
-
-		url = url + '?' + query;
+		url = url + '?' + new URLSearchParams( params ).toString();
 	}
 
 	try {

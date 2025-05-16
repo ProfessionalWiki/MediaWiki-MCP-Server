@@ -1,4 +1,3 @@
-// TODO: Decide how to handle the tool's result
 // TODO: Make tools into an interface
 
 /* eslint-disable n/no-missing-import */
@@ -8,6 +7,7 @@ import { z } from 'zod';
 import { makeApiRequest } from '../common/utils.js';
 import type { MwRestApiSearchPageResponse, MwRestApiSearchResult } from '../types/mwRestApiSearch.js';
 
+// TODO: Decide how to handle the tool's result
 function formatSearchResult( result: MwRestApiSearchResult ): string {
 	return [
 		`Title: ${ result.title }`,
@@ -16,6 +16,7 @@ function formatSearchResult( result: MwRestApiSearchResult ): string {
 	].join( '\n' );
 }
 
+// TODO: Decide how to register the tool
 export function registerSearchPageTool( server: McpServer, apiBase: string ): void {
 	server.tool(
 		'search-page',
@@ -58,7 +59,7 @@ export function registerSearchPageTool( server: McpServer, apiBase: string ): vo
 			}
 
 			const formattedPages = pages.map( formatSearchResult );
-			const pagesText = `Pages found for ${ query }:\n\n${ formattedPages.join( '\n\n' ) }`; // Use double newline for better separation
+			const pagesText = `Pages found for ${ query }:\n\n${ formattedPages.join( '\n\n' ) }`;
 
 			return {
 				content: [
