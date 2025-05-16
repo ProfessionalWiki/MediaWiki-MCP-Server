@@ -48,8 +48,7 @@ async function handleSearchPageTool( query: string ): Promise< CallToolResult > 
 		return {
 			content: [
 				{ type: 'text', text: `No pages found for ${ query }` } as TextContent
-			],
-			isError: true
+			]
 		};
 	}
 
