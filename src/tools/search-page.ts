@@ -2,7 +2,7 @@
 
 /* eslint-disable n/no-missing-import */
 import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult, TextContent } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { z } from 'zod';
 import { makeApiRequest } from '../common/utils.js';
@@ -23,7 +23,7 @@ export function searchPageTool( server: McpServer ): RegisteredTool {
 			title: 'Search Page',
 			readOnlyHint: true,
 			destructiveHint: false
-		},
+		} as ToolAnnotations,
 		async ( { query } ) => handleSearchPageTool( query )
 	);
 }
@@ -37,8 +37,7 @@ async function handleSearchPageTool( query: string ): Promise< CallToolResult > 
 	if ( !searchData ) {
 		return {
 			content: [
-				/** @type {TextContent} */
-				{ type: 'text', text: 'Failed to retrieve search data' }
+				{ type: 'text', text: 'Failed to retrieve search data' } as TextContent
 			],
 			isError: true
 		};
@@ -48,8 +47,7 @@ async function handleSearchPageTool( query: string ): Promise< CallToolResult > 
 	if ( pages.length === 0 ) {
 		return {
 			content: [
-				/** @type {TextContent} */
-				{ type: 'text', text: `No pages found for ${ query }` }
+				{ type: 'text', text: `No pages found for ${ query }` } as TextContent
 			],
 			isError: true
 		};
