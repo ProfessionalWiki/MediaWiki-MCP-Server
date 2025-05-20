@@ -1,0 +1,10 @@
+{
+	"mcpServers": {
+		"mediawiki-mcp-server": {
+			"command": "node",
+			"args": [
+				"build/index.js"
+			]
+		}
+	}
+}
