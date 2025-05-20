@@ -30,14 +30,10 @@ export function updateConfig( newConfig: Partial<AppConfig> ): void {
 		}
 	}
 	currentConfig = { ...currentConfig, ...effectiveNewConfig };
-	// TODO: Consider adding logging or event emission here if other parts
-	// of the application need to react to configuration changes dynamically.
-	console.log( 'Configuration updated:', getConfig() );
 }
 
 export function resetConfig(): void {
 	currentConfig = { ...defaultConfig };
-	console.log( 'Configuration reset to defaults:', getConfig() );
 }
 
 export const WIKI_SERVER = (): string => getConfig().WIKI_SERVER;

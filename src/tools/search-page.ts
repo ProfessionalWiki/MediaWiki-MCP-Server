@@ -63,9 +63,9 @@ function getSearchResultToolResult( result: MwRestApiSearchResult ): TextContent
 		text: [
 			`Title: ${ result.title }`,
 			`Description: ${ result.description ?? 'Not available' }`,
+			`URL: ${ `${ WIKI_SERVER() }${ ARTICLE_PATH() }/${ result.key }` }`,
 			`Thumbnail: ${ result.thumbnail?.url ?? 'Not available' }`,
-			`Page ID: ${ result.id }`,
-			`URL: ${ `${ WIKI_SERVER() }${ ARTICLE_PATH() }/${ result.key }` }`
+			`Page ID: ${ result.id }`
 		].join( '\n' )
 	};
 }
