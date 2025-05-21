@@ -1,0 +1,23 @@
+{
+	"mcpServers": {
+		"mediawiki-mcp-server": {
+			"command": "docker",
+			"args": [
+				"run",
+				"-i",
+				"--rm",
+				"-v",
+				"/path/to/MediaWiki-MCP-Server/:/home/node/app",
+				"-w",
+				"/home/node/app",
+				"-u",
+				"node",
+				"node:22",
+				"npm",
+				"run",
+				"start",
+				"--silent"
+			]
+		}
+	}
+}
