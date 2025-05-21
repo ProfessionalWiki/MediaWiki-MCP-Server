@@ -1,14 +1,13 @@
 // TODO: Make tools into an interface
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
-import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { makeApiRequest } from '../common/utils.js';
 import type { MwRestApiSearchPageResponse, MwRestApiSearchResultObject } from '../types/mwRestApi.js';
 import { WIKI_SERVER, ARTICLE_PATH, SCRIPT_PATH } from '../common/config.js';
 
-// TODO: Decide how to register the tool
 export function searchPageTool( server: McpServer ): RegisteredTool {
 	// TODO: Not having named parameters is a pain,
 	// but using low-level Server type or using a wrapper function are addedd complexity

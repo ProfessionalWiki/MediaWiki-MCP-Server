@@ -1,7 +1,7 @@
 // TODO: Make tools into an interface
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
-import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { makeApiRequest } from '../common/utils.js';
