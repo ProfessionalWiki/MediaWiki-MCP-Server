@@ -35,10 +35,51 @@ export interface MwRestApiPageObject {
 	source?: string;
 }
 
+// https://www.mediawiki.org/wiki/API:REST_API/Reference#File_object
+export interface MwRestApiFileObject {
+	title: string;
+	file_description_url: string;
+	latest: {
+		timestamp: string;
+		user: {
+			id: number;
+			name: string;
+		};
+	};
+	preferred: {
+		mediatype: string;
+		size?: number | null;
+		width?: number | null;
+		height?: number | null;
+		duration?: number | null;
+		url: string;
+	};
+	original: {
+		mediatype: string;
+		size?: number | null;
+		width?: number | null;
+		height?: number | null;
+		duration?: number | null;
+		url: string;
+	};
+	thumbnail?: {
+		mediatype: string;
+		size?: number | null;
+		width?: number | null;
+		height?: number | null;
+		duration?: number | null;
+		url: string;
+	};
+}
+
 export interface MwRestApiSearchPageResponse {
 	pages: MwRestApiSearchResultObject[];
 }
 
 export interface MwRestApiGetPageResponse extends Omit<MwRestApiPageObject, 'html' | 'source'> {
 	html_url: string;
+}
+
+export interface MwRestApiGetFilesOnPageResponse {
+	files: MwRestApiFileObject[];
 }

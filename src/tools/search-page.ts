@@ -4,32 +4,33 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
+import { WIKI_SERVER, ARTICLE_PATH, SCRIPT_PATH } from '../common/config.js';
 import { makeApiRequest } from '../common/utils.js';
 import type { MwRestApiSearchPageResponse, MwRestApiSearchResultObject } from '../types/mwRestApi.js';
-import { WIKI_SERVER, ARTICLE_PATH, SCRIPT_PATH } from '../common/config.js';
 
 export function searchPageTool( server: McpServer ): RegisteredTool {
 	// TODO: Not having named parameters is a pain,
 	// but using low-level Server type or using a wrapper function are addedd complexity
 	return server.tool(
 		'search-page',
-		'Search for a wiki page',
+		'Search wiki page titles and contents for the provided search terms, and returns matching pages.',
 		{
-			query: z.string().describe( 'The query to search for' )
+			query: z.string().describe( 'Search terms' ),
+			limit: z.number().describe( 'Maximum number of search results to return (1-100)' ).min( 1 ).max( 100 ).optional()
 		},
 		{
 			title: 'Search page',
 			readOnlyHint: true,
 			destructiveHint: false
 		} as ToolAnnotations,
-		async ( { query } ) => handleSearchPageTool( query )
+		async ( { query, limit } ) => handleSearchPageTool( query, limit )
 	);
 }
 
-async function handleSearchPageTool( query: string ): Promise< CallToolResult > {
+async function handleSearchPageTool( query: string, limit?: number ): Promise< CallToolResult > {
 	const url = `${ WIKI_SERVER() }${ SCRIPT_PATH() }/rest.php/v1/search/page`;
 	const data = await makeApiRequest<MwRestApiSearchPageResponse>(
-		url, { q: query, limit: '10' }
+		url, { q: query, ...( limit ? { limit: limit.toString() } : {} ) }
 	);
 
 	if ( !data ) {
@@ -62,9 +63,9 @@ function getSearchResultToolResult( result: MwRestApiSearchResultObject ): TextC
 		text: [
 			`Title: ${ result.title }`,
 			`Description: ${ result.description ?? 'Not available' }`,
-			`Thumbnail: ${ result.thumbnail?.url ?? 'Not available' }`,
 			`Page ID: ${ result.id }`,
-			`URL: ${ `${ WIKI_SERVER() }${ ARTICLE_PATH() }/${ result.key }` }`
+			`Page URL: ${ `${ WIKI_SERVER() }${ ARTICLE_PATH() }/${ result.key }` }`,
+			`Thumbnail URL: ${ result.thumbnail?.url ?? 'Not available' }`
 		].join( '\n' )
 	};
 }
