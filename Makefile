@@ -22,8 +22,8 @@ test:
 lint:
 	docker run -it --rm -v "$(CURDIR)":/home/node/app -w /home/node/app -u node node:$(NODE_VERSION) npm run lint
 
-run:
+start:
 	docker run -it --rm -v "$(CURDIR)":/home/node/app -w /home/node/app -u node node:$(NODE_VERSION) node build/index.js
 
-dev: build
-	@bash ./dev_script.sh $(ENTRYPOINT) $(NODE_VERSION)
+dev:
+	-docker run -it --rm -p 127.0.0.1:6274:6274 -v "$(CURDIR)":/home/node/app -w /home/node/app -u node -e CLIENT_PORT=6274 node:$(NODE_VERSION) npm run dev
