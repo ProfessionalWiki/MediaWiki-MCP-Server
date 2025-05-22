@@ -72,6 +72,27 @@ export interface MwRestApiFileObject {
 	};
 }
 
+// https://www.mediawiki.org/wiki/API:REST_API/Reference#Revision_object
+export interface MwRestApiRevisionObject {
+	id: number;
+	page?: {
+		id: number;
+		title: string;
+	};
+	user: {
+		id: number;
+		name: string;
+	};
+	timestamp: string;
+	comment: string;
+	size: number;
+	delta: number;
+	minor: boolean;
+	html_url?: string;
+	html?: string;
+	source?: string;
+}
+
 export interface MwRestApiSearchPageResponse {
 	pages: MwRestApiSearchResultObject[];
 }
@@ -80,6 +101,9 @@ export interface MwRestApiGetPageResponse extends Omit<MwRestApiPageObject, 'htm
 	html_url: string;
 }
 
-export interface MwRestApiGetFilesOnPageResponse {
-	files: MwRestApiFileObject[];
+export interface MwRestApiGetPageHistoryResponse {
+	latest: string;
+	older?: string;
+	newer?: string;
+	revisions: MwRestApiRevisionObject[];
 }
