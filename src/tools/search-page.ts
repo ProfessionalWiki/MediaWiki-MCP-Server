@@ -4,8 +4,8 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { WIKI_SERVER, ARTICLE_PATH, SCRIPT_PATH } from '../common/config.js';
-import { makeApiRequest } from '../common/utils.js';
+import { WIKI_SERVER, ARTICLE_PATH } from '../common/config.js';
+import { makeRestRequest } from '../common/utils.js';
 import type { MwRestApiSearchPageResponse, MwRestApiSearchResultObject } from '../types/mwRestApi.js';
 
 export function searchPageTool( server: McpServer ): RegisteredTool {
@@ -28,8 +28,8 @@ export function searchPageTool( server: McpServer ): RegisteredTool {
 }
 
 async function handleSearchPageTool( query: string, limit?: number ): Promise< CallToolResult > {
-	const url = `${ WIKI_SERVER() }${ SCRIPT_PATH() }/rest.php/v1/search/page`;
-	const data = await makeApiRequest<MwRestApiSearchPageResponse>(
+	const url = '/v1/search/page';
+	const data = await makeRestRequest<MwRestApiSearchPageResponse>(
 		url, { q: query, ...( limit ? { limit: limit.toString() } : {} ) }
 	);
 

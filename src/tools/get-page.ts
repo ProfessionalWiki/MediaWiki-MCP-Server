@@ -3,8 +3,7 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { WIKI_SERVER, SCRIPT_PATH } from '../common/config.js';
-import { makeApiRequest } from '../common/utils.js';
+import { makeRestRequest } from '../common/utils.js';
 import type { MwRestApiPageObject } from '../types/mwRestApi.js';
 
 export function getPageTool( server: McpServer ): RegisteredTool {
@@ -24,8 +23,8 @@ export function getPageTool( server: McpServer ): RegisteredTool {
 }
 
 async function handleGetPageTool( title: string ): Promise< CallToolResult > {
-	const url = `${ WIKI_SERVER() }${ SCRIPT_PATH() }/rest.php/v1/page/${ title }/bare`;
-	const data = await makeApiRequest<MwRestApiPageObject>( url );
+	const url = `/v1/page/${ title }/bare`;
+	const data = await makeRestRequest<MwRestApiPageObject>( url );
 
 	if ( !data ) {
 		return {
