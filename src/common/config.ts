@@ -2,12 +2,15 @@ interface AppConfig {
 	WIKI_SERVER: string;
 	ARTICLE_PATH: string;
 	SCRIPT_PATH: string;
+	OAUTH_TOKEN?: string;
 }
 
+// TODO: Need better handling for OAUTH_TOKEN since it will be different for each wiki.
 const defaultConfig: AppConfig = {
-	WIKI_SERVER: 'https://en.wikipedia.org',
-	ARTICLE_PATH: '/wiki',
-	SCRIPT_PATH: '/w'
+	WIKI_SERVER: process.env.WIKI_SERVER || 'https://en.wikipedia.org',
+	ARTICLE_PATH: process.env.ARTICLE_PATH || '/wiki',
+	SCRIPT_PATH: process.env.SCRIPT_PATH || '/w',
+	OAUTH_TOKEN: process.env.OAUTH_TOKEN || undefined
 };
 
 let currentConfig: AppConfig = { ...defaultConfig };

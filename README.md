@@ -8,10 +8,19 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 
 | Name | Description |
 |---|---|
-| `get-page-history` | Returns information about the latest revisions to a wiki page.
+| `get-page-history` | Returns information about the latest revisions to a wiki page. |
 | `get-page` | Returns the standard page object for a wiki page. |
 | `search-page` | Search wiki page titles and contents for the provided search terms. |
 | `set-wiki` | Set the wiki to use for the current session. |
+
+### Environment variables
+
+| Name | Description |
+|---|---|
+| `WIKI_SERVER` | Domain of the wiki (e.g. `https://en.wikipedia.org`) |
+| `ARTICLE_PATH` | Article path of the wiki (e.g. `/wiki`) |
+| `SCRIPT_PATH` | Script path of the wiki (e.g. `/w`) |
+| `OAUTH_TOKEN` | OAuth token from the [OAuth extension](https://www.mediawiki.org/wiki/Special:MyLanguage/Extension:OAuth) |
 
 ## Setup
 
@@ -21,7 +30,6 @@ make install
 ```
 
 ## Development
-
 
 ### [MCP Inspector](https://github.com/modelcontextprotocol/inspector)
 
