@@ -28,9 +28,9 @@ export function searchPageTool( server: McpServer ): RegisteredTool {
 }
 
 async function handleSearchPageTool( query: string, limit?: number ): Promise< CallToolResult > {
-	const url = '/v1/search/page';
 	const data = await makeRestRequest<MwRestApiSearchPageResponse>(
-		url, { q: query, ...( limit ? { limit: limit.toString() } : {} ) }
+		'/v1/search/page',
+		{ q: query, ...( limit ? { limit: limit.toString() } : {} ) }
 	);
 
 	if ( !data ) {

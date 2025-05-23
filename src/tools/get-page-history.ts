@@ -33,7 +33,6 @@ async function handleGetPageHistoryTool(
 	newerThan?: number,
 	filter?: string
 ): Promise< CallToolResult > {
-	const url = `/v1/page/${ title }/history`;
 	const params: Record<string, string> = {};
 	if ( olderThan ) {
 		params.olderThan = olderThan.toString();
@@ -45,7 +44,10 @@ async function handleGetPageHistoryTool(
 		params.filter = filter;
 	}
 
-	const data = await makeRestRequest<MwRestApiGetPageHistoryResponse>( url, params );
+	const data = await makeRestRequest<MwRestApiGetPageHistoryResponse>(
+		`/v1/page/${ title }/history`,
+		params
+	);
 
 	if ( !data?.revisions ) {
 		return {
