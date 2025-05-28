@@ -9,6 +9,8 @@ async function fetchCore(
 	options?: {
 		params?: Record<string, string>;
 		headers?: Record<string, string>;
+		body?: Record<string, unknown>;
+		method?: string;
 	}
 ): Promise<Response> {
 	let url = baseUrl;
@@ -32,7 +34,14 @@ async function fetchCore(
 		Object.assign( requestHeaders, options.headers );
 	}
 
-	const response = await fetch( url, { headers: requestHeaders } );
+	const fetchOptions: { headers: Record<string, string>; method?: string; body?: string } = {
+		headers: requestHeaders,
+		method: options?.method || 'GET'
+	};
+	if ( options?.body ) {
+		fetchOptions.body = JSON.stringify( options.body );
+	}
+	const response = await fetch( url, fetchOptions );
 	if ( !response.ok ) {
 		const errorBody = await response.text().catch( () => 'Could not read error response body' );
 		throw new Error(
@@ -64,8 +73,28 @@ export async function makeRestGetRequest<T>(
 ): Promise<T | null> {
 	try {
 		const response = await fetchCore( `${ WIKI_SERVER() }${ SCRIPT_PATH() }/rest.php${ path }`, {
-			params,
+			params: params,
 			headers: { Accept: 'application/json' }
+		} );
+		return ( await response.json() ) as T;
+	} catch ( error ) {
+		// console.error('Error making API request:', error);
+		return null;
+	}
+}
+
+export async function makeRestPutRequest<T>(
+	path: string,
+	body: Record<string, unknown>
+): Promise<T | null> {
+	try {
+		const response = await fetchCore( `${ WIKI_SERVER() }${ SCRIPT_PATH() }/rest.php${ path }`, {
+			headers: {
+				Accept: 'application/json',
+				'Content-Type': 'application/json'
+			},
+			method: 'PUT',
+			body: body
 		} );
 		return ( await response.json() ) as T;
 	} catch ( error ) {
