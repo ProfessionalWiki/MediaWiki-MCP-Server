@@ -26,4 +26,4 @@ start:
 	docker run -it --rm -v "$(CURDIR)":/home/node/app -w /home/node/app -u node node:$(NODE_VERSION) node build/index.js
 
 dev:
-	-docker run -it --rm -p 127.0.0.1:6274:6274 -v "$(CURDIR)":/home/node/app -w /home/node/app -u node -e CLIENT_PORT=6274 node:$(NODE_VERSION) npm run dev
+	-docker run -it --rm -p 127.0.0.1:6274:6274 -p 127.0.0.1:6277:6277 -v "$(CURDIR)":/home/node/app -w /home/node/app -u node -e CLIENT_PORT=6274 node:$(NODE_VERSION) npm run dev
