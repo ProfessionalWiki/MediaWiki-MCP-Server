@@ -5,7 +5,7 @@ import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { WIKI_SERVER, ARTICLE_PATH } from '../common/config.js';
-import { makeRestRequest } from '../common/utils.js';
+import { makeRestGetRequest } from '../common/utils.js';
 import type { MwRestApiSearchPageResponse, MwRestApiSearchResultObject } from '../types/mwRestApi.js';
 
 export function searchPageTool( server: McpServer ): RegisteredTool {
@@ -28,7 +28,7 @@ export function searchPageTool( server: McpServer ): RegisteredTool {
 }
 
 async function handleSearchPageTool( query: string, limit?: number ): Promise< CallToolResult > {
-	const data = await makeRestRequest<MwRestApiSearchPageResponse>(
+	const data = await makeRestGetRequest<MwRestApiSearchPageResponse>(
 		'/v1/search/page',
 		{ q: query, ...( limit ? { limit: limit.toString() } : {} ) }
 	);

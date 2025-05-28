@@ -58,7 +58,7 @@ export async function makeApiRequest<T>(
 	}
 }
 
-export async function makeRestRequest<T>(
+export async function makeRestGetRequest<T>(
 	path: string,
 	params?: Record<string, string>
 ): Promise<T | null> {

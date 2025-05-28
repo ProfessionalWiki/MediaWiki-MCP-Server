@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { makeRestRequest } from '../common/utils.js';
+import { makeRestGetRequest } from '../common/utils.js';
 import type { MwRestApiPageObject } from '../types/mwRestApi.js';
 
 export function getPageTool( server: McpServer ): RegisteredTool {
@@ -23,7 +23,7 @@ export function getPageTool( server: McpServer ): RegisteredTool {
 }
 
 async function handleGetPageTool( title: string ): Promise< CallToolResult > {
-	const data = await makeRestRequest<MwRestApiPageObject>( `/v1/page/${ title }/bare` );
+	const data = await makeRestGetRequest<MwRestApiPageObject>( `/v1/page/${ title }/bare` );
 
 	if ( !data ) {
 		return {
