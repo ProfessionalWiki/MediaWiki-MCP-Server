@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { WIKI_SERVER, ARTICLE_PATH } from '../common/config.js';
+import { wikiServer, articlePath } from '../common/config.js';
 import { makeRestGetRequest } from '../common/utils.js';
 import type { MwRestApiSearchPageResponse, MwRestApiSearchResultObject } from '../types/mwRestApi.js';
 
@@ -74,7 +74,7 @@ function getSearchResultToolResult( result: MwRestApiSearchResultObject ): TextC
 			`Title: ${ result.title }`,
 			`Description: ${ result.description ?? 'Not available' }`,
 			`Page ID: ${ result.id }`,
-			`Page URL: ${ `${ WIKI_SERVER() }${ ARTICLE_PATH() }/${ result.key }` }`,
+			`Page URL: ${ `${ wikiServer() }${ articlePath() }/${ result.key }` }`,
 			`Thumbnail URL: ${ result.thumbnail?.url ?? 'Not available' }`
 		].join( '\n' )
 	};

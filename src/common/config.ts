@@ -1,51 +1,70 @@
-interface AppConfig {
-	WIKI_SERVER: string;
-	ARTICLE_PATH: string;
-	SCRIPT_PATH: string;
-	OAUTH_TOKEN?: string;
+// TODO: Investigate if we can define config as a MCP resource
+import * as fs from 'fs';
+import * as path from 'path';
+
+export interface WikiConfig {
+	sitename: string;
+	server: string;
+	articlepath: string;
+	scriptpath: string;
+	token?: string;
 }
 
-// TODO: Need better handling for OAUTH_TOKEN since it will be different for each wiki.
-const defaultConfig: AppConfig = {
-	WIKI_SERVER: process.env.WIKI_SERVER || 'https://en.wikipedia.org',
-	ARTICLE_PATH: process.env.ARTICLE_PATH || '/wiki',
-	SCRIPT_PATH: process.env.SCRIPT_PATH || '/w',
-	OAUTH_TOKEN: process.env.OAUTH_TOKEN || undefined
-};
-
-let currentConfig: AppConfig = { ...defaultConfig };
-
-export function getConfig(): Readonly<AppConfig> {
-	return { ...currentConfig }; // Return a copy to prevent direct external mutation
+interface Config {
+	wikis: { [key: string]: WikiConfig };
+	defaultWiki: string;
 }
 
-export function updateConfig( newConfig: Partial<AppConfig> ): void {
-	const effectiveNewConfig = { ...newConfig };
+const configPath = path.join( 'config.json' );
 
-	// If WIKI_SERVER is being updated, and ARTICLE_PATH/SCRIPT_PATH are not explicitly provided,
-	// reset them to their global defaults from defaultConfig.
-	if ( newConfig.WIKI_SERVER && newConfig.WIKI_SERVER !== currentConfig.WIKI_SERVER ) {
-		if ( newConfig.ARTICLE_PATH === undefined ) {
-			effectiveNewConfig.ARTICLE_PATH = defaultConfig.ARTICLE_PATH;
-		}
-		if ( newConfig.SCRIPT_PATH === undefined ) {
-			effectiveNewConfig.SCRIPT_PATH = defaultConfig.SCRIPT_PATH;
-		}
+function loadConfigFromFile(): Config {
+	if ( !fs.existsSync( configPath ) ) {
+		throw new Error( `Configuration file not found: ${ configPath }` );
 	}
-	currentConfig = { ...currentConfig, ...effectiveNewConfig };
+	const rawData = fs.readFileSync( configPath, 'utf-8' );
+	return JSON.parse( rawData ) as Config;
+}
+
+const config = loadConfigFromFile();
+const defaultWiki = config.defaultWiki;
+let currentConfig: WikiConfig = config.wikis[ defaultWiki ];
+
+if ( !currentConfig ) {
+	throw new Error( `Default wiki "${ defaultWiki }" not found in config.json` );
+}
+
+export function getConfig(): Readonly<WikiConfig> {
+	return currentConfig;
+}
+
+export function setCurrentWiki( wiki: string ): void {
+	if ( !config.wikis[ wiki ] ) {
+		throw new Error( `Wiki "${ wiki }" not found in config.json` );
+	}
+	currentConfig = config.wikis[ wiki ];
+}
+
+export function updateWikiConfig( wiki: string, newConfig: WikiConfig ): void {
+	config.wikis[ wiki ] = { ...newConfig };
+	fs.writeFileSync( configPath, JSON.stringify( config, null, 2 ), 'utf-8' );
 }
 
 export function resetConfig(): void {
-	currentConfig = { ...defaultConfig };
+	if ( config.wikis[ defaultWiki ] ) {
+		currentConfig = config.wikis[ defaultWiki ];
+	} else {
+		throw new Error( `Default wiki "${ defaultWiki }" not found in config.json` );
+	}
 }
 
-export const WIKI_SERVER = (): string => getConfig().WIKI_SERVER;
-export const ARTICLE_PATH = (): string => getConfig().ARTICLE_PATH;
-export const SCRIPT_PATH = (): string => getConfig().SCRIPT_PATH;
-export const OAUTH_TOKEN = (): string|undefined => {
-	const token = getConfig().OAUTH_TOKEN;
+export const wikiServer = (): string => getConfig().server;
+export const articlePath = (): string => getConfig().articlepath;
+export const scriptPath = (): string => getConfig().scriptpath;
+export const oauthToken = (): string | null | undefined => {
+	const token = getConfig().token;
 	return isTokenValid( token ) ? token : undefined;
 };
+export const siteName = (): string | undefined => getConfig().sitename;
 
 function isTokenValid( token: string | undefined ): boolean {
 	return token !== undefined && token !== null && token !== '';

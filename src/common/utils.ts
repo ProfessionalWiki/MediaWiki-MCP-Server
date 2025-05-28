@@ -1,6 +1,6 @@
 import fetch, { Response } from 'node-fetch';
 import { USER_AGENT } from '../server.js';
-import { SCRIPT_PATH, WIKI_SERVER, OAUTH_TOKEN, ARTICLE_PATH } from './config.js';
+import { scriptPath, wikiServer, oauthToken, articlePath } from './config.js';
 
 async function fetchCore(
 	baseUrl: string,
@@ -65,18 +65,23 @@ export async function makeRestGetRequest<T>(
 	params?: Record<string, string>,
 	needAuth: boolean = false
 ): Promise<T | null> {
-	const headers: Record<string, string> = {
-		Accept: 'application/json'
-	};
-	const token = OAUTH_TOKEN();
-	if ( needAuth && token !== undefined ) {
-		headers.Authorization = `Bearer ${ token }`;
+	try {
+		const headers: Record<string, string> = {
+			Accept: 'application/json'
+		};
+		const token = oauthToken();
+		if ( needAuth && token !== undefined ) {
+			headers.Authorization = `Bearer ${ token }`;
+		}
+		const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
+			params: params,
+			headers: headers
+		} );
+		return ( await response.json() ) as T;
+	} catch ( error ) {
+		// console.error('Error making API request:', error);
+		return null;
 	}
-	const response = await fetchCore( `${ WIKI_SERVER() }${ SCRIPT_PATH() }/rest.php${ path }`, {
-		params: params,
-		headers: headers
-	} );
-	return ( await response.json() ) as T;
 }
 
 export async function makeRestPutRequest<T>(
@@ -84,20 +89,25 @@ export async function makeRestPutRequest<T>(
 	body: Record<string, unknown>,
 	needAuth: boolean = false
 ): Promise<T | null> {
-	const headers: Record<string, string> = {
-		Accept: 'application/json',
-		'Content-Type': 'application/json'
-	};
-	const token = OAUTH_TOKEN();
-	if ( needAuth && token !== undefined ) {
-		headers.Authorization = `Bearer ${ token }`;
+	try {
+		const headers: Record<string, string> = {
+			Accept: 'application/json',
+			'Content-Type': 'application/json'
+		};
+		const token = oauthToken();
+		if ( needAuth && token !== undefined ) {
+			headers.Authorization = `Bearer ${ token }`;
+		}
+		const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
+			headers: headers,
+			method: 'PUT',
+			body: body
+		} );
+		return ( await response.json() ) as T;
+	} catch ( error ) {
+		// console.error('Error making API request:', error);
+		return null;
 	}
-	const response = await fetchCore( `${ WIKI_SERVER() }${ SCRIPT_PATH() }/rest.php${ path }`, {
-		headers: headers,
-		method: 'PUT',
-		body: body
-	} );
-	return ( await response.json() ) as T;
 }
 
 export async function makeRestPostRequest<T>(
@@ -105,20 +115,25 @@ export async function makeRestPostRequest<T>(
 	body?: Record<string, unknown>,
 	needAuth: boolean = false
 ): Promise<T | null> {
-	const headers: Record<string, string> = {
-		Accept: 'application/json',
-		'Content-Type': 'application/json'
-	};
-	const token = OAUTH_TOKEN();
-	if ( needAuth && token !== undefined ) {
-		headers.Authorization = `Bearer ${ token }`;
+	try {
+		const headers: Record<string, string> = {
+			Accept: 'application/json',
+			'Content-Type': 'application/json'
+		};
+		const token = oauthToken();
+		if ( needAuth && token !== undefined ) {
+			headers.Authorization = `Bearer ${ token }`;
+		}
+		const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
+			headers: headers,
+			method: 'POST',
+			body: body
+		} );
+		return ( await response.json() ) as T;
+	} catch ( error ) {
+		// console.error('Error making API request:', error);
+		return null;
 	}
-	const response = await fetchCore( `${ WIKI_SERVER() }${ SCRIPT_PATH() }/rest.php${ path }`, {
-		headers: headers,
-		method: 'POST',
-		body: body
-	} );
-	return ( await response.json() ) as T;
 }
 
 export async function fetchPageHtml( url: string ): Promise<string | null> {
@@ -144,5 +159,5 @@ export async function fetchImageAsBase64( url: string ): Promise<string | null> 
 }
 
 export function getPageUrl( title: string ): string {
-	return `${ WIKI_SERVER() }${ ARTICLE_PATH() }/${ encodeURIComponent( title ) }`;
+	return `${ wikiServer() }${ articlePath() }/${ encodeURIComponent( title ) }`;
 }
