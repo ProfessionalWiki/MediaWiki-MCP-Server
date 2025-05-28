@@ -42,3 +42,4 @@ export function resetConfig(): void {
 export const WIKI_SERVER = (): string => getConfig().WIKI_SERVER;
 export const ARTICLE_PATH = (): string => getConfig().ARTICLE_PATH;
 export const SCRIPT_PATH = (): string => getConfig().SCRIPT_PATH;
+export const OAUTH_TOKEN = (): string|undefined => getConfig().OAUTH_TOKEN;

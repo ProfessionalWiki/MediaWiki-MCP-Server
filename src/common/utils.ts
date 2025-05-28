@@ -1,6 +1,6 @@
 import fetch, { Response } from 'node-fetch';
 import { SERVER_NAME, SERVER_VERSION } from '../server.js';
-import { SCRIPT_PATH, WIKI_SERVER } from './config.js';
+import { SCRIPT_PATH, WIKI_SERVER, OAUTH_TOKEN } from './config.js';
 
 const USER_AGENT: string = `${ SERVER_NAME }/${ SERVER_VERSION }`;
 
@@ -72,9 +72,16 @@ export async function makeRestGetRequest<T>(
 	params?: Record<string, string>
 ): Promise<T | null> {
 	try {
+		const headers: Record<string, string> = {
+			Accept: 'application/json'
+		};
+		const token = OAUTH_TOKEN();
+		if ( token !== undefined ) {
+			headers.Authorization = `Bearer ${ token }`;
+		}
 		const response = await fetchCore( `${ WIKI_SERVER() }${ SCRIPT_PATH() }/rest.php${ path }`, {
 			params: params,
-			headers: { Accept: 'application/json' }
+			headers: headers
 		} );
 		return ( await response.json() ) as T;
 	} catch ( error ) {
@@ -88,11 +95,16 @@ export async function makeRestPutRequest<T>(
 	body: Record<string, unknown>
 ): Promise<T | null> {
 	try {
+		const headers: Record<string, string> = {
+			Accept: 'application/json',
+			'Content-Type': 'application/json'
+		};
+		const token = OAUTH_TOKEN();
+		if ( token !== undefined ) {
+			headers.Authorization = `Bearer ${ token }`;
+		}
 		const response = await fetchCore( `${ WIKI_SERVER() }${ SCRIPT_PATH() }/rest.php${ path }`, {
-			headers: {
-				Accept: 'application/json',
-				'Content-Type': 'application/json'
-			},
+			headers: headers,
 			method: 'PUT',
 			body: body
 		} );
