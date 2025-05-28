@@ -6,12 +6,14 @@ import { getPageTool } from './get-page.js';
 import { getPageHistoryTool } from './get-page-history.js';
 import { searchPageTool } from './search-page.js';
 import { setWikiTool } from './set-wiki.js';
+import { updatePageTool } from './update-page.js';
 
 const toolRegistrars = [
 	getPageTool,
 	getPageHistoryTool,
 	searchPageTool,
-	setWikiTool
+	setWikiTool,
+	updatePageTool,
 ];
 
 export function registerAllTools( server: McpServer ): RegisteredTool[] {
