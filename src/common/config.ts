@@ -42,4 +42,11 @@ export function resetConfig(): void {
 export const WIKI_SERVER = (): string => getConfig().WIKI_SERVER;
 export const ARTICLE_PATH = (): string => getConfig().ARTICLE_PATH;
 export const SCRIPT_PATH = (): string => getConfig().SCRIPT_PATH;
-export const OAUTH_TOKEN = (): string|undefined => getConfig().OAUTH_TOKEN;
+export const OAUTH_TOKEN = (): string|undefined => {
+	const token = getConfig().OAUTH_TOKEN;
+	return isTokenValid( token ) ? token : undefined;
+};
+
+function isTokenValid( token: string | undefined ): boolean {
+	return token !== undefined && token !== null && token !== '';
+}

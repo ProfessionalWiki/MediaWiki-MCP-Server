@@ -51,10 +51,6 @@ async function fetchCore(
 	return response;
 }
 
-function isTokenValid( token: string | undefined ): boolean {
-	return token !== undefined && token !== null && token !== '';
-}
-
 export async function makeApiRequest<T>(
 	url: string,
 	params?: Record<string, string>
@@ -80,11 +76,9 @@ export async function makeRestGetRequest<T>(
 		const headers: Record<string, string> = {
 			Accept: 'application/json'
 		};
-		if ( needAuth ) {
-			const token = OAUTH_TOKEN();
-			if ( isTokenValid( token ) ) {
-				headers.Authorization = `Bearer ${ token }`;
-			}
+		const token = OAUTH_TOKEN();
+		if ( needAuth && token !== undefined ) {
+			headers.Authorization = `Bearer ${ token }`;
 		}
 		const response = await fetchCore( `${ WIKI_SERVER() }${ SCRIPT_PATH() }/rest.php${ path }`, {
 			params: params,
@@ -107,11 +101,9 @@ export async function makeRestPutRequest<T>(
 			Accept: 'application/json',
 			'Content-Type': 'application/json'
 		};
-		if ( needAuth ) {
-			const token = OAUTH_TOKEN();
-			if ( isTokenValid( token ) ) {
-				headers.Authorization = `Bearer ${ token }`;
-			}
+		const token = OAUTH_TOKEN();
+		if ( needAuth && token !== undefined ) {
+			headers.Authorization = `Bearer ${ token }`;
 		}
 		const response = await fetchCore( `${ WIKI_SERVER() }${ SCRIPT_PATH() }/rest.php${ path }`, {
 			headers: headers,
