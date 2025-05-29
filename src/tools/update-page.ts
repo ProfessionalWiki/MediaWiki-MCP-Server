@@ -30,7 +30,7 @@ async function handleUpdatePageTool( title: string, source: string, latestId: nu
 		source: source,
 		comment: comment,
 		latest: { id: latestId }
-	} );
+	}, true );
 
 	if ( !data ) {
 		return {
