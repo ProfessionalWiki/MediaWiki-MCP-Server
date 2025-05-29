@@ -23,7 +23,7 @@ export function getPageTool( server: McpServer ): RegisteredTool {
 }
 
 async function handleGetPageTool( title: string ): Promise< CallToolResult > {
-	const data = await makeRestGetRequest<MwRestApiPageObject>( `/v1/page/${ title }/bare` );
+	const data = await makeRestGetRequest<MwRestApiPageObject>( `/v1/page/${ encodeURIComponent( title ) }/bare` );
 
 	if ( !data ) {
 		return {

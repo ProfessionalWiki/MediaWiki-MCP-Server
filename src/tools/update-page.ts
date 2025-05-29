@@ -26,7 +26,7 @@ export function updatePageTool( server: McpServer ): RegisteredTool {
 }
 
 async function handleUpdatePageTool( title: string, source: string, latestId: number, comment?: string ): Promise<CallToolResult> {
-	const data = await makeRestPutRequest<MwRestApiPageObject>( `/v1/page/${ title }`, {
+	const data = await makeRestPutRequest<MwRestApiPageObject>( `/v1/page/${ encodeURIComponent( title ) }`, {
 		source: source,
 		comment: comment,
 		latest: { id: latestId }
