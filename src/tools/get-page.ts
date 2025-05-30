@@ -42,21 +42,29 @@ async function handleGetPageTool( title: string, content: ContentFormat ): Promi
 			subEndpoint = '/with_html';
 			break;
 	}
+	try {
+		const data = await makeRestGetRequest<MwRestApiPageObject>( `/v1/page/${ encodeURIComponent( title ) }${ subEndpoint }` );
 
-	const data = await makeRestGetRequest<MwRestApiPageObject>( `/v1/page/${ encodeURIComponent( title ) }${ subEndpoint }` );
+		if ( !data ) {
+			return {
+				content: [
+					{ type: 'text', text: 'Failed to retrieve page data: No data returned from API' } as TextContent
+				],
+				isError: true
+			};
+		}
 
-	if ( !data ) {
+		return {
+			content: getPageToolResult( data )
+		};
+	} catch ( error ) {
 		return {
 			content: [
-				{ type: 'text', text: 'Failed to retrieve page data' } as TextContent
+				{ type: 'text', text: `Failed to retrieve page data: ${ ( error as Error ).message }` } as TextContent
 			],
 			isError: true
 		};
 	}
-
-	return {
-		content: getPageToolResult( data )
-	};
 }
 
 function getPageToolResult( result: MwRestApiPageObject ): TextContent[] {

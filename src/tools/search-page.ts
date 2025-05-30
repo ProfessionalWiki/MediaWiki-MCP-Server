@@ -28,32 +28,41 @@ export function searchPageTool( server: McpServer ): RegisteredTool {
 }
 
 async function handleSearchPageTool( query: string, limit?: number ): Promise< CallToolResult > {
-	const data = await makeRestGetRequest<MwRestApiSearchPageResponse>(
-		'/v1/search/page',
-		{ q: query, ...( limit ? { limit: limit.toString() } : {} ) }
-	);
+	try {
+		const data = await makeRestGetRequest<MwRestApiSearchPageResponse>(
+			'/v1/search/page',
+			{ q: query, ...( limit ? { limit: limit.toString() } : {} ) }
+		);
 
-	if ( !data ) {
+		if ( !data ) {
+			return {
+				content: [
+					{ type: 'text', text: 'Failed to retrieve search data: No data returned from API' } as TextContent
+				],
+				isError: true
+			};
+		}
+
+		const pages = data.pages || [];
+		if ( pages.length === 0 ) {
+			return {
+				content: [
+					{ type: 'text', text: `No pages found for ${ query }` } as TextContent
+				]
+			};
+		}
+
+		return {
+			content: pages.map( getSearchResultToolResult )
+		};
+	} catch ( error ) {
 		return {
 			content: [
-				{ type: 'text', text: 'Failed to retrieve search data' } as TextContent
+				{ type: 'text', text: `Failed to retrieve search data: ${ ( error as Error ).message }` } as TextContent
 			],
 			isError: true
 		};
 	}
-
-	const pages = data.pages || [];
-	if ( pages.length === 0 ) {
-		return {
-			content: [
-				{ type: 'text', text: `No pages found for ${ query }` } as TextContent
-			]
-		};
-	}
-
-	return {
-		content: pages.map( getSearchResultToolResult )
-	};
 }
 
 // TODO: Decide how to handle the tool's result

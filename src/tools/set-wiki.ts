@@ -41,39 +41,51 @@ export function setWikiTool( server: McpServer ): RegisteredTool {
 		async ( args: {
 			wikiUrl: string;
 		} ): Promise<CallToolResult> => {
-			const wikiServer = parseWikiUrl( args.wikiUrl );
-			const { scriptPath, articlePath } = await getWikiPaths( wikiServer, args.wikiUrl );
+			try {
+				const wikiServer = parseWikiUrl( args.wikiUrl );
+				const { scriptPath, articlePath } = await getWikiPaths( wikiServer, args.wikiUrl );
 
-			if ( scriptPath !== undefined && articlePath !== undefined ) {
-				updateConfig( {
-					WIKI_SERVER: wikiServer,
-					ARTICLE_PATH: articlePath,
-					SCRIPT_PATH: scriptPath
-				} );
+				if ( scriptPath !== undefined && articlePath !== undefined ) {
+					updateConfig( {
+						WIKI_SERVER: wikiServer,
+						ARTICLE_PATH: articlePath,
+						SCRIPT_PATH: scriptPath
+					} );
 
-				const newConfig = getConfig();
+					const newConfig = getConfig();
+					return {
+						content: [
+							{
+								type: 'text',
+								text: [
+									'Wiki set successfully.',
+									`Wiki Server: ${ newConfig.WIKI_SERVER }`,
+									`Article Path: ${ newConfig.ARTICLE_PATH }`,
+									`Script Path: ${ newConfig.SCRIPT_PATH }`
+								].join( '\n' )
+							} as TextContent
+						]
+					};
+				} else {
+					return {
+						content: [
+							{
+								type: 'text',
+								text: 'Failed to determine wiki paths. Please ensure the URL is correct and the wiki is accessible.'
+							} as TextContent
+						],
+						error: true
+					};
+				}
+			} catch ( error ) {
 				return {
 					content: [
 						{
 							type: 'text',
-							text: [
-								'Wiki set successfully.',
-								`Wiki Server: ${ newConfig.WIKI_SERVER }`,
-								`Article Path: ${ newConfig.ARTICLE_PATH }`,
-								`Script Path: ${ newConfig.SCRIPT_PATH }`
-							].join( '\n' )
-						} as TextContent
-					]
-				};
-			} else {
-				return {
-					content: [
-						{
-							type: 'text',
-							text: 'Failed to determine wiki paths. Please ensure the URL is correct and the wiki is accessible.'
+							text: `Failed to set wiki: ${ ( error as Error ).message }`
 						} as TextContent
 					],
-					error: true
+					isError: true
 				};
 			}
 		}
@@ -141,7 +153,9 @@ async function getWikiPathsFromApi(
 				articlePath: articlepath.replace( '/$1', '' )
 			};
 		}
-	} catch ( error ) {}
+	} catch ( error ) {
+		// Suppress error to allow probing of other paths
+	}
 	return null;
 }
 

@@ -23,20 +23,29 @@ export function getFileTool( server: McpServer ): RegisteredTool {
 }
 
 async function handleGetFileTool( title: string ): Promise< CallToolResult > {
-	const data = await makeRestGetRequest<MwRestApiFileObject>( `/v1/file/${ encodeURIComponent( title ) }` );
+	try {
+		const data = await makeRestGetRequest<MwRestApiFileObject>( `/v1/file/${ encodeURIComponent( title ) }` );
 
-	if ( !data ) {
+		if ( !data ) {
+			return {
+				content: [
+					{ type: 'text', text: 'Failed to retrieve file data: No data returned from API' } as TextContent
+				],
+				isError: true
+			};
+		}
+
+		return {
+			content: getFileToolResult( data )
+		};
+	} catch ( error ) {
 		return {
 			content: [
-				{ type: 'text', text: 'Failed to retrieve file data' } as TextContent
+				{ type: 'text', text: `Failed to retrieve file data: ${ ( error as Error ).message }` } as TextContent
 			],
 			isError: true
 		};
 	}
-
-	return {
-		content: getFileToolResult( data )
-	};
 }
 
 function getFileToolResult( result: MwRestApiFileObject ): TextContent[] {
