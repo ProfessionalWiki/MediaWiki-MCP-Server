@@ -49,17 +49,21 @@ async function handleGetPageHistoryTool(
 			params
 		);
 
-		if ( !data?.revisions ) {
-			// It's possible for data to be non-null but revisions to be missing
-			// if the API call was successful but the page has no revisions
-			// or due to other valid API responses.
-			// We treat this as an error for the tool's purpose if data itself is null.
-			const errorMessage = data ? 'No revisions found for page' : 'Failed to retrieve page data: No data returned from API';
+		if ( !data ) {
+			const errorMessage = 'Failed to retrieve page data: No data returned from API';
 			return {
 				content: [
 					{ type: 'text', text: errorMessage } as TextContent
 				],
 				isError: true
+			};
+		}
+
+		if ( data.revisions.length === 0 ) {
+			return {
+				content: [
+					{ type: 'text', text: 'No revisions found for page' } as TextContent
+				]
 			};
 		}
 
