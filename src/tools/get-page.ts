@@ -6,6 +6,8 @@ import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontext
 import { makeRestGetRequest } from '../common/utils.js';
 import type { MwRestApiPageObject } from '../types/mwRestApi.js';
 
+const CHUNK_SIZE = 90000;
+
 enum ContentFormat {
 	noContent = 'noContent',
 	withSource = 'withSource',
@@ -84,17 +86,33 @@ function getPageToolResult( result: MwRestApiPageObject ): TextContent[] {
 	];
 
 	if ( result.source !== undefined ) {
-		results.push( {
-			type: 'text',
-			text: `Source:\n${ result.source }`
-		} );
+		const totalChunks = Math.ceil( result.source.length / CHUNK_SIZE );
+
+		for ( let i = 0; i < result.source.length; i += CHUNK_SIZE ) {
+			const currentChunk = Math.floor( i / CHUNK_SIZE ) + 1;
+			const prefix = `Source part ${ currentChunk }/${ totalChunks }:\n`;
+			const sourceChunk = result.source.slice( i, i + CHUNK_SIZE );
+
+			results.push( {
+				type: 'text',
+				text: `${ prefix }${ sourceChunk }`
+			} );
+		}
 	}
 
 	if ( result.html !== undefined ) {
-		results.push( {
-			type: 'text',
-			text: `HTML:\n${ result.html }`
-		} );
+		const totalChunks = Math.ceil( result.html.length / CHUNK_SIZE );
+
+		for ( let i = 0; i < result.html.length; i += CHUNK_SIZE ) {
+			const currentChunk = Math.floor( i / CHUNK_SIZE ) + 1;
+			const prefix = `HTML part ${ currentChunk }/${ totalChunks }:\n`;
+			const htmlChunk = result.html.slice( i, i + CHUNK_SIZE );
+
+			results.push( {
+				type: 'text',
+				text: `${ prefix }${ htmlChunk }`
+			} );
+		}
 	}
 
 	return results;
