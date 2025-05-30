@@ -6,12 +6,15 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 
 ### Tools
 
-| Name | Description |
+| Name | Description | 
 |---|---|
-| `get-page-history` | Returns information about the latest revisions to a wiki page. |
+| `create-page` 🔑 | Create a new wiki page. |
+| `get-file` | Returns the standard file object for a file page. |
 | `get-page` | Returns the standard page object for a wiki page. |
+| `get-page-history` | Returns information about the latest revisions to a wiki page. |
 | `search-page` | Search wiki page titles and contents for the provided search terms. |
 | `set-wiki` | Set the wiki to use for the current session. |
+| `update-page` 🔑 | Update an existing wiki page. |
 
 ### Environment variables
 
