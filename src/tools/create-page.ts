@@ -21,16 +21,24 @@ export function createPageTool( server: McpServer ): RegisteredTool {
 			readOnlyHint: false,
 			destructiveHint: true
 		} as ToolAnnotations,
-		async ( { source, title, comment, contentModel } ) => handleCreatePageTool( source, title, comment, contentModel )
+		async (
+			{ source, title, comment, contentModel }
+		) => handleCreatePageTool( source, title, comment, contentModel )
 	);
 }
 
-async function handleCreatePageTool( source: string, title: string, comment?: string, contentModel?: string ): Promise<CallToolResult> {
-	const data = await makeRestPostRequest<MwRestApiPageObject>( `/v1/page`, {
+async function handleCreatePageTool(
+	source: string,
+	title: string,
+	comment?: string,
+	contentModel?: string
+): Promise<CallToolResult> {
+	const data = await makeRestPostRequest<MwRestApiPageObject>( '/v1/page', {
 		source: source,
 		title: title,
 		comment: comment || '',
-		content_model: contentModel,
+		// eslint-disable-next-line camelcase
+		content_model: contentModel
 	}, true );
 
 	if ( !data ) {

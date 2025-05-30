@@ -21,11 +21,18 @@ export function updatePageTool( server: McpServer ): RegisteredTool {
 			readOnlyHint: false,
 			destructiveHint: true
 		} as ToolAnnotations,
-		async ( { title, source, latestId, comment } ) => handleUpdatePageTool( title, source, latestId, comment )
+		async (
+			{ title, source, latestId, comment }
+		) => handleUpdatePageTool( title, source, latestId, comment )
 	);
 }
 
-async function handleUpdatePageTool( title: string, source: string, latestId: number, comment?: string ): Promise<CallToolResult> {
+async function handleUpdatePageTool(
+	title: string,
+	source: string,
+	latestId: number,
+	comment?: string
+): Promise<CallToolResult> {
 	const data = await makeRestPutRequest<MwRestApiPageObject>( `/v1/page/${ encodeURIComponent( title ) }`, {
 		source: source,
 		comment: comment,

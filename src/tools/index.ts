@@ -17,7 +17,7 @@ const toolRegistrars = [
 	setWikiTool,
 	updatePageTool,
 	getFileTool,
-	createPageTool,
+	createPageTool
 ];
 
 export function registerAllTools( server: McpServer ): RegisteredTool[] {
