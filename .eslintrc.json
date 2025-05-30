@@ -5,5 +5,8 @@
 		"wikimedia/node",
 		"wikimedia/language/es2022",
 		"@wmde/wikimedia-typescript"
-	]
+	],
+	"rules": {
+		"no-shadow": "off"
+	}
 }

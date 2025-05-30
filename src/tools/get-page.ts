@@ -6,24 +6,44 @@ import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontext
 import { makeRestGetRequest } from '../common/utils.js';
 import type { MwRestApiPageObject } from '../types/mwRestApi.js';
 
+enum ContentFormat {
+	noContent = 'noContent',
+	withSource = 'withSource',
+	withHtml = 'withHtml'
+}
+
 export function getPageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'get-page',
-		'Returns the standard page object for a wiki page, including the API route to fetch the latest content in HTML, the license, and information about the latest revision.',
+		'Returns the standard page object for a wiki page, optionally including page source or rendered HTML, and including the license and information about the latest revision.',
 		{
-			title: z.string().describe( 'Wiki page title' )
+			title: z.string().describe( 'Wiki page title' ),
+			content: z.nativeEnum( ContentFormat ).describe( 'Format of the page content to retrieve' )
 		},
 		{
 			title: 'Get page',
 			readOnlyHint: true,
 			destructiveHint: false
 		} as ToolAnnotations,
-		async ( { title } ) => handleGetPageTool( title )
+		async ( { title, content } ) => handleGetPageTool( title, content )
 	);
 }
 
-async function handleGetPageTool( title: string ): Promise< CallToolResult > {
-	const data = await makeRestGetRequest<MwRestApiPageObject>( `/v1/page/${ encodeURIComponent( title ) }/bare` );
+async function handleGetPageTool( title: string, content: ContentFormat ): Promise<CallToolResult> {
+	let subEndpoint: string;
+	switch ( content ) {
+		case ContentFormat.noContent:
+			subEndpoint = '/bare';
+			break;
+		case ContentFormat.withSource:
+			subEndpoint = '';
+			break;
+		case ContentFormat.withHtml:
+			subEndpoint = '/with_html';
+			break;
+	}
+
+	const data = await makeRestGetRequest<MwRestApiPageObject>( `/v1/page/${ encodeURIComponent( title ) }${ subEndpoint }` );
 
 	if ( !data ) {
 		return {
@@ -40,7 +60,7 @@ async function handleGetPageTool( title: string ): Promise< CallToolResult > {
 }
 
 function getPageToolResult( result: MwRestApiPageObject ): TextContent[] {
-	return [
+	const results: TextContent[] = [
 		{
 			type: 'text',
 			text: [
@@ -54,4 +74,20 @@ function getPageToolResult( result: MwRestApiPageObject ): TextContent[] {
 			].join( '\n' )
 		}
 	];
+
+	if ( result.source !== undefined ) {
+		results.push( {
+			type: 'text',
+			text: `Source:\n${ result.source }`
+		} );
+	}
+
+	if ( result.html !== undefined ) {
+		results.push( {
+			type: 'text',
+			text: `HTML:\n${ result.html }`
+		} );
+	}
+
+	return results;
 }
