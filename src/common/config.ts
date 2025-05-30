@@ -46,7 +46,9 @@ export function setCurrentWiki( wiki: string ): void {
 
 export function updateWikiConfig( wiki: string, newConfig: WikiConfig ): void {
 	config.wikis[ wiki ] = { ...newConfig };
-	fs.writeFileSync( configPath, JSON.stringify( config, null, 2 ), 'utf-8' );
+	// Do not write to config file for now
+	// @see https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/pull/22#issuecomment-2920361315
+	// fs.writeFileSync( configPath, JSON.stringify( config, null, 2 ), 'utf-8' );
 }
 
 export function resetConfig(): void {
