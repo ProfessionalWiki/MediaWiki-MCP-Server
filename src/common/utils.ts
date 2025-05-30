@@ -164,3 +164,7 @@ export async function fetchImageAsBase64( url: string ): Promise<string | null> 
 		return null;
 	}
 }
+
+export function getPageUrl( title: string ): string {
+	return `${ WIKI_SERVER() }${ SCRIPT_PATH() }/wiki/${ encodeURIComponent( title ) }`;
+}

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { makeRestPutRequest } from '../common/utils.js';
+import { makeRestPutRequest, getPageUrl } from '../common/utils.js';
 import type { MwRestApiPageObject } from '../types/mwRestApi.js';
 
 export function updatePageTool( server: McpServer ): RegisteredTool {
@@ -57,7 +57,12 @@ function updatePageToolResult( result: MwRestApiPageObject ): TextContent[] {
 	return [
 		{
 			type: 'text',
+			text: `Page updated successfully: ${ getPageUrl( result.title ) }`
+		},
+		{
+			type: 'text',
 			text: [
+				'Page object:',
 				`Page ID: ${ result.id }`,
 				`Title: ${ result.title }`,
 				`Latest revision ID: ${ result.latest.id }`,
