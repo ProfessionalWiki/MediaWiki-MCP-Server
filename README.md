@@ -6,17 +6,19 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 
 ### Tools
 
-> 🔑 **Requires OAuth 2.0 token.** Request one at the `Special:OAuthConsumerRegistration/propose/oauth2` page on the wiki.
+> 🔐 **Requires OAuth 2.0 token.**
+>
+> Request from the `Special:OAuthConsumerRegistration/propose/oauth2` page on the wiki.
 
 | Name | Description | 
 |---|---|
-| `create-page` 🔑 | Create a new wiki page. |
+| `create-page` 🔐 | Create a new wiki page. |
 | `get-file` | Returns the standard file object for a file page. |
 | `get-page` | Returns the standard page object for a wiki page. |
 | `get-page-history` | Returns information about the latest revisions to a wiki page. |
 | `search-page` | Search wiki page titles and contents for the provided search terms. |
 | `set-wiki` | Set the wiki to use for the current session. |
-| `update-page` 🔑 | Update an existing wiki page. |
+| `update-page` 🔐 | Update an existing wiki page. |
 
 ### Environment variables
 
@@ -33,7 +35,9 @@ TODO: Add installation steps for common MCP clients after publishing to NPM
 
 ## Development
 
-> 🐋 Replace the `npm run` part of the command with `make` (e.g. `make dev`) for a Docker container setup.
+> 🐋 **Develop with Docker**
+>
+> Replace the `npm run` part of the command with `make` (e.g. `make dev`).
 
 ### [MCP Inspector](https://github.com/modelcontextprotocol/inspector)
 
