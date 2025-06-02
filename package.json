@@ -11,7 +11,7 @@
 	"bugs": {
 		"url": "https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/issues"
 	},
-	"license": "",
+	"license": "GPL-2.0-or-later",
 	"author": "",
 	"type": "module",
 	"files": [
