@@ -6,6 +6,8 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 
 ### Tools
 
+> 🔑 **Requires OAuth 2.0 token.** Request one at the `Special:OAuthConsumerRegistration/propose/oauth2` page on the wiki.
+
 | Name | Description | 
 |---|---|
 | `create-page` 🔑 | Create a new wiki page. |
@@ -25,23 +27,26 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | `SCRIPT_PATH` | Script path of the wiki (e.g. `/w`) |
 | `OAUTH_TOKEN` | OAuth token from the [OAuth extension](https://www.mediawiki.org/wiki/Special:MyLanguage/Extension:OAuth) |
 
-## Setup
-
-Install all the required dependencies with:
-```
-make install
-```
-
 ## Development
+
+> 🐋 Replace the `npm run` part of the command with `make` (e.g. `make dev`) for a Docker container setup.
 
 ### [MCP Inspector](https://github.com/modelcontextprotocol/inspector)
 
 To start the development server and the MCP Inspector:
+```sh
+npm run dev
 ```
-make dev
-```
-The command will build and start the MCP Proxy server locally at port 6277 and the MCP Inspector client UI at port 6274.
+
+The command will build and start the MCP Proxy server locally at port `6277` and the MCP Inspector client UI at port `6274`.
 
 ### Test with LLM clients
 
-To enable your LLM client to use this MediaWiki MCP Server, you'll need to register the MCP server in your client config (e.g. `claude_desktop_config.json` for [Claude Desktop](https://modelcontextprotocol.io/quickstart/user)). An example config is provided at `mcp.json`.
+To enable your LLM client to use this MediaWiki MCP Server for local development: 
+
+1. Register the MCP server in your client config (e.g. `claude_desktop_config.json` for [Claude Desktop](https://modelcontextprotocol.io/quickstart/user)). An example config is provided at `mcp.json`.
+2. Run the watch command so that the source will be compiled whenever there is a change:
+
+	```sh
+	npm run watch
+	```
