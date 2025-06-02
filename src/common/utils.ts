@@ -1,6 +1,6 @@
 import fetch, { Response } from 'node-fetch';
 import { SERVER_NAME, SERVER_VERSION } from '../server.js';
-import { SCRIPT_PATH, WIKI_SERVER, OAUTH_TOKEN } from './config.js';
+import { SCRIPT_PATH, WIKI_SERVER, OAUTH_TOKEN, ARTICLE_PATH } from './config.js';
 
 const USER_AGENT: string = `${ SERVER_NAME }/${ SERVER_VERSION }`;
 
@@ -146,5 +146,5 @@ export async function fetchImageAsBase64( url: string ): Promise<string | null> 
 }
 
 export function getPageUrl( title: string ): string {
-	return `${ WIKI_SERVER() }${ SCRIPT_PATH() }/wiki/${ encodeURIComponent( title ) }`;
+	return `${ WIKI_SERVER() }${ ARTICLE_PATH() }/${ encodeURIComponent( title ) }`;
 }
