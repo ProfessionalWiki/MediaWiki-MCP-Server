@@ -12,7 +12,10 @@
 		"url": "https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/issues"
 	},
 	"license": "GPL-2.0-or-later",
-	"author": "",
+	"author": {
+		"name": "Professional Wiki",
+		"url": "https://professional.wiki"
+	},
 	"type": "module",
 	"files": [
 		"dist"
