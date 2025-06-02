@@ -1,12 +1,27 @@
 {
 	"name": "mediawiki-mcp-server",
-	"version": "0.0.0",
-	"description": "",
-	"main": "index.js",
+	"version": "1.0.0",
+	"description": "Model Context Protocol (MCP) server for MediaWiki",
+	"keywords": [
+		"modelcontextprotocol",
+		"mcp",
+		"mediawiki"
+	],
+	"homepage": "https://github.com/ProfessionalWiki/MediaWiki-MCP-Server",
+	"bugs": {
+		"url": "https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/issues"
+	},
+	"license": "",
+	"author": "",
 	"type": "module",
+	"files": [
+		"build"
+	],
+	"main": "build/index.js",
 	"bin": {
 		"mediawiki-mcp-server": "./build/index.js"
 	},
+	"repository": "github:ProfessionalWiki/MediaWiki-MCP-Server",
 	"scripts": {
 		"build": "tsc",
 		"watch": "tsc --watch",
@@ -15,12 +30,6 @@
 		"start": "node build/index.js",
 		"dev": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest node build/index.js\""
 	},
-	"files": [
-		"build"
-	],
-	"keywords": [],
-	"author": "",
-	"license": "",
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.11.3",
 		"node-fetch": "^3.3.2"
