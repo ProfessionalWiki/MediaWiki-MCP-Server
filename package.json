@@ -1,6 +1,6 @@
 {
 	"name": "mediawiki-mcp-server",
-	"version": "1.0.0",
+	"version": "0.0.1",
 	"description": "Model Context Protocol (MCP) server for MediaWiki",
 	"keywords": [
 		"modelcontextprotocol",
