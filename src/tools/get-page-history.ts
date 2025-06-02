@@ -43,33 +43,13 @@ async function handleGetPageHistoryTool(
 	if ( filter ) {
 		params.filter = filter;
 	}
+
+	let data: MwRestApiGetPageHistoryResponse | null = null;
 	try {
-		const data = await makeRestGetRequest<MwRestApiGetPageHistoryResponse>(
+		data = await makeRestGetRequest<MwRestApiGetPageHistoryResponse>(
 			`/v1/page/${ encodeURIComponent( title ) }/history`,
 			params
 		);
-
-		if ( !data ) {
-			const errorMessage = 'Failed to retrieve page data: No data returned from API';
-			return {
-				content: [
-					{ type: 'text', text: errorMessage } as TextContent
-				],
-				isError: true
-			};
-		}
-
-		if ( data.revisions.length === 0 ) {
-			return {
-				content: [
-					{ type: 'text', text: 'No revisions found for page' } as TextContent
-				]
-			};
-		}
-
-		return {
-			content: data.revisions.map( getPageHistoryToolResult )
-		};
 	} catch ( error ) {
 		return {
 			content: [
@@ -78,6 +58,30 @@ async function handleGetPageHistoryTool(
 			isError: true
 		};
 	}
+
+	if ( data === null ) {
+		return {
+			content: [
+				{
+					type: 'text',
+					text: 'Failed to retrieve page data: No data returned from API'
+				} as TextContent
+			],
+			isError: true
+		};
+	}
+
+	if ( data.revisions.length === 0 ) {
+		return {
+			content: [
+				{ type: 'text', text: 'No revisions found for page' } as TextContent
+			]
+		};
+	}
+
+	return {
+		content: data.revisions.map( getPageHistoryToolResult )
+	};
 }
 
 function getPageHistoryToolResult( result: MwRestApiRevisionObject ): TextContent {

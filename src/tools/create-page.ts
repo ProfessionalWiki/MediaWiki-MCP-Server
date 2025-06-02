@@ -33,27 +33,16 @@ async function handleCreatePageTool(
 	comment?: string,
 	contentModel?: string
 ): Promise<CallToolResult> {
+	let data: MwRestApiPageObject | null = null;
+
 	try {
-		const data = await makeRestPostRequest<MwRestApiPageObject>( '/v1/page', {
+		data = await makeRestPostRequest<MwRestApiPageObject>( '/v1/page', {
 			source: source,
 			title: title,
 			comment: comment || '',
 			// eslint-disable-next-line camelcase
 			content_model: contentModel
 		}, true );
-
-		if ( !data ) {
-			return {
-				content: [
-					{ type: 'text', text: 'Failed to create page: No data returned from API' } as TextContent
-				],
-				isError: true
-			};
-		}
-
-		return {
-			content: createPageToolResult( data )
-		};
 	} catch ( error ) {
 		return {
 			content: [
@@ -62,6 +51,19 @@ async function handleCreatePageTool(
 			isError: true
 		};
 	}
+
+	if ( data === null ) {
+		return {
+			content: [
+				{ type: 'text', text: 'Failed to create page: No data returned from API' } as TextContent
+			],
+			isError: true
+		};
+	}
+
+	return {
+		content: createPageToolResult( data )
+	};
 }
 
 function createPageToolResult( result: MwRestApiPageObject ): TextContent[] {

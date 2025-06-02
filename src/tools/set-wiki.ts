@@ -141,21 +141,28 @@ async function getWikiPathsFromApi(
 		origin: '*'
 	};
 
+	let data: MediaWikiActionApiResponse | null = null;
+
 	try {
-		const data = await makeApiRequest<MediaWikiActionApiResponse>( baseUrl, params );
-
-		const scriptpath = data?.query?.general?.scriptpath;
-		const articlepath = data?.query?.general?.articlepath;
-
-		if ( typeof scriptpath === 'string' && typeof articlepath === 'string' ) {
-			return {
-				scriptPath: scriptpath.replace( '/$1', '' ),
-				articlePath: articlepath.replace( '/$1', '' )
-			};
-		}
+		data = await makeApiRequest<MediaWikiActionApiResponse>( baseUrl, params );
 	} catch ( error ) {
 		// Suppress error to allow probing of other paths
 	}
+
+	if ( data === null ) {
+		return null;
+	}
+
+	const scriptpath = data.query?.general?.scriptpath;
+	const articlepath = data.query?.general?.articlepath;
+
+	if ( typeof scriptpath === 'string' && typeof articlepath === 'string' ) {
+		return {
+			scriptPath: scriptpath.replace( '/$1', '' ),
+			articlePath: articlepath.replace( '/$1', '' )
+		};
+	}
+
 	return null;
 }
 

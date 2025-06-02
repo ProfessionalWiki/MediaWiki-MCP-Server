@@ -33,25 +33,13 @@ async function handleUpdatePageTool(
 	latestId: number,
 	comment?: string
 ): Promise<CallToolResult> {
+	let data: MwRestApiPageObject | null = null;
 	try {
-		const data = await makeRestPutRequest<MwRestApiPageObject>( `/v1/page/${ encodeURIComponent( title ) }`, {
+		data = await makeRestPutRequest<MwRestApiPageObject>( `/v1/page/${ encodeURIComponent( title ) }`, {
 			source: source,
 			comment: comment,
 			latest: { id: latestId }
 		}, true );
-
-		if ( !data ) {
-			return {
-				content: [
-					{ type: 'text', text: 'Failed to update page: No data returned from API' } as TextContent
-				],
-				isError: true
-			};
-		}
-
-		return {
-			content: updatePageToolResult( data )
-		};
 	} catch ( error ) {
 		return {
 			content: [
@@ -60,6 +48,19 @@ async function handleUpdatePageTool(
 			isError: true
 		};
 	}
+
+	if ( data === null ) {
+		return {
+			content: [
+				{ type: 'text', text: 'Failed to update page: No data returned from API' } as TextContent
+			],
+			isError: true
+		};
+	}
+
+	return {
+		content: updatePageToolResult( data )
+	};
 }
 
 function updatePageToolResult( result: MwRestApiPageObject ): TextContent[] {

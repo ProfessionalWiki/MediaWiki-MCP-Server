@@ -42,21 +42,11 @@ async function handleGetPageTool( title: string, content: ContentFormat ): Promi
 			subEndpoint = '/with_html';
 			break;
 	}
+
+	let data: MwRestApiPageObject | null = null;
+
 	try {
-		const data = await makeRestGetRequest<MwRestApiPageObject>( `/v1/page/${ encodeURIComponent( title ) }${ subEndpoint }` );
-
-		if ( !data ) {
-			return {
-				content: [
-					{ type: 'text', text: 'Failed to retrieve page data: No data returned from API' } as TextContent
-				],
-				isError: true
-			};
-		}
-
-		return {
-			content: getPageToolResult( data )
-		};
+		data = await makeRestGetRequest<MwRestApiPageObject>( `/v1/page/${ encodeURIComponent( title ) }${ subEndpoint }` );
 	} catch ( error ) {
 		return {
 			content: [
@@ -65,6 +55,19 @@ async function handleGetPageTool( title: string, content: ContentFormat ): Promi
 			isError: true
 		};
 	}
+
+	if ( data === null ) {
+		return {
+			content: [
+				{ type: 'text', text: 'Failed to retrieve page data: No data returned from API' } as TextContent
+			],
+			isError: true
+		};
+	}
+
+	return {
+		content: getPageToolResult( data )
+	};
 }
 
 function getPageToolResult( result: MwRestApiPageObject ): TextContent[] {
