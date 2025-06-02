@@ -1,5 +1,5 @@
 {
-	"name": "mediawiki-mcp-server",
+	"name": "@professional-wiki/mediawiki-mcp-server",
 	"version": "0.0.1",
 	"description": "Model Context Protocol (MCP) server for MediaWiki",
 	"keywords": [
@@ -22,9 +22,12 @@
 	],
 	"main": "dist/index.js",
 	"bin": {
-		"mediawiki-mcp-server": "./dist/index.js"
+		"mediawiki-mcp-server": "dist/index.js"
 	},
-	"repository": "github:ProfessionalWiki/MediaWiki-MCP-Server",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ProfessionalWiki/MediaWiki-MCP-Server.git"
+	},
 	"scripts": {
 		"build": "tsc",
 		"watch": "tsc --watch",
