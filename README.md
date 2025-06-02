@@ -6,9 +6,7 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 
 ### Tools
 
-> 🔐 **Requires OAuth 2.0 token.**
->
-> Request from the `Special:OAuthConsumerRegistration/propose/oauth2` page on the wiki.
+> 🔐 **Requires OAuth 2.0 token:** Request from the `Special:OAuthConsumerRegistration/propose/oauth2` page on the wiki.
 
 | Name | Description | 
 |---|---|
@@ -35,9 +33,7 @@ TODO: Add installation steps for common MCP clients after publishing to NPM
 
 ## Development
 
-> 🐋 **Develop with Docker**
->
-> Replace the `npm run` part of the command with `make` (e.g. `make dev`).
+> 🐋 **Develop with Docker:** Replace the `npm run` part of the command with `make` (e.g. `make dev`).
 
 ### [MCP Inspector](https://github.com/modelcontextprotocol/inspector)
 
