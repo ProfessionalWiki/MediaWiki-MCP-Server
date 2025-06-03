@@ -29,7 +29,69 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 
 ## Installation
 
-TODO: Add installation steps for common MCP clients after publishing to NPM
+<details>
+<summary><b>Install in Claude Desktop</b></summary>
+
+Follow the [guide](https://modelcontextprotocol.io/quickstart/user), use following configuration:
+
+```json
+{
+  "mcpServers": {
+    "mediawiki-mcp-server": {
+      "command": "npx",
+      "args": [
+        "@professional-wiki/mediawiki-mcp-server@latest"
+      ]
+    }
+  }
+}
+```
+</details>
+
+<details><summary><b>Install in VS Code</b></summary>
+
+```bash
+code --add-mcp '{"name":"mediawiki-mcp-server","command":"npx","args":["@professional-wiki/mediawiki-mcp-server@latest"]}'
+```
+</details>
+
+<details>
+<summary><b>Install in Cursor</b></summary>
+
+Go to `Cursor Settings` -> `MCP` -> `Add new MCP Server`. Name to your liking, use `command` type with the command `npx @professional-wiki/mediawiki-mcp-server`. You can also verify config or add command like arguments via clicking `Edit`.
+
+```json
+{
+  "mcpServers": {
+    "mediawiki-mcp-server": {
+      "command": "npx",
+      "args": [
+        "@professional-wiki/mediawiki-mcp-server@latest"
+      ]
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary><b>Install in Windsurf</b></summary>
+
+Follow the [guide](https://docs.windsurf.com/windsurf/cascade/mcp), use following configuration:
+
+```json
+{
+  "mcpServers": {
+    "mediawiki-mcp-server": {
+      "command": "npx",
+      "args": [
+        "@professional-wiki/mediawiki-mcp-server@latest"
+      ]
+    }
+  }
+}
+```
+</details>
 
 ## Development
 
