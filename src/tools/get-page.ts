@@ -5,11 +5,13 @@ import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontext
 /* eslint-enable n/no-missing-import */
 import { makeRestGetRequest } from '../common/utils.js';
 import type { MwRestApiPageObject } from '../types/mwRestApi.js';
+import { stripHtml } from 'string-strip-html';
 
 enum ContentFormat {
 	noContent = 'noContent',
 	withSource = 'withSource',
-	withHtml = 'withHtml'
+	withHtml = 'withHtml',
+	withPlainText = 'withPlainText'
 }
 
 export function getPageTool( server: McpServer ): RegisteredTool {
@@ -29,9 +31,9 @@ export function getPageTool( server: McpServer ): RegisteredTool {
 	);
 }
 
-async function handleGetPageTool( title: string, content: ContentFormat ): Promise<CallToolResult> {
+async function handleGetPageTool( title: string, contentFormat: ContentFormat ): Promise<CallToolResult> {
 	let subEndpoint: string;
-	switch ( content ) {
+	switch ( contentFormat ) {
 		case ContentFormat.noContent:
 			subEndpoint = '/bare';
 			break;
@@ -39,6 +41,7 @@ async function handleGetPageTool( title: string, content: ContentFormat ): Promi
 			subEndpoint = '';
 			break;
 		case ContentFormat.withHtml:
+		case ContentFormat.withPlainText:
 			subEndpoint = '/with_html';
 			break;
 	}
@@ -66,11 +69,11 @@ async function handleGetPageTool( title: string, content: ContentFormat ): Promi
 	}
 
 	return {
-		content: getPageToolResult( data )
+		content: getPageToolResult( data, contentFormat )
 	};
 }
 
-function getPageToolResult( result: MwRestApiPageObject ): TextContent[] {
+function getPageToolResult( result: MwRestApiPageObject, contentFormat: ContentFormat ): TextContent[] {
 	const results: TextContent[] = [
 		{
 			type: 'text',
@@ -94,10 +97,17 @@ function getPageToolResult( result: MwRestApiPageObject ): TextContent[] {
 	}
 
 	if ( result.html !== undefined ) {
-		results.push( {
-			type: 'text',
-			text: `HTML:\n${ result.html }`
-		} );
+		if ( contentFormat === ContentFormat.withHtml ) {
+			results.push( {
+				type: 'text',
+				text: `HTML:\n${ result.html }`
+			} );
+		} else if ( contentFormat === ContentFormat.withPlainText ) {
+			results.push( {
+				type: 'text',
+				text: `Text:\n${ stripHtml( result.html ).result }`
+			} );
+		}
 	}
 
 	return results;
