@@ -31,13 +31,14 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 
 ## Installation
 
-### Installing via Smithery
+<details><summary><b>Install via Smithery</b></summary>
 
 To install MediaWiki MCP Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@ProfessionalWiki/mediawiki-mcp-server):
 
 ```bash
 npx -y @smithery/cli install @ProfessionalWiki/mediawiki-mcp-server --client claude
 ```
+</details>
 
 <details>
 <summary><b>Install in Claude Desktop</b></summary>
