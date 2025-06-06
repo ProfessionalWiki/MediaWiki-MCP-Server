@@ -18,7 +18,7 @@ export function getPageTool( server: McpServer ): RegisteredTool {
 		'Returns the standard page object for a wiki page, optionally including page source or rendered HTML, and including the license and information about the latest revision.',
 		{
 			title: z.string().describe( 'Wiki page title' ),
-			content: z.nativeEnum( ContentFormat ).describe( 'Format of the page content to retrieve' )
+			content: z.nativeEnum( ContentFormat ).describe( 'Format of the page content to retrieve' ).optional().default( ContentFormat.noContent )
 		},
 		{
 			title: 'Get page',
