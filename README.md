@@ -1,5 +1,7 @@
 # MediaWiki MCP Server
 
+[![smithery badge](https://smithery.ai/badge/@ProfessionalWiki/mediawiki-mcp-server)](https://smithery.ai/server/@ProfessionalWiki/mediawiki-mcp-server)
+
 An MCP (Model Context Protocol) server that enables Large Language Model (LLM) clients to interact with any MediaWiki wiki.
 
 ## Feature
@@ -28,6 +30,14 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | `OAUTH_TOKEN` | OAuth token from the [OAuth extension](https://www.mediawiki.org/wiki/Special:MyLanguage/Extension:OAuth) |
 
 ## Installation
+
+### Installing via Smithery
+
+To install MediaWiki MCP Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@ProfessionalWiki/mediawiki-mcp-server):
+
+```bash
+npx -y @smithery/cli install @ProfessionalWiki/mediawiki-mcp-server --client claude
+```
 
 <details>
 <summary><b>Install in Claude Desktop</b></summary>
