@@ -1,11 +1,20 @@
 /* eslint-disable n/no-missing-import */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 /* eslint-enable n/no-missing-import */
+import { registerAllTools } from './tools/index.js';
 
-export const SERVER_NAME: string = 'mediawiki-mcp-server';
-export const SERVER_VERSION: string = '0.0.0';
+const SERVER_NAME: string = 'mediawiki-mcp-server';
+const SERVER_VERSION: string = '0.0.4';
 
-export const server = new McpServer( {
-	name: SERVER_NAME,
-	version: SERVER_VERSION
-} );
+export const createServer = (): McpServer => {
+	const server = new McpServer( {
+		name: SERVER_NAME,
+		version: SERVER_VERSION
+	} );
+
+	registerAllTools( server );
+
+	return server;
+};
+
+export const USER_AGENT: string = `${ SERVER_NAME }/${ SERVER_VERSION }`;

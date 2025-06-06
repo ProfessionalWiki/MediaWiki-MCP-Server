@@ -1,20 +1,28 @@
 #!/usr/bin/env node
 
-/* eslint-disable n/no-missing-import */
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-/* eslint-enable n/no-missing-import */
+const args = process.argv.slice( 2 );
+const scriptName = args[ 0 ] || 'stdio';
 
-import { server } from './server.js';
-import { registerAllTools } from './tools/index.js';
-
-async function main(): Promise<void> {
-	registerAllTools( server );
-
-	const transport = new StdioServerTransport();
-	await server.connect( transport );
+async function run(): Promise<void> {
+	try {
+		switch ( scriptName ) {
+			case 'stdio':
+				await import( './stdio.js' );
+				break;
+			case 'streamableHttp':
+				await import( './streamableHttp.js' );
+				break;
+			default:
+				console.error( `Unknown script: ${ scriptName }` );
+				console.log( 'Available scripts:' );
+				console.log( '- stdio' );
+				console.log( '- streamableHttp' );
+				throw new Error( `Unknown script: ${ scriptName }` );
+		}
+	} catch ( error ) {
+		console.error( 'Error running script:', error );
+		throw error;
+	}
 }
 
-main().catch( ( error ) => {
-	console.error( 'Fatal error in main():', error );
-	throw error;
-} );
+run();

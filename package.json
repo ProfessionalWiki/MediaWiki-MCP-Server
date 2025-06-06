@@ -34,13 +34,17 @@
 		"test": "echo \"Error: no test specified\" && exit 1",
 		"lint": "eslint --cache src/**/*",
 		"start": "node dist/index.js",
-		"dev": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest node dist/index.js\""
+		"start:streamableHttp": "node dist/streamableHttp.js",
+		"dev": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest node dist/index.js\"",
+		"dev:streamableHttp": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest\" \"node dist/streamableHttp.js\""
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.11.3",
+		"express": "^5.1.0",
 		"node-fetch": "^3.3.2"
 	},
 	"devDependencies": {
+		"@types/express": "^5.0.2",
 		"@types/node": "^22.15.17",
 		"@types/node-fetch": "^2.6.12",
 		"@typescript-eslint/eslint-plugin": "^7.18.0",

@@ -1,8 +1,6 @@
 import fetch, { Response } from 'node-fetch';
-import { SERVER_NAME, SERVER_VERSION } from '../server.js';
+import { USER_AGENT } from '../server.js';
 import { SCRIPT_PATH, WIKI_SERVER, OAUTH_TOKEN, ARTICLE_PATH } from './config.js';
-
-const USER_AGENT: string = `${ SERVER_NAME }/${ SERVER_VERSION }`;
 
 async function fetchCore(
 	baseUrl: string,
