@@ -12,4 +12,4 @@ ENV ARTICLE_PATH=/wiki
 ENV SCRIPT_PATH=/w
 
 EXPOSE 8080
-CMD ["node", "dist/index.js"]
+CMD ["node", "dist/streamableHttp.js"]
