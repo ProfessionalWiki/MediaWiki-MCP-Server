@@ -28,10 +28,11 @@ RUN npm install --production --ignore-scripts
 
 # Default environment vars
 ENV PORT=8080
+ENV MCP_TRANSPORT=http
 
 # Expose HTTP port
 EXPOSE 8080
 
 # Start the server
 # Use STDIO for now to avoid breaking deployment for Smithery
-CMD ["node", "dist/stdio.js"]
+CMD ["node", "dist/index.js"]
