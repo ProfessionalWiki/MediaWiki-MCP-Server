@@ -33,4 +33,5 @@ ENV PORT=8080
 EXPOSE 8080
 
 # Start the server
-CMD ["node", "dist/streamableHttp.js"]
+# Use STDIO for now to avoid breaking deployment for Smithery
+CMD ["node", "dist/stdio.js"]
