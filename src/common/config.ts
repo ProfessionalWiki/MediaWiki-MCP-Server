@@ -1,13 +1,12 @@
 // TODO: Investigate if we can define config as a MCP resource
 import * as fs from 'fs';
-import * as path from 'path';
 
 export interface WikiConfig {
 	sitename: string;
 	server: string;
 	articlepath: string;
 	scriptpath: string;
-	token?: string;
+	token?: string | null;
 }
 
 interface Config {
@@ -15,11 +14,31 @@ interface Config {
 	defaultWiki: string;
 }
 
-const configPath = path.join( 'config.json' );
+const defaultConfig: Config = {
+	defaultWiki: 'en.wikipedia.org',
+	wikis: {
+		'en.wikipedia.org': {
+			sitename: 'Wikipedia',
+			server: 'https://en.wikipedia.org',
+			articlepath: '/wiki',
+			scriptpath: '/w',
+			token: null
+		},
+		'localhost:8080': {
+			sitename: 'Local MediaWiki Docker',
+			server: 'http://localhost:8080',
+			articlepath: '/wiki',
+			scriptpath: '/w',
+			token: null
+		}
+	}
+};
+
+const configPath = process.env.CONFIG || 'config.json';
 
 function loadConfigFromFile(): Config {
 	if ( !fs.existsSync( configPath ) ) {
-		throw new Error( `Configuration file not found: ${ configPath }` );
+		return defaultConfig;
 	}
 	const rawData = fs.readFileSync( configPath, 'utf-8' );
 	return JSON.parse( rawData ) as Config;
@@ -68,6 +87,6 @@ export const oauthToken = (): string | null | undefined => {
 };
 export const siteName = (): string | undefined => getConfig().sitename;
 
-function isTokenValid( token: string | undefined ): boolean {
+function isTokenValid( token: string | null | undefined ): boolean {
 	return token !== undefined && token !== null && token !== '';
 }
