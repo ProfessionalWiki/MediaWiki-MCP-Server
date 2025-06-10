@@ -19,6 +19,13 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | `set-wiki` | Set the wiki to use for the current session. |
 | `update-page` 🔑 | Update an existing wiki page. |
 
+### Environment variables
+| Name | Description | Default |
+|---|---|---|
+| `CONFIG` | Path to your configuration file | `config.json` |
+| `MCP_TRANSPORT` | Type of MCP server transport (`stdio` or `http`) | `stdio` |
+| `PORT` | Port used for StreamableHTTP transport | `3000` |
+
 ## Installation
 
 <details><summary><b>Install via Smithery</b></summary>
