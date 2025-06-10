@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import express, { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 /* eslint-disable n/no-missing-import */

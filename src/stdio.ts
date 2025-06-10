@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /* eslint-disable n/no-missing-import */
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 /* eslint-enable n/no-missing-import */
