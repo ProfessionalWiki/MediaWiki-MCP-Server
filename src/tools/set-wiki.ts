@@ -3,15 +3,19 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { updateConfig, getConfig } from '../common/config.js';
+import { updateWikiConfig, getConfig, setCurrentWiki } from '../common/config.js';
 import { makeApiRequest, fetchPageHtml } from '../common/utils.js';
 
-const COMMON_SCRIPT_PATHS = [ '/w', '/' ];
+const COMMON_SCRIPT_PATHS = [ '/w', '' ];
 
 // TODO: Move these types to a dedicated file if we end up using Action API types elsewhere
 interface MediaWikiActionApiSiteInfoGeneral {
-	scriptpath: string;
+	sitename: string;
 	articlepath: string;
+	scriptpath: string;
+	server: string;
+	servername: string;
+	// Omitted other fields for now since we don't use them
 }
 
 interface MediaWikiActionApiSiteInfoQuery {
@@ -22,9 +26,12 @@ interface MediaWikiActionApiResponse {
 	query?: MediaWikiActionApiSiteInfoQuery;
 }
 
-interface WikiPathsResult {
-	scriptPath: string | undefined;
-	articlePath: string | undefined;
+interface WikiInfo {
+	sitename: string;
+	articlepath: string;
+	scriptpath: string;
+	server: string;
+	servername: string;
 }
 
 export function setWikiTool( server: McpServer ): RegisteredTool {
@@ -41,51 +48,36 @@ export function setWikiTool( server: McpServer ): RegisteredTool {
 		async ( args: {
 			wikiUrl: string;
 		} ): Promise<CallToolResult> => {
-			try {
-				const wikiServer = parseWikiUrl( args.wikiUrl );
-				const { scriptPath, articlePath } = await getWikiPaths( wikiServer, args.wikiUrl );
+			const wikiServer = parseWikiUrl( args.wikiUrl );
+			const wikiInfo = await getWikiInfo( wikiServer, args.wikiUrl );
 
-				if ( scriptPath !== undefined && articlePath !== undefined ) {
-					updateConfig( {
-						WIKI_SERVER: wikiServer,
-						ARTICLE_PATH: articlePath,
-						SCRIPT_PATH: scriptPath
-					} );
+			if ( wikiInfo !== null ) {
+				updateWikiConfig( wikiInfo.servername, {
+					sitename: wikiInfo.sitename,
+					server: wikiInfo.server,
+					articlepath: wikiInfo.articlepath,
+					scriptpath: wikiInfo.scriptpath
+				} );
+				setCurrentWiki( wikiInfo.servername );
 
-					const newConfig = getConfig();
-					return {
-						content: [
-							{
-								type: 'text',
-								text: [
-									'Wiki set successfully.',
-									`Wiki Server: ${ newConfig.WIKI_SERVER }`,
-									`Article Path: ${ newConfig.ARTICLE_PATH }`,
-									`Script Path: ${ newConfig.SCRIPT_PATH }`
-								].join( '\n' )
-							} as TextContent
-						]
-					};
-				} else {
-					return {
-						content: [
-							{
-								type: 'text',
-								text: 'Failed to determine wiki paths. Please ensure the URL is correct and the wiki is accessible.'
-							} as TextContent
-						],
-						error: true
-					};
-				}
-			} catch ( error ) {
+				const newConfig = getConfig();
 				return {
 					content: [
 						{
 							type: 'text',
-							text: `Failed to set wiki: ${ ( error as Error ).message }`
+							text: `Wiki set to ${ newConfig.sitename } (${ newConfig.server })`
+						} as TextContent
+					]
+				};
+			} else {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: 'Failed to determine wiki info. Please ensure the URL is correct and the wiki is accessible.'
 						} as TextContent
 					],
-					isError: true
+					error: true
 				};
 			}
 		}
@@ -97,42 +89,17 @@ function parseWikiUrl( wikiUrl: string ): string {
 	return `${ url.protocol }//${ url.host }`;
 }
 
-async function getWikiPaths(
+async function getWikiInfo(
 	wikiServer: string, originalWikiUrl: string
-): Promise<WikiPathsResult> {
-	const phase1Result = await probeWikiPathsFromApi( wikiServer );
-
-	if ( phase1Result ) {
-		return phase1Result;
-	}
-
-	const phase2Result = await probeWikiPathsFromHtml( wikiServer, originalWikiUrl );
-	if ( phase2Result ) {
-		return phase2Result;
-	}
-
-	return { scriptPath: undefined, articlePath: undefined };
+): Promise<WikiInfo | null> {
+	return ( await fetchUsingCommonScriptPaths( wikiServer ) ) ??
+		( await fetchUsingScriptPathsFromHtml( wikiServer, originalWikiUrl ) );
 }
 
-async function probeWikiPathsFromApi(
-	wikiServer: string,
-	pathsToTry?: string[]
-): Promise<WikiPathsResult | null> {
-	const paths = pathsToTry ?? COMMON_SCRIPT_PATHS;
-	for ( const candidatePath of paths ) {
-		const apiResult = await getWikiPathsFromApi( wikiServer, candidatePath );
-		if ( apiResult ) {
-			return apiResult;
-		}
-	}
-	return null;
-}
-
-async function getWikiPathsFromApi(
-	wikiServer: string, candidatePath: string
-): Promise<WikiPathsResult | null> {
-	const effectiveCandidatePath = candidatePath === '/' ? '' : candidatePath;
-	const baseUrl = `${ wikiServer }${ effectiveCandidatePath }/api.php`;
+async function fetchWikiInfoFromApi(
+	wikiServer: string, scriptPath: string
+): Promise<WikiInfo | null> {
+	const baseUrl = `${ wikiServer }${ scriptPath }/api.php`;
 	const params = {
 		action: 'query',
 		meta: 'siteinfo',
@@ -142,49 +109,61 @@ async function getWikiPathsFromApi(
 	};
 
 	let data: MediaWikiActionApiResponse | null = null;
-
 	try {
 		data = await makeApiRequest<MediaWikiActionApiResponse>( baseUrl, params );
 	} catch ( error ) {
-		// Suppress error to allow probing of other paths
-	}
-
-	if ( data === null ) {
+		console.error( `Error fetching wiki info from ${ baseUrl }:`, error );
 		return null;
 	}
 
-	const scriptpath = data.query?.general?.scriptpath;
-	const articlepath = data.query?.general?.articlepath;
-
-	if ( typeof scriptpath === 'string' && typeof articlepath === 'string' ) {
-		return {
-			scriptPath: scriptpath.replace( '/$1', '' ),
-			articlePath: articlepath.replace( '/$1', '' )
-		};
+	if ( data === null || data.query?.general === undefined ) {
+		return null;
 	}
 
+	const general = data.query.general;
+
+	// We don't need to check for every field, the API should be returning the correct values.
+	if ( typeof general.scriptpath !== 'string' ) {
+		return null;
+	}
+
+	return {
+		sitename: general.sitename,
+		scriptpath: general.scriptpath,
+		articlepath: general.articlepath.replace( '/$1', '' ),
+		server: general.server,
+		servername: general.servername
+	};
+}
+
+async function fetchUsingCommonScriptPaths(
+	wikiServer: string
+): Promise<WikiInfo | null> {
+	for ( const candidatePath of COMMON_SCRIPT_PATHS ) {
+		const apiResult = await fetchWikiInfoFromApi( wikiServer, candidatePath );
+		if ( apiResult ) {
+			return apiResult;
+		}
+	}
 	return null;
 }
 
-async function probeWikiPathsFromHtml(
+async function fetchUsingScriptPathsFromHtml(
 	wikiServer: string,
 	originalWikiUrl: string
-): Promise<WikiPathsResult | null> {
+): Promise<WikiInfo | null> {
 	const htmlContent = await fetchPageHtml( originalWikiUrl );
 	const htmlScriptPathCandidates = extractScriptPathsFromHtml( htmlContent, wikiServer );
-	const uniqueFurtherCandidates = htmlScriptPathCandidates.filter(
-		( p ) => !COMMON_SCRIPT_PATHS.includes( p )
-	);
+	const pathsToTry = htmlScriptPathCandidates.length > 0 ?
+		htmlScriptPathCandidates : COMMON_SCRIPT_PATHS;
 
-	if ( uniqueFurtherCandidates.length > 0 ) {
-		const apiDiscoveryResult = await probeWikiPathsFromApi(
-			wikiServer,
-			uniqueFurtherCandidates
-		);
-		if ( apiDiscoveryResult ) {
-			return apiDiscoveryResult;
+	for ( const candidatePath of pathsToTry ) {
+		const apiResult = await fetchWikiInfoFromApi( wikiServer, candidatePath );
+		if ( apiResult ) {
+			return apiResult;
 		}
 	}
+
 	return null;
 }
 

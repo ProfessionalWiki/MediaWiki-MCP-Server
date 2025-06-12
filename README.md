@@ -20,13 +20,11 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | `update-page` 🔐 | Update an existing wiki page. |
 
 ### Environment variables
-
-| Name | Description |
-|---|---|
-| `WIKI_SERVER` | Domain of the wiki (e.g. `https://en.wikipedia.org`) |
-| `ARTICLE_PATH` | Article path of the wiki (e.g. `/wiki`) |
-| `SCRIPT_PATH` | Script path of the wiki (e.g. `/w`) |
-| `OAUTH_TOKEN` | OAuth token from the [OAuth extension](https://www.mediawiki.org/wiki/Special:MyLanguage/Extension:OAuth) |
+| Name | Description | Default |
+|---|---|---|
+| `CONFIG` | Path to your configuration file | `config.json` |
+| `MCP_TRANSPORT` | Type of MCP server transport (`stdio` or `http`) | `stdio` |
+| `PORT` | Port used for StreamableHTTP transport | `3000` |
 
 ## Installation
 
