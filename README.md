@@ -17,7 +17,7 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | `get-page-history` | Returns information about the latest revisions to a wiki page. |
 | `search-page` | Search wiki page titles and contents for the provided search terms. |
 | `set-wiki` | Set the wiki to use for the current session. |
-| `update-page` 🔑 | Update an existing wiki page. |
+| `update-page` 🔐 | Update an existing wiki page. |
 
 ### Environment variables
 | Name | Description | Default |
