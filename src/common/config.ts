@@ -2,10 +2,25 @@
 import * as fs from 'fs';
 
 export interface WikiConfig {
+	/**
+	 * Corresponds to the $wgSitename setting in MediaWiki.
+	 */
 	sitename: string;
+	/**
+	 * Corresponds to the $wgServer setting in MediaWiki.
+	 */
 	server: string;
+	/**
+	 * Corresponds to the $wgArticlePath setting in MediaWiki.
+	 */
 	articlepath: string;
+	/**
+	 * Corresponds to the $wgScriptPath setting in MediaWiki.
+	 */
 	scriptpath: string;
+	/**
+	 * OAuth consumer token requested from Extension:OAuth.
+	 */
 	token?: string | null;
 }
 
