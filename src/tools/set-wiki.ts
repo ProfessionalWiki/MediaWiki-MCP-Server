@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { updateWikiConfig, getConfig, setCurrentWiki, getAllWikis } from '../common/config.js';
+import { updateWikiConfig, getCurrentWikiConfig, setCurrentWiki, getAllWikis } from '../common/config.js';
 import { makeApiRequest, fetchPageHtml } from '../common/utils.js';
 
 const COMMON_SCRIPT_PATHS = [ '/w', '' ];
@@ -53,7 +53,7 @@ export function setWikiTool( server: McpServer ): RegisteredTool {
 
 			if ( allWikis[ url.hostname ] ) {
 				setCurrentWiki( url.host );
-				const newConfig = getConfig();
+				const newConfig = getCurrentWikiConfig();
 				return {
 					content: [ {
 						type: 'text',
@@ -74,7 +74,7 @@ export function setWikiTool( server: McpServer ): RegisteredTool {
 				} );
 				setCurrentWiki( wikiInfo.servername );
 
-				const newConfig = getConfig();
+				const newConfig = getCurrentWikiConfig();
 				return {
 					content: [
 						{

@@ -71,7 +71,7 @@ export function getAllWikis(): Readonly<{ [key: string]: WikiConfig }> {
 	return config.wikis;
 }
 
-export function getConfig(): Readonly<WikiConfig> {
+export function getCurrentWikiConfig(): Readonly<WikiConfig> {
 	return currentConfig;
 }
 
@@ -97,14 +97,14 @@ export function resetConfig(): void {
 	}
 }
 
-export const wikiServer = (): string => getConfig().server;
-export const articlePath = (): string => getConfig().articlepath;
-export const scriptPath = (): string => getConfig().scriptpath;
+export const wikiServer = (): string => getCurrentWikiConfig().server;
+export const articlePath = (): string => getCurrentWikiConfig().articlepath;
+export const scriptPath = (): string => getCurrentWikiConfig().scriptpath;
 export const oauthToken = (): string | null | undefined => {
-	const token = getConfig().token;
+	const token = getCurrentWikiConfig().token;
 	return isTokenValid( token ) ? token : undefined;
 };
-export const siteName = (): string | undefined => getConfig().sitename;
+export const siteName = (): string | undefined => getCurrentWikiConfig().sitename;
 
 function isTokenValid( token: string | null | undefined ): boolean {
 	return token !== undefined && token !== null && token !== '';
