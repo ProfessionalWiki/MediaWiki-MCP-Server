@@ -67,6 +67,10 @@ if ( !currentConfig ) {
 	throw new Error( `Default wiki "${ defaultWiki }" not found in config.json` );
 }
 
+export function getAllWikis(): Readonly<{ [key: string]: WikiConfig }> {
+	return config.wikis;
+}
+
 export function getConfig(): Readonly<WikiConfig> {
 	return currentConfig;
 }

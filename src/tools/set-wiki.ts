@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { updateWikiConfig, getConfig, setCurrentWiki } from '../common/config.js';
+import { updateWikiConfig, getConfig, setCurrentWiki, getAllWikis } from '../common/config.js';
 import { makeApiRequest, fetchPageHtml } from '../common/utils.js';
 
 const COMMON_SCRIPT_PATHS = [ '/w', '' ];
@@ -48,6 +48,20 @@ export function setWikiTool( server: McpServer ): RegisteredTool {
 		async ( args: {
 			wikiUrl: string;
 		} ): Promise<CallToolResult> => {
+			const url = new URL( args.wikiUrl );
+			const allWikis = getAllWikis();
+
+			if ( allWikis[ url.hostname ] ) {
+				setCurrentWiki( url.host );
+				const newConfig = getConfig();
+				return {
+					content: [ {
+						type: 'text',
+						text: `Wiki set to ${ newConfig.sitename } (${ newConfig.server })`
+					} as TextContent ]
+				};
+			}
+
 			const wikiServer = parseWikiUrl( args.wikiUrl );
 			const wikiInfo = await getWikiInfo( wikiServer, args.wikiUrl );
 
