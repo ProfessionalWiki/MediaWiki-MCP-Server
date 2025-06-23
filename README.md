@@ -106,6 +106,34 @@ Follow the [guide](https://docs.windsurf.com/windsurf/cascade/mcp), use followin
 ```
 </details>
 
+<details>
+<summary><b>Install in Claude Code</b></summary>
+
+Follow the [Claude Code MCP docs](https://docs.anthropic.com/en/docs/claude-code/mcp).
+
+Run the below command, optionally with `-e` flags to specify environment variables.
+
+    claude mcp add mediawiki-mcp-server npx @professional-wiki/mediawiki-mcp-server@latest
+
+You should end up with something like the below in your `.claude.json` config:
+
+```json
+"mcpServers": {
+  "mediawiki-mcp-server": {
+    "type": "stdio",
+    "command": "npx",
+    "args": [
+      "@professional-wiki/mediawiki-mcp-server@latest"
+    ],
+    "env": {
+      "WIKI_SERVER": "your.example.wiki",
+      "OAUTH_TOKEN": ""
+    }
+  }
+},
+```
+</details>
+
 ## Development
 
 > 🐋 **Develop with Docker:** Replace the `npm run` part of the command with `make` (e.g. `make dev`).
