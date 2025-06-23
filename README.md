@@ -7,7 +7,7 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 
 ### Tools
 
-> 🔐 **Requires OAuth 2.0 token:** Request from the `Special:OAuthConsumerRegistration/propose/oauth2` page on the wiki.
+> 🔐 **Requires OAuth 2.0 token in configuration:** Obtained via `Special:OAuthConsumerRegistration/propose/oauth2` provided by the [OAuth extension](https://www.mediawiki.org/wiki/Special:MyLanguage/Extension:OAuth). Select "This consumer is for use only by UserName"
 
 | Name | Description | 
 |---|---|
