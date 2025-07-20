@@ -4,3 +4,4 @@ build
 
 .eslintcache
 config.json
+.env

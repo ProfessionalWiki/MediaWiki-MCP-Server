@@ -6,14 +6,24 @@
       "server": "https://en.wikipedia.org",
       "articlepath": "/wiki",
       "scriptpath": "/w",
-      "token": null
+      "token": null,
+      "language": "en"
+    },
+    "ja.wikipedia.org": {
+      "sitename": "ウィキペディア",
+      "server": "https://ja.wikipedia.org",
+      "articlepath": "/wiki",
+      "scriptpath": "/w",
+      "token": null,
+      "language": "ja"
     },
     "localhost:8080": {
       "sitename": "Local MediaWiki Docker",
       "server": "http://localhost:8080",
       "articlepath": "/wiki",
       "scriptpath": "/w",
-      "token": null
+      "token": null,
+      "language": "en"
     }
   }
 }

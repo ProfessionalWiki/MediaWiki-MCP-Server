@@ -1,6 +1,6 @@
 import fetch, { Response } from 'node-fetch';
 import { USER_AGENT } from '../server.js';
-import { scriptPath, wikiServer, oauthToken, articlePath } from './config.js';
+import { scriptPath, wikiServer, oauthToken, articlePath, wikiLanguage } from './config.js';
 
 async function fetchCore(
 	baseUrl: string,
@@ -25,7 +25,8 @@ async function fetchCore(
 	}
 
 	const requestHeaders: Record<string, string> = {
-		'User-Agent': USER_AGENT
+		'User-Agent': USER_AGENT,
+		'Accept-Language': wikiLanguage()
 	};
 
 	if ( options?.headers ) {
@@ -73,8 +74,15 @@ export async function makeRestGetRequest<T>(
 		if ( needAuth && token !== undefined ) {
 			headers.Authorization = `Bearer ${ token }`;
 		}
+
+		// Add language parameter for interface language
+		const enhancedParams = {
+			...params,
+			uselang: wikiLanguage()
+		};
+
 		const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
-			params: params,
+			params: enhancedParams,
 			headers: headers
 		} );
 		return ( await response.json() ) as T;
@@ -98,7 +106,14 @@ export async function makeRestPutRequest<T>(
 		if ( needAuth && token !== undefined ) {
 			headers.Authorization = `Bearer ${ token }`;
 		}
+
+		// Add language parameter for interface language
+		const enhancedParams = {
+			uselang: wikiLanguage()
+		};
+
 		const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
+			params: enhancedParams,
 			headers: headers,
 			method: 'PUT',
 			body: body
@@ -124,7 +139,14 @@ export async function makeRestPostRequest<T>(
 		if ( needAuth && token !== undefined ) {
 			headers.Authorization = `Bearer ${ token }`;
 		}
+
+		// Add language parameter for interface language
+		const enhancedParams = {
+			uselang: wikiLanguage()
+		};
+
 		const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
+			params: enhancedParams,
 			headers: headers,
 			method: 'POST',
 			body: body

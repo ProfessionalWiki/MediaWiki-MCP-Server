@@ -22,6 +22,11 @@ export interface WikiConfig {
 	 * OAuth consumer token requested from Extension:OAuth.
 	 */
 	token?: string | null;
+	/**
+	 * Language code for this wiki (e.g., 'en', 'ja', 'de').
+	 * Used for API interface language requests.
+	 */
+	language?: string;
 }
 
 interface Config {
@@ -37,14 +42,16 @@ const defaultConfig: Config = {
 			server: 'https://en.wikipedia.org',
 			articlepath: '/wiki',
 			scriptpath: '/w',
-			token: null
+			token: null,
+			language: 'en'
 		},
 		'localhost:8080': {
 			sitename: 'Local MediaWiki Docker',
 			server: 'http://localhost:8080',
 			articlepath: '/wiki',
 			scriptpath: '/w',
-			token: null
+			token: null,
+			language: 'en'
 		}
 	}
 };
@@ -105,6 +112,7 @@ export const oauthToken = (): string | null | undefined => {
 	return isTokenValid( token ) ? token : undefined;
 };
 export const siteName = (): string | undefined => getCurrentWikiConfig().sitename;
+export const wikiLanguage = (): string => getCurrentWikiConfig().language || 'en';
 
 function isTokenValid( token: string | null | undefined ): boolean {
 	return token !== undefined && token !== null && token !== '';
