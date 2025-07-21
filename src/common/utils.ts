@@ -120,6 +120,11 @@ export async function makeRestPutRequest<T>(
 		} );
 		return ( await response.json() ) as T;
 	} catch ( error ) {
+		// For write operations, propagate HTTP errors to tools for better error messages
+		// Only catch and return null for unexpected errors (JSON parsing, network issues, etc.)
+		if ( error instanceof Error && error.message.includes( 'HTTP error!' ) ) {
+			throw error;
+		}
 		// console.error('Error making API request:', error);
 		return null;
 	}
@@ -153,6 +158,11 @@ export async function makeRestPostRequest<T>(
 		} );
 		return ( await response.json() ) as T;
 	} catch ( error ) {
+		// For write operations, propagate HTTP errors to tools for better error messages
+		// Only catch and return null for unexpected errors (JSON parsing, network issues, etc.)
+		if ( error instanceof Error && error.message.includes( 'HTTP error!' ) ) {
+			throw error;
+		}
 		// console.error('Error making API request:', error);
 		return null;
 	}
