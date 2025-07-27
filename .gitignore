@@ -3,5 +3,5 @@ dist
 build
 
 .eslintcache
-config.json
+#config.json
 .env

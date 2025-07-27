@@ -61,6 +61,67 @@ export async function makeApiRequest<T>(
 	return ( await response.json() ) as T;
 }
 
+// Cache for CSRF tokens to avoid repeated requests
+let csrfTokenCache: { token: string; expires: number } | null = null;
+
+/**
+ * Fetches a CSRF token for write operations using the legacy API
+ */
+export async function getCsrfToken(): Promise<string | null> {
+	// Check if we have a valid cached token (expires in 30 minutes)
+	if ( csrfTokenCache && csrfTokenCache.expires > Date.now() ) {
+		return csrfTokenCache.token;
+	}
+
+	try {
+		const token = oauthToken();
+		if ( !token ) {
+			console.error( 'No OAuth token available for CSRF token request' );
+			return null;
+		}
+
+		const headers: Record<string, string> = {
+			Accept: 'application/json',
+			Authorization: `Bearer ${ token }`
+		};
+
+		// Use the legacy API to get CSRF token since REST API csrf endpoint may not be available
+		const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/api.php`, {
+			params: {
+				action: 'query',
+				meta: 'tokens',
+				type: 'csrf',
+				format: 'json'
+			},
+			headers: headers
+		} );
+
+		const data = ( await response.json() ) as { 
+			query?: { 
+				tokens?: { 
+					csrftoken?: string 
+				} 
+			} 
+		};
+		
+		const csrfToken = data.query?.tokens?.csrftoken;
+		if ( csrfToken && csrfToken !== '+\\' ) {
+			// Cache the token for 30 minutes
+			csrfTokenCache = {
+				token: csrfToken,
+				expires: Date.now() + ( 30 * 60 * 1000 )
+			};
+			return csrfToken;
+		}
+		
+		console.error( 'No valid CSRF token in response:', data );
+		return null;
+	} catch ( error ) {
+		console.error( 'Error fetching CSRF token:', error );
+		return null;
+	}
+}
+
 export async function makeRestGetRequest<T>(
 	path: string,
 	params?: Record<string, string>,
@@ -107,16 +168,28 @@ export async function makeRestPutRequest<T>(
 			headers.Authorization = `Bearer ${ token }`;
 		}
 
+		// Get CSRF token for write operations
+		const csrfToken = needAuth ? await getCsrfToken() : null;
+		if ( needAuth && !csrfToken ) {
+			throw new Error( 'Failed to obtain CSRF token for write operation' );
+		}
+
 		// Add language parameter for interface language
-		const enhancedParams = {
+		const enhancedParams: Record<string, string> = {
 			uselang: wikiLanguage()
 		};
+
+		// Add CSRF token to request body if available
+		const enhancedBody = { ...body };
+		if ( csrfToken ) {
+			enhancedBody.token = csrfToken;
+		}
 
 		const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
 			params: enhancedParams,
 			headers: headers,
 			method: 'PUT',
-			body: body
+			body: enhancedBody
 		} );
 		return ( await response.json() ) as T;
 	} catch ( error ) {
@@ -145,16 +218,32 @@ export async function makeRestPostRequest<T>(
 			headers.Authorization = `Bearer ${ token }`;
 		}
 
+		// Get CSRF token for write operations
+		const csrfToken = needAuth ? await getCsrfToken() : null;
+		if ( needAuth && !csrfToken ) {
+			throw new Error( 'Failed to obtain CSRF token for write operation' );
+		}
+
 		// Add language parameter for interface language
-		const enhancedParams = {
+		const enhancedParams: Record<string, string> = {
 			uselang: wikiLanguage()
 		};
 
-		const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
+		// Add CSRF token to request body if available
+		const enhancedBody = body ? { ...body } : {};
+		if ( csrfToken ) {
+			enhancedBody.token = csrfToken;
+		}
+
+		const fullUrl = `${ wikiServer() }${ scriptPath() }/rest.php${ path }`;
+		console.error( `DEBUG: Making REST POST request to: ${ fullUrl }` );
+		console.error( `DEBUG: Current scriptPath(): "${ scriptPath() }"` );
+		console.error( `DEBUG: Current wikiServer(): "${ wikiServer() }"` );
+		const response = await fetchCore( fullUrl, {
 			params: enhancedParams,
 			headers: headers,
 			method: 'POST',
-			body: body
+			body: enhancedBody
 		} );
 		return ( await response.json() ) as T;
 	} catch ( error ) {

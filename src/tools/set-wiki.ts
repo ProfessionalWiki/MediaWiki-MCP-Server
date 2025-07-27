@@ -66,6 +66,9 @@ export function setWikiTool( server: McpServer ): RegisteredTool {
 			const wikiInfo = await getWikiInfo( wikiServer, args.wikiUrl );
 
 			if ( wikiInfo !== null ) {
+				console.error( `DEBUG: Setting wiki config - scriptpath: "${ wikiInfo.scriptpath }"` );
+				console.error( `DEBUG: Setting wiki config - server: "${ wikiInfo.server }"` );
+				console.error( `DEBUG: Setting wiki config - servername: "${ wikiInfo.servername }"` );
 				updateWikiConfig( wikiInfo.servername, {
 					sitename: wikiInfo.sitename,
 					server: wikiInfo.server,

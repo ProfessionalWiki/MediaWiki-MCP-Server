@@ -1,0 +1,15 @@
+{
+  "defaultWiki": "starfish-english-wiki",
+  "wikis": {
+    "starfish-english-wiki": {
+      "sitename": "Starfish English Wiki",
+      "server": "https://wiki.starfishenglish.com",
+      "articlepath": "/wiki",
+      "scriptpath": "",
+      "clientId": "acb1365d383f2ca9ba63f04cf61490c3",
+      "clientSecret": "300eebfe47bb2e6aee9f0990798c7763feab5229",
+      "language": "ja",
+      "token": "46e01eb733e188af7b2e39589f6eec75"
+    }
+  }
+}
