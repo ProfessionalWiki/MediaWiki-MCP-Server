@@ -37,7 +37,7 @@ This is a Model Context Protocol (MCP) server that provides LLM clients with too
 - Multi-wiki support with JSON configuration
 - Default config includes Wikipedia and localhost instances
 - Session-scoped current wiki selection
-- OAuth token management for authenticated operations
+- OAuth 1.0a and OAuth 2.0 token management for authenticated operations
 
 **Tools Architecture** (`src/tools/`):
 - Modular tool registration system
@@ -83,6 +83,23 @@ This is a Model Context Protocol (MCP) server that provides LLM clients with too
 - No test framework currently configured
 - OAuth tokens required for write operations (create-page, update-page)
 - OAuth setup via `Special:OAuthConsumerRegistration/propose/oauth2` with OAuth extension
+
+### OAuth Authentication
+
+**Supported OAuth Versions**:
+- OAuth 1.0a (legacy support)
+- OAuth 2.0 (recommended)
+
+**OAuth 2.0 Setup**:
+1. Register application at `Special:OAuthConsumerRegistration/propose/oauth2`
+2. Required grants: `basic`, `createeditmovedpage`, `editpage`
+3. Add `clientId`, `clientSecret`, and `token` (JWT) to wiki configuration
+
+**Known Issues**:
+- MediaWiki REST API has OAuth 2.0 + CSRF token integration bug
+- Write operations (create-page, update-page) automatically fall back to legacy Action API
+- Read operations work normally with REST API
+- Legacy Action API works correctly with OAuth 2.0 authentication
 
 ### MCP Integration
 
