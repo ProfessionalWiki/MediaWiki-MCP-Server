@@ -49,14 +49,14 @@ async function handleCreatePageTool(
 		// If REST API fails with OAuth + CSRF issues, try legacy Action API
 		console.log( 'REST API error message:', ( error as Error ).message );
 		const errorMessage = ( error as Error ).message;
-		if ( errorMessage.includes( 'rest-badtoken' ) || 
-			 errorMessage.includes( 'CSRF' ) ||
-			 ( errorMessage.includes( 'token' ) && errorMessage.includes( '403' ) ) ) {
+		if ( errorMessage.includes( 'rest-badtoken' ) ||
+			errorMessage.includes( 'CSRF' ) ||
+			( errorMessage.includes( 'token' ) && errorMessage.includes( '403' ) ) ) {
 			console.warn( 'REST API failed with CSRF/token error, attempting legacy Action API fallback...' );
-			
+
 			try {
 				const legacyResult = await createPageLegacy( title, source, comment, contentModel );
-				
+
 				if ( legacyResult.success ) {
 					return {
 						content: [
@@ -92,7 +92,7 @@ async function handleCreatePageTool(
 				};
 			}
 		}
-		
+
 		// For other REST API errors, return the original error
 		return {
 			content: [

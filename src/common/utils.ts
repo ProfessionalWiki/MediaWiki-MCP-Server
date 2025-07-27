@@ -96,14 +96,14 @@ export async function getCsrfToken(): Promise<string | null> {
 			headers: headers
 		} );
 
-		const data = ( await response.json() ) as { 
-			query?: { 
-				tokens?: { 
-					csrftoken?: string 
-				} 
-			} 
+		const data = ( await response.json() ) as {
+			query?: {
+				tokens?: {
+					csrftoken?: string;
+				};
+			};
 		};
-		
+
 		const csrfToken = data.query?.tokens?.csrftoken;
 		if ( csrfToken && csrfToken !== '+\\' ) {
 			// Cache the token for 30 minutes
@@ -113,7 +113,7 @@ export async function getCsrfToken(): Promise<string | null> {
 			};
 			return csrfToken;
 		}
-		
+
 		console.error( 'No valid CSRF token in response:', data );
 		return null;
 	} catch ( error ) {
@@ -172,7 +172,7 @@ export async function makeRestPutRequest<T>(
 		// Only get CSRF token for non-OAuth authenticated requests
 		const oAuthToken = oauthToken();
 		const isOAuth = oAuthToken && oAuthToken.length > 50; // JWT tokens are longer than legacy tokens
-		const csrfToken = (needAuth && !isOAuth) ? await getCsrfToken() : null;
+		const csrfToken = ( needAuth && !isOAuth ) ? await getCsrfToken() : null;
 		if ( needAuth && !isOAuth && !csrfToken ) {
 			throw new Error( 'Failed to obtain CSRF token for write operation' );
 		}
@@ -225,7 +225,7 @@ export async function makeRestPostRequest<T>(
 		// Only get CSRF token for non-OAuth authenticated requests
 		const oAuthToken = oauthToken();
 		const isOAuth = oAuthToken && oAuthToken.length > 50; // JWT tokens are longer than legacy tokens
-		const csrfToken = (needAuth && !isOAuth) ? await getCsrfToken() : null;
+		const csrfToken = ( needAuth && !isOAuth ) ? await getCsrfToken() : null;
 		if ( needAuth && !isOAuth && !csrfToken ) {
 			throw new Error( 'Failed to obtain CSRF token for write operation' );
 		}
