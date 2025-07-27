@@ -168,9 +168,12 @@ export async function makeRestPutRequest<T>(
 			headers.Authorization = `Bearer ${ token }`;
 		}
 
-		// Get CSRF token for write operations
-		const csrfToken = needAuth ? await getCsrfToken() : null;
-		if ( needAuth && !csrfToken ) {
+		// OAuth 2.0 provides CSRF protection, so no token needed when using OAuth
+		// Only get CSRF token for non-OAuth authenticated requests
+		const oAuthToken = oauthToken();
+		const isOAuth = oAuthToken && oAuthToken.length > 50; // JWT tokens are longer than legacy tokens
+		const csrfToken = (needAuth && !isOAuth) ? await getCsrfToken() : null;
+		if ( needAuth && !isOAuth && !csrfToken ) {
 			throw new Error( 'Failed to obtain CSRF token for write operation' );
 		}
 
@@ -218,9 +221,12 @@ export async function makeRestPostRequest<T>(
 			headers.Authorization = `Bearer ${ token }`;
 		}
 
-		// Get CSRF token for write operations
-		const csrfToken = needAuth ? await getCsrfToken() : null;
-		if ( needAuth && !csrfToken ) {
+		// OAuth 2.0 provides CSRF protection, so no token needed when using OAuth
+		// Only get CSRF token for non-OAuth authenticated requests
+		const oAuthToken = oauthToken();
+		const isOAuth = oAuthToken && oAuthToken.length > 50; // JWT tokens are longer than legacy tokens
+		const csrfToken = (needAuth && !isOAuth) ? await getCsrfToken() : null;
+		if ( needAuth && !isOAuth && !csrfToken ) {
 			throw new Error( 'Failed to obtain CSRF token for write operation' );
 		}
 
@@ -237,8 +243,9 @@ export async function makeRestPostRequest<T>(
 
 		const fullUrl = `${ wikiServer() }${ scriptPath() }/rest.php${ path }`;
 		console.error( `DEBUG: Making REST POST request to: ${ fullUrl }` );
-		console.error( `DEBUG: Current scriptPath(): "${ scriptPath() }"` );
-		console.error( `DEBUG: Current wikiServer(): "${ wikiServer() }"` );
+		console.error( `DEBUG: OAuth token length: ${ oAuthToken ? oAuthToken.length : 'null' }` );
+		console.error( `DEBUG: Is OAuth: ${ isOAuth }` );
+		console.error( `DEBUG: CSRF token: ${ csrfToken ? 'present' : 'null' }` );
 		const response = await fetchCore( fullUrl, {
 			params: enhancedParams,
 			headers: headers,

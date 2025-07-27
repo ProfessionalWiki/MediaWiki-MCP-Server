@@ -6,10 +6,10 @@
       "server": "https://wiki.starfishenglish.com",
       "articlepath": "/wiki",
       "scriptpath": "",
-      "clientId": "acb1365d383f2ca9ba63f04cf61490c3",
-      "clientSecret": "300eebfe47bb2e6aee9f0990798c7763feab5229",
+      "clientId": "5066435afe03483ea0c658d3cb5e0f02",
+      "clientSecret": "f789f4e745c6d475237d475e649d4ab43bc951ca",
       "language": "ja",
-      "token": "46e01eb733e188af7b2e39589f6eec75"
+      "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiI1MDY2NDM1YWZlMDM0ODNlYTBjNjU4ZDNjYjVlMGYwMiIsImp0aSI6IjBiYWQ0ZTNkMzQxOTM0NDM1MmMyNWQwMmIzZjk2NmVmZDMyYzMyNDFjNmVkNjc4NGVmNjBiODc5OTZjNGJjNTU0OTIxMjNhYjJkZGNhNjgyIiwiaWF0IjoxNzUzNTgxMjIzLjE5NDc5MywibmJmIjoxNzUzNTgxMjIzLjE5NDc5NSwiZXhwIjozMzMxMDQ5MDAyMy4xODg5NDYsInN1YiI6IjMiLCJpc3MiOiJodHRwczovL3dpa2kuc3RhcmZpc2hlbmdsaXNoLmNvbSIsInNjb3BlcyI6WyJiYXNpYyIsImhpZ2h2b2x1bWUiLCJlZGl0cGFnZSIsImVkaXRteWNzc2pzIiwiZWRpdG15b3B0aW9ucyIsImVkaXRpbnRlcmZhY2UiLCJlZGl0c2l0ZWNvbmZpZyIsImNyZWF0ZWVkaXRtb3ZlcGFnZSIsInVwbG9hZGZpbGUiLCJ1cGxvYWRlZGl0bW92ZWZpbGUiLCJwYXRyb2wiLCJyb2xsYmFjayIsInZpZXdkZWxldGVkIiwidmlld3Jlc3RyaWN0ZWRsb2dzIiwidmlld215d2F0Y2hsaXN0IiwiZWRpdG15d2F0Y2hsaXN0IiwicHJpdmF0ZWluZm8iXX0.z2ugXgbQ87uz1Ye_bvlFp5z4YMNy6bCOTIeunBgrzsVDJLbCTV5hCJFh_tjipE7yyaSigv-8Uof5kOSxPqLu2x_w_Dvn8kcXh8CRkB7wyXNRk4fvhjJc-15UVWyXpIBRlyVtkl9jz0i37QoSejv8LGisy3Ghil_jqFj--cBPvwzmq-IE8x6OqmqFZPL-kUASct27SLq9Mb5kHEg-c1GcyTf1UxmqIDHSu1B6L7Sp7z9jmr4zQtlUoVbJ8MjrGjxoe-1avI-zMG0Jmfar1540j-GG_ISFnYt0RhEwm6fviFEn8zhixDlVX4YQ14tz5E_R7hWBmw-kznlI0CayXY68Zw"
     }
   }
 }
