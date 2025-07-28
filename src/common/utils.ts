@@ -157,7 +157,7 @@ export async function makeRestPutRequest<T>(
 	path: string,
 	body: Record<string, unknown>,
 	needAuth: boolean = false
-): Promise<T | null> {
+): Promise<T> {
 	try {
 		const headers: Record<string, string> = {
 			Accept: 'application/json',
@@ -171,8 +171,10 @@ export async function makeRestPutRequest<T>(
 		// OAuth 2.0 provides CSRF protection, so no token needed when using OAuth
 		// Only get CSRF token for non-OAuth authenticated requests
 		const oAuthToken = oauthToken();
-		const isOAuth = oAuthToken && oAuthToken.length > 50; // JWT tokens are longer than legacy tokens
-		const csrfToken = ( needAuth && !isOAuth ) ? await getCsrfToken() : null;
+		// JWT tokens are longer than legacy tokens
+		const isOAuth = oAuthToken && oAuthToken.length > 50;
+		const csrfToken = ( needAuth && !isOAuth ) ?
+			await getCsrfToken() : null;
 		if ( needAuth && !isOAuth && !csrfToken ) {
 			throw new Error( 'Failed to obtain CSRF token for write operation' );
 		}
@@ -194,15 +196,21 @@ export async function makeRestPutRequest<T>(
 			method: 'PUT',
 			body: enhancedBody
 		} );
-		return ( await response.json() ) as T;
+		const rawResponseText = await response.text();
+		let data: T;
+		try {
+			data = JSON.parse( rawResponseText ) as T;
+		} catch ( jsonError ) {
+			throw new Error( `Failed to parse JSON response (PUT). Raw response: ${ rawResponseText }. Error: ${ ( jsonError as Error ).message }` );
+		}
+		if ( data === null || data === undefined ) {
+			throw new Error( `API returned no data or malformed JSON (PUT). Raw response: ${ rawResponseText }` );
+		}
+		return data;
 	} catch ( error ) {
 		// For write operations, propagate HTTP errors to tools for better error messages
-		// Only catch and return null for unexpected errors (JSON parsing, network issues, etc.)
-		if ( error instanceof Error && error.message.includes( 'HTTP error!' ) ) {
-			throw error;
-		}
-		// console.error('Error making API request:', error);
-		return null;
+		// Re-throw all errors to ensure they are caught by the calling tool for proper fallback handling
+		throw error;
 	}
 }
 
@@ -210,7 +218,7 @@ export async function makeRestPostRequest<T>(
 	path: string,
 	body?: Record<string, unknown>,
 	needAuth: boolean = false
-): Promise<T | null> {
+): Promise<T> {
 	try {
 		const headers: Record<string, string> = {
 			Accept: 'application/json',
@@ -224,8 +232,10 @@ export async function makeRestPostRequest<T>(
 		// OAuth 2.0 provides CSRF protection, so no token needed when using OAuth
 		// Only get CSRF token for non-OAuth authenticated requests
 		const oAuthToken = oauthToken();
-		const isOAuth = oAuthToken && oAuthToken.length > 50; // JWT tokens are longer than legacy tokens
-		const csrfToken = ( needAuth && !isOAuth ) ? await getCsrfToken() : null;
+		// JWT tokens are longer than legacy tokens
+		const isOAuth = oAuthToken && oAuthToken.length > 50;
+		const csrfToken = ( needAuth && !isOAuth ) ?
+			await getCsrfToken() : null;
 		if ( needAuth && !isOAuth && !csrfToken ) {
 			throw new Error( 'Failed to obtain CSRF token for write operation' );
 		}
@@ -241,26 +251,27 @@ export async function makeRestPostRequest<T>(
 			enhancedBody.token = csrfToken;
 		}
 
-		const fullUrl = `${ wikiServer() }${ scriptPath() }/rest.php${ path }`;
-		console.error( `DEBUG: Making REST POST request to: ${ fullUrl }` );
-		console.error( `DEBUG: OAuth token length: ${ oAuthToken ? oAuthToken.length : 'null' }` );
-		console.error( `DEBUG: Is OAuth: ${ isOAuth }` );
-		console.error( `DEBUG: CSRF token: ${ csrfToken ? 'present' : 'null' }` );
-		const response = await fetchCore( fullUrl, {
+		const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
 			params: enhancedParams,
 			headers: headers,
 			method: 'POST',
 			body: enhancedBody
 		} );
-		return ( await response.json() ) as T;
+		const rawResponseText = await response.text();
+		let data: T;
+		try {
+			data = JSON.parse( rawResponseText ) as T;
+		} catch ( jsonError ) {
+			throw new Error( `Failed to parse JSON response (POST). Raw response: ${ rawResponseText }. Error: ${ ( jsonError as Error ).message }` );
+		}
+		if ( data === null || data === undefined ) {
+			throw new Error( `API returned no data or malformed JSON (POST). Raw response: ${ rawResponseText }` );
+		}
+		return data;
 	} catch ( error ) {
 		// For write operations, propagate HTTP errors to tools for better error messages
-		// Only catch and return null for unexpected errors (JSON parsing, network issues, etc.)
-		if ( error instanceof Error && error.message.includes( 'HTTP error!' ) ) {
-			throw error;
-		}
-		// console.error('Error making API request:', error);
-		return null;
+		// Re-throw all errors to ensure they are caught by the calling tool for proper fallback handling
+		throw error;
 	}
 }
 

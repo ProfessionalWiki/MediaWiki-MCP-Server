@@ -51,25 +51,30 @@ export function setWikiTool( server: McpServer ): RegisteredTool {
 			const url = new URL( args.wikiUrl );
 			const allWikis = getAllWikis();
 
-			if ( allWikis[ url.hostname ] ) {
-				setCurrentWiki( url.host );
-				const newConfig = getCurrentWikiConfig();
-				return {
-					content: [ {
-						type: 'text',
-						text: `Wiki set to ${ newConfig.sitename } (${ newConfig.server })`
-					} as TextContent ]
-				};
+			// Check if this URL matches any existing wiki configuration
+			for ( const [ wikiKey, wikiConfig ] of Object.entries( allWikis ) ) {
+				if ( wikiConfig.server === `${ url.protocol }//${ url.host }` ||
+					url.hostname === wikiKey ||
+					url.host === wikiKey ) {
+					setCurrentWiki( wikiKey );
+					const newConfig = getCurrentWikiConfig();
+					return {
+						content: [ {
+							type: 'text',
+							text: `Wiki set to ${ newConfig.sitename } (${ newConfig.server })`
+						} as TextContent ]
+					};
+				}
 			}
 
 			const wikiServer = parseWikiUrl( args.wikiUrl );
 			const wikiInfo = await getWikiInfo( wikiServer, args.wikiUrl );
 
 			if ( wikiInfo !== null ) {
-				console.error( `DEBUG: Setting wiki config - scriptpath: "${ wikiInfo.scriptpath }"` );
-				console.error( `DEBUG: Setting wiki config - server: "${ wikiInfo.server }"` );
-				console.error( `DEBUG: Setting wiki config - servername: "${ wikiInfo.servername }"` );
+				// Preserve existing config (especially OAuth tokens) when updating
+				const existingConfig = getAllWikis()[ wikiInfo.servername ] || {};
 				updateWikiConfig( wikiInfo.servername, {
+					...existingConfig,
 					sitename: wikiInfo.sitename,
 					server: wikiInfo.server,
 					articlepath: wikiInfo.articlepath,

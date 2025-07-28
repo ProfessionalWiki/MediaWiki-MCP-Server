@@ -42,6 +42,9 @@ Thumbs.db
 .claude/
 *.dre.db
 
+# AI assistant directories
+.gemini/
+
 # Logs
 logs/
 *.log

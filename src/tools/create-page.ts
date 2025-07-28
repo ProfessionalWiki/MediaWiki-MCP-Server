@@ -47,7 +47,6 @@ async function handleCreatePageTool(
 		}, true );
 	} catch ( error ) {
 		// If REST API fails with OAuth + CSRF issues, try legacy Action API
-		console.log( 'REST API error message:', ( error as Error ).message );
 		const errorMessage = ( error as Error ).message;
 		if ( errorMessage.includes( 'rest-badtoken' ) ||
 			errorMessage.includes( 'CSRF' ) ||
@@ -96,16 +95,7 @@ async function handleCreatePageTool(
 		// For other REST API errors, return the original error
 		return {
 			content: [
-				{ type: 'text', text: `Failed to create page: ${ ( error as Error ).message }` } as TextContent
-			],
-			isError: true
-		};
-	}
-
-	if ( data === null ) {
-		return {
-			content: [
-				{ type: 'text', text: 'Failed to create page: No data returned from API' } as TextContent
+				{ type: 'text', text: `Failed to create page: ${ errorMessage }` } as TextContent
 			],
 			isError: true
 		};

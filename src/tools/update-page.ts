@@ -4,6 +4,7 @@ import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { makeRestPutRequest, getPageUrl } from '../common/utils.js';
+import { updatePageLegacy } from '../common/legacy-api.js';
 import type { MwRestApiPageObject } from '../types/mwRestApi.js';
 
 export function updatePageTool( server: McpServer ): RegisteredTool {
@@ -41,18 +42,57 @@ async function handleUpdatePageTool(
 			latest: { id: latestId }
 		}, true );
 	} catch ( error ) {
+		// If REST API fails with OAuth + CSRF issues, try legacy Action API
+		console.log( 'REST API error message:', ( error as Error ).message );
+		const errorMessage = ( error as Error ).message;
+		if ( errorMessage.includes( 'rest-badtoken' ) ||
+			errorMessage.includes( 'CSRF' ) ||
+			( errorMessage.includes( 'token' ) && errorMessage.includes( '403' ) ) ) {
+			console.warn( 'REST API failed with CSRF/token error, attempting legacy Action API fallback...' );
+
+			try {
+				const legacyResult = await updatePageLegacy( title, source, comment, latestId );
+
+				if ( legacyResult.success ) {
+					return {
+						content: [
+							{
+								type: 'text',
+								text: `Page updated successfully via legacy Action API: ${ getPageUrl( title ) }`
+							},
+							{
+								type: 'text',
+								text: [
+									'Page updated using legacy Action API fallback (OAuth 2.0 + REST API issue):',
+									`Page ID: ${ legacyResult.pageid || 'Unknown' }`,
+									`Title: ${ legacyResult.title || title }`,
+									`New revision ID: ${ legacyResult.newrevid || 'Unknown' }`
+								].join( '\n' )
+							}
+						]
+					};
+				} else {
+					return {
+						content: [
+							{ type: 'text', text: `Failed to update page via legacy API: ${ legacyResult.error }` } as TextContent
+						],
+						isError: true
+					};
+				}
+			} catch ( legacyError ) {
+				return {
+					content: [
+						{ type: 'text', text: `Failed to update page: REST API failed with token error and legacy API fallback also failed: ${ ( legacyError as Error ).message }` } as TextContent
+					],
+					isError: true
+				};
+			}
+		}
+
+		// For other REST API errors, return the original error
 		return {
 			content: [
 				{ type: 'text', text: `Failed to update page: ${ ( error as Error ).message }` } as TextContent
-			],
-			isError: true
-		};
-	}
-
-	if ( data === null ) {
-		return {
-			content: [
-				{ type: 'text', text: 'Failed to update page: No data returned from API' } as TextContent
 			],
 			isError: true
 		};
