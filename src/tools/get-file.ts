@@ -58,9 +58,9 @@ function getFileToolResult( result: MwRestApiFileObject ): TextContent[] {
 				`File description URL: ${ result.file_description_url }`,
 				`Latest revision timestamp: ${ result.latest.timestamp }`,
 				`Latest revision user: ${ result.latest.user.name }`,
-				`Preferred URL: ${ result.preferred.url }`,
-				`Original URL: ${ result.original.url }`,
-				`Thumbnail URL: ${ result.thumbnail?.url }`
+				`Preferred URL: ${ result.preferred?.url || 'Not available' }`,
+				`Original URL: ${ result.original?.url || 'Not available' }`,
+				`Thumbnail URL: ${ result.thumbnail?.url || 'Not available' }`
 			].join( '\n' )
 		}
 	];

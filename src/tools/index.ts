@@ -9,6 +9,7 @@ import { setWikiTool } from './set-wiki.js';
 import { updatePageTool } from './update-page.js';
 import { getFileTool } from './get-file.js';
 import { createPageTool } from './create-page.js';
+import { uploadFileTool } from './upload-file.js';
 
 const toolRegistrars = [
 	getPageTool,
@@ -17,7 +18,8 @@ const toolRegistrars = [
 	setWikiTool,
 	updatePageTool,
 	getFileTool,
-	createPageTool
+	createPageTool,
+	uploadFileTool
 ];
 
 export function registerAllTools( server: McpServer ): RegisteredTool[] {
