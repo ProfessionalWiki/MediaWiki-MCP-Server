@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { readFile, access } from 'fs/promises';
+import { readFile, access, stat } from 'fs/promises';
 import { basename } from 'path';
 import { constants } from 'fs';
 /* eslint-disable n/no-missing-import */
@@ -51,12 +51,25 @@ async function handleUploadFileTool(
 		}
 
 		// Validate local file exists and is readable
+		let fileStats;
 		try {
 			await access( localFilePath, constants.R_OK );
+			fileStats = await stat( localFilePath );
 		} catch ( fileError ) {
 			return {
 				content: [
 					{ type: 'text', text: `File not found or not readable: ${ localFilePath }. Error: ${ ( fileError as Error ).message }` } as TextContent
+				],
+				isError: true
+			};
+		}
+
+		// Check file size limit (50MB)
+		const maxFileSize = 50 * 1024 * 1024; // 50MB in bytes
+		if ( fileStats.size > maxFileSize ) {
+			return {
+				content: [
+					{ type: 'text', text: `File too large: ${ Math.round( fileStats.size / ( 1024 * 1024 ) ) }MB. Maximum allowed size is 50MB.` } as TextContent
 				],
 				isError: true
 			};
@@ -161,11 +174,12 @@ async function uploadFileToMediaWiki(
 		// Create FormData for multipart upload
 		const formData = new FormData();
 
-		// Add the file as a Blob
+		// Add the file as a Blob with sanitized filename
 		const fileBlob = new Blob( [ fileBuffer ], {
 			type: 'application/octet-stream'
 		} );
-		formData.append( 'file', fileBlob, basename( originalPath ) );
+		const sanitizedFilename = basename( originalPath ).replace( /[^a-zA-Z0-9._-]/g, '_' );
+		formData.append( 'file', fileBlob, sanitizedFilename );
 
 		// Add other parameters
 		formData.append( 'action', 'upload' );
