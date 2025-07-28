@@ -46,22 +46,22 @@ export interface MwRestApiFileObject {
 			name: string;
 		};
 	};
-	preferred: {
+	preferred?: {
 		mediatype: string;
 		size?: number | null;
 		width?: number | null;
 		height?: number | null;
 		duration?: number | null;
 		url: string;
-	};
-	original: {
+	} | null;
+	original?: {
 		mediatype: string;
 		size?: number | null;
 		width?: number | null;
 		height?: number | null;
 		duration?: number | null;
 		url: string;
-	};
+	} | null;
 	thumbnail?: {
 		mediatype: string;
 		size?: number | null;
