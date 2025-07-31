@@ -2,6 +2,46 @@ import fetch, { Response } from 'node-fetch';
 import { USER_AGENT } from '../server.js';
 import { scriptPath, wikiServer, oauthToken, articlePath, wikiLanguage } from './config.js';
 
+function joinPaths( ...segments: string[] ): string {
+    // Examples:
+    // joinPaths('a', 'b', 'c')          -> 'a/b/c'
+    // joinPaths('/a/', '/b', 'c/')      -> 'a/b/c'
+    // joinPaths('a', '', 'b')           -> 'a/b'
+    // joinPaths('', '', '')             -> ''
+    // joinPaths('rest.php', 'v1/page')  -> 'rest.php/v1/page'
+    return segments.map( segment => segment.replace( /^\/|\/$/g, '' ) ) // Remove leading/trailing slashes from each segment
+                   .filter( segment => segment !== '' ) // Remove any empty segments
+                   .join( '/' ); // Join with a single slash
+}
+
+function buildRestApiUrl( server: string, sp: string, path: string ): string {
+    const baseUrl = new URL( server );
+    const pathSegments: string[] = [];
+
+    // Add the base URL's pathname, if it's not just '/'
+    if ( baseUrl.pathname && baseUrl.pathname !== '/' ) {
+        pathSegments.push( baseUrl.pathname );
+    }
+
+    // Add the script path, if it exists
+    if ( sp ) {
+        pathSegments.push( sp );
+    }
+
+    // Add 'rest.php'
+    pathSegments.push( 'rest.php' );
+
+    // Add the specific API path
+    pathSegments.push( path );
+
+    // Join all segments using the new helper and assign to baseUrl.pathname
+    baseUrl.pathname = '/' + joinPaths( ...pathSegments );
+
+    return baseUrl.toString();
+}
+
+
+
 async function fetchCore(
 	baseUrl: string,
 	options?: {
@@ -9,6 +49,8 @@ async function fetchCore(
 		headers?: Record<string, string>;
 		body?: Record<string, unknown>;
 		method?: string;
+		timeout?: number;
+		retries?: number;
 	}
 ): Promise<Response> {
 	let url = baseUrl;
@@ -33,21 +75,63 @@ async function fetchCore(
 		Object.assign( requestHeaders, options.headers );
 	}
 
-	const fetchOptions: { headers: Record<string, string>; method?: string; body?: string } = {
+	const fetchOptions: { 
+		headers: Record<string, string>; 
+		method?: string; 
+		body?: string;
+		timeout?: number;
+	} = {
 		headers: requestHeaders,
-		method: options?.method || 'GET'
+		method: options?.method || 'GET',
+		timeout: options?.timeout || 30000 // 30 second timeout by default
 	};
+	
 	if ( options?.body ) {
 		fetchOptions.body = JSON.stringify( options.body );
 	}
-	const response = await fetch( url, fetchOptions );
-	if ( !response.ok ) {
-		const errorBody = await response.text().catch( () => 'Could not read error response body' );
-		throw new Error(
-			`HTTP error! status: ${ response.status } for URL: ${ response.url }. Response: ${ errorBody }`
-		);
+
+	const maxRetries = options?.retries || 2;
+	let lastError: Error;
+
+	for ( let attempt = 0; attempt <= maxRetries; attempt++ ) {
+		try {
+			const response = await fetch( url, fetchOptions );
+			if ( !response.ok ) {
+				const errorBody = await response.text().catch( () => 'Could not read error response body' );
+				throw new Error(
+					`HTTP error! status: ${ response.status } for URL: ${ response.url }. Response: ${ errorBody }`
+				);
+			}
+			return response;
+		} catch ( error ) {
+			lastError = error as Error;
+			
+			// Don't retry for HTTP errors (4xx, 5xx), only for network errors
+			if ( lastError.message.includes( 'HTTP error!' ) ) {
+				throw lastError;
+			}
+			
+			// If this is the last attempt, throw the error
+			if ( attempt === maxRetries ) {
+				// Enhance error message with more details for network issues
+				if ( lastError.message.includes( 'ETIMEDOUT' ) ) {
+					throw new Error( `Network timeout after ${ fetchOptions.timeout }ms when connecting to ${ url }. Original error: ${ lastError.message }` );
+				} else if ( lastError.message.includes( 'ECONNREFUSED' ) ) {
+					throw new Error( `Connection refused when connecting to ${ url }. Server may be down. Original error: ${ lastError.message }` );
+				} else if ( lastError.message.includes( 'ENOTFOUND' ) ) {
+					throw new Error( `DNS lookup failed for ${ url }. Check the server URL. Original error: ${ lastError.message }` );
+				} else {
+					throw new Error( `Network error when connecting to ${ url }. Original error: ${ lastError.message }` );
+				}
+			}
+			
+			// Wait before retrying (exponential backoff)
+			const delay = Math.min( 1000 * Math.pow( 2, attempt ), 5000 );
+			await new Promise( resolve => setTimeout( resolve, delay ) );
+		}
 	}
-	return response;
+
+	throw lastError!;
 }
 
 export async function makeApiRequest<T>(
@@ -142,14 +226,15 @@ export async function makeRestGetRequest<T>(
 			uselang: wikiLanguage()
 		};
 
-		const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
+		const response = await fetchCore( buildRestApiUrl( wikiServer(), scriptPath(), path ), {
 			params: enhancedParams,
 			headers: headers
 		} );
 		return ( await response.json() ) as T;
 	} catch ( error ) {
-		// console.error('Error making API request:', error);
-		return null;
+		console.error( 'Error making REST GET request:', error );
+		// Re-throw the error so tools can provide better error messages to users
+		throw error;
 	}
 }
 
@@ -190,7 +275,7 @@ export async function makeRestPutRequest<T>(
 			enhancedBody.token = csrfToken;
 		}
 
-		const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
+		const response = await fetchCore( buildRestApiUrl( wikiServer(), scriptPath(), path ), {
 			params: enhancedParams,
 			headers: headers,
 			method: 'PUT',
@@ -251,7 +336,7 @@ export async function makeRestPostRequest<T>(
 			enhancedBody.token = csrfToken;
 		}
 
-		const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
+		const response = await fetchCore( buildRestApiUrl( wikiServer(), scriptPath(), path ), {
 			params: enhancedParams,
 			headers: headers,
 			method: 'POST',
