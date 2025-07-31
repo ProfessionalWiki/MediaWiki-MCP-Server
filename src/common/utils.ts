@@ -1,6 +1,10 @@
 import fetch, { Response } from 'node-fetch';
+import { lookup } from 'dns';
+import { promisify } from 'util';
 import { USER_AGENT } from '../server.js';
 import { scriptPath, wikiServer, oauthToken, articlePath, wikiLanguage } from './config.js';
+
+const dnsLookup = promisify( lookup );
 
 function joinPaths( ...segments: string[] ): string {
     // Examples:
@@ -59,17 +63,35 @@ async function fetchCore(
 		url = 'https:' + url;
 	}
 
+	const requestHeaders: Record<string, string> = {
+		'User-Agent': USER_AGENT,
+		'Accept-Language': wikiLanguage()
+	};
+
+	// Force IPv4 resolution to avoid IPv6 connection timeouts
+	try {
+		const urlObj = new URL( url );
+		if ( urlObj.hostname && !urlObj.hostname.match( /^\d+\.\d+\.\d+\.\d+$/ ) ) {
+			// Only resolve if it's not already an IP address
+			const { address } = await dnsLookup( urlObj.hostname, { family: 4 } );
+			const originalHost = urlObj.hostname;
+			urlObj.hostname = address;
+			url = urlObj.toString();
+			
+			// Add original hostname as Host header to ensure proper server routing
+			requestHeaders.Host = originalHost;
+		}
+	} catch ( dnsError ) {
+		// If DNS resolution fails, continue with original URL
+		console.warn( `IPv4 DNS resolution failed for ${ url }, using original URL:`, dnsError );
+	}
+
 	if ( options?.params ) {
 		const queryString = new URLSearchParams( options.params ).toString();
 		if ( queryString ) {
 			url = `${ url }?${ queryString }`;
 		}
 	}
-
-	const requestHeaders: Record<string, string> = {
-		'User-Agent': USER_AGENT,
-		'Accept-Language': wikiLanguage()
-	};
 
 	if ( options?.headers ) {
 		Object.assign( requestHeaders, options.headers );
