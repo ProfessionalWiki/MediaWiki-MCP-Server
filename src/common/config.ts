@@ -22,6 +22,11 @@ export interface WikiConfig {
 	 * OAuth consumer token requested from Extension:OAuth.
 	 */
 	token?: string | null;
+	/**
+	 * If the wiki always requires auth to access.
+	 * $wgGroupPermissions['*']['read'] = false; in MediaWiki
+	 */
+	private?: boolean;
 }
 
 interface Config {
@@ -37,14 +42,16 @@ const defaultConfig: Config = {
 			server: 'https://en.wikipedia.org',
 			articlepath: '/wiki',
 			scriptpath: '/w',
-			token: null
+			token: null,
+			private: false
 		},
 		'localhost:8080': {
 			sitename: 'Local MediaWiki Docker',
 			server: 'http://localhost:8080',
 			articlepath: '/wiki',
 			scriptpath: '/w',
-			token: null
+			token: null,
+			private: false
 		}
 	}
 };
@@ -104,6 +111,7 @@ export const oauthToken = (): string | null | undefined => {
 	const token = getCurrentWikiConfig().token;
 	return isTokenValid( token ) ? token : undefined;
 };
+export const privateWiki = (): boolean | undefined => getCurrentWikiConfig().private;
 export const siteName = (): string | undefined => getCurrentWikiConfig().sitename;
 
 function isTokenValid( token: string | null | undefined ): boolean {
