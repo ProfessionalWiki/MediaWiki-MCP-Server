@@ -70,7 +70,7 @@ export async function makeRestGetRequest<T>(
 			Accept: 'application/json'
 		};
 		const token = oauthToken();
-		if ( (needAuth || privateWiki() ) && token !== undefined ) {
+		if ( ( needAuth || privateWiki() ) && token !== undefined ) {
 			headers.Authorization = `Bearer ${ token }`;
 		}
 		const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
@@ -95,7 +95,7 @@ export async function makeRestPutRequest<T>(
 			'Content-Type': 'application/json'
 		};
 		const token = oauthToken();
-		if ( (needAuth || privateWiki() ) && token !== undefined ) {
+		if ( ( needAuth || privateWiki() ) && token !== undefined ) {
 			headers.Authorization = `Bearer ${ token }`;
 		}
 		const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
@@ -121,7 +121,7 @@ export async function makeRestPostRequest<T>(
 			'Content-Type': 'application/json'
 		};
 		const token = oauthToken();
-		if ( (needAuth || privateWiki() ) && token !== undefined ) {
+		if ( ( needAuth || privateWiki() ) && token !== undefined ) {
 			headers.Authorization = `Bearer ${ token }`;
 		}
 		const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
