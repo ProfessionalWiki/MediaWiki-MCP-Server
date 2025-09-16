@@ -6,14 +6,16 @@
       "server": "https://en.wikipedia.org",
       "articlepath": "/wiki",
       "scriptpath": "/w",
-      "token": null
+      "token": null,
+      "private": false
     },
     "localhost:8080": {
       "sitename": "Local MediaWiki Docker",
       "server": "http://localhost:8080",
       "articlepath": "/wiki",
       "scriptpath": "/w",
-      "token": null
+      "token": null,
+      "private": false
     }
   }
 }
