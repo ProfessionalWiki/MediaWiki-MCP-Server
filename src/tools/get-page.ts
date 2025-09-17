@@ -5,6 +5,9 @@ import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontext
 /* eslint-enable n/no-missing-import */
 import { makeRestGetRequest } from '../common/utils.js';
 import type { MwRestApiPageObject } from '../types/mwRestApi.js';
+import { getCurrentWikiKey, setCurrentWiki } from '../common/config.js';
+import { resolveWiki } from '../common/wikiDiscovery.js';
+import { WikiDiscoveryError } from '../common/errors.js';
 
 enum ContentFormat {
 	noContent = 'noContent',
@@ -18,56 +21,68 @@ export function getPageTool( server: McpServer ): RegisteredTool {
 		'Returns the standard page object for a wiki page, optionally including page source or rendered HTML, and including the license and information about the latest revision.',
 		{
 			title: z.string().describe( 'Wiki page title' ),
-			content: z.nativeEnum( ContentFormat ).describe( 'Format of the page content to retrieve' ).optional().default( ContentFormat.noContent )
+			content: z.nativeEnum( ContentFormat ).describe( 'Format of the page content to retrieve' ).optional().default( ContentFormat.noContent ),
+			wikiUrl: z.string().url().describe( 'Optional URL of the wiki to use for this request.' ).optional()
 		},
 		{
 			title: 'Get page',
 			readOnlyHint: true,
 			destructiveHint: false
 		} as ToolAnnotations,
-		async ( { title, content } ) => handleGetPageTool( title, content )
+		async ( { title, content, wikiUrl } ) => handleGetPageTool( title, content, wikiUrl )
 	);
 }
 
-async function handleGetPageTool( title: string, content: ContentFormat ): Promise<CallToolResult> {
-	let subEndpoint: string;
-	switch ( content ) {
-		case ContentFormat.noContent:
-			subEndpoint = '/bare';
-			break;
-		case ContentFormat.withSource:
-			subEndpoint = '';
-			break;
-		case ContentFormat.withHtml:
-			subEndpoint = '/with_html';
-			break;
-	}
-
-	let data: MwRestApiPageObject | null = null;
-
+async function handleGetPageTool( title: string, content: ContentFormat, wikiUrl?: string ): Promise<CallToolResult> {
+	const originalWikiKey = getCurrentWikiKey();
 	try {
-		data = await makeRestGetRequest<MwRestApiPageObject>( `/v1/page/${ encodeURIComponent( title ) }${ subEndpoint }` );
+		let subEndpoint: string;
+		switch ( content ) {
+			case ContentFormat.noContent:
+				subEndpoint = '/bare';
+				break;
+			case ContentFormat.withSource:
+				subEndpoint = '';
+				break;
+			case ContentFormat.withHtml:
+				subEndpoint = '/with_html';
+				break;
+		}
+
+		if ( wikiUrl ) {
+			const wikiKey = await resolveWiki( wikiUrl );
+			setCurrentWiki( wikiKey );
+		}
+		const data = await makeRestGetRequest<MwRestApiPageObject>( `/v1/page/${ encodeURIComponent( title ) }${ subEndpoint }` );
+
+		if ( data === null ) {
+			return {
+				content: [
+					{ type: 'text', text: 'Failed to retrieve page data: No data returned from API' } as TextContent
+				],
+				isError: true
+			};
+		}
+
+		return {
+			content: getPageToolResult( data )
+		};
 	} catch ( error ) {
+		if ( error instanceof WikiDiscoveryError ) {
+			return {
+				content: [ { type: 'text', text: error.message } as TextContent ],
+				isError: true
+			};
+		}
 		return {
 			content: [
 				{ type: 'text', text: `Failed to retrieve page data: ${ ( error as Error ).message }` } as TextContent
 			],
 			isError: true
 		};
+	} finally {
+		setCurrentWiki( originalWikiKey );
 	}
-
-	if ( data === null ) {
-		return {
-			content: [
-				{ type: 'text', text: 'Failed to retrieve page data: No data returned from API' } as TextContent
-			],
-			isError: true
-		};
-	}
-
-	return {
-		content: getPageToolResult( data )
-	};
 }
 
 function getPageToolResult( result: MwRestApiPageObject ): TextContent[] {

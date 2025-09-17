@@ -5,6 +5,9 @@ import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontext
 /* eslint-enable n/no-missing-import */
 import { makeRestPutRequest, getPageUrl, formatEditComment } from '../common/utils.js';
 import type { MwRestApiPageObject } from '../types/mwRestApi.js';
+import { getCurrentWikiKey, setCurrentWiki } from '../common/config.js';
+import { resolveWiki } from '../common/wikiDiscovery.js';
+import { WikiDiscoveryError } from '../common/errors.js';
 
 export function updatePageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
@@ -14,7 +17,8 @@ export function updatePageTool( server: McpServer ): RegisteredTool {
 			title: z.string().describe( 'Wiki page title' ),
 			source: z.string().describe( 'Page content in the same content model of the existing page' ),
 			latestId: z.number().describe( 'Identifier for the revision used as the base for the new source' ),
-			comment: z.string().describe( 'Summary of the edit' ).optional()
+			comment: z.string().describe( 'Summary of the edit' ).optional(),
+			wikiUrl: z.string().url().describe( 'Optional URL of the wiki to use for this request.' ).optional()
 		},
 		{
 			title: 'Update page',
@@ -22,8 +26,8 @@ export function updatePageTool( server: McpServer ): RegisteredTool {
 			destructiveHint: true
 		} as ToolAnnotations,
 		async (
-			{ title, source, latestId, comment }
-		) => handleUpdatePageTool( title, source, latestId, comment )
+			{ title, source, latestId, comment, wikiUrl }
+		) => handleUpdatePageTool( title, source, latestId, comment, wikiUrl )
 	);
 }
 
@@ -31,36 +35,49 @@ async function handleUpdatePageTool(
 	title: string,
 	source: string,
 	latestId: number,
-	comment?: string
+	comment?: string,
+	wikiUrl?: string
 ): Promise<CallToolResult> {
-	let data: MwRestApiPageObject | null = null;
+	const originalWikiKey = getCurrentWikiKey();
 	try {
-		data = await makeRestPutRequest<MwRestApiPageObject>( `/v1/page/${ encodeURIComponent( title ) }`, {
+		if ( wikiUrl ) {
+			const wikiKey = await resolveWiki( wikiUrl );
+			setCurrentWiki( wikiKey );
+		}
+		const data = await makeRestPutRequest<MwRestApiPageObject>( `/v1/page/${ encodeURIComponent( title ) }`, {
 			source: source,
 			comment: formatEditComment( 'update-page', comment ),
 			latest: { id: latestId }
 		}, true );
+
+		if ( data === null ) {
+			return {
+				content: [
+					{ type: 'text', text: 'Failed to update page: No data returned from API' } as TextContent
+				],
+				isError: true
+			};
+		}
+
+		return {
+			content: updatePageToolResult( data )
+		};
 	} catch ( error ) {
+		if ( error instanceof WikiDiscoveryError ) {
+			return {
+				content: [ { type: 'text', text: error.message } as TextContent ],
+				isError: true
+			};
+		}
 		return {
 			content: [
 				{ type: 'text', text: `Failed to update page: ${ ( error as Error ).message }` } as TextContent
 			],
 			isError: true
 		};
+	} finally {
+		setCurrentWiki( originalWikiKey );
 	}
-
-	if ( data === null ) {
-		return {
-			content: [
-				{ type: 'text', text: 'Failed to update page: No data returned from API' } as TextContent
-			],
-			isError: true
-		};
-	}
-
-	return {
-		content: updatePageToolResult( data )
-	};
 }
 
 function updatePageToolResult( result: MwRestApiPageObject ): TextContent[] {

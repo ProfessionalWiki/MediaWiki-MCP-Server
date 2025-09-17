@@ -5,6 +5,9 @@ import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontext
 /* eslint-enable n/no-missing-import */
 import { makeRestPostRequest, getPageUrl, formatEditComment } from '../common/utils.js';
 import type { MwRestApiPageObject } from '../types/mwRestApi.js';
+import { getCurrentWikiKey, setCurrentWiki } from '../common/config.js';
+import { resolveWiki } from '../common/wikiDiscovery.js';
+import { WikiDiscoveryError } from '../common/errors.js';
 
 export function createPageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
@@ -14,7 +17,8 @@ export function createPageTool( server: McpServer ): RegisteredTool {
 			source: z.string().describe( 'Page content in the format specified by the contentModel parameter' ),
 			title: z.string().describe( 'Wiki page title' ),
 			comment: z.string().describe( 'Reason for creating the page' ).optional(),
-			contentModel: z.string().describe( 'Type of content on the page. Defaults to "wikitext"' ).optional()
+			contentModel: z.string().describe( 'Type of content on the page. Defaults to "wikitext"' ).optional(),
+			wikiUrl: z.string().url().describe( 'Optional URL of the wiki to use for this request.' ).optional()
 		},
 		{
 			title: 'Create page',
@@ -22,8 +26,8 @@ export function createPageTool( server: McpServer ): RegisteredTool {
 			destructiveHint: true
 		} as ToolAnnotations,
 		async (
-			{ source, title, comment, contentModel }
-		) => handleCreatePageTool( source, title, comment, contentModel )
+			{ source, title, comment, contentModel, wikiUrl }
+		) => handleCreatePageTool( source, title, comment, contentModel, wikiUrl )
 	);
 }
 
@@ -31,39 +35,52 @@ async function handleCreatePageTool(
 	source: string,
 	title: string,
 	comment?: string,
-	contentModel?: string
+	contentModel?: string,
+	wikiUrl?: string
 ): Promise<CallToolResult> {
-	let data: MwRestApiPageObject | null = null;
-
+	const originalWikiKey = getCurrentWikiKey();
 	try {
-		data = await makeRestPostRequest<MwRestApiPageObject>( '/v1/page', {
+		if ( wikiUrl ) {
+			const wikiKey = await resolveWiki( wikiUrl );
+			setCurrentWiki( wikiKey );
+		}
+
+		const data = await makeRestPostRequest<MwRestApiPageObject>( '/v1/page', {
 			source: source,
 			title: title,
 			comment: formatEditComment( 'create-page', comment ),
 			// eslint-disable-next-line camelcase
 			content_model: contentModel
 		}, true );
+
+		if ( data === null ) {
+			return {
+				content: [
+					{ type: 'text', text: 'Failed to create page: No data returned from API' } as TextContent
+				],
+				isError: true
+			};
+		}
+
+		return {
+			content: createPageToolResult( data )
+		};
 	} catch ( error ) {
+		if ( error instanceof WikiDiscoveryError ) {
+			return {
+				content: [ { type: 'text', text: error.message } as TextContent ],
+				isError: true
+			};
+		}
 		return {
 			content: [
 				{ type: 'text', text: `Failed to create page: ${ ( error as Error ).message }` } as TextContent
 			],
 			isError: true
 		};
+	} finally {
+		setCurrentWiki( originalWikiKey );
 	}
-
-	if ( data === null ) {
-		return {
-			content: [
-				{ type: 'text', text: 'Failed to create page: No data returned from API' } as TextContent
-			],
-			isError: true
-		};
-	}
-
-	return {
-		content: createPageToolResult( data )
-	};
 }
 
 function createPageToolResult( result: MwRestApiPageObject ): TextContent[] {

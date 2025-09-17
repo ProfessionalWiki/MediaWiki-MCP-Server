@@ -5,6 +5,9 @@ import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontext
 /* eslint-enable n/no-missing-import */
 import { makeRestGetRequest } from '../common/utils.js';
 import type { MwRestApiGetPageHistoryResponse, MwRestApiRevisionObject } from '../types/mwRestApi.js';
+import { getCurrentWikiKey, setCurrentWiki } from '../common/config.js';
+import { resolveWiki } from '../common/wikiDiscovery.js';
+import { WikiDiscoveryError } from '../common/errors.js';
 
 export function getPageHistoryTool( server: McpServer ): RegisteredTool {
 	return server.tool(
@@ -14,7 +17,8 @@ export function getPageHistoryTool( server: McpServer ): RegisteredTool {
 			title: z.string().describe( 'Wiki page title' ),
 			olderThan: z.number().describe( 'The ID of the oldest revision to return' ).optional(),
 			newerThan: z.number().describe( 'The ID of the newest revision to return' ).optional(),
-			filter: z.string().describe( 'Filter that returns only revisions with certain tags. Only support one filter per request.' ).optional()
+			filter: z.string().describe( 'Filter that returns only revisions with certain tags. Only support one filter per request.' ).optional(),
+			wikiUrl: z.string().url().describe( 'Optional URL of the wiki to use for this request.' ).optional()
 		},
 		{
 			title: 'Get page history',
@@ -22,8 +26,8 @@ export function getPageHistoryTool( server: McpServer ): RegisteredTool {
 			destructiveHint: false
 		} as ToolAnnotations,
 		async (
-			{ title, olderThan, newerThan, filter }
-		) => handleGetPageHistoryTool( title, olderThan, newerThan, filter )
+			{ title, olderThan, newerThan, filter, wikiUrl }
+		) => handleGetPageHistoryTool( title, olderThan, newerThan, filter, wikiUrl )
 	);
 }
 
@@ -31,57 +35,70 @@ async function handleGetPageHistoryTool(
 	title: string,
 	olderThan?: number,
 	newerThan?: number,
-	filter?: string
+	filter?: string,
+	wikiUrl?: string
 ): Promise< CallToolResult > {
-	const params: Record<string, string> = {};
-	if ( olderThan ) {
-		params.olderThan = olderThan.toString();
-	}
-	if ( newerThan ) {
-		params.newerThan = newerThan.toString();
-	}
-	if ( filter ) {
-		params.filter = filter;
-	}
-
-	let data: MwRestApiGetPageHistoryResponse | null = null;
+	const originalWikiKey = getCurrentWikiKey();
 	try {
-		data = await makeRestGetRequest<MwRestApiGetPageHistoryResponse>(
+		const params: Record<string, string> = {};
+		if ( olderThan ) {
+			params.olderThan = olderThan.toString();
+		}
+		if ( newerThan ) {
+			params.newerThan = newerThan.toString();
+		}
+		if ( filter ) {
+			params.filter = filter;
+		}
+
+		if ( wikiUrl ) {
+			const wikiKey = await resolveWiki( wikiUrl );
+			setCurrentWiki( wikiKey );
+		}
+		const data = await makeRestGetRequest<MwRestApiGetPageHistoryResponse>(
 			`/v1/page/${ encodeURIComponent( title ) }/history`,
 			params
 		);
+
+		if ( data === null ) {
+			return {
+				content: [
+					{
+						type: 'text',
+						text: 'Failed to retrieve page data: No data returned from API'
+					} as TextContent
+				],
+				isError: true
+			};
+		}
+
+		if ( data.revisions.length === 0 ) {
+			return {
+				content: [
+					{ type: 'text', text: 'No revisions found for page' } as TextContent
+				]
+			};
+		}
+
+		return {
+			content: data.revisions.map( getPageHistoryToolResult )
+		};
 	} catch ( error ) {
+		if ( error instanceof WikiDiscoveryError ) {
+			return {
+				content: [ { type: 'text', text: error.message } as TextContent ],
+				isError: true
+			};
+		}
 		return {
 			content: [
 				{ type: 'text', text: `Failed to retrieve page history: ${ ( error as Error ).message }` } as TextContent
 			],
 			isError: true
 		};
+	} finally {
+		setCurrentWiki( originalWikiKey );
 	}
-
-	if ( data === null ) {
-		return {
-			content: [
-				{
-					type: 'text',
-					text: 'Failed to retrieve page data: No data returned from API'
-				} as TextContent
-			],
-			isError: true
-		};
-	}
-
-	if ( data.revisions.length === 0 ) {
-		return {
-			content: [
-				{ type: 'text', text: 'No revisions found for page' } as TextContent
-			]
-		};
-	}
-
-	return {
-		content: data.revisions.map( getPageHistoryToolResult )
-	};
 }
 
 function getPageHistoryToolResult( result: MwRestApiRevisionObject ): TextContent {
