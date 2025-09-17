@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { makeRestPutRequest, getPageUrl } from '../common/utils.js';
+import { makeRestPutRequest, getPageUrl, formatEditComment } from '../common/utils.js';
 import type { MwRestApiPageObject } from '../types/mwRestApi.js';
 
 export function updatePageTool( server: McpServer ): RegisteredTool {
@@ -37,7 +37,7 @@ async function handleUpdatePageTool(
 	try {
 		data = await makeRestPutRequest<MwRestApiPageObject>( `/v1/page/${ encodeURIComponent( title ) }`, {
 			source: source,
-			comment: comment,
+			comment: formatEditComment( 'update-page', comment ),
 			latest: { id: latestId }
 		}, true );
 	} catch ( error ) {
