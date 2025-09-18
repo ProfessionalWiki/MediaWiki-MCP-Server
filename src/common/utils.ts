@@ -65,23 +65,18 @@ export async function makeRestGetRequest<T>(
 	params?: Record<string, string>,
 	needAuth: boolean = false
 ): Promise<T | null> {
-	try {
-		const headers: Record<string, string> = {
-			Accept: 'application/json'
-		};
-		const token = oauthToken();
-		if ( ( needAuth || privateWiki() ) && token !== undefined ) {
-			headers.Authorization = `Bearer ${ token }`;
-		}
-		const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
-			params: params,
-			headers: headers
-		} );
-		return ( await response.json() ) as T;
-	} catch ( error ) {
-		console.error( 'Error making API request:', error );
-		return null;
+	const headers: Record<string, string> = {
+		Accept: 'application/json'
+	};
+	const token = oauthToken();
+	if ( ( needAuth || privateWiki() ) && token !== undefined ) {
+		headers.Authorization = `Bearer ${ token }`;
 	}
+	const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
+		params: params,
+		headers: headers
+	} );
+	return ( await response.json() ) as T;
 }
 
 export async function makeRestPutRequest<T>(
@@ -89,25 +84,20 @@ export async function makeRestPutRequest<T>(
 	body: Record<string, unknown>,
 	needAuth: boolean = false
 ): Promise<T | null> {
-	try {
-		const headers: Record<string, string> = {
-			Accept: 'application/json',
-			'Content-Type': 'application/json'
-		};
-		const token = oauthToken();
-		if ( ( needAuth || privateWiki() ) && token !== undefined ) {
-			headers.Authorization = `Bearer ${ token }`;
-		}
-		const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
-			headers: headers,
-			method: 'PUT',
-			body: body
-		} );
-		return ( await response.json() ) as T;
-	} catch ( error ) {
-		console.error( 'Error making API request:', error );
-		return null;
+	const headers: Record<string, string> = {
+		Accept: 'application/json',
+		'Content-Type': 'application/json'
+	};
+	const token = oauthToken();
+	if ( ( needAuth || privateWiki() ) && token !== undefined ) {
+		headers.Authorization = `Bearer ${ token }`;
 	}
+	const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
+		headers: headers,
+		method: 'PUT',
+		body: body
+	} );
+	return ( await response.json() ) as T;
 }
 
 export async function makeRestPostRequest<T>(
@@ -115,25 +105,20 @@ export async function makeRestPostRequest<T>(
 	body?: Record<string, unknown>,
 	needAuth: boolean = false
 ): Promise<T | null> {
-	try {
-		const headers: Record<string, string> = {
-			Accept: 'application/json',
-			'Content-Type': 'application/json'
-		};
-		const token = oauthToken();
-		if ( ( needAuth || privateWiki() ) && token !== undefined ) {
-			headers.Authorization = `Bearer ${ token }`;
-		}
-		const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
-			headers: headers,
-			method: 'POST',
-			body: body
-		} );
-		return ( await response.json() ) as T;
-	} catch ( error ) {
-		console.error( 'Error making API request:', error );
-		return null;
+	const headers: Record<string, string> = {
+		Accept: 'application/json',
+		'Content-Type': 'application/json'
+	};
+	const token = oauthToken();
+	if ( ( needAuth || privateWiki() ) && token !== undefined ) {
+		headers.Authorization = `Bearer ${ token }`;
 	}
+	const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
+		headers: headers,
+		method: 'POST',
+		body: body
+	} );
+	return ( await response.json() ) as T;
 }
 
 export async function fetchPageHtml( url: string ): Promise<string | null> {
