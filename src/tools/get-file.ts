@@ -5,48 +5,64 @@ import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontext
 /* eslint-enable n/no-missing-import */
 import { makeRestGetRequest } from '../common/utils.js';
 import type { MwRestApiFileObject } from '../types/mwRestApi.js';
+import { getCurrentWikiKey, setCurrentWiki } from '../common/config.js';
+import { resolveWiki } from '../common/wikiDiscovery.js';
+import { WikiDiscoveryError } from '../common/errors.js';
 
 export function getFileTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'get-file',
 		'Returns information about a file, including links to download the file in thumbnail, preview, and original formats.',
 		{
-			title: z.string().describe( 'File title' )
+			title: z.string().describe( 'File title' ),
+			wikiUrl: z.string().url().describe( 'Optional URL of the wiki to use for this request.' ).optional()
 		},
 		{
 			title: 'Get file',
 			readOnlyHint: true,
 			destructiveHint: false
 		} as ToolAnnotations,
-		async ( { title } ) => handleGetFileTool( title )
+		async ( { title, wikiUrl } ) => handleGetFileTool( title, wikiUrl )
 	);
 }
 
-async function handleGetFileTool( title: string ): Promise< CallToolResult > {
-	let data: MwRestApiFileObject | null = null;
+async function handleGetFileTool( title: string, wikiUrl?: string ): Promise< CallToolResult > {
+	const originalWikiKey = getCurrentWikiKey();
 	try {
-		data = await makeRestGetRequest<MwRestApiFileObject>( `/v1/file/${ encodeURIComponent( title ) }` );
+		if ( wikiUrl ) {
+			const wikiKey = await resolveWiki( wikiUrl );
+			setCurrentWiki( wikiKey );
+		}
+		const data = await makeRestGetRequest<MwRestApiFileObject>( `/v1/file/${ encodeURIComponent( title ) }` );
+
+		if ( data === null ) {
+			return {
+				content: [
+					{ type: 'text', text: 'Failed to retrieve file data: No data returned from API' } as TextContent
+				],
+				isError: true
+			};
+		}
+
+		return {
+			content: getFileToolResult( data )
+		};
 	} catch ( error ) {
+		if ( error instanceof WikiDiscoveryError ) {
+			return {
+				content: [ { type: 'text', text: error.message } as TextContent ],
+				isError: true
+			};
+		}
 		return {
 			content: [
 				{ type: 'text', text: `Failed to retrieve file data: ${ ( error as Error ).message }` } as TextContent
 			],
 			isError: true
 		};
+	} finally {
+		setCurrentWiki( originalWikiKey );
 	}
-
-	if ( data === null ) {
-		return {
-			content: [
-				{ type: 'text', text: 'Failed to retrieve file data: No data returned from API' } as TextContent
-			],
-			isError: true
-		};
-	}
-
-	return {
-		content: getFileToolResult( data )
-	};
 }
 
 function getFileToolResult( result: MwRestApiFileObject ): TextContent[] {
