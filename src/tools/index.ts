@@ -25,7 +25,9 @@ export function registerAllTools( server: McpServer ): RegisteredTool[] {
 	for ( const registrar of toolRegistrars ) {
 		try {
 			registeredTools.push( registrar( server ) );
-		} catch ( error ) {}
+		} catch ( error ) {
+			console.error( `Error registering tool: ${ ( error as Error ).message }` );
+		}
 	}
 	return registeredTools;
 }

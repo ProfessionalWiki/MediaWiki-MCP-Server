@@ -205,7 +205,9 @@ function extractScriptPathFromSearchForm( htmlContent: string, wikiServer: strin
 			if ( indexPathIndex !== -1 ) {
 				return path.slice( 0, indexPathIndex );
 			}
-		} catch ( e ) {}
+		} catch ( error ) {
+			console.error( `Error extracting script path from search form: ${ ( error as Error ).message }` );
+		}
 	}
 	return null;
 }

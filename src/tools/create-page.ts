@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { makeRestPostRequest, getPageUrl } from '../common/utils.js';
+import { makeRestPostRequest, getPageUrl, formatEditComment } from '../common/utils.js';
 import type { MwRestApiPageObject } from '../types/mwRestApi.js';
 
 export function createPageTool( server: McpServer ): RegisteredTool {
@@ -39,7 +39,7 @@ async function handleCreatePageTool(
 		data = await makeRestPostRequest<MwRestApiPageObject>( '/v1/page', {
 			source: source,
 			title: title,
-			comment: comment || '',
+			comment: formatEditComment( 'create-page', comment ),
 			// eslint-disable-next-line camelcase
 			content_model: contentModel
 		}, true );

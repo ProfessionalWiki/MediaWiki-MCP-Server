@@ -28,6 +28,9 @@
 		"type": "git",
 		"url": "git+https://github.com/ProfessionalWiki/MediaWiki-MCP-Server.git"
 	},
+	"engines": {
+		"node": ">=18"
+	},
 	"scripts": {
 		"build": "tsc",
 		"watch": "tsc --watch",
@@ -45,13 +48,13 @@
 	},
 	"devDependencies": {
 		"@types/express": "^5.0.2",
-		"@types/node": "^22.15.17",
+		"@types/node": "^24.5.2",
 		"@types/node-fetch": "^2.6.12",
-		"@typescript-eslint/eslint-plugin": "^7.18.0",
-		"@typescript-eslint/parser": "^7.18.0",
-		"@wmde/eslint-config-wikimedia-typescript": "^0.2.13",
+		"@typescript-eslint/eslint-plugin": "^8.19.0",
+		"@typescript-eslint/parser": "^8.19.0",
 		"concurrently": "^9.1.2",
-		"eslint-config-wikimedia": "^0.29.1",
+		"eslint": "^8.57.0",
+		"eslint-config-wikimedia": "^0.31.0",
 		"typescript": "^5.8.3"
 	}
 }

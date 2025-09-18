@@ -3,11 +3,11 @@
 	"extends": [
 		"wikimedia",
 		"wikimedia/node",
-		"wikimedia/language/es2022",
-		"@wmde/wikimedia-typescript"
+		"wikimedia/language/es2022"
 	],
 	"rules": {
 		"no-shadow": "off",
-		"es-x/no-hashbang": "off"
+		"es-x/no-hashbang": "off",
+		"comma-dangle": "off"
 	}
 }
