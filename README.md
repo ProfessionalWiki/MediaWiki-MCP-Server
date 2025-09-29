@@ -147,8 +147,9 @@ The command will build and start the MCP Proxy server locally at `6277` and the 
 
 To enable your MCP client to use this MediaWiki MCP Server for local development: 
 
-1. Register the MCP server in your client config (e.g. `claude_desktop_config.json` for [Claude Desktop](https://modelcontextprotocol.io/quickstart/user)). An example config is provided at `mcp.json`.
-2. Run the watch command so that the source will be compiled whenever there is a change:
+1. [Install](#installation) the MCP server on your MCP client.
+2. Change the `command` and `args` values as shown in the [`mcp.json`](mcp.json) file (or [`mcp.docker.json`](mcp.docker.json) if you prefer to run the MCP server in Docker).
+3. Run the watch command so that the source will be compiled whenever there is a change:
 
 	```sh
 	npm run watch
