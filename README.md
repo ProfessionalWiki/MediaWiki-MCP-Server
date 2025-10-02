@@ -18,6 +18,8 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | `search-page` | Search wiki page titles and contents for the provided search terms. |
 | `set-wiki` | Set the wiki to use for the current session. |
 | `update-page` 🔐 | Update an existing wiki page. |
+| `upload-file` 🔐 | Uploads a file to the wiki from the local disk. |
+| `upload-file-from-url` 🔐 | Uploads a file to the wiki from a web URL. |
 
 ### Environment variables
 | Name | Description | Default |
