@@ -45,7 +45,8 @@
 		"@modelcontextprotocol/sdk": "^1.11.3",
 		"express": "^5.1.0",
 		"mwn": "^3.0.1",
-		"node-fetch": "^3.3.2"
+		"node-fetch": "^3.3.2",
+		"types-mediawiki-api": "^2.0.0"
 	},
 	"devDependencies": {
 		"@types/express": "^5.0.2",
