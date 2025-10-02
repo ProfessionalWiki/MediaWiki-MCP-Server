@@ -4,7 +4,10 @@
 			"command": "node",
 			"args": [
 				"/path/to/MediaWiki-MCP-Server/dist/index.js"
-			]
+			],
+			"env": {
+				"CONFIG": "path/to/config.json"
+			}
 		}
 	}
 }
