@@ -49,7 +49,10 @@ Follow the [guide](https://modelcontextprotocol.io/quickstart/user), use followi
       "command": "npx",
       "args": [
         "@professional-wiki/mediawiki-mcp-server@latest"
-      ]
+      ],
+      "env": {
+        "CONFIG": "path/to/config.json"
+      }
     }
   }
 }
@@ -80,7 +83,10 @@ Go to `Cursor Settings` -> `MCP` -> `Add new MCP Server`. Name to your liking, u
       "command": "npx",
       "args": [
         "@professional-wiki/mediawiki-mcp-server@latest"
-      ]
+      ],
+      "env": {
+        "CONFIG": "path/to/config.json"
+      }
     }
   }
 }
@@ -99,7 +105,10 @@ Follow the [guide](https://docs.windsurf.com/windsurf/cascade/mcp), use followin
       "command": "npx",
       "args": [
         "@professional-wiki/mediawiki-mcp-server@latest"
-      ]
+      ],
+      "env": {
+        "CONFIG": "path/to/config.json"
+      }
     }
   }
 }
@@ -124,7 +133,10 @@ You should end up with something like the below in your `.claude.json` config:
     "command": "npx",
     "args": [
       "@professional-wiki/mediawiki-mcp-server@latest"
-    ]
+    ],
+    "env": {
+      "CONFIG": "path/to/config.json"
+    }
   }
 },
 ```
