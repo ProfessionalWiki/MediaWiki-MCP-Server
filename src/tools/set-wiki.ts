@@ -5,6 +5,7 @@ import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontext
 /* eslint-enable n/no-missing-import */
 import { updateWikiConfig, getCurrentWikiConfig, setCurrentWiki, getAllWikis } from '../common/config.js';
 import { makeApiRequest, fetchPageHtml } from '../common/utils.js';
+import { clearMwnCache } from '../common/mwn.js';
 
 const COMMON_SCRIPT_PATHS = [ '/w', '' ];
 
@@ -53,6 +54,7 @@ export function setWikiTool( server: McpServer ): RegisteredTool {
 
 			if ( allWikis[ url.hostname ] ) {
 				setCurrentWiki( url.host );
+				clearMwnCache();
 				const newConfig = getCurrentWikiConfig();
 				return {
 					content: [ {
@@ -73,6 +75,7 @@ export function setWikiTool( server: McpServer ): RegisteredTool {
 					scriptpath: wikiInfo.scriptpath
 				} );
 				setCurrentWiki( wikiInfo.servername );
+				clearMwnCache();
 
 				const newConfig = getCurrentWikiConfig();
 				return {
