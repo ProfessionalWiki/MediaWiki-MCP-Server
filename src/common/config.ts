@@ -68,7 +68,8 @@ function loadConfigFromFile(): Config {
 
 const config = loadConfigFromFile();
 const defaultWiki = config.defaultWiki;
-let currentConfig: WikiConfig = config.wikis[ defaultWiki ];
+let currentWikiKey: string = defaultWiki;
+let currentConfig: WikiConfig = config.wikis[ currentWikiKey ];
 
 if ( !currentConfig ) {
 	throw new Error( `Default wiki "${ defaultWiki }" not found in config.json` );
@@ -82,10 +83,15 @@ export function getCurrentWikiConfig(): Readonly<WikiConfig> {
 	return currentConfig;
 }
 
+export function getCurrentWikiKey(): string {
+	return currentWikiKey;
+}
+
 export function setCurrentWiki( wiki: string ): void {
 	if ( !config.wikis[ wiki ] ) {
 		throw new Error( `Wiki "${ wiki }" not found in config.json` );
 	}
+	currentWikiKey = wiki;
 	currentConfig = config.wikis[ wiki ];
 }
 
@@ -98,6 +104,7 @@ export function updateWikiConfig( wiki: string, newConfig: WikiConfig ): void {
 
 export function resetConfig(): void {
 	if ( config.wikis[ defaultWiki ] ) {
+		currentWikiKey = defaultWiki;
 		currentConfig = config.wikis[ defaultWiki ];
 	} else {
 		throw new Error( `Default wiki "${ defaultWiki }" not found in config.json` );
