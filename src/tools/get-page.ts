@@ -7,18 +7,20 @@ import { makeRestGetRequest } from '../common/utils.js';
 import type { MwRestApiPageObject } from '../types/mwRestApi.js';
 
 enum ContentFormat {
-	noContent = 'noContent',
-	withSource = 'withSource',
-	withHtml = 'withHtml'
+	source = 'source',
+	html = 'html',
+	metadata = 'metadata',
+	sourceAndMetadata = 'sourceAndMetadata',
+	htmlAndMetadata = 'htmlAndMetadata'
 }
 
 export function getPageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'get-page',
-		'Returns the standard page object for a wiki page, optionally including page source or rendered HTML, and including the license and information about the latest revision.',
+		'Returns a wiki page. **Use `source` for source text (e.g. wikitext) or `html` for HTML to get just the page content.** Use `sourceAndMetadata` or `htmlAndMetadata` only when you need metadata (page ID, revision info, license).',
 		{
 			title: z.string().describe( 'Wiki page title' ),
-			content: z.nativeEnum( ContentFormat ).describe( 'Format of the page content to retrieve' ).optional().default( ContentFormat.noContent )
+			content: z.nativeEnum( ContentFormat ).describe( 'Format: `source` (source text only) or `html` (HTML only) for content without metadata. Use `sourceAndMetadata`/`htmlAndMetadata` only if metadata needed. Use `metadata` for metadata only.' ).optional().default( ContentFormat.source )
 		},
 		{
 			title: 'Get page',
@@ -32,13 +34,15 @@ export function getPageTool( server: McpServer ): RegisteredTool {
 async function handleGetPageTool( title: string, content: ContentFormat ): Promise<CallToolResult> {
 	let subEndpoint: string;
 	switch ( content ) {
-		case ContentFormat.noContent:
+		case ContentFormat.metadata:
 			subEndpoint = '/bare';
 			break;
-		case ContentFormat.withSource:
+		case ContentFormat.sourceAndMetadata:
+		case ContentFormat.source:
 			subEndpoint = '';
 			break;
-		case ContentFormat.withHtml:
+		case ContentFormat.htmlAndMetadata:
+		case ContentFormat.html:
 			subEndpoint = '/with_html';
 			break;
 	}
@@ -57,25 +61,26 @@ async function handleGetPageTool( title: string, content: ContentFormat ): Promi
 	}
 
 	return {
-		content: getPageToolResult( data )
+		content: getPageToolResult( data, content )
 	};
 }
 
-function getPageToolResult( result: MwRestApiPageObject ): TextContent[] {
-	const results: TextContent[] = [
-		{
+function getPageToolResult( result: MwRestApiPageObject, content: ContentFormat ): TextContent[] {
+	if ( content === ContentFormat.source ) {
+		return [ {
 			type: 'text',
-			text: [
-				`Page ID: ${ result.id }`,
-				`Title: ${ result.title }`,
-				`Latest revision ID: ${ result.latest.id }`,
-				`Latest revision timestamp: ${ result.latest.timestamp }`,
-				`Content model: ${ result.content_model }`,
-				`License: ${ result.license.url } ${ result.license.title }`,
-				`HTML URL: ${ result.html_url }`
-			].join( '\n' )
-		}
-	];
+			text: result.source ?? 'Not available'
+		} ];
+	}
+
+	if ( content === ContentFormat.html ) {
+		return [ {
+			type: 'text',
+			text: result.html ?? 'Not available'
+		} ];
+	}
+
+	const results: TextContent[] = [ getPageMetadataTextContent( result ) ];
 
 	if ( result.source !== undefined ) {
 		results.push( {
@@ -92,4 +97,19 @@ function getPageToolResult( result: MwRestApiPageObject ): TextContent[] {
 	}
 
 	return results;
+}
+
+function getPageMetadataTextContent( result: MwRestApiPageObject ): TextContent {
+	return {
+		type: 'text',
+		text: [
+			`Page ID: ${ result.id }`,
+			`Title: ${ result.title }`,
+			`Latest revision ID: ${ result.latest.id }`,
+			`Latest revision timestamp: ${ result.latest.timestamp }`,
+			`Content model: ${ result.content_model }`,
+			`License: ${ result.license.url } ${ result.license.title }`,
+			`HTML URL: ${ result.html_url ?? 'Not available' }`
+		].join( '\n' )
+	};
 }
