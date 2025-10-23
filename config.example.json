@@ -7,6 +7,8 @@
       "articlepath": "/wiki",
       "scriptpath": "/w",
       "token": null,
+      "username": null,
+      "password": null,
       "private": false
     },
     "localhost:8080": {
@@ -15,6 +17,8 @@
       "articlepath": "/wiki",
       "scriptpath": "/w",
       "token": null,
+      "username": null,
+      "password": null,
       "private": false
     }
   }

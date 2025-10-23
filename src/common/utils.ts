@@ -1,6 +1,62 @@
 import fetch, { Response } from 'node-fetch';
 import { USER_AGENT } from '../server.js';
 import { scriptPath, wikiServer, oauthToken, articlePath, privateWiki } from './config.js';
+import { getMwn } from './mwn.js';
+
+async function configureAuthForRequest(
+	headers: Record<string, string>,
+	body: Record<string, unknown> | undefined,
+	needAuth: boolean
+): Promise<void> {
+	if ( !needAuth && !privateWiki() ) {
+		return;
+	}
+
+	const token = oauthToken();
+
+	if ( token ) {
+		// OAuth2 authentication - just add Bearer token
+		headers.Authorization = `Bearer ${ token }`;
+		return;
+	}
+
+	// Cookie-based authentication - add cookies and CSRF token
+	const cookies = await getCookiesFromJar();
+	if ( !cookies ) {
+		return;
+	}
+
+	headers.Cookie = cookies;
+
+	if ( body ) {
+		const csrfToken = await getCsrfToken();
+		body.token = csrfToken;
+	}
+}
+
+async function getCsrfToken(): Promise<string> {
+	const mwn = await getMwn();
+	return await mwn.getCsrfToken();
+}
+
+async function getCookiesFromJar(): Promise<string | undefined> {
+	const mwn = await getMwn();
+	const cookieJar = mwn.cookieJar;
+	if ( !cookieJar ) {
+		return undefined;
+	}
+
+	// Get cookies for the REST API URL
+	const restApiUrl = `${ wikiServer() }${ scriptPath() }/rest.php`;
+	const cookies = cookieJar.getCookieStringSync( restApiUrl );
+
+	if ( cookies ) {
+		return cookies;
+	}
+
+	// Fallback: try getting cookies for the domain
+	return cookieJar.getCookieStringSync( wikiServer() ) || undefined;
+}
 
 async function fetchCore(
 	baseUrl: string,
@@ -68,13 +124,12 @@ export async function makeRestGetRequest<T>(
 	const headers: Record<string, string> = {
 		Accept: 'application/json'
 	};
-	const token = oauthToken();
-	if ( ( needAuth || privateWiki() ) && token !== undefined ) {
-		headers.Authorization = `Bearer ${ token }`;
-	}
+
+	await configureAuthForRequest( headers, undefined, needAuth );
+
 	const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
-		params: params,
-		headers: headers
+		params,
+		headers
 	} );
 	return ( await response.json() ) as T;
 }
@@ -88,14 +143,13 @@ export async function makeRestPutRequest<T>(
 		Accept: 'application/json',
 		'Content-Type': 'application/json'
 	};
-	const token = oauthToken();
-	if ( ( needAuth || privateWiki() ) && token !== undefined ) {
-		headers.Authorization = `Bearer ${ token }`;
-	}
+
+	await configureAuthForRequest( headers, body, needAuth );
+
 	const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
-		headers: headers,
+		headers,
 		method: 'PUT',
-		body: body
+		body
 	} );
 	return ( await response.json() ) as T;
 }
@@ -109,14 +163,13 @@ export async function makeRestPostRequest<T>(
 		Accept: 'application/json',
 		'Content-Type': 'application/json'
 	};
-	const token = oauthToken();
-	if ( ( needAuth || privateWiki() ) && token !== undefined ) {
-		headers.Authorization = `Bearer ${ token }`;
-	}
+
+	await configureAuthForRequest( headers, body, needAuth );
+
 	const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
-		headers: headers,
+		headers,
 		method: 'POST',
-		body: body
+		body
 	} );
 	return ( await response.json() ) as T;
 }
@@ -125,8 +178,7 @@ export async function fetchPageHtml( url: string ): Promise<string | null> {
 	try {
 		const response = await fetchCore( url );
 		return await response.text();
-	} catch ( error ) {
-		console.error( `Error fetching HTML page from ${ url }:`, error );
+	} catch {
 		return null;
 	}
 }
@@ -137,8 +189,7 @@ export async function fetchImageAsBase64( url: string ): Promise<string | null> 
 		const arrayBuffer = await response.arrayBuffer();
 		const buffer = Buffer.from( arrayBuffer );
 		return buffer.toString( 'base64' );
-	} catch ( error ) {
-		console.error( `Error fetching image from ${ url }:`, error );
+	} catch {
 		return null;
 	}
 }

@@ -23,6 +23,14 @@ export interface WikiConfig {
 	 */
 	token?: string | null;
 	/**
+	 * Username requested from Special:BotPasswords.
+	 */
+	username?: string | null;
+	/**
+	 * Password requested from Special:BotPasswords.
+	 */
+	password?: string | null;
+	/**
 	 * If the wiki always requires auth to access.
 	 * $wgGroupPermissions['*']['read'] = false; in MediaWiki
 	 */
@@ -111,6 +119,8 @@ export const oauthToken = (): string | null | undefined => {
 	const token = getCurrentWikiConfig().token;
 	return isTokenValid( token ) ? token : undefined;
 };
+export const username = (): string | null | undefined => getCurrentWikiConfig().username;
+export const password = (): string | null | undefined => getCurrentWikiConfig().password;
 export const privateWiki = (): boolean | undefined => getCurrentWikiConfig().private;
 export const siteName = (): string | undefined => getCurrentWikiConfig().sitename;
 

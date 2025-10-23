@@ -7,19 +7,17 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 
 ### Tools
 
-> 🔐 **Requires OAuth 2.0 token in configuration:** Obtained via `Special:OAuthConsumerRegistration/propose/oauth2` provided by the [OAuth extension](https://www.mediawiki.org/wiki/Special:MyLanguage/Extension:OAuth). Select "This consumer is for use only by UserName"
-
-| Name | Description | 
-|---|---|
-| `create-page` 🔐 | Create a new wiki page. |
-| `get-file` | Returns the standard file object for a file page. |
-| `get-page` | Returns the standard page object for a wiki page. |
-| `get-page-history` | Returns information about the latest revisions to a wiki page. |
-| `search-page` | Search wiki page titles and contents for the provided search terms. |
-| `set-wiki` | Set the wiki to use for the current session. |
-| `update-page` 🔐 | Update an existing wiki page. |
-| `upload-file` 🔐 | Uploads a file to the wiki from the local disk. |
-| `upload-file-from-url` 🔐 | Uploads a file to the wiki from a web URL. |
+| Name | Description | Permissions |
+|---|---|---|
+| `create-page` 🔐 | Create a new wiki page. | `Create, edit, and move pages` |
+| `get-file` | Returns the standard file object for a file page. | - |
+| `get-page` | Returns the standard page object for a wiki page. | - |
+| `get-page-history` | Returns information about the latest revisions to a wiki page. | - |
+| `search-page` | Search wiki page titles and contents for the provided search terms. | - |
+| `set-wiki` | Set the wiki to use for the current session. | - |
+| `update-page` 🔐 | Update an existing wiki page. | `Edit existing pages` |
+| `upload-file` 🔐 | Uploads a file to the wiki from the local disk. | `Upload new files` |
+| `upload-file-from-url` 🔐 | Uploads a file to the wiki from a web URL. | `Upload, replace, and move files` |
 
 ### Environment variables
 | Name | Description | Default |
@@ -27,6 +25,71 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | `CONFIG` | Path to your configuration file | `config.json` |
 | `MCP_TRANSPORT` | Type of MCP server transport (`stdio` or `http`) | `stdio` |
 | `PORT` | Port used for StreamableHTTP transport | `3000` |
+
+## Configuration
+
+Create a `config.json` file to configure wiki connections. Use the `config.example.json` as a starting point.
+
+### Basic structure
+
+```json
+{
+  "defaultWiki": "en.wikipedia.org",
+  "wikis": {
+    "en.wikipedia.org": {
+      "sitename": "Wikipedia",
+      "server": "https://en.wikipedia.org",
+      "articlepath": "/wiki",
+      "scriptpath": "/w",
+      "token": null,
+      "username": null,
+      "password": null,
+      "private": false
+    }
+  }
+}
+```
+
+### Configuration fields
+
+| Field | Description |
+|---|---|
+| `defaultWiki` | The default wiki identifier to use (matches a key in `wikis`) |
+| `wikis` | Object containing wiki configurations, keyed by domain/identifier |
+
+### Wiki configuration fields
+
+| Field | Required | Description |
+|---|---|---|
+| `sitename` | Yes | Display name for the wiki |
+| `server` | Yes | Base URL of the wiki (e.g., `https://en.wikipedia.org`) |
+| `articlepath` | Yes | Path pattern for articles (typically `/wiki`) |
+| `scriptpath` | Yes | Path to MediaWiki scripts (typically `/w`) |
+| `token` | No | OAuth2 access token for authenticated operations (preferred) |
+| `username` | No | Bot username (fallback when OAuth2 is not available) |
+| `password` | No | Bot password (fallback when OAuth2 is not available) |
+| `private` | No | Whether the wiki requires authentication to read (default: `false`) |
+
+### Authentication setup
+
+For tools marked with 🔐, authentication is required.
+
+**Preferred method: OAuth2 Token**
+
+1. Navigate to `Special:OAuthConsumerRegistration/propose/oauth2` on your wiki
+2. Select "This consumer is for use only by [YourUsername]"
+3. Grant the necessary permissions
+4. After approval, you'll receive:
+   - Client ID
+   - Client Secret
+   - Access Token
+5. Add the `token` to your wiki configuration in `config.json`
+
+> **Note:** OAuth2 requires the [OAuth extension](https://www.mediawiki.org/wiki/Special:MyLanguage/Extension:OAuth) to be installed on the wiki.
+
+**Fallback method: Username & Password**
+
+If OAuth2 is not available on your wiki, you can use bot credentials (from `Special:BotPasswords` ) instead of the OAuth2 token.
 
 ## Installation
 
