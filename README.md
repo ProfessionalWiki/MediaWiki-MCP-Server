@@ -169,6 +169,56 @@ To enable your MCP client to use this MediaWiki MCP Server for local development
 	npm run watch
 	```
 
+### Release process
+
+To release a new version:
+
+<details>
+<summary><b>1. Use npm version to create a release</b></summary>
+
+```sh
+# For patch release (0.1.1 → 0.1.2)
+npm version patch
+
+# For minor release (0.1.1 → 0.2.0)
+npm version minor
+
+# For major release (0.1.1 → 1.0.0)
+npm version major
+
+# Or specify exact version
+npm version 0.2.0
+```
+
+This command automatically:
+- Updates `package.json` and `package-lock.json`
+- Syncs the version in `server.json` (via the version script)
+- Creates a git commit
+- Creates a git tag (e.g., `v0.2.0`)
+</details>
+
+<details>
+<summary><b>2. Push to GitHub</b></summary>
+
+```sh
+git push origin master --follow-tags
+```
+</details>
+
+<details>
+<summary><b>3. Create a GitHub Release</b></summary>
+
+1. Go to the [Releases page](https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/releases)
+2. Click "Create a new release"
+3. Select the tag you just pushed (e.g., `v0.2.0`)
+4. Add a title and release notes
+5. Click "Publish release"
+
+The GitHub Actions workflow will automatically:
+- Build and publish to [NPM](https://www.npmjs.com/package/@professional-wiki/mediawiki-mcp-server) 
+- Publish to the [MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.professionalwiki/mediawiki-mcp-server)
+</details>
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a pull request or open an issue for bugs, feature requests, or suggestions.

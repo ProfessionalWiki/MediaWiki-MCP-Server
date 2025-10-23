@@ -40,7 +40,8 @@
 		"start": "node dist/index.js",
 		"start:streamableHttp": "MCP_TRANSPORT=http node dist/index.js",
 		"dev": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest node dist/index.js\"",
-		"dev:streamableHttp": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest\" \"MCP_TRANSPORT=http node dist/index.js\""
+		"dev:streamableHttp": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest\" \"MCP_TRANSPORT=http node dist/index.js\"",
+		"version": "node scripts/sync-version.cjs && git add server.json"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.11.3",
