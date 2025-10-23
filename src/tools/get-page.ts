@@ -43,7 +43,7 @@ async function handleGetPageTool( title: string, content: ContentFormat ): Promi
 			break;
 	}
 
-	let data: MwRestApiPageObject | null = null;
+	let data: MwRestApiPageObject;
 
 	try {
 		data = await makeRestGetRequest<MwRestApiPageObject>( `/v1/page/${ encodeURIComponent( title ) }${ subEndpoint }` );
@@ -51,15 +51,6 @@ async function handleGetPageTool( title: string, content: ContentFormat ): Promi
 		return {
 			content: [
 				{ type: 'text', text: `Failed to retrieve page data: ${ ( error as Error ).message }` } as TextContent
-			],
-			isError: true
-		};
-	}
-
-	if ( data === null ) {
-		return {
-			content: [
-				{ type: 'text', text: 'Failed to retrieve page data: No data returned from API' } as TextContent
 			],
 			isError: true
 		};

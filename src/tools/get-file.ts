@@ -23,22 +23,13 @@ export function getFileTool( server: McpServer ): RegisteredTool {
 }
 
 async function handleGetFileTool( title: string ): Promise< CallToolResult > {
-	let data: MwRestApiFileObject | null = null;
+	let data: MwRestApiFileObject;
 	try {
 		data = await makeRestGetRequest<MwRestApiFileObject>( `/v1/file/${ encodeURIComponent( title ) }` );
 	} catch ( error ) {
 		return {
 			content: [
 				{ type: 'text', text: `Failed to retrieve file data: ${ ( error as Error ).message }` } as TextContent
-			],
-			isError: true
-		};
-	}
-
-	if ( data === null ) {
-		return {
-			content: [
-				{ type: 'text', text: 'Failed to retrieve file data: No data returned from API' } as TextContent
 			],
 			isError: true
 		};

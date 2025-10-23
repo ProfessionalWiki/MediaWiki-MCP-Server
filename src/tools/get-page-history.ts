@@ -44,7 +44,7 @@ async function handleGetPageHistoryTool(
 		params.filter = filter;
 	}
 
-	let data: MwRestApiGetPageHistoryResponse | null = null;
+	let data: MwRestApiGetPageHistoryResponse;
 	try {
 		data = await makeRestGetRequest<MwRestApiGetPageHistoryResponse>(
 			`/v1/page/${ encodeURIComponent( title ) }/history`,
@@ -54,18 +54,6 @@ async function handleGetPageHistoryTool(
 		return {
 			content: [
 				{ type: 'text', text: `Failed to retrieve page history: ${ ( error as Error ).message }` } as TextContent
-			],
-			isError: true
-		};
-	}
-
-	if ( data === null ) {
-		return {
-			content: [
-				{
-					type: 'text',
-					text: 'Failed to retrieve page data: No data returned from API'
-				} as TextContent
 			],
 			isError: true
 		};

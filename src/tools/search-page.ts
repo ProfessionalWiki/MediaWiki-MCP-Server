@@ -28,7 +28,7 @@ export function searchPageTool( server: McpServer ): RegisteredTool {
 }
 
 async function handleSearchPageTool( query: string, limit?: number ): Promise< CallToolResult > {
-	let data: MwRestApiSearchPageResponse | null = null;
+	let data: MwRestApiSearchPageResponse;
 	try {
 		data = await makeRestGetRequest<MwRestApiSearchPageResponse>(
 			'/v1/search/page',
@@ -38,15 +38,6 @@ async function handleSearchPageTool( query: string, limit?: number ): Promise< C
 		return {
 			content: [
 				{ type: 'text', text: `Failed to retrieve search data: ${ ( error as Error ).message }` } as TextContent
-			],
-			isError: true
-		};
-	}
-
-	if ( data === null ) {
-		return {
-			content: [
-				{ type: 'text', text: 'Failed to retrieve search data: No data returned from API' } as TextContent
 			],
 			isError: true
 		};

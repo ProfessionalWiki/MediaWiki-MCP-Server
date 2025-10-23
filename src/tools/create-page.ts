@@ -33,7 +33,7 @@ async function handleCreatePageTool(
 	comment?: string,
 	contentModel?: string
 ): Promise<CallToolResult> {
-	let data: MwRestApiPageObject | null = null;
+	let data: MwRestApiPageObject;
 
 	try {
 		data = await makeRestPostRequest<MwRestApiPageObject>( '/v1/page', {
@@ -47,15 +47,6 @@ async function handleCreatePageTool(
 		return {
 			content: [
 				{ type: 'text', text: `Failed to create page: ${ ( error as Error ).message }` } as TextContent
-			],
-			isError: true
-		};
-	}
-
-	if ( data === null ) {
-		return {
-			content: [
-				{ type: 'text', text: 'Failed to create page: No data returned from API' } as TextContent
 			],
 			isError: true
 		};

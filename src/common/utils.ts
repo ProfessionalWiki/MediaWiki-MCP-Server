@@ -52,7 +52,7 @@ async function fetchCore(
 export async function makeApiRequest<T>(
 	url: string,
 	params?: Record<string, string>
-): Promise<T | null> {
+): Promise<T> {
 	const response = await fetchCore( url, {
 		params,
 		headers: { Accept: 'application/json' }
@@ -64,7 +64,7 @@ export async function makeRestGetRequest<T>(
 	path: string,
 	params?: Record<string, string>,
 	needAuth: boolean = false
-): Promise<T | null> {
+): Promise<T> {
 	const headers: Record<string, string> = {
 		Accept: 'application/json'
 	};
@@ -83,7 +83,7 @@ export async function makeRestPutRequest<T>(
 	path: string,
 	body: Record<string, unknown>,
 	needAuth: boolean = false
-): Promise<T | null> {
+): Promise<T> {
 	const headers: Record<string, string> = {
 		Accept: 'application/json',
 		'Content-Type': 'application/json'
@@ -104,7 +104,7 @@ export async function makeRestPostRequest<T>(
 	path: string,
 	body?: Record<string, unknown>,
 	needAuth: boolean = false
-): Promise<T | null> {
+): Promise<T> {
 	const headers: Record<string, string> = {
 		Accept: 'application/json',
 		'Content-Type': 'application/json'

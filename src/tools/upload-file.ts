@@ -33,7 +33,7 @@ async function handleUploadFileTool(
 	filepath: string, title: string, text: string, comment?: string
 ): Promise< CallToolResult > {
 
-	let data: ApiUploadResponse | null = null;
+	let data: ApiUploadResponse;
 	try {
 		const mwn = await getMwn();
 		data = await mwn.upload( filepath, title, text, getApiUploadParams( comment ) );
@@ -43,18 +43,6 @@ async function handleUploadFileTool(
 				{
 					type: 'text',
 					text: `Upload failed: ${ ( error as Error ).message }`
-				} as TextContent
-			],
-			isError: true
-		};
-	}
-
-	if ( data === null ) {
-		return {
-			content: [
-				{
-					type: 'text',
-					text: 'Upload failed: No response data received from the API'
 				} as TextContent
 			],
 			isError: true
