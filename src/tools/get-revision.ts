@@ -4,15 +4,15 @@ import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { makeRestGetRequest } from '../common/utils.js';
-import type { MwRestApiPageObject } from '../types/mwRestApi.js';
+import type { MwRestApiRevisionObject } from '../types/mwRestApi.js';
 import { ContentFormat, getSubEndpoint } from '../common/mwRestApiContentFormat.js';
 
-export function getPageTool( server: McpServer ): RegisteredTool {
+export function getRevisionTool( server: McpServer ): RegisteredTool {
 	return server.tool(
-		'get-page',
-		'Returns a wiki page. **Use `source` for source text (e.g. wikitext) or `html` for HTML to get just the page content.** Use `sourceAndMetadata` or `htmlAndMetadata` only when you need metadata (page ID, revision info, license).',
+		'get-revision',
+		'Returns a revision of a wiki page. **Use `source` for source text (e.g. wikitext) or `html` for HTML to get just the page content.** Use `sourceAndMetadata` or `htmlAndMetadata` only when you need metadata (page ID, revision info, license).',
 		{
-			title: z.string().describe( 'Wiki page title' ),
+			revisionId: z.number().describe( 'Revision ID' ),
 			content: z.nativeEnum( ContentFormat ).describe( 'Format: `source` (source text only) or `html` (HTML only) for content without metadata. Use `sourceAndMetadata`/`htmlAndMetadata` only if metadata needed. Use `metadata` for metadata only.' ).optional().default( ContentFormat.source )
 		},
 		{
@@ -20,29 +20,34 @@ export function getPageTool( server: McpServer ): RegisteredTool {
 			readOnlyHint: true,
 			destructiveHint: false
 		} as ToolAnnotations,
-		async ( { title, content } ) => handleGetPageTool( title, content )
+		async ( { revisionId, content } ) => handleGetRevisionTool( revisionId, content )
 	);
 }
 
-async function handleGetPageTool( title: string, content: ContentFormat ): Promise<CallToolResult> {
+async function handleGetRevisionTool(
+	revisionId: number, content: ContentFormat
+): Promise<CallToolResult> {
 	try {
-		const data = await makeRestGetRequest<MwRestApiPageObject>(
-			`/v1/page/${ encodeURIComponent( title ) }${ getSubEndpoint( content ) }`
+		const data = await makeRestGetRequest<MwRestApiRevisionObject>(
+			`/v1/revision/${ revisionId }${ getSubEndpoint( content ) }`
 		);
 		return {
-			content: getPageToolResult( data, content )
+			content: getRevisionToolResult( data, content )
 		};
 	} catch ( error ) {
 		return {
 			content: [
-				{ type: 'text', text: `Failed to retrieve page data: ${ ( error as Error ).message }` } as TextContent
+				{ type: 'text', text: `Failed to retrieve revision data: ${ ( error as Error ).message }` } as TextContent
 			],
 			isError: true
 		};
 	}
 }
 
-function getPageToolResult( result: MwRestApiPageObject, content: ContentFormat ): TextContent[] {
+function getRevisionToolResult(
+	result: MwRestApiRevisionObject,
+	content: ContentFormat
+): TextContent[] {
 	if ( content === ContentFormat.source ) {
 		return [ {
 			type: 'text',
@@ -57,7 +62,7 @@ function getPageToolResult( result: MwRestApiPageObject, content: ContentFormat 
 		} ];
 	}
 
-	const results: TextContent[] = [ getPageMetadataTextContent( result ) ];
+	const results: TextContent[] = [ getRevisionMetadataTextContent( result ) ];
 
 	if ( result.source !== undefined ) {
 		results.push( {
@@ -76,16 +81,20 @@ function getPageToolResult( result: MwRestApiPageObject, content: ContentFormat 
 	return results;
 }
 
-function getPageMetadataTextContent( result: MwRestApiPageObject ): TextContent {
+function getRevisionMetadataTextContent( result: MwRestApiRevisionObject ): TextContent {
 	return {
 		type: 'text',
 		text: [
-			`Page ID: ${ result.id }`,
-			`Title: ${ result.title }`,
-			`Latest revision ID: ${ result.latest.id }`,
-			`Latest revision timestamp: ${ result.latest.timestamp }`,
-			`Content model: ${ result.content_model }`,
-			`License: ${ result.license.url } ${ result.license.title }`,
+			`Revision ID: ${ result.id }`,
+			`Page ID: ${ result.page?.id }`,
+			`Page Title: ${ result.page?.title }`,
+			`User ID: ${ result.user.id }`,
+			`User Name: ${ result.user.name }`,
+			`Timestamp: ${ result.timestamp }`,
+			`Comment: ${ result.comment }`,
+			`Size: ${ result.size }`,
+			`Delta: ${ result.delta }`,
+			`Minor: ${ result.minor }`,
 			`HTML URL: ${ result.html_url ?? 'Not available' }`
 		].join( '\n' )
 	};
