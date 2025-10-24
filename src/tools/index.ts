@@ -11,6 +11,7 @@ import { getFileTool } from './get-file.js';
 import { createPageTool } from './create-page.js';
 import { uploadFileTool } from './upload-file.js';
 import { uploadFileFromUrlTool } from './upload-file-from-url.js';
+import { deletePageTool } from './delete-page.js';
 
 const toolRegistrars = [
 	getPageTool,
@@ -21,7 +22,8 @@ const toolRegistrars = [
 	getFileTool,
 	createPageTool,
 	uploadFileTool,
-	uploadFileFromUrlTool
+	uploadFileFromUrlTool,
+	deletePageTool
 ];
 
 export function registerAllTools( server: McpServer ): RegisteredTool[] {
