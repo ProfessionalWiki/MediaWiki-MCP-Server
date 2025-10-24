@@ -14,6 +14,7 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | `get-file` | Returns the standard file object for a file page. | - |
 | `get-page` | Returns the standard page object for a wiki page. | - |
 | `get-page-history` | Returns information about the latest revisions to a wiki page. | - |
+| `get-revision` | Returns the standard revision object for a page. | - |
 | `search-page` | Search wiki page titles and contents for the provided search terms. | - |
 | `set-wiki` | Set the wiki to use for the current session. | - |
 | `update-page` 🔐 | Update an existing wiki page. | `Edit existing pages` |
