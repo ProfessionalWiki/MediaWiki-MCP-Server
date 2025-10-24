@@ -3,35 +3,40 @@ import { USER_AGENT } from '../server.js';
 import { scriptPath, wikiServer, oauthToken, articlePath, privateWiki } from './config.js';
 import { getMwn } from './mwn.js';
 
-async function configureAuthForRequest(
+type RequestConfig = {
+	headers: Record<string, string>;
+	body: Record<string, unknown> | undefined;
+};
+
+async function withAuth(
 	headers: Record<string, string>,
 	body: Record<string, unknown> | undefined,
 	needAuth: boolean
-): Promise<void> {
+): Promise<RequestConfig> {
 	if ( !needAuth && !privateWiki() ) {
-		return;
+		return { headers, body };
 	}
 
 	const token = oauthToken();
 
-	if ( token ) {
+	if ( token !== undefined && token !== null ) {
 		// OAuth2 authentication - just add Bearer token
-		headers.Authorization = `Bearer ${ token }`;
-		return;
+		return {
+			headers: { ...headers, Authorization: `Bearer ${ token }` },
+			body
+		};
 	}
 
 	// Cookie-based authentication - add cookies and CSRF token
 	const cookies = await getCookiesFromJar();
-	if ( !cookies ) {
-		return;
+	if ( cookies === undefined ) {
+		return { headers, body };
 	}
 
-	headers.Cookie = cookies;
-
-	if ( body ) {
-		const csrfToken = await getCsrfToken();
-		body.token = csrfToken;
-	}
+	return {
+		headers: { ...headers, Cookie: cookies },
+		body: body ? { ...body, token: await getCsrfToken() } : body
+	};
 }
 
 async function getCsrfToken(): Promise<string> {
@@ -125,11 +130,15 @@ export async function makeRestGetRequest<T>(
 		Accept: 'application/json'
 	};
 
-	await configureAuthForRequest( headers, undefined, needAuth );
+	const { headers: authHeaders } = await withAuth(
+		headers,
+		undefined,
+		needAuth
+	);
 
 	const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
 		params,
-		headers
+		headers: authHeaders
 	} );
 	return ( await response.json() ) as T;
 }
@@ -144,12 +153,16 @@ export async function makeRestPutRequest<T>(
 		'Content-Type': 'application/json'
 	};
 
-	await configureAuthForRequest( headers, body, needAuth );
+	const { headers: authHeaders, body: authBody } = await withAuth(
+		headers,
+		body,
+		needAuth
+	);
 
 	const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
-		headers,
+		headers: authHeaders,
 		method: 'PUT',
-		body
+		body: authBody
 	} );
 	return ( await response.json() ) as T;
 }
@@ -164,12 +177,16 @@ export async function makeRestPostRequest<T>(
 		'Content-Type': 'application/json'
 	};
 
-	await configureAuthForRequest( headers, body, needAuth );
+	const { headers: authHeaders, body: authBody } = await withAuth(
+		headers,
+		body,
+		needAuth
+	);
 
 	const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
-		headers,
+		headers: authHeaders,
 		method: 'POST',
-		body
+		body: authBody
 	} );
 	return ( await response.json() ) as T;
 }
