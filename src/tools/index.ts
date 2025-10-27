@@ -13,6 +13,7 @@ import { uploadFileTool } from './upload-file.js';
 import { uploadFileFromUrlTool } from './upload-file-from-url.js';
 import { deletePageTool } from './delete-page.js';
 import { getRevisionTool } from './get-revision.js';
+import { undeletePageTool } from './undelete-page.js';
 
 const toolRegistrars = [
 	getPageTool,
@@ -25,7 +26,8 @@ const toolRegistrars = [
 	uploadFileTool,
 	uploadFileFromUrlTool,
 	deletePageTool,
-	getRevisionTool
+	getRevisionTool,
+	undeletePageTool
 ];
 
 export function registerAllTools( server: McpServer ): RegisteredTool[] {
