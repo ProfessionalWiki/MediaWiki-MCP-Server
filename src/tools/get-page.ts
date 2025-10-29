@@ -20,17 +20,19 @@ export function getPageTool( server: McpServer ): RegisteredTool {
 			readOnlyHint: true,
 			destructiveHint: false
 		} as ToolAnnotations,
-		async ( { title, content } ) => handleGetPageTool( title, content )
+		async ( { title, content } ) => handleGetPageTool( { title, content } )
 	);
 }
 
-async function handleGetPageTool( title: string, content: ContentFormat ): Promise<CallToolResult> {
+async function handleGetPageTool(
+	params: { title: string; content: ContentFormat }
+): Promise<CallToolResult> {
 	try {
 		const data = await makeRestGetRequest<MwRestApiPageObject>(
-			`/v1/page/${ encodeURIComponent( title ) }${ getSubEndpoint( content ) }`
+			`/v1/page/${ encodeURIComponent( params.title ) }${ getSubEndpoint( params.content ) }`
 		);
 		return {
-			content: getPageToolResult( data, content )
+			content: getPageToolResult( data, params.content )
 		};
 	} catch ( error ) {
 		return {

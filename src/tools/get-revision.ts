@@ -20,19 +20,19 @@ export function getRevisionTool( server: McpServer ): RegisteredTool {
 			readOnlyHint: true,
 			destructiveHint: false
 		} as ToolAnnotations,
-		async ( { revisionId, content } ) => handleGetRevisionTool( revisionId, content )
+		async ( { revisionId, content } ) => handleGetRevisionTool( { revisionId, content } )
 	);
 }
 
 async function handleGetRevisionTool(
-	revisionId: number, content: ContentFormat
+	params: { revisionId: number; content: ContentFormat }
 ): Promise<CallToolResult> {
 	try {
 		const data = await makeRestGetRequest<MwRestApiRevisionObject>(
-			`/v1/revision/${ revisionId }${ getSubEndpoint( content ) }`
+			`/v1/revision/${ params.revisionId }${ getSubEndpoint( params.content ) }`
 		);
 		return {
-			content: getRevisionToolResult( data, content )
+			content: getRevisionToolResult( data, params.content )
 		};
 	} catch ( error ) {
 		return {

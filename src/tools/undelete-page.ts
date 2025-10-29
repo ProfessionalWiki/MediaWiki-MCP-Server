@@ -22,18 +22,17 @@ export function undeletePageTool( server: McpServer ): RegisteredTool {
 		} as ToolAnnotations,
 		async (
 			{ title, comment }
-		) => handleUndeletePageTool( title, comment )
+		) => handleUndeletePageTool( { title, comment } )
 	);
 }
 
 async function handleUndeletePageTool(
-	title: string,
-	comment?: string
+	params: { title: string; comment?: string }
 ): Promise<CallToolResult> {
 	let data: ApiUndeleteResponse;
 	try {
 		const mwn = await getMwn();
-		data = await mwn.undelete( title, formatEditComment( 'undelete-page', comment ) );
+		data = await mwn.undelete( params.title, formatEditComment( 'undelete-page', params.comment ) );
 	} catch ( error ) {
 		return {
 			content: [

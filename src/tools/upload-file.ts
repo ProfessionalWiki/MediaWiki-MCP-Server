@@ -25,18 +25,23 @@ export function uploadFileTool( server: McpServer ): RegisteredTool {
 		} as ToolAnnotations,
 		async (
 			{ filepath, title, text, comment }
-		) => handleUploadFileTool( filepath, title, text, comment )
+		) => handleUploadFileTool( { filepath, title, text, comment } )
 	);
 }
 
 async function handleUploadFileTool(
-	filepath: string, title: string, text: string, comment?: string
+	params: { filepath: string; title: string; text: string; comment?: string }
 ): Promise< CallToolResult > {
 
 	let data: ApiUploadResponse;
 	try {
 		const mwn = await getMwn();
-		data = await mwn.upload( filepath, title, text, getApiUploadParams( comment ) );
+		data = await mwn.upload(
+			params.filepath,
+			params.title,
+			params.text,
+			getApiUploadParams( params.comment )
+		);
 	} catch ( error ) {
 		return {
 			content: [

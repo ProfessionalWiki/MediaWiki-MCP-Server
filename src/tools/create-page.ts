@@ -23,25 +23,22 @@ export function createPageTool( server: McpServer ): RegisteredTool {
 		} as ToolAnnotations,
 		async (
 			{ source, title, comment, contentModel }
-		) => handleCreatePageTool( source, title, comment, contentModel )
+		) => handleCreatePageTool( { source, title, comment, contentModel } )
 	);
 }
 
 async function handleCreatePageTool(
-	source: string,
-	title: string,
-	comment?: string,
-	contentModel?: string
+	params: { source: string; title: string; comment?: string; contentModel?: string }
 ): Promise<CallToolResult> {
 	let data: MwRestApiPageObject;
 
 	try {
 		data = await makeRestPostRequest<MwRestApiPageObject>( '/v1/page', {
-			source: source,
-			title: title,
-			comment: formatEditComment( 'create-page', comment ),
+			source: params.source,
+			title: params.title,
+			comment: formatEditComment( 'create-page', params.comment ),
 			// eslint-disable-next-line camelcase
-			content_model: contentModel
+			content_model: params.contentModel
 		}, true );
 	} catch ( error ) {
 		return {

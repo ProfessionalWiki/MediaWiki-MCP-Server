@@ -9,8 +9,6 @@ import { makeRestGetRequest } from '../common/utils.js';
 import type { MwRestApiSearchPageResponse, MwRestApiSearchResultObject } from '../types/mwRestApi.js';
 
 export function searchPageTool( server: McpServer ): RegisteredTool {
-	// TODO: Not having named parameters is a pain,
-	// but using low-level Server type or using a wrapper function are addedd complexity
 	return server.tool(
 		'search-page',
 		'Search wiki page titles and contents for the provided search terms, and returns matching pages.',
@@ -23,16 +21,18 @@ export function searchPageTool( server: McpServer ): RegisteredTool {
 			readOnlyHint: true,
 			destructiveHint: false
 		} as ToolAnnotations,
-		async ( { query, limit } ) => handleSearchPageTool( query, limit )
+		async ( { query, limit } ) => handleSearchPageTool( { query, limit } )
 	);
 }
 
-async function handleSearchPageTool( query: string, limit?: number ): Promise< CallToolResult > {
+async function handleSearchPageTool(
+	params: { query: string; limit?: number }
+): Promise< CallToolResult > {
 	let data: MwRestApiSearchPageResponse;
 	try {
 		data = await makeRestGetRequest<MwRestApiSearchPageResponse>(
 			'/v1/search/page',
-			{ q: query, ...( limit ? { limit: limit.toString() } : {} ) }
+			{ q: params.query, ...( params.limit ? { limit: params.limit.toString() } : {} ) }
 		);
 	} catch ( error ) {
 		return {
@@ -47,7 +47,7 @@ async function handleSearchPageTool( query: string, limit?: number ): Promise< C
 	if ( pages.length === 0 ) {
 		return {
 			content: [
-				{ type: 'text', text: `No pages found for ${ query }` } as TextContent
+				{ type: 'text', text: `No pages found for ${ params.query }` } as TextContent
 			]
 		};
 	}

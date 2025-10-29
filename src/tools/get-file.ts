@@ -18,14 +18,14 @@ export function getFileTool( server: McpServer ): RegisteredTool {
 			readOnlyHint: true,
 			destructiveHint: false
 		} as ToolAnnotations,
-		async ( { title } ) => handleGetFileTool( title )
+		async ( { title } ) => handleGetFileTool( { title } )
 	);
 }
 
-async function handleGetFileTool( title: string ): Promise< CallToolResult > {
+async function handleGetFileTool( params: { title: string } ): Promise< CallToolResult > {
 	let data: MwRestApiFileObject;
 	try {
-		data = await makeRestGetRequest<MwRestApiFileObject>( `/v1/file/${ encodeURIComponent( title ) }` );
+		data = await makeRestGetRequest<MwRestApiFileObject>( `/v1/file/${ encodeURIComponent( params.title ) }` );
 	} catch ( error ) {
 		return {
 			content: [

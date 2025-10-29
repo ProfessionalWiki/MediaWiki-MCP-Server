@@ -22,18 +22,17 @@ export function deletePageTool( server: McpServer ): RegisteredTool {
 		} as ToolAnnotations,
 		async (
 			{ title, comment }
-		) => handleDeletePageTool( title, comment )
+		) => handleDeletePageTool( { title, comment } )
 	);
 }
 
 async function handleDeletePageTool(
-	title: string,
-	comment?: string
+	params: { title: string; comment?: string }
 ): Promise<CallToolResult> {
 	let data: ApiDeleteResponse;
 	try {
 		const mwn = await getMwn();
-		data = await mwn.delete( title, formatEditComment( 'delete-page', comment ) );
+		data = await mwn.delete( params.title, formatEditComment( 'delete-page', params.comment ) );
 	} catch ( error ) {
 		return {
 			content: [

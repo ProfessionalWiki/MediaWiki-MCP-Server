@@ -23,22 +23,19 @@ export function updatePageTool( server: McpServer ): RegisteredTool {
 		} as ToolAnnotations,
 		async (
 			{ title, source, latestId, comment }
-		) => handleUpdatePageTool( title, source, latestId, comment )
+		) => handleUpdatePageTool( { title, source, latestId, comment } )
 	);
 }
 
 async function handleUpdatePageTool(
-	title: string,
-	source: string,
-	latestId: number,
-	comment?: string
+	params: { title: string; source: string; latestId: number; comment?: string }
 ): Promise<CallToolResult> {
 	let data: MwRestApiPageObject;
 	try {
-		data = await makeRestPutRequest<MwRestApiPageObject>( `/v1/page/${ encodeURIComponent( title ) }`, {
-			source: source,
-			comment: formatEditComment( 'update-page', comment ),
-			latest: { id: latestId }
+		data = await makeRestPutRequest<MwRestApiPageObject>( `/v1/page/${ encodeURIComponent( params.title ) }`, {
+			source: params.source,
+			comment: formatEditComment( 'update-page', params.comment ),
+			latest: { id: params.latestId }
 		}, true );
 	} catch ( error ) {
 		return {

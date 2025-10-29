@@ -23,32 +23,29 @@ export function getPageHistoryTool( server: McpServer ): RegisteredTool {
 		} as ToolAnnotations,
 		async (
 			{ title, olderThan, newerThan, filter }
-		) => handleGetPageHistoryTool( title, olderThan, newerThan, filter )
+		) => handleGetPageHistoryTool( { title, olderThan, newerThan, filter } )
 	);
 }
 
 async function handleGetPageHistoryTool(
-	title: string,
-	olderThan?: number,
-	newerThan?: number,
-	filter?: string
+	params: { title: string; olderThan?: number; newerThan?: number; filter?: string }
 ): Promise< CallToolResult > {
-	const params: Record<string, string> = {};
-	if ( olderThan ) {
-		params.olderThan = olderThan.toString();
+	const queryParams: Record<string, string> = {};
+	if ( params.olderThan ) {
+		queryParams.olderThan = params.olderThan.toString();
 	}
-	if ( newerThan ) {
-		params.newerThan = newerThan.toString();
+	if ( params.newerThan ) {
+		queryParams.newerThan = params.newerThan.toString();
 	}
-	if ( filter ) {
-		params.filter = filter;
+	if ( params.filter ) {
+		queryParams.filter = params.filter;
 	}
 
 	let data: MwRestApiGetPageHistoryResponse;
 	try {
 		data = await makeRestGetRequest<MwRestApiGetPageHistoryResponse>(
-			`/v1/page/${ encodeURIComponent( title ) }/history`,
-			params
+			`/v1/page/${ encodeURIComponent( params.title ) }/history`,
+			queryParams
 		);
 	} catch ( error ) {
 		return {
