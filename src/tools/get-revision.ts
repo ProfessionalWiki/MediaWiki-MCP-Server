@@ -10,29 +10,42 @@ import { ContentFormat, getSubEndpoint } from '../common/mwRestApiContentFormat.
 export function getRevisionTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'get-revision',
-		'Returns a revision of a wiki page. **Use `source` for source text (e.g. wikitext) or `html` for HTML to get just the page content.** Use `sourceAndMetadata` or `htmlAndMetadata` only when you need metadata (page ID, revision info, license).',
+		'Returns a revision of a wiki page.',
 		{
 			revisionId: z.number().describe( 'Revision ID' ),
-			content: z.nativeEnum( ContentFormat ).describe( 'Format: `source` (source text only) or `html` (HTML only) for content without metadata. Use `sourceAndMetadata`/`htmlAndMetadata` only if metadata needed. Use `metadata` for metadata only.' ).optional().default( ContentFormat.source )
+			content: z.nativeEnum( ContentFormat ).describe( 'Type of content to return' ).optional().default( ContentFormat.source ),
+			metadata: z.boolean().describe( 'Whether to include metadata (revision ID, page ID, page title, user ID, user name, timestamp, comment, size, delta, minor, HTML URL) in the response' ).optional().default( false )
 		},
 		{
-			title: 'Get page',
+			title: 'Get revision',
 			readOnlyHint: true,
 			destructiveHint: false
 		} as ToolAnnotations,
-		async ( { revisionId, content } ) => handleGetRevisionTool( revisionId, content )
+		async (
+			{ revisionId, content, metadata }
+		) => handleGetRevisionTool( revisionId, content, metadata )
 	);
 }
 
 async function handleGetRevisionTool(
-	revisionId: number, content: ContentFormat
+	revisionId: number, content: ContentFormat, metadata: boolean
 ): Promise<CallToolResult> {
+	if ( content === ContentFormat.none && !metadata ) {
+		return {
+			content: [ {
+				type: 'text',
+				text: 'When content is set to "none", metadata must be true'
+			} ],
+			isError: true
+		};
+	}
+
 	try {
 		const data = await makeRestGetRequest<MwRestApiRevisionObject>(
 			`/v1/revision/${ revisionId }${ getSubEndpoint( content ) }`
 		);
 		return {
-			content: getRevisionToolResult( data, content )
+			content: getRevisionToolResult( data, content, metadata )
 		};
 	} catch ( error ) {
 		return {
@@ -46,16 +59,17 @@ async function handleGetRevisionTool(
 
 function getRevisionToolResult(
 	result: MwRestApiRevisionObject,
-	content: ContentFormat
+	content: ContentFormat,
+	metadata: boolean
 ): TextContent[] {
-	if ( content === ContentFormat.source ) {
+	if ( content === ContentFormat.source && !metadata ) {
 		return [ {
 			type: 'text',
 			text: result.source ?? 'Not available'
 		} ];
 	}
 
-	if ( content === ContentFormat.html ) {
+	if ( content === ContentFormat.html && !metadata ) {
 		return [ {
 			type: 'text',
 			text: result.html ?? 'Not available'

@@ -10,27 +10,40 @@ import { ContentFormat, getSubEndpoint } from '../common/mwRestApiContentFormat.
 export function getPageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'get-page',
-		'Returns a wiki page. **Use `source` for source text (e.g. wikitext) or `html` for HTML to get just the page content.** Use `sourceAndMetadata` or `htmlAndMetadata` only when you need metadata (page ID, revision info, license).',
+		'Returns a wiki page.',
 		{
 			title: z.string().describe( 'Wiki page title' ),
-			content: z.nativeEnum( ContentFormat ).describe( 'Format: `source` (source text only) or `html` (HTML only) for content without metadata. Use `sourceAndMetadata`/`htmlAndMetadata` only if metadata needed. Use `metadata` for metadata only.' ).optional().default( ContentFormat.source )
+			content: z.nativeEnum( ContentFormat ).describe( 'Type of content to return' ).optional().default( ContentFormat.source ),
+			metadata: z.boolean().describe( 'Whether to include metadata (page ID, revision info, license) in the response' ).optional().default( false )
 		},
 		{
 			title: 'Get page',
 			readOnlyHint: true,
 			destructiveHint: false
 		} as ToolAnnotations,
-		async ( { title, content } ) => handleGetPageTool( title, content )
+		async ( { title, content, metadata } ) => handleGetPageTool( title, content, metadata )
 	);
 }
 
-async function handleGetPageTool( title: string, content: ContentFormat ): Promise<CallToolResult> {
+async function handleGetPageTool(
+	title: string, content: ContentFormat, metadata: boolean
+): Promise<CallToolResult> {
+	if ( content === ContentFormat.none && !metadata ) {
+		return {
+			content: [ {
+				type: 'text',
+				text: 'When content is set to "none", metadata must be true'
+			} ],
+			isError: true
+		};
+	}
+
 	try {
 		const data = await makeRestGetRequest<MwRestApiPageObject>(
 			`/v1/page/${ encodeURIComponent( title ) }${ getSubEndpoint( content ) }`
 		);
 		return {
-			content: getPageToolResult( data, content )
+			content: getPageToolResult( data, content, metadata )
 		};
 	} catch ( error ) {
 		return {
@@ -42,15 +55,17 @@ async function handleGetPageTool( title: string, content: ContentFormat ): Promi
 	}
 }
 
-function getPageToolResult( result: MwRestApiPageObject, content: ContentFormat ): TextContent[] {
-	if ( content === ContentFormat.source ) {
+function getPageToolResult(
+	result: MwRestApiPageObject, content: ContentFormat, metadata: boolean
+): TextContent[] {
+	if ( content === ContentFormat.source && !metadata ) {
 		return [ {
 			type: 'text',
 			text: result.source ?? 'Not available'
 		} ];
 	}
 
-	if ( content === ContentFormat.html ) {
+	if ( content === ContentFormat.html && !metadata ) {
 		return [ {
 			type: 'text',
 			text: result.html ?? 'Not available'
