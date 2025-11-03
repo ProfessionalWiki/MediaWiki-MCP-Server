@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { wikiServer, articlePath } from '../common/config.js';
+import { wikiService } from '../common/wikiService.js';
 import { makeRestGetRequest } from '../common/utils.js';
 import type { MwRestApiSearchPageResponse, MwRestApiSearchResultObject } from '../types/mwRestApi.js';
 
@@ -59,13 +59,14 @@ async function handleSearchPageTool( query: string, limit?: number ): Promise< C
 
 // TODO: Decide how to handle the tool's result
 function getSearchResultToolResult( result: MwRestApiSearchResultObject ): TextContent {
+	const { server, articlepath } = wikiService.getCurrent().config;
 	return {
 		type: 'text',
 		text: [
 			`Title: ${ result.title }`,
 			`Description: ${ result.description ?? 'Not available' }`,
 			`Page ID: ${ result.id }`,
-			`Page URL: ${ `${ wikiServer() }${ articlePath() }/${ result.key }` }`,
+			`Page URL: ${ `${ server }${ articlepath }/${ result.key }` }`,
 			`Thumbnail URL: ${ result.thumbnail?.url ?? 'Not available' }`
 		].join( '\n' )
 	};

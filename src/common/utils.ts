@@ -1,6 +1,6 @@
 import fetch, { Response } from 'node-fetch';
 import { USER_AGENT } from '../server.js';
-import { scriptPath, wikiServer, oauthToken, articlePath, privateWiki } from './config.js';
+import { wikiService } from './wikiService.js';
 import { getMwn } from './mwn.js';
 
 type RequestConfig = {
@@ -13,11 +13,11 @@ async function withAuth(
 	body: Record<string, unknown> | undefined,
 	needAuth: boolean
 ): Promise<RequestConfig> {
-	if ( !needAuth && !privateWiki() ) {
+	const { private: privateWiki, token } = wikiService.getCurrent().config;
+
+	if ( !needAuth && !privateWiki ) {
 		return { headers, body };
 	}
-
-	const token = oauthToken();
 
 	if ( token !== undefined && token !== null ) {
 		// OAuth2 authentication - just add Bearer token
@@ -51,8 +51,10 @@ async function getCookiesFromJar(): Promise<string | undefined> {
 		return undefined;
 	}
 
+	const { server, scriptpath } = wikiService.getCurrent().config;
+
 	// Get cookies for the REST API URL
-	const restApiUrl = `${ wikiServer() }${ scriptPath() }/rest.php`;
+	const restApiUrl = `${ server }${ scriptpath }/rest.php`;
 	const cookies = cookieJar.getCookieStringSync( restApiUrl );
 
 	if ( cookies ) {
@@ -60,7 +62,7 @@ async function getCookiesFromJar(): Promise<string | undefined> {
 	}
 
 	// Fallback: try getting cookies for the domain
-	return cookieJar.getCookieStringSync( wikiServer() ) || undefined;
+	return cookieJar.getCookieStringSync( server ) || undefined;
 }
 
 async function fetchCore(
@@ -136,7 +138,9 @@ export async function makeRestGetRequest<T>(
 		needAuth
 	);
 
-	const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
+	const { server, scriptpath } = wikiService.getCurrent().config;
+
+	const response = await fetchCore( `${ server }${ scriptpath }/rest.php${ path }`, {
 		params,
 		headers: authHeaders
 	} );
@@ -159,7 +163,9 @@ export async function makeRestPutRequest<T>(
 		needAuth
 	);
 
-	const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
+	const { server, scriptpath } = wikiService.getCurrent().config;
+
+	const response = await fetchCore( `${ server }${ scriptpath }/rest.php${ path }`, {
 		headers: authHeaders,
 		method: 'PUT',
 		body: authBody
@@ -183,7 +189,9 @@ export async function makeRestPostRequest<T>(
 		needAuth
 	);
 
-	const response = await fetchCore( `${ wikiServer() }${ scriptPath() }/rest.php${ path }`, {
+	const { server, scriptpath } = wikiService.getCurrent().config;
+
+	const response = await fetchCore( `${ server }${ scriptpath }/rest.php${ path }`, {
 		headers: authHeaders,
 		method: 'POST',
 		body: authBody
@@ -212,7 +220,8 @@ export async function fetchImageAsBase64( url: string ): Promise<string | null> 
 }
 
 export function getPageUrl( title: string ): string {
-	return `${ wikiServer() }${ articlePath() }/${ encodeURIComponent( title ) }`;
+	const { server, articlepath } = wikiService.getCurrent().config;
+	return `${ server }${ articlepath }/${ encodeURIComponent( title ) }`;
 }
 
 export function formatEditComment( tool: string, comment?: string ): string {

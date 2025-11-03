@@ -1,5 +1,5 @@
 import { USER_AGENT } from '../server.js';
-import { scriptPath, wikiServer, oauthToken, username, password } from './config.js';
+import { wikiService } from './wikiService.js';
 import { Mwn, MwnOptions } from 'mwn';
 
 let mwnInstance: Mwn | null = null;
@@ -9,21 +9,25 @@ export async function getMwn(): Promise<Mwn> {
 		return mwnInstance;
 	}
 
-	const token = oauthToken();
-	const user = username();
-	const pass = password();
+	const {
+		server,
+		scriptpath,
+		token,
+		username,
+		password
+	} = wikiService.getCurrent().config;
 
 	const options: MwnOptions = {
-		apiUrl: `${ wikiServer() }${ scriptPath() }/api.php`,
+		apiUrl: `${ server }${ scriptpath }/api.php`,
 		userAgent: USER_AGENT
 	};
 
 	if ( token ) {
 		options.OAuth2AccessToken = token;
 		mwnInstance = await Mwn.init( options );
-	} else if ( user && pass ) {
-		options.username = user;
-		options.password = pass;
+	} else if ( username && password ) {
+		options.username = username;
+		options.password = password;
 		mwnInstance = await Mwn.init( options );
 	} else {
 		mwnInstance = new Mwn( options );
