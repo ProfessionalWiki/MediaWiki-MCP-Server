@@ -15,6 +15,7 @@ import { deletePageTool } from './delete-page.js';
 import { getRevisionTool } from './get-revision.js';
 import { undeletePageTool } from './undelete-page.js';
 import { getCategoryMembersTool } from './get-category-members.js';
+import { searchPageByPrefixTool } from './search-page-by-prefix.js';
 
 const toolRegistrars = [
 	getPageTool,
@@ -29,7 +30,8 @@ const toolRegistrars = [
 	deletePageTool,
 	getRevisionTool,
 	undeletePageTool,
-	getCategoryMembersTool
+	getCategoryMembersTool,
+	searchPageByPrefixTool
 ];
 
 export function registerAllTools( server: McpServer ): RegisteredTool[] {
