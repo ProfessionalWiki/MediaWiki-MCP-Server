@@ -16,7 +16,7 @@ export function searchPageTool( server: McpServer ): RegisteredTool {
 		'Search wiki page titles and contents for the provided search terms, and returns matching pages.',
 		{
 			query: z.string().describe( 'Search terms' ),
-			limit: z.number().describe( 'Maximum number of search results to return (1-100)' ).min( 1 ).max( 100 ).optional()
+			limit: z.number().int().min( 1 ).max( 100 ).optional().describe( 'Maximum number of search results to return' )
 		},
 		{
 			title: 'Search page',

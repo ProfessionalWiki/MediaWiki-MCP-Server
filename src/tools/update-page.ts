@@ -13,8 +13,8 @@ export function updatePageTool( server: McpServer ): RegisteredTool {
 		{
 			title: z.string().describe( 'Wiki page title' ),
 			source: z.string().describe( 'Page content in the same content model of the existing page' ),
-			latestId: z.number().describe( 'Identifier for the revision used as the base for the new source' ),
-			comment: z.string().describe( 'Summary of the edit' ).optional()
+			latestId: z.number().int().positive().describe( 'Revision ID used as the base for the new source' ),
+			comment: z.string().optional().describe( 'Summary of the edit' )
 		},
 		{
 			title: 'Update page',

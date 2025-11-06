@@ -13,7 +13,7 @@ export function deletePageTool( server: McpServer ): RegisteredTool {
 		'Deletes a wiki page.',
 		{
 			title: z.string().describe( 'Wiki page title' ),
-			comment: z.string().describe( 'Reason for deleting the page' ).optional()
+			comment: z.string().optional().describe( 'Reason for deleting the page' )
 		},
 		{
 			title: 'Delete page',

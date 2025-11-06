@@ -16,7 +16,7 @@ export function uploadFileTool( server: McpServer ): RegisteredTool {
 			filepath: z.string().describe( 'File path on the local disk' ),
 			title: z.string().describe( 'File title' ),
 			text: z.string().describe( 'Wikitext on the file page' ),
-			comment: z.string().describe( 'Reason for uploading the file' ).optional()
+			comment: z.string().optional().describe( 'Reason for uploading the file' )
 		},
 		{
 			title: 'Upload file',

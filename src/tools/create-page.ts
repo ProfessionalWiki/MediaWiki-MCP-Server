@@ -13,8 +13,8 @@ export function createPageTool( server: McpServer ): RegisteredTool {
 		{
 			source: z.string().describe( 'Page content in the format specified by the contentModel parameter' ),
 			title: z.string().describe( 'Wiki page title' ),
-			comment: z.string().describe( 'Reason for creating the page' ).optional(),
-			contentModel: z.string().describe( 'Type of content on the page. Defaults to "wikitext"' ).optional()
+			comment: z.string().optional().describe( 'Reason for creating the page' ),
+			contentModel: z.string().optional().default( 'wikitext' ).describe( 'Type of content on the page' )
 		},
 		{
 			title: 'Create page',

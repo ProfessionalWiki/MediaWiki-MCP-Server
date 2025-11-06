@@ -19,8 +19,8 @@ export function getCategoryMembersTool( server: McpServer ): RegisteredTool {
 		'Gets all members in the category. Returns only page IDs, namespaces, and titles.',
 		{
 			category: z.string().describe( 'Category name' ),
-			types: z.array( z.nativeEnum( CategoryMemberType ) ).describe( 'Types of members to include' ).optional(),
-			namespaces: z.array( z.number().int() ).describe( 'Namespace IDs to filter by' ).optional()
+			types: z.array( z.nativeEnum( CategoryMemberType ) ).optional().describe( 'Types of members to include' ),
+			namespaces: z.array( z.number().int().nonnegative() ).optional().describe( 'Namespace IDs to filter by' )
 		},
 		{
 			title: 'Get category members',

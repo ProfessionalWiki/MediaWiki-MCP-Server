@@ -12,7 +12,7 @@ export function getRevisionTool( server: McpServer ): RegisteredTool {
 		'get-revision',
 		'Returns a revision of a wiki page.',
 		{
-			revisionId: z.number().describe( 'Revision ID' ),
+			revisionId: z.number().int().positive().describe( 'Revision ID' ),
 			content: z.nativeEnum( ContentFormat ).describe( 'Type of content to return' ).optional().default( ContentFormat.source ),
 			metadata: z.boolean().describe( 'Whether to include metadata (revision ID, page ID, page title, user ID, user name, timestamp, comment, size, delta, minor, HTML URL) in the response' ).optional().default( false )
 		},

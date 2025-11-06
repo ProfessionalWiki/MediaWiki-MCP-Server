@@ -13,7 +13,7 @@ export function undeletePageTool( server: McpServer ): RegisteredTool {
 		'Undeletes a wiki page.',
 		{
 			title: z.string().describe( 'Wiki page title' ),
-			comment: z.string().describe( 'Reason for undeleting the page' ).optional()
+			comment: z.string().optional().describe( 'Reason for undeleting the page' )
 		},
 		{
 			title: 'Undelete page',

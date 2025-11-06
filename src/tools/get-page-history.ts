@@ -12,9 +12,9 @@ export function getPageHistoryTool( server: McpServer ): RegisteredTool {
 		'Returns information about the latest revisions to a wiki page, in segments of 20 revisions, starting with the latest revision. The response includes API routes for the next oldest, next newest, and latest revision segments.',
 		{
 			title: z.string().describe( 'Wiki page title' ),
-			olderThan: z.number().describe( 'The ID of the oldest revision to return' ).optional(),
-			newerThan: z.number().describe( 'The ID of the newest revision to return' ).optional(),
-			filter: z.string().describe( 'Filter that returns only revisions with certain tags. Only support one filter per request.' ).optional()
+			olderThan: z.number().int().positive().optional().describe( 'Revision ID of the oldest revision to return' ),
+			newerThan: z.number().int().positive().optional().describe( 'Revision ID of the newest revision to return' ),
+			filter: z.string().optional().describe( 'Filter that returns only revisions with certain tags. Only support one filter per request.' )
 		},
 		{
 			title: 'Get page history',
