@@ -13,8 +13,8 @@ export function getPageTool( server: McpServer ): RegisteredTool {
 		'Returns a wiki page.',
 		{
 			title: z.string().describe( 'Wiki page title' ),
-			content: z.nativeEnum( ContentFormat ).describe( 'Type of content to return' ).optional().default( ContentFormat.source ),
-			metadata: z.boolean().describe( 'Whether to include metadata (page ID, revision info, license) in the response' ).optional().default( false )
+			content: z.nativeEnum( ContentFormat ).optional().default( ContentFormat.source ).describe( 'Type of content to return' ),
+			metadata: z.boolean().optional().default( false ).describe( 'Whether to include metadata (page ID, revision info, license) in the response' )
 		},
 		{
 			title: 'Get page',
