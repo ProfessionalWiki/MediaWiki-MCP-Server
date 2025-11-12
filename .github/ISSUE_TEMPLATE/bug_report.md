@@ -15,6 +15,8 @@ A clear and concise description of what the bug is.
 
 ***MCP client:*** [e.g. Claude Desktop]
 
+***Model:*** [e.g. Sonnet 4.5]
+
 ***Wiki:*** [e.g. en.wikipedia.org]
 
 **Prompt:**
