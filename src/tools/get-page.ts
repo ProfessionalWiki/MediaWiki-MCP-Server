@@ -10,7 +10,7 @@ import { ContentFormat, getSubEndpoint } from '../common/mwRestApiContentFormat.
 export function getPageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'get-page',
-		'Returns a wiki page.',
+		'Returns a wiki page. Use metadata=true to retrieve the revision ID required by update-page. Set content="none" to fetch only metadata without content.',
 		{
 			title: z.string().describe( 'Wiki page title' ),
 			content: z.nativeEnum( ContentFormat ).optional().default( ContentFormat.source ).describe( 'Type of content to return' ),
