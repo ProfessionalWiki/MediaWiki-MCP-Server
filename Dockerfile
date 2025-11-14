@@ -30,8 +30,9 @@ COPY package.json package-lock.json ./
 RUN npm install --production --ignore-scripts
 
 # Use a non-root user for security
-RUN adduser -S nodejs
-RUN chown -R nodejs:nodejs /app
+RUN addgroup -S nodejs \
+	&& adduser -S -G nodejs nodejs \
+	&& chown -R nodejs:nodejs /app
 USER nodejs
 
 ENV NODE_ENV=production
@@ -45,7 +46,7 @@ EXPOSE 8080
 
 # Add health check for container orchestration
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
-  CMD [ "node", "-e", "require('http').get('http://localhost:8080', (res) => process.exit(res.statusCode == 200 ? 0 : 1))" ]
+  CMD [ "node", "-e", "require('http').get('http://localhost:8080/health', (res) => process.exit(res.statusCode == 200 ? 0 : 1))" ]
 
-# Start the server with --init for proper signal handling and zombie reaping
-CMD ["node", "--init", "dist/index.js"]
+# Start the server
+CMD ["node", "dist/index.js"]
