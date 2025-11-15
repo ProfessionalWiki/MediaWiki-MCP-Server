@@ -33,14 +33,14 @@
 		"node": ">=18"
 	},
 	"scripts": {
+		"start": "node dist/index.js",
+		"start:http": "MCP_TRANSPORT=http node dist/index.js",
 		"build": "tsc",
-		"watch": "tsc --watch",
 		"test": "echo \"Error: no test specified\" && exit 1",
 		"lint": "eslint --cache src/**/*",
-		"start": "node dist/index.js",
-		"start:streamableHttp": "MCP_TRANSPORT=http node dist/index.js",
-		"dev": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest node dist/index.js\"",
-		"dev:streamableHttp": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest\" \"MCP_TRANSPORT=http node dist/index.js\"",
+		"dev": "tsc --watch",
+		"dev:inspector": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest node dist/index.js\"",
+		"dev:inspector:http": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest\" \"MCP_TRANSPORT=http node dist/index.js\"",
 		"version": "node scripts/sync-version.cjs && git add server.json"
 	},
 	"dependencies": {
