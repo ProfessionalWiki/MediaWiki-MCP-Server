@@ -216,13 +216,13 @@ You should end up with something like the below in your `.claude.json` config:
 
 ## Development
 
-> 🐋 **Develop with Docker:** Replace the `npm run` part of the command with `make` (e.g. `make dev`).
+> 🐋 **Develop with Docker:** Replace the `npm run` part of the command with `make`, and `:` with `-` (e.g. `make dev-inspector`).
 
 ### [MCP Inspector](https://github.com/modelcontextprotocol/inspector)
 
 To start the development server and the MCP Inspector:
 ```sh
-npm run dev
+npm run dev:inspector
 ```
 
 The command will build and start the MCP Proxy server locally at `6277` and the MCP Inspector client UI at `http://localhost:6274`.
