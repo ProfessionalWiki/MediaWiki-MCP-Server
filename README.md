@@ -262,7 +262,7 @@ npm version 0.2.0
 
 This command automatically:
 - Updates `package.json` and `package-lock.json`
-- Syncs the version in `server.json` (via the version script)
+- Syncs the version in `server.json` and `Dockerfile` (via the version script)
 - Creates a git commit
 - Creates a git tag (e.g., `v0.2.0`)
 </details>

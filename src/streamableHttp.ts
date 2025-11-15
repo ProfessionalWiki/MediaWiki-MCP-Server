@@ -65,6 +65,11 @@ app.get( '/mcp', handleSessionRequest );
 
 app.delete( '/mcp', handleSessionRequest );
 
+// Used for the health check in the container
+app.get( '/health', ( _req: Request, res: Response ) => {
+	res.status( 200 ).json( { status: 'ok' } );
+} );
+
 const PORT = process.env.PORT || 3000;
 app.listen( PORT, () => {
 	console.error( `MCP Streamable HTTP Server listening on port ${ PORT }` );
