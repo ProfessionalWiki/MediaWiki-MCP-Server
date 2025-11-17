@@ -26,4 +26,5 @@ dev:
 	docker run -it --rm -v "$(CURDIR)":/home/node/app -w /home/node/app -u node node:$(NODE_VERSION) npm run dev
 
 dev-inspector:
-	-docker run -it --rm -p 127.0.0.1:6274:6274 -p 127.0.0.1:6277:6277 -v "$(CURDIR)":/home/node/app -w /home/node/app -u node -e CLIENT_PORT=6274 node:$(NODE_VERSION) npm run dev:inspector
+  @(sleep 2 && printf "\n💡 Tip: Replace 0.0.0.0 with localhost in the URL for MCP Inspector. The browser won't open automatically.\n") &
+	docker run -it --rm -p 127.0.0.1:6274:6274 -p 127.0.0.1:6277:6277 -v "$(CURDIR)":/home/node/app -w /home/node/app -u node -e HOST=0.0.0.0 node:$(NODE_VERSION) npm run dev:inspector
