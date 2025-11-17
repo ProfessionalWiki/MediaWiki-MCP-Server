@@ -7,26 +7,27 @@ import { wikiService } from '../common/wikiService.js';
 import { clearMwnCache } from '../common/mwn.js';
 import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../common/wikiResource.js';
 
-export function setWikiTool( server: McpServer ): RegisteredTool {
+export function removeWikiTool( server: McpServer ): RegisteredTool {
 	return server.tool(
-		'set-wiki',
-		'Sets the wiki to use for the current session. You MUST call this tool when interacting with a new wiki.',
+		'remove-wiki',
+		'Removes a wiki from the MCP resources.',
 		{
-			uri: z.string().describe( 'MCP resource URI of the wiki to use (e.g. mcp://wikis/en.wikipedia.org)' )
+			uri: z.string().describe( 'MCP resource URI of the wiki to remove (e.g. mcp://wikis/en.wikipedia.org)' )
 		},
 		{
-			title: 'Set wiki',
+			title: 'Remove wiki',
 			destructiveHint: true
 		} as ToolAnnotations,
-		( { uri } ) => handleSetWikiTool( uri )
+		( { uri } ) => handleRemoveWikiTool( server, uri )
 	);
 }
 
-async function handleSetWikiTool( uri: string ): Promise<CallToolResult> {
+async function handleRemoveWikiTool( server: McpServer, uri: string ): Promise<CallToolResult> {
 	try {
 		const { wikiKey } = parseWikiResourceUri( uri );
 
-		if ( !wikiService.get( wikiKey ) ) {
+		const wikiToRemove = wikiService.get( wikiKey );
+		if ( !wikiToRemove ) {
 			return {
 				content: [ {
 					type: 'text',
@@ -36,14 +37,24 @@ async function handleSetWikiTool( uri: string ): Promise<CallToolResult> {
 			};
 		}
 
-		wikiService.setCurrent( wikiKey );
+		if ( wikiService.getCurrent().key === wikiKey ) {
+			return {
+				content: [ {
+					type: 'text',
+					text: 'Cannot remove the currently active wiki. Please set a different wiki as the active wiki before removing this one.'
+				} as TextContent ],
+				isError: true
+			};
+		}
+
+		wikiService.remove( wikiKey );
+		server.sendResourceListChanged();
 		clearMwnCache();
 
-		const newConfig = wikiService.getCurrent().config;
 		return {
 			content: [ {
 				type: 'text',
-				text: `Wiki set to ${ newConfig.sitename } (${ newConfig.server })`
+				text: `${ wikiToRemove.sitename } (mcp://wikis/${ wikiKey }) has been removed from MCP resources.`
 			} as TextContent ]
 		};
 	} catch ( error ) {

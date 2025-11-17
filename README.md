@@ -1,5 +1,5 @@
 # MediaWiki MCP Server
-[![NPM Version](https://img.shields.io/npm/v/%40professional-wiki%2Fmediawiki-mcp-server?color=red)](https://www.npmjs.com/package/@professional-wiki/mediawiki-mcp-server) [![smithery badge](https://smithery.ai/badge/@ProfessionalWiki/mediawiki-mcp-server)](https://smithery.ai/server/@ProfessionalWiki/mediawiki-mcp-server) [![GPL 2.0 licensed](https://img.shields.io/npm/l/%40professional-wiki%2Fmediawiki-mcp-server)](./LICENSE)
+[![NPM Version](https://img.shields.io/npm/v/%40professional-wiki%2Fmediawiki-mcp-server?color=red)](https://www.npmjs.com/package/@professional-wiki/mediawiki-mcp-server) [![smithery badge](https://smithery.ai/badge/@ProfessionalWiki/mediawiki-mcp-server)](https://smithery.ai/server/@ProfessionalWiki/mediawiki-mcp-server) [![MIT licensed](https://img.shields.io/npm/l/%40professional-wiki%2Fmediawiki-mcp-server)](./LICENSE)
 
 An MCP (Model Context Protocol) server that enables Large Language Model (LLM) clients to interact with any MediaWiki wiki.
 
@@ -9,6 +9,7 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 
 | Name | Description | Permissions |
 |---|---|---|
+| `add-wiki` | Adds a new wiki as an MCP resource from a URL. | - |
 | `create-page` 🔐 | Create a new wiki page. | `Create, edit, and move pages` |
 | `delete-page` 🔐 | Delete a wiki page. | `Delete pages, revisions, and log entries` |
 | `get-category-members` | Gets all members in the category | - |
@@ -16,13 +17,51 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | `get-page` | Returns the standard page object for a wiki page. | - |
 | `get-page-history` | Returns information about the latest revisions to a wiki page. | - |
 | `get-revision` | Returns the standard revision object for a page. | - |
+| `remove-wiki` | Removes a wiki resource. | - |
 | `search-page` | Search wiki page titles and contents for the provided search terms. | - |
 | `search-page-by-prefix` | Perform a prefix search for page titles. | - |
-| `set-wiki` | Set the wiki to use for the current session. | - |
+| `set-wiki` | Sets the wiki resource to use for the current session. | - |
 | `undelete-page` 🔐 | Undelete a wiki page. | `Delete pages, revisions, and log entries` |
 | `update-page` 🔐 | Update an existing wiki page. | `Edit existing pages` |
 | `upload-file` 🔐 | Uploads a file to the wiki from the local disk. | `Upload new files` |
 | `upload-file-from-url` 🔐 | Uploads a file to the wiki from a web URL. | `Upload, replace, and move files` |
+
+### Resources
+
+`mcp://wikis/{wikiKey}`
+- Credentials (e.g., `token`, `username`, `password`) are never exposed in resource content.
+- After `add-wiki`/`remove-wiki`, the server sends `notifications/resources/list_changed` so clients refresh.
+
+<details><summary>Example list result</summary>
+
+```json
+{
+  "resources": [
+    {
+      "uri": "mcp://wikis/en.wikipedia.org",
+      "name": "wikis/en.wikipedia.org",
+      "title": "Wikipedia",
+      "description": "Wiki \"Wikipedia\" hosted at https://en.wikipedia.org"
+    }
+  ]
+}
+```
+</details>
+
+<details><summary>Example read result</summary>
+
+```json
+{
+  "contents": [
+    {
+      "uri": "mcp://wikis/en.wikipedia.org",
+      "mimeType": "application/json",
+      "text": "{ \"sitename\":\"Wikipedia\",\"server\":\"https://en.wikipedia.org\",\"articlepath\":\"/wiki\",\"scriptpath\":\"/w\",\"private\":false }"
+    }
+  ]
+}
+```
+</details>
 
 ### Environment variables
 | Name | Description | Default |
@@ -216,13 +255,13 @@ You should end up with something like the below in your `.claude.json` config:
 
 ## Development
 
-> 🐋 **Develop with Docker:** Replace the `npm run` part of the command with `make` (e.g. `make dev`).
+> 🐋 **Develop with Docker:** Replace the `npm run` part of the command with `make`, and `:` with `-` (e.g. `make dev-inspector`).
 
 ### [MCP Inspector](https://github.com/modelcontextprotocol/inspector)
 
 To start the development server and the MCP Inspector:
 ```sh
-npm run dev
+npm run dev:inspector
 ```
 
 The command will build and start the MCP Proxy server locally at `6277` and the MCP Inspector client UI at `http://localhost:6274`.
@@ -295,4 +334,4 @@ Contributions are welcome! Please feel free to submit a pull request or open an 
 
 ## License
 
-This project is licensed under the GPL 2.0 License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

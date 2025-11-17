@@ -6,6 +6,8 @@ import { getPageTool } from './get-page.js';
 import { getPageHistoryTool } from './get-page-history.js';
 import { searchPageTool } from './search-page.js';
 import { setWikiTool } from './set-wiki.js';
+import { addWikiTool } from './add-wiki.js';
+import { removeWikiTool } from './remove-wiki.js';
 import { updatePageTool } from './update-page.js';
 import { getFileTool } from './get-file.js';
 import { createPageTool } from './create-page.js';
@@ -22,6 +24,8 @@ const toolRegistrars = [
 	getPageHistoryTool,
 	searchPageTool,
 	setWikiTool,
+	addWikiTool,
+	removeWikiTool,
 	updatePageTool,
 	getFileTool,
 	createPageTool,

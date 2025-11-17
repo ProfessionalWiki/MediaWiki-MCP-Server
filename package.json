@@ -1,6 +1,6 @@
 {
 	"name": "@professional-wiki/mediawiki-mcp-server",
-	"version": "0.4.0",
+	"version": "0.5.0",
 	"description": "Model Context Protocol (MCP) server for MediaWiki",
 	"mcpName": "io.github.ProfessionalWiki/mediawiki-mcp-server",
 	"keywords": [
@@ -12,7 +12,7 @@
 	"bugs": {
 		"url": "https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/issues"
 	},
-	"license": "GPL-2.0-or-later",
+	"license": "MIT",
 	"author": {
 		"name": "Professional Wiki",
 		"url": "https://professional.wiki"
@@ -33,14 +33,14 @@
 		"node": ">=18"
 	},
 	"scripts": {
+		"start": "node dist/index.js",
+		"start:http": "MCP_TRANSPORT=http node dist/index.js",
 		"build": "tsc",
-		"watch": "tsc --watch",
 		"test": "echo \"Error: no test specified\" && exit 1",
 		"lint": "eslint --cache src/**/*",
-		"start": "node dist/index.js",
-		"start:streamableHttp": "MCP_TRANSPORT=http node dist/index.js",
-		"dev": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest node dist/index.js\"",
-		"dev:streamableHttp": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest\" \"MCP_TRANSPORT=http node dist/index.js\"",
+		"dev": "tsc --watch",
+		"dev:inspector": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest node dist/index.js\"",
+		"dev:inspector:http": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest\" \"MCP_TRANSPORT=http node dist/index.js\"",
 		"version": "node scripts/sync-version.cjs && git add server.json"
 	},
 	"dependencies": {
