@@ -39,8 +39,8 @@
 		"test": "echo \"Error: no test specified\" && exit 1",
 		"lint": "eslint --cache src/**/*",
 		"dev": "tsc --watch",
-		"dev:inspector": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest node dist/index.js\"",
-		"dev:inspector:http": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest\" \"MCP_TRANSPORT=http node dist/index.js\"",
+		"inspector": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest node dist/index.js\"",
+		"inspector:http": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest\" \"MCP_TRANSPORT=http node dist/index.js\"",
 		"version": "node scripts/sync-version.cjs && git add server.json"
 	},
 	"dependencies": {
