@@ -255,16 +255,29 @@ You should end up with something like the below in your `.claude.json` config:
 
 ## Development
 
-> 🐋 **Develop with Docker:** Replace the `npm run` part of the command with `make`, and `:` with `-` (e.g. `make dev-inspector`).
+> 🐋 **Develop with Docker:** Replace the `npm run` part of the command with `make` (e.g. `make inspector`).
+
 
 ### [MCP Inspector](https://github.com/modelcontextprotocol/inspector)
 
-To start the development server and the MCP Inspector:
+Test and debug the MCP server without a MCP client and LLM.
+
+To start the development server and the MCP Inspector together:
 ```sh
-npm run dev:inspector
+npm run inspector
 ```
 
 The command will build and start the MCP Proxy server locally at `6277` and the MCP Inspector client UI at `http://localhost:6274`.
+
+
+### [MCPJam Inspector](https://github.com/MCPJam/inspector)
+
+Test and debug the MCP server, with a built-in MCP client and support for different LLMs.
+
+To start the development server and the MCP Inspector together:
+```sh
+npm run mcpjam
+```
 
 ### Test with MCP clients
 
@@ -272,10 +285,10 @@ To enable your MCP client to use this MediaWiki MCP Server for local development
 
 1. [Install](#installation) the MCP server on your MCP client.
 2. Change the `command` and `args` values as shown in the [`mcp.json`](mcp.json) file (or [`mcp.docker.json`](mcp.docker.json) if you prefer to run the MCP server in Docker).
-3. Run the watch command so that the source will be compiled whenever there is a change:
+3. Run the `dev` command so that the source will be compiled whenever there is a change:
 
 	```sh
-	npm run watch
+	npm run dev
 	```
 
 ### Release process
