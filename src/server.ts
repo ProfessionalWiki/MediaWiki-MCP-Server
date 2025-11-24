@@ -12,15 +12,19 @@ const SERVER_NAME: string = 'mediawiki-mcp-server';
 const SERVER_VERSION: string = packageInfo.version;
 
 export const createServer = (): McpServer => {
-	const server = new McpServer( {
-		name: SERVER_NAME,
-		version: SERVER_VERSION,
-		capabilities: {
-			resources: {
-				listChanged: true
+	const server = new McpServer(
+		{
+			name: SERVER_NAME,
+			version: SERVER_VERSION
+		},
+		{
+			capabilities: {
+				resources: {
+					listChanged: true
+				}
 			}
 		}
-	} );
+	);
 
 	registerAllTools( server );
 	registerAllResources( server );
