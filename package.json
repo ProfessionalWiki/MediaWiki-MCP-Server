@@ -45,7 +45,7 @@
 		"version": "node scripts/sync-version.cjs && git add server.json"
 	},
 	"dependencies": {
-		"@modelcontextprotocol/sdk": "^1.11.3",
+		"@modelcontextprotocol/sdk": "^1.22.0",
 		"express": "^5.1.0",
 		"mwn": "^3.0.1",
 		"node-fetch": "^3.3.2",
