@@ -42,7 +42,7 @@
 		"inspector": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest node dist/index.js\"",
 		"inspector:http": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest\" \"MCP_TRANSPORT=http node dist/index.js\"",
 		"mcpjam": "concurrently --kill-others \"tsc --watch\" \"npx -y @mcpjam/inspector@latest node $(pwd)/dist/index.js\"",
-		"version": "node scripts/sync-version.cjs && git add server.json"
+		"version": "node scripts/sync-version.cjs && git add server.json mcpb/manifest.json Dockerfile"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.22.0",
