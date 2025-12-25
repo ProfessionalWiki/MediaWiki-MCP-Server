@@ -314,7 +314,7 @@ npm version 0.2.0
 
 This command automatically:
 - Updates `package.json` and `package-lock.json`
-- Syncs the version in `server.json` and `Dockerfile` (via the version script)
+- Syncs the version in `server.json`, `mcpb/manifest.json`, `Dockerfile` (via the version script)
 - Creates a git commit
 - Creates a git tag (e.g., `v0.2.0`)
 </details>
@@ -325,18 +325,9 @@ This command automatically:
 ```sh
 git push origin master --follow-tags
 ```
-</details>
 
-<details>
-<summary><b>3. Create a GitHub Release</b></summary>
-
-1. Go to the [Releases page](https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/releases)
-2. Click "Create a new release"
-3. Select the tag you just pushed (e.g., `v0.2.0`)
-4. Add a title and release notes
-5. Click "Publish release"
-
-The GitHub Actions workflow will automatically:
+The `release` GitHub workflow will trigger automatically:
+- Build a MCP bundle `.mcpb` and publish to [GitHub](https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/releases)
 - Build and publish to [NPM](https://www.npmjs.com/package/@professional-wiki/mediawiki-mcp-server) 
 - Publish to the [MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.professionalwiki/mediawiki-mcp-server)
 </details>

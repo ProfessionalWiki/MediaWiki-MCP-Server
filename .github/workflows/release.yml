@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # For creating release
+      id-token: write # For npm provenance and MCP registry OIDC
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Publish to NPM
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_MCP_WRITE }}
+
+      - name: Sync version for MCP Registry
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "Syncing version to: $VERSION"
+          jq --arg v "$VERSION" '.version = $v | .packages[0].version = $v' server.json > tmp.json && mv tmp.json server.json
+
+      - name: Install MCP Publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Login to MCP Registry
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish to MCP Registry
+        run: ./mcp-publisher publish
+
+      - name: Install MCPB CLI
+        run: npm install -g git+https://github.com/modelcontextprotocol/mcpb.git
+
+      - name: Prepare Manifest
+        run: cp mcpb/manifest.json manifest.json
+
+      - name: Pack MCP Bundle
+        run: mcpb pack
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: '*.mcpb'
+          generate_release_notes: true
