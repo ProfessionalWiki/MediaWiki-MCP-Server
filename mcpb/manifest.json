@@ -34,7 +34,13 @@
 	"keywords": [
 		"modelcontextprotocol",
 		"mcp",
-		"mediawiki"
+		"mediawiki",
+		"wiki",
+		"wikipedia",
+		"wikimedia",
+		"knowledge",
+		"wikibase",
+		"smw"
 	],
 	"license": "MIT",
 	"homepage": "https://github.com/ProfessionalWiki/MediaWiki-MCP-Server",
