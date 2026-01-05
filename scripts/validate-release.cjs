@@ -31,6 +31,9 @@ async function validateServerJson() {
 
 	try {
 		const response = await fetch( schemaUrl );
+		if ( !response.ok ) {
+			throw new Error( `Failed to fetch schema from ${ schemaUrl }: ${ response.status } ${ response.statusText }` );
+		}
 		const schema = await response.json();
 
 		const ajv = new Ajv( { strict: false } );
