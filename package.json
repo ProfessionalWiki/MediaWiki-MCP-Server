@@ -58,6 +58,7 @@
 		"types-mediawiki-api": "^2.0.0"
 	},
 	"devDependencies": {
+		"@anthropic-ai/mcpb": "^2.1.2",
 		"@types/express": "^5.0.2",
 		"@types/node": "^25.0.2",
 		"@types/node-fetch": "^2.6.12",

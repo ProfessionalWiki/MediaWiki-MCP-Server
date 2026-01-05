@@ -51,14 +51,11 @@ jobs:
       - name: Publish to MCP Registry
         run: ./mcp-publisher publish
 
-      - name: Install MCPB CLI
-        run: npm install -g git+https://github.com/modelcontextprotocol/mcpb.git
-
       - name: Prepare Manifest
         run: cp mcpb/manifest.json manifest.json
 
       - name: Pack MCP Bundle
-        run: mcpb pack
+        run: npx mcpb pack
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
