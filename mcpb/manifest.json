@@ -1,51 +1,51 @@
 {
-	"manifest_version": "0.4",
-	"name": "@professional-wiki/mediawiki-mcp-server",
-	"display_name": "MediaWiki MCP Server",
-	"version": "0.6.0",
-	"description": "Model Context Protocol (MCP) server for MediaWiki",
-	"author": {
-		"name": "Professional Wiki",
-		"url": "https://professional.wiki"
-	},
-	"server": {
-		"type": "node",
-		"entry_point": "dist/index.js",
-		"mcp_config": {
-			"command": "node",
-			"args": [
-				"${__dirname}/dist/index.js"
-			],
-			"env": {
-				"CONFIG": "${user_config.configPath}"
-			}
-		}
-	},
-	"user_config": {
-		"configPath": {
-			"type": "file",
-			"title": "Configuration File",
-			"description": "Path to the configuration file (config.json)",
-			"default": "config.json",
-			"required": false
-		}
-	},
-	"tools_generated": true,
-	"keywords": [
-		"modelcontextprotocol",
-		"mcp",
-		"mediawiki",
-		"wiki",
-		"wikipedia",
-		"wikimedia",
-		"knowledge",
-		"wikibase",
-		"smw"
-	],
-	"license": "MIT",
-	"homepage": "https://github.com/ProfessionalWiki/MediaWiki-MCP-Server",
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/ProfessionalWiki/MediaWiki-MCP-Server.git"
-	}
+  "manifest_version": "0.4",
+  "name": "@professional-wiki/mediawiki-mcp-server",
+  "display_name": "MediaWiki MCP Server",
+  "version": "0.6.1",
+  "description": "Model Context Protocol (MCP) server for MediaWiki",
+  "author": {
+    "name": "Professional Wiki",
+    "url": "https://professional.wiki"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/dist/index.js"
+      ],
+      "env": {
+        "CONFIG": "${user_config.configPath}"
+      }
+    }
+  },
+  "user_config": {
+    "configPath": {
+      "type": "file",
+      "title": "Configuration File",
+      "description": "Path to the configuration file (config.json)",
+      "default": "config.json",
+      "required": false
+    }
+  },
+  "tools_generated": true,
+  "keywords": [
+    "modelcontextprotocol",
+    "mcp",
+    "mediawiki",
+    "wiki",
+    "wikipedia",
+    "wikimedia",
+    "knowledge",
+    "wikibase",
+    "smw"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/ProfessionalWiki/MediaWiki-MCP-Server",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ProfessionalWiki/MediaWiki-MCP-Server.git"
+  }
 }
