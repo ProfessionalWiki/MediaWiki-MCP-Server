@@ -12,7 +12,6 @@
     {
       "registryType": "mcpb",
       "identifier": "https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/releases/download/v0.6.3/MediaWiki-MCP-Server.mcpb",
-      "version": "0.6.3",
       "fileSha256": "1056edca4b06c065cb472dffd6ee2910090faf8d77b38ed9eeae3f38a2591b03",
       "transport": {
         "type": "stdio"
