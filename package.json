@@ -48,6 +48,7 @@
 		"inspector": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest node dist/index.js\"",
 		"inspector:http": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest\" \"MCP_TRANSPORT=http node dist/index.js\"",
 		"mcpjam": "concurrently --kill-others \"tsc --watch\" \"npx -y @mcpjam/inspector@latest node $(pwd)/dist/index.js\"",
+		"preversion": "node scripts/validate-release.cjs",
 		"version": "node scripts/sync-version.cjs && git add server.json mcpb/manifest.json Dockerfile"
 	},
 	"dependencies": {
@@ -64,6 +65,8 @@
 		"@types/node-fetch": "^2.6.12",
 		"@typescript-eslint/eslint-plugin": "^8.19.0",
 		"@typescript-eslint/parser": "^8.19.0",
+		"ajv": "^8.17.1",
+		"ajv-formats": "^3.0.1",
 		"concurrently": "^9.1.2",
 		"eslint": "^8.57.0",
 		"eslint-config-wikimedia": "^0.32.2",
