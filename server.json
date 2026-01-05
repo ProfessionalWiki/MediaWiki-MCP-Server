@@ -10,9 +10,13 @@
   },
   "packages": [
     {
-      "registryType": "npm",
-      "identifier": "@professional-wiki/mediawiki-mcp-server",
+      "registryType": "mcpb",
+      "identifier": "https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/releases/download/v0.6.3/MediaWiki-MCP-Server.mcpb",
       "version": "0.6.3",
+      "fileSha256": "1056edca4b06c065cb472dffd6ee2910090faf8d77b38ed9eeae3f38a2591b03",
+      "transport": {
+        "type": "stdio"
+      },
       "environmentVariables": [
         {
           "name": "CONFIG",
@@ -35,10 +39,38 @@
           "format": "number",
           "default": "3000"
         }
-      ],
+      ]
+    },
+    {
+      "registryType": "npm",
+      "identifier": "@professional-wiki/mediawiki-mcp-server",
+      "version": "0.6.3",
       "transport": {
         "type": "stdio"
-      }
+      },
+      "environmentVariables": [
+        {
+          "name": "CONFIG",
+          "description": "Path to your configuration file",
+          "default": "config.json",
+          "format": "filepath"
+        },
+        {
+          "name": "MCP_TRANSPORT",
+          "description": "Type of MCP server transport",
+          "choices": [
+            "stdio",
+            "http"
+          ],
+          "default": "stdio"
+        },
+        {
+          "name": "PORT",
+          "description": "Port used for StreamableHTTP transport",
+          "format": "number",
+          "default": "3000"
+        }
+      ]
     }
   ]
 }
