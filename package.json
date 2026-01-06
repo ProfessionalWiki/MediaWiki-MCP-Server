@@ -41,14 +41,17 @@
 	"scripts": {
 		"start": "node dist/index.js",
 		"start:http": "MCP_TRANSPORT=http node dist/index.js",
+		"dev": "tsc --watch",
 		"build": "tsc",
 		"test": "echo \"Error: no test specified\" && exit 1",
 		"lint": "eslint --cache src/**/*",
-		"dev": "tsc --watch",
+		"validate:server-json": "node scripts/validate-server-json.cjs",
+		"preflight": "npm ci && npm run lint && npm run validate:server-json && npm run build && npm run bundle -- --clean",
 		"inspector": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest node dist/index.js\"",
 		"inspector:http": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest\" \"MCP_TRANSPORT=http node dist/index.js\"",
 		"mcpjam": "concurrently --kill-others \"tsc --watch\" \"npx -y @mcpjam/inspector@latest node $(pwd)/dist/index.js\"",
-		"preversion": "node scripts/validate-release.cjs",
+		"bundle": "npm run build && node scripts/bundle.cjs",
+		"preversion": "npm run preflight",
 		"version": "node scripts/sync-version.cjs && git add server.json mcpb/manifest.json Dockerfile"
 	},
 	"dependencies": {
