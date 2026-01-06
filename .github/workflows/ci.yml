@@ -17,14 +17,8 @@ jobs:
         node-version: 22
         cache: 'npm'
 
-    - name: Install dependencies
-      run: npm ci
-
-    - name: Run build
-      run: npm run build
-
-    - name: Run ESLint
-      run: npm run lint
+    - name: Run preflight
+      run: npm run preflight
 
     - name: Ensure no changes
       run: git diff --exit-code

@@ -21,9 +21,6 @@ jobs:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org/'
 
-      - name: Install dependencies
-        run: npm ci
-
       - name: Check release
         run: npm run preversion
 
@@ -48,11 +45,8 @@ jobs:
       - name: Publish to MCP Registry
         run: ./mcp-publisher publish
 
-      - name: Prepare Manifest
-        run: cp mcpb/manifest.json manifest.json
-
-      - name: Pack MCP Bundle
-        run: npx mcpb pack
+      - name: Build MCP Bundle
+        run: npm run bundle
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
