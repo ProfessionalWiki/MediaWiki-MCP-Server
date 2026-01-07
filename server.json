@@ -38,13 +38,12 @@
           "format": "number",
           "default": "3000"
         }
-      ],
-      "version": "0.6.4"
+      ]
     },
     {
       "registryType": "npm",
       "identifier": "@professional-wiki/mediawiki-mcp-server",
-      "version": "0.6.3",
+      "version": "0.6.4",
       "transport": {
         "type": "stdio"
       },
