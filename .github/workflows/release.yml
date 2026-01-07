@@ -21,7 +21,7 @@ jobs:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org/'
 
-      - name: Check release
+      - name: Run preversion checks
         run: npm run preversion
 
       - name: Publish to NPM
