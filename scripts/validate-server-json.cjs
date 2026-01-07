@@ -4,12 +4,11 @@
 const fs = require( 'fs' );
 const Ajv = require( 'ajv' );
 const addFormats = require( 'ajv-formats' );
-const path = require( 'path' );
+const { SERVER_JSON_PATH } = require( './constants.cjs' );
 
 ( async () => {
 	console.log( '\nValidating server.json...' );
-	const serverJsonPath = path.join( process.cwd(), 'server.json' );
-	const serverJson = JSON.parse( fs.readFileSync( serverJsonPath, 'utf8' ) );
+	const serverJson = JSON.parse( fs.readFileSync( SERVER_JSON_PATH, 'utf8' ) );
 
 	const schemaUrl = serverJson.$schema;
 	if ( !schemaUrl ) {

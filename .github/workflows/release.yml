@@ -24,16 +24,37 @@ jobs:
       - name: Run preversion checks
         run: npm run preversion
 
-      - name: Publish to NPM
+      - name: Build MCP Bundle
+        run: npm run bundle
+
+      - name: Update server.json (MCP Bundle)
+        run: node scripts/update-server-json-mcpb.cjs
+
+      - name: Publish to npm
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_MCP_WRITE }}
 
-      - name: Sync version for MCP Registry
+      - name: Update server.json (npm)
+        run: node scripts/update-server-json-npm.cjs
+
+      - name: Commit and push server.json
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "Syncing version to: $VERSION"
-          jq --arg v "$VERSION" '.version = $v | .packages[0].version = $v' server.json > tmp.json && mv tmp.json server.json
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add server.json
+          if git diff --staged --quiet; then
+            echo "No changes to server.json"
+          else
+            git commit -m "Sync package versions in server.json [skip ci]"
+            git push origin HEAD:master
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: '*.mcpb'
+          generate_release_notes: true
 
       - name: Install MCP Publisher
         run: |
@@ -44,12 +65,3 @@ jobs:
 
       - name: Publish to MCP Registry
         run: ./mcp-publisher publish
-
-      - name: Build MCP Bundle
-        run: npm run bundle
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: '*.mcpb'
-          generate_release_notes: true

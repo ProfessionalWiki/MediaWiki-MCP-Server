@@ -4,18 +4,21 @@
 const { execSync } = require( 'child_process' );
 const fs = require( 'fs' );
 const path = require( 'path' );
+const {
+	MCPB_FILE,
+	MANIFEST_FILE,
+	MANIFEST_JSON_PATH,
+	ROOT_DIR
+} = require( './constants.cjs' );
 
-const MCPB_FILE = 'MediaWiki-MCP-Server.mcpb';
-const MANIFEST_FILE = 'manifest.json';
-const MANIFEST_SRC = path.join( process.cwd(), 'mcpb', MANIFEST_FILE );
-const MANIFEST_DEST = path.join( process.cwd(), MANIFEST_FILE );
+const MANIFEST_DEST = path.join( ROOT_DIR, MANIFEST_FILE );
 
 function ensureManifest() {
 	if ( fs.existsSync( MANIFEST_DEST ) ) {
 		return false;
 	}
 	console.log( 'Copying manifest to root...' );
-	fs.copyFileSync( MANIFEST_SRC, MANIFEST_DEST );
+	fs.copyFileSync( MANIFEST_JSON_PATH, MANIFEST_DEST );
 	return true;
 }
 
@@ -37,9 +40,10 @@ function cleanBundle() {
 }
 
 function removeBundleArtifact() {
-	if ( fs.existsSync( MCPB_FILE ) ) {
+	const bundlePath = path.join( ROOT_DIR, MCPB_FILE );
+	if ( fs.existsSync( bundlePath ) ) {
 		console.log( `Cleaning up ${ MCPB_FILE }...` );
-		fs.unlinkSync( MCPB_FILE );
+		fs.unlinkSync( bundlePath );
 	}
 }
 

@@ -6,8 +6,16 @@
 		"wikimedia/language/es2022"
 	],
 	"rules": {
+		"comma-dangle": "off",
 		"no-shadow": "off",
-		"es-x/no-hashbang": "off",
-		"comma-dangle": "off"
-	}
+		"es-x/no-hashbang": "off"
+	},
+	"overrides": [
+		{
+			"files": [ "scripts/**" ],
+			"rules": {
+				"security/detect-non-literal-fs-filename": "off"
+			}
+		}
+	]
 }
