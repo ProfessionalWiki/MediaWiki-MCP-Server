@@ -55,7 +55,7 @@
 		"version": "node scripts/sync-version.cjs && git add server.json mcpb/manifest.json Dockerfile"
 	},
 	"dependencies": {
-		"@modelcontextprotocol/sdk": "^1.22.0",
+		"@modelcontextprotocol/sdk": "^1.25.2",
 		"express": "^5.1.0",
 		"mwn": "^3.0.1",
 		"node-fetch": "^3.3.2",
