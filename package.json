@@ -71,7 +71,7 @@
 		"ajv": "^8.17.1",
 		"ajv-formats": "^3.0.1",
 		"concurrently": "^9.1.2",
-		"eslint": "^8.57.0",
+		"eslint": "^10.0.0",
 		"eslint-config-wikimedia": "^0.32.2",
 		"typescript": "^5.8.3"
 	}
