@@ -66,10 +66,35 @@ export const defaultConfig: Config = {
 };
 const configPath = process.env.CONFIG || 'config.json';
 
+function replaceEnvVars( value: string ): string {
+	return value.replace( /\$\{([^}]+)\}/g, ( match, envVar: string ) => {
+		const envValue = process.env[ envVar ];
+		return envValue !== undefined ? envValue : match;
+	} );
+}
+
+function replaceEnvVarsInObject( obj: unknown ): unknown {
+	if ( typeof obj === 'string' ) {
+		return replaceEnvVars( obj );
+	}
+	if ( Array.isArray( obj ) ) {
+		return obj.map( ( item ) => replaceEnvVarsInObject( item ) );
+	}
+	if ( obj !== null && typeof obj === 'object' ) {
+		const result: Record<string, unknown> = {};
+		for ( const [ key, value ] of Object.entries( obj ) ) {
+			result[ key ] = replaceEnvVarsInObject( value );
+		}
+		return result;
+	}
+	return obj;
+}
+
 export function loadConfigFromFile(): Config {
 	if ( !fs.existsSync( configPath ) ) {
 		return defaultConfig;
 	}
 	const rawData = fs.readFileSync( configPath, 'utf-8' );
-	return JSON.parse( rawData ) as Config;
+	const parsed = JSON.parse( rawData );
+	return replaceEnvVarsInObject( parsed ) as Config;
 }
