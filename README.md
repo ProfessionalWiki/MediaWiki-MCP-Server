@@ -116,6 +116,29 @@ Create a `config.json` file to configure wiki connections. Use the `config.examp
 | `password` | No | Bot password (fallback when OAuth2 is not available) |
 | `private` | No | Whether the wiki requires authentication to read (default: `false`) |
 
+### Environment variable substitution
+
+Config values support `${VAR_NAME}` syntax for referencing environment variables. This allows you to keep secrets out of your `config.json` file.
+
+```json
+{
+  "defaultWiki": "my.wiki.org",
+  "wikis": {
+    "my.wiki.org": {
+      "sitename": "My Wiki",
+      "server": "https://my.wiki.org",
+      "articlepath": "/wiki",
+      "scriptpath": "/w",
+      "token": "${WIKI_OAUTH_TOKEN}",
+      "username": "${WIKI_USERNAME}",
+      "password": "${WIKI_PASSWORD}"
+    }
+  }
+}
+```
+
+If an environment variable is not set, the `${VAR_NAME}` reference is left as-is.
+
 ### Authentication setup
 
 For tools marked with 🔐, authentication is required.
