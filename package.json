@@ -43,10 +43,11 @@
 		"start:http": "MCP_TRANSPORT=http node dist/index.js",
 		"dev": "tsc --watch",
 		"build": "tsc",
-		"test": "echo \"Error: no test specified\" && exit 1",
+		"test": "vitest run",
+		"test:watch": "vitest",
 		"lint": "eslint --cache src/**/*",
 		"validate:server-json": "node scripts/validate-server-json.cjs",
-		"preflight": "npm ci && npm run lint && npm run validate:server-json && npm run build && npm run bundle -- --clean",
+		"preflight": "npm ci && npm run lint && npm run validate:server-json && npm run test && npm run build && npm run bundle -- --clean",
 		"inspector": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest node dist/index.js\"",
 		"inspector:http": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest\" \"MCP_TRANSPORT=http node dist/index.js\"",
 		"mcpjam": "concurrently --kill-others \"tsc --watch\" \"npx -y @mcpjam/inspector@latest node $(pwd)/dist/index.js\"",
@@ -73,6 +74,7 @@
 		"concurrently": "^9.1.2",
 		"eslint": "^8.57.0",
 		"eslint-config-wikimedia": "^0.32.2",
-		"typescript": "^5.8.3"
+		"typescript": "^5.8.3",
+		"vitest": "^4.1.1"
 	}
 }
