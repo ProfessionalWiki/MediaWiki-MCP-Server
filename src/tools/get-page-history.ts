@@ -33,6 +33,16 @@ export async function handleGetPageHistoryTool(
 	newerThan?: number,
 	filter?: string
 ): Promise<CallToolResult> {
+	if ( olderThan && newerThan ) {
+		return {
+			content: [ {
+				type: 'text',
+				text: 'Cannot use both olderThan and newerThan at the same time'
+			} ],
+			isError: true
+		};
+	}
+
 	try {
 		const mwn = await getMwn();
 

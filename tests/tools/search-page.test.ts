@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
-vi.mock( '../../src/server.js', () => ( { USER_AGENT: 'test-agent' } ) );
 vi.mock( '../../src/common/wikiService.js', () => ( {
 	wikiService: {
 		getCurrent: vi.fn().mockReturnValue( {
