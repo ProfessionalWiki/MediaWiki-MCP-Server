@@ -1,16 +1,13 @@
-// TODO: Make tools into an interface
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { wikiService } from '../common/wikiService.js';
-import { makeRestGetRequest } from '../common/utils.js';
-import type { MwRestApiSearchPageResponse, MwRestApiSearchResultObject } from '../types/mwRestApi.js';
+import { getMwn } from '../common/mwn.js';
+import type { ApiSearchResult } from 'mwn';
+import { getPageUrl } from '../common/utils.js';
 
 export function searchPageTool( server: McpServer ): RegisteredTool {
-	// TODO: Not having named parameters is a pain,
-	// but using low-level Server type or using a wrapper function are addedd complexity
 	return server.tool(
 		'search-page',
 		'Search wiki page titles and contents for the provided search terms, and returns matching pages.',
@@ -27,13 +24,49 @@ export function searchPageTool( server: McpServer ): RegisteredTool {
 	);
 }
 
-async function handleSearchPageTool( query: string, limit?: number ): Promise< CallToolResult > {
-	let data: MwRestApiSearchPageResponse;
+export async function handleSearchPageTool(
+	query: string, limit?: number
+): Promise<CallToolResult> {
 	try {
-		data = await makeRestGetRequest<MwRestApiSearchPageResponse>(
-			'/v1/search/page',
-			{ q: query, ...( limit ? { limit: limit.toString() } : {} ) }
-		);
+		const mwn = await getMwn();
+
+		const params: Record<string, string | number | boolean> = {
+			action: 'query',
+			list: 'search',
+			srsearch: query,
+			srwhat: 'text',
+			srprop: 'snippet|size|timestamp',
+			formatversion: '2'
+		};
+
+		if ( limit ) {
+			params.srlimit = limit;
+		}
+
+		const response = await mwn.request( params );
+		const searchResults: ApiSearchResult[] = response.query?.search ?? [];
+
+		if ( searchResults.length === 0 ) {
+			return {
+				content: [
+					{ type: 'text', text: `No pages found for ${ query }` } as TextContent
+				]
+			};
+		}
+
+		return {
+			content: searchResults.map( ( result ): TextContent => ( {
+				type: 'text',
+				text: [
+					`Title: ${ result.title }`,
+					`Page ID: ${ result.pageid }`,
+					`Page URL: ${ getPageUrl( result.title ) }`,
+					`Snippet: ${ result.snippet }`,
+					`Size: ${ result.size }`,
+					`Timestamp: ${ result.timestamp }`
+				].join( '\n' )
+			} ) )
+		};
 	} catch ( error ) {
 		return {
 			content: [
@@ -42,32 +75,4 @@ async function handleSearchPageTool( query: string, limit?: number ): Promise< C
 			isError: true
 		};
 	}
-
-	const pages = data.pages || [];
-	if ( pages.length === 0 ) {
-		return {
-			content: [
-				{ type: 'text', text: `No pages found for ${ query }` } as TextContent
-			]
-		};
-	}
-
-	return {
-		content: pages.map( getSearchResultToolResult )
-	};
-}
-
-// TODO: Decide how to handle the tool's result
-function getSearchResultToolResult( result: MwRestApiSearchResultObject ): TextContent {
-	const { server, articlepath } = wikiService.getCurrent().config;
-	return {
-		type: 'text',
-		text: [
-			`Title: ${ result.title }`,
-			`Description: ${ result.description ?? 'Not available' }`,
-			`Page ID: ${ result.id }`,
-			`Page URL: ${ `${ server }${ articlepath }/${ result.key }` }`,
-			`Thumbnail URL: ${ result.thumbnail?.url ?? 'Not available' }`
-		].join( '\n' )
-	};
 }
