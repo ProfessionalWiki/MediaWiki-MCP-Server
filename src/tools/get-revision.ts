@@ -3,9 +3,10 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { makeRestGetRequest } from '../common/utils.js';
-import type { MwRestApiRevisionObject } from '../types/mwRestApi.js';
-import { ContentFormat, getSubEndpoint } from '../common/mwRestApiContentFormat.js';
+import { getMwn } from '../common/mwn.js';
+import type { ApiPage, ApiRevision } from 'mwn';
+import { getPageUrl } from '../common/utils.js';
+import { ContentFormat } from '../common/contentFormat.js';
 
 export function getRevisionTool( server: McpServer ): RegisteredTool {
 	return server.tool(
@@ -14,7 +15,7 @@ export function getRevisionTool( server: McpServer ): RegisteredTool {
 		{
 			revisionId: z.number().int().positive().describe( 'Revision ID' ),
 			content: z.nativeEnum( ContentFormat ).describe( 'Type of content to return' ).optional().default( ContentFormat.source ),
-			metadata: z.boolean().describe( 'Whether to include metadata (revision ID, page ID, page title, user ID, user name, timestamp, comment, size, delta, minor, HTML URL) in the response' ).optional().default( false )
+			metadata: z.boolean().describe( 'Whether to include metadata (revision ID, page ID, page title, user ID, user name, timestamp, comment, size, minor, HTML URL) in the response' ).optional().default( false )
 		},
 		{
 			title: 'Get revision',
@@ -27,7 +28,27 @@ export function getRevisionTool( server: McpServer ): RegisteredTool {
 	);
 }
 
-async function handleGetRevisionTool(
+function buildRevisionMetadata(
+	page: ApiPage, rev: ApiRevision
+): TextContent {
+	return {
+		type: 'text',
+		text: [
+			`Revision ID: ${ rev.revid }`,
+			`Page ID: ${ page.pageid }`,
+			`Page Title: ${ page.title }`,
+			`User ID: ${ rev.userid }`,
+			`User Name: ${ rev.user }`,
+			`Timestamp: ${ rev.timestamp }`,
+			`Comment: ${ rev.comment }`,
+			`Size: ${ rev.size }`,
+			`Minor: ${ rev.minor ?? false }`,
+			`HTML URL: ${ getPageUrl( page.title ) }`
+		].join( '\n' )
+	};
+}
+
+export async function handleGetRevisionTool(
 	revisionId: number, content: ContentFormat, metadata: boolean
 ): Promise<CallToolResult> {
 	if ( content === ContentFormat.none && !metadata ) {
@@ -41,75 +62,94 @@ async function handleGetRevisionTool(
 	}
 
 	try {
-		const data = await makeRestGetRequest<MwRestApiRevisionObject>(
-			`/v1/revision/${ revisionId }${ getSubEndpoint( content ) }`
-		);
-		return {
-			content: getRevisionToolResult( data, content, metadata )
-		};
+		const mwn = await getMwn();
+		const results: TextContent[] = [];
+
+		const needsSource = content === ContentFormat.source;
+		const needsMetadata = metadata || content === ContentFormat.none;
+
+		if ( needsSource || needsMetadata ) {
+			const rvprop = needsSource ?
+				'ids|timestamp|user|userid|comment|size|flags|content' :
+				'ids|timestamp|user|userid|comment|size|flags';
+
+			const response = await mwn.request( {
+				action: 'query',
+				prop: 'revisions',
+				revids: revisionId,
+				rvprop,
+				formatversion: '2'
+			} );
+
+			const page = response.query?.pages?.[ 0 ] as ApiPage | undefined;
+			const rev: ApiRevision | undefined = page?.revisions?.[ 0 ];
+
+			if ( !rev || !page ) {
+				return {
+					content: [ {
+						type: 'text',
+						text: `Revision ${ revisionId } not found`
+					} as TextContent ],
+					isError: true
+				};
+			}
+
+			if ( needsMetadata ) {
+				results.push( buildRevisionMetadata( page, rev ) );
+			}
+
+			if ( needsSource && rev.content !== undefined ) {
+				results.push( {
+					type: 'text',
+					text: metadata ?
+						`Source:\n${ rev.content }` : rev.content
+				} );
+			}
+		}
+
+		if ( content === ContentFormat.html ) {
+			if ( metadata && results.length === 0 ) {
+				const response = await mwn.request( {
+					action: 'query',
+					prop: 'revisions',
+					revids: revisionId,
+					rvprop: 'ids|timestamp|user|userid|comment|size|flags',
+					formatversion: '2'
+				} );
+
+				const page = response.query?.pages?.[ 0 ] as ApiPage | undefined;
+				const rev: ApiRevision | undefined = page?.revisions?.[ 0 ];
+
+				if ( rev && page ) {
+					results.push( buildRevisionMetadata( page, rev ) );
+				}
+			}
+
+			const parseResult = await mwn.request( {
+				action: 'parse',
+				oldid: revisionId,
+				prop: 'text',
+				formatversion: '2'
+			} );
+			const html = parseResult.parse?.text;
+
+			results.push( {
+				type: 'text',
+				text: metadata ?
+					`HTML:\n${ html }` : ( html ?? 'Not available' )
+			} );
+		}
+
+		return { content: results };
 	} catch ( error ) {
 		return {
 			content: [
-				{ type: 'text', text: `Failed to retrieve revision data: ${ ( error as Error ).message }` } as TextContent
+				{
+					type: 'text',
+					text: `Failed to retrieve revision data: ${ ( error as Error ).message }`
+				} as TextContent
 			],
 			isError: true
 		};
 	}
-}
-
-function getRevisionToolResult(
-	result: MwRestApiRevisionObject,
-	content: ContentFormat,
-	metadata: boolean
-): TextContent[] {
-	if ( content === ContentFormat.source && !metadata ) {
-		return [ {
-			type: 'text',
-			text: result.source ?? 'Not available'
-		} ];
-	}
-
-	if ( content === ContentFormat.html && !metadata ) {
-		return [ {
-			type: 'text',
-			text: result.html ?? 'Not available'
-		} ];
-	}
-
-	const results: TextContent[] = [ getRevisionMetadataTextContent( result ) ];
-
-	if ( result.source !== undefined ) {
-		results.push( {
-			type: 'text',
-			text: `Source:\n${ result.source }`
-		} );
-	}
-
-	if ( result.html !== undefined ) {
-		results.push( {
-			type: 'text',
-			text: `HTML:\n${ result.html }`
-		} );
-	}
-
-	return results;
-}
-
-function getRevisionMetadataTextContent( result: MwRestApiRevisionObject ): TextContent {
-	return {
-		type: 'text',
-		text: [
-			`Revision ID: ${ result.id }`,
-			`Page ID: ${ result.page?.id }`,
-			`Page Title: ${ result.page?.title }`,
-			`User ID: ${ result.user.id }`,
-			`User Name: ${ result.user.name }`,
-			`Timestamp: ${ result.timestamp }`,
-			`Comment: ${ result.comment }`,
-			`Size: ${ result.size }`,
-			`Delta: ${ result.delta }`,
-			`Minor: ${ result.minor }`,
-			`HTML URL: ${ result.html_url ?? 'Not available' }`
-		].join( '\n' )
-	};
 }
