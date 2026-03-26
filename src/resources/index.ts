@@ -5,6 +5,7 @@ import type { Resource } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { wikiService } from '../common/wikiService.js';
 import { WIKI_RESOURCE_URI_PREFIX } from '../common/constants.js';
+import { getMwn } from '../common/mwn.js';
 
 export function registerAllResources( server: McpServer ): void {
 	const resourceTemplate = new ResourceTemplate(
@@ -27,7 +28,7 @@ export function registerAllResources( server: McpServer ): void {
 		}
 	);
 
-	server.resource( 'wikis', resourceTemplate, ( uri, variables ) => {
+	server.resource( 'wikis', resourceTemplate, async ( uri, variables ) => {
 		const wikiKey = variables.wikiKey as string;
 		const wikiConfig = wikiService.get( wikiKey );
 
@@ -35,11 +36,34 @@ export function registerAllResources( server: McpServer ): void {
 			return { contents: [] };
 		}
 
+		const sanitized = wikiService.sanitize( wikiConfig );
+		const result: Record<string, unknown> = { ...sanitized };
+
+		try {
+			const mwn = await getMwn();
+			const response = await mwn.request( {
+				action: 'query',
+				meta: 'siteinfo',
+				siprop: 'rightsinfo',
+				formatversion: '2'
+			} );
+
+			const rightsInfo = response.query?.rightsinfo;
+			if ( rightsInfo ) {
+				result.license = {
+					url: rightsInfo.url,
+					title: rightsInfo.text
+				};
+			}
+		} catch {
+			// Graceful fallback if mwn is not initialized
+		}
+
 		return {
 			contents: [
 				{
 					uri: uri.toString(),
-					text: JSON.stringify( wikiService.sanitize( wikiConfig ), null, 2 ),
+					text: JSON.stringify( result, null, 2 ),
 					mimeType: 'application/json'
 				}
 			]
