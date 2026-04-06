@@ -74,7 +74,7 @@
 		"concurrently": "^9.1.2",
 		"eslint": "^8.57.0",
 		"eslint-config-wikimedia": "^0.32.2",
-		"typescript": "^5.8.3",
+		"typescript": "^6.0.2",
 		"vitest": "^4.1.1"
 	}
 }
