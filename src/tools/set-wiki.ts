@@ -4,7 +4,6 @@ import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { wikiService } from '../common/wikiService.js';
-import { clearMwnCache } from '../common/mwn.js';
 import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../common/wikiResource.js';
 
 export function setWikiTool( server: McpServer ): RegisteredTool {
@@ -37,7 +36,6 @@ async function handleSetWikiTool( uri: string ): Promise<CallToolResult> {
 		}
 
 		wikiService.setCurrent( wikiKey );
-		clearMwnCache();
 
 		const newConfig = wikiService.getCurrent().config;
 		return {
