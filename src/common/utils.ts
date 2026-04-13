@@ -2,6 +2,24 @@ import fetch, { Response } from 'node-fetch';
 import { USER_AGENT } from '../server.js';
 import { wikiService } from './wikiService.js';
 import { getMwn } from './mwn.js';
+import { restFallback } from './actionApi.js';
+
+class RestApiBlockedError extends Error {
+	public constructor( url: string ) {
+		super( `REST API blocked (HTTP 403) for URL: ${ url }` );
+		this.name = 'RestApiBlockedError';
+	}
+}
+
+const blockedWikis = new Set<string>();
+
+function isRestApiBlocked(): boolean {
+	return blockedWikis.has( wikiService.getCurrent().config.server );
+}
+
+function markRestApiBlocked(): void {
+	blockedWikis.add( wikiService.getCurrent().config.server );
+}
 
 type RequestConfig = {
 	headers: Record<string, string>;
@@ -104,6 +122,10 @@ async function fetchCore(
 	}
 	const response = await fetch( url, fetchOptions );
 	if ( !response.ok ) {
+		if ( response.status === 403 ) {
+			markRestApiBlocked();
+			throw new RestApiBlockedError( url );
+		}
 		const errorBody = await response.text().catch( () => 'Could not read error response body' );
 		throw new Error(
 			`HTTP error! status: ${ response.status } for URL: ${ response.url }. Response: ${ errorBody }`
@@ -128,6 +150,10 @@ export async function makeRestGetRequest<T>(
 	params?: Record<string, string>,
 	needAuth: boolean = false
 ): Promise<T> {
+	if ( isRestApiBlocked() ) {
+		return restFallback( 'GET', path, params ) as T;
+	}
+
 	const headers: Record<string, string> = {
 		Accept: 'application/json'
 	};
@@ -140,11 +166,18 @@ export async function makeRestGetRequest<T>(
 
 	const { server, scriptpath } = wikiService.getCurrent().config;
 
-	const response = await fetchCore( `${ server }${ scriptpath }/rest.php${ path }`, {
-		params,
-		headers: authHeaders
-	} );
-	return ( await response.json() ) as T;
+	try {
+		const response = await fetchCore( `${ server }${ scriptpath }/rest.php${ path }`, {
+			params,
+			headers: authHeaders
+		} );
+		return ( await response.json() ) as T;
+	} catch ( error ) {
+		if ( error instanceof RestApiBlockedError ) {
+			return restFallback( 'GET', path, params ) as T;
+		}
+		throw error;
+	}
 }
 
 export async function makeRestPutRequest<T>(
@@ -152,6 +185,10 @@ export async function makeRestPutRequest<T>(
 	body: Record<string, unknown>,
 	needAuth: boolean = false
 ): Promise<T> {
+	if ( isRestApiBlocked() ) {
+		return restFallback( 'PUT', path, undefined, body ) as T;
+	}
+
 	const headers: Record<string, string> = {
 		Accept: 'application/json',
 		'Content-Type': 'application/json'
@@ -165,12 +202,19 @@ export async function makeRestPutRequest<T>(
 
 	const { server, scriptpath } = wikiService.getCurrent().config;
 
-	const response = await fetchCore( `${ server }${ scriptpath }/rest.php${ path }`, {
-		headers: authHeaders,
-		method: 'PUT',
-		body: authBody
-	} );
-	return ( await response.json() ) as T;
+	try {
+		const response = await fetchCore( `${ server }${ scriptpath }/rest.php${ path }`, {
+			headers: authHeaders,
+			method: 'PUT',
+			body: authBody
+		} );
+		return ( await response.json() ) as T;
+	} catch ( error ) {
+		if ( error instanceof RestApiBlockedError ) {
+			return restFallback( 'PUT', path, undefined, body ) as T;
+		}
+		throw error;
+	}
 }
 
 export async function makeRestPostRequest<T>(
@@ -178,6 +222,10 @@ export async function makeRestPostRequest<T>(
 	body?: Record<string, unknown>,
 	needAuth: boolean = false
 ): Promise<T> {
+	if ( isRestApiBlocked() ) {
+		return restFallback( 'POST', path, undefined, body ) as T;
+	}
+
 	const headers: Record<string, string> = {
 		Accept: 'application/json',
 		'Content-Type': 'application/json'
@@ -191,12 +239,19 @@ export async function makeRestPostRequest<T>(
 
 	const { server, scriptpath } = wikiService.getCurrent().config;
 
-	const response = await fetchCore( `${ server }${ scriptpath }/rest.php${ path }`, {
-		headers: authHeaders,
-		method: 'POST',
-		body: authBody
-	} );
-	return ( await response.json() ) as T;
+	try {
+		const response = await fetchCore( `${ server }${ scriptpath }/rest.php${ path }`, {
+			headers: authHeaders,
+			method: 'POST',
+			body: authBody
+		} );
+		return ( await response.json() ) as T;
+	} catch ( error ) {
+		if ( error instanceof RestApiBlockedError ) {
+			return restFallback( 'POST', path, undefined, body ) as T;
+		}
+		throw error;
+	}
 }
 
 export async function fetchPageHtml( url: string ): Promise<string | null> {
