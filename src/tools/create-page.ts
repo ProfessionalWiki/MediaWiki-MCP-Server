@@ -14,7 +14,7 @@ export function createPageTool( server: McpServer ): RegisteredTool {
 			source: z.string().describe( 'Page content in the format specified by the contentModel parameter' ),
 			title: z.string().describe( 'Wiki page title' ),
 			comment: z.string().optional().describe( 'Reason for creating the page' ),
-			contentModel: z.string().optional().default( 'wikitext' ).describe( 'Type of content on the page' )
+			contentModel: z.string().optional().describe( 'Type of content on the page. If omitted, MediaWiki picks the default for the title\'s namespace.' )
 		},
 		{
 			title: 'Create page',
@@ -35,11 +35,12 @@ export async function handleCreatePageTool(
 ): Promise<CallToolResult> {
 	try {
 		const mwn = await getMwn();
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const options = contentModel === undefined ? {} : { contentmodel: contentModel as any };
 		const result = await mwn.create(
 			title, source,
 			formatEditComment( 'create-page', comment ),
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			{ contentmodel: contentModel as any }
+			options
 		);
 
 		return {
