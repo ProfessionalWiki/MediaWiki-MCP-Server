@@ -144,6 +144,29 @@ describe( 'get-page-history', () => {
 		expect( result.content[ 19 ].text ).toContain( 'Revision ID: 80' );
 	} );
 
+	it( 'caps result at 20 when boundary revision is not in the returned window', async () => {
+		const revisions = Array.from( { length: 21 }, ( _, i ) => ( {
+			revid: 200 - i,
+			timestamp: '2026-01-01T00:00:00Z',
+			user: 'Admin',
+			userid: 1,
+			comment: '',
+			size: 100,
+			minor: false
+		} ) );
+		const mock = createMockMwn( {
+			request: vi.fn().mockResolvedValue( {
+				query: { pages: [ { revisions } ] }
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
+		const result = await handleGetPageHistoryTool( 'Test Page', 999 );
+
+		expect( result.content.length ).toBe( 20 );
+	} );
+
 	it( 'uses rvlimit 20 when no boundary is provided', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
