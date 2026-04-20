@@ -108,23 +108,6 @@ export async function handleGetRevisionTool(
 		}
 
 		if ( content === ContentFormat.html ) {
-			if ( metadata && results.length === 0 ) {
-				const response = await mwn.request( {
-					action: 'query',
-					prop: 'revisions',
-					revids: revisionId,
-					rvprop: 'ids|timestamp|user|userid|comment|size|flags',
-					formatversion: '2'
-				} );
-
-				const page = response.query?.pages?.[ 0 ] as ApiPage | undefined;
-				const rev: ApiRevision | undefined = page?.revisions?.[ 0 ];
-
-				if ( rev && page ) {
-					results.push( buildRevisionMetadata( page, rev ) );
-				}
-			}
-
 			const parseResult = await mwn.request( {
 				action: 'parse',
 				oldid: revisionId,

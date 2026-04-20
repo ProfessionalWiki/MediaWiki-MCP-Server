@@ -6,10 +6,12 @@ import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontext
 import { getMwn } from '../common/mwn.js';
 import type { ApiPage, ApiRevision } from 'mwn';
 
+const PAGE_HISTORY_LIMIT = 20;
+
 export function getPageHistoryTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'get-page-history',
-		'Returns information about the latest revisions to a wiki page, in segments of 20 revisions, starting with the latest revision.',
+		`Returns information about the latest revisions to a wiki page, in segments of ${ PAGE_HISTORY_LIMIT } revisions, starting with the latest revision.`,
 		{
 			title: z.string().describe( 'Wiki page title' ),
 			olderThan: z.number().int().positive().optional().describe( 'Revision ID — return revisions older than this' ),
@@ -54,7 +56,7 @@ export async function handleGetPageHistoryTool(
 			rvprop: 'ids|timestamp|user|userid|comment|size|flags',
 			// Fetch one extra when a boundary is set, since rvendid/rvstartid
 			// are inclusive and we filter the boundary out below.
-			rvlimit: boundaryId ? 21 : 20,
+			rvlimit: PAGE_HISTORY_LIMIT + ( boundaryId ? 1 : 0 ),
 			formatversion: '2'
 		};
 
@@ -77,9 +79,9 @@ export async function handleGetPageHistoryTool(
 
 		// rvendid/rvstartid are inclusive — filter out the boundary revision
 		// to preserve the exclusive semantics of olderThan/newerThan, and cap
-		// the result at 20 in case the boundary was absent from the window.
+		// the result in case the boundary was absent from the window.
 		const filteredRevisions = boundaryId ?
-			revisions.filter( ( rev ) => rev.revid !== boundaryId ).slice( 0, 20 ) :
+			revisions.filter( ( rev ) => rev.revid !== boundaryId ).slice( 0, PAGE_HISTORY_LIMIT ) :
 			revisions;
 
 		if ( filteredRevisions.length === 0 ) {

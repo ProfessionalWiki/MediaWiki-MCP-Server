@@ -119,7 +119,7 @@ describe( 'get-page-history', () => {
 	it( 'returns full segment of 20 revisions when boundary filters one out', async () => {
 		const revisions = Array.from( { length: 21 }, ( _, i ) => ( {
 			revid: 100 - i,
-			timestamp: '2026-01-01T00:00:00Z',
+			timestamp: `2026-01-01T${ String( 20 - i ).padStart( 2, '0' ) }:00:00Z`,
 			user: 'Admin',
 			userid: 1,
 			comment: '',
@@ -147,7 +147,7 @@ describe( 'get-page-history', () => {
 	it( 'caps result at 20 when boundary revision is not in the returned window', async () => {
 		const revisions = Array.from( { length: 21 }, ( _, i ) => ( {
 			revid: 200 - i,
-			timestamp: '2026-01-01T00:00:00Z',
+			timestamp: `2026-01-01T${ String( 20 - i ).padStart( 2, '0' ) }:00:00Z`,
 			user: 'Admin',
 			userid: 1,
 			comment: '',
