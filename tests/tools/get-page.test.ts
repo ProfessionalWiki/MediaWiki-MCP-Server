@@ -135,4 +135,31 @@ describe( 'get-page', () => {
 		expect( result.isError ).toBe( true );
 		expect( result.content[ 0 ].text ).toContain( 'API error' );
 	} );
+
+	it( 'html+metadata does not duplicate metadata or read call', async () => {
+		const mock = createMockMwn( {
+			read: vi.fn().mockResolvedValue( {
+				pageid: 1,
+				title: 'Test Page',
+				revisions: [ {
+					revid: 42,
+					timestamp: '2026-01-01T00:00:00Z',
+					contentmodel: 'wikitext'
+				} ]
+			} ),
+			request: vi.fn().mockResolvedValue( {
+				parse: { text: '<p>Hello</p>' }
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
+		const result = await handleGetPageTool( 'Test Page', 'html', true );
+
+		expect( result.isError ).toBeUndefined();
+		expect( mock.read ).toHaveBeenCalledTimes( 1 );
+		expect( result.content.length ).toBe( 2 );
+		expect( result.content[ 0 ].text ).toContain( 'Page ID: 1' );
+		expect( result.content[ 1 ].text ).toBe( 'HTML:\n<p>Hello</p>' );
+	} );
 } );

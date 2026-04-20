@@ -45,13 +45,16 @@ export async function handleGetPageHistoryTool(
 
 	try {
 		const mwn = await getMwn();
+		const boundaryId = olderThan ?? newerThan;
 
 		const params: Record<string, string | number | boolean> = {
 			action: 'query',
 			prop: 'revisions',
 			titles: title,
 			rvprop: 'ids|timestamp|user|userid|comment|size|flags',
-			rvlimit: 20,
+			// Fetch one extra when a boundary is set, since rvendid/rvstartid
+			// are inclusive and we filter the boundary out below.
+			rvlimit: boundaryId ? 21 : 20,
 			formatversion: '2'
 		};
 
@@ -74,7 +77,6 @@ export async function handleGetPageHistoryTool(
 
 		// rvendid/rvstartid are inclusive — filter out the boundary revision
 		// to preserve the exclusive semantics of olderThan/newerThan
-		const boundaryId = olderThan ?? newerThan;
 		const filteredRevisions = boundaryId ?
 			revisions.filter( ( rev ) => rev.revid !== boundaryId ) :
 			revisions;

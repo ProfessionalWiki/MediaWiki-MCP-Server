@@ -116,6 +116,53 @@ describe( 'get-page-history', () => {
 		expect( result.content[ 0 ].text ).toContain( 'No revisions found' );
 	} );
 
+	it( 'returns full segment of 20 revisions when boundary filters one out', async () => {
+		const revisions = Array.from( { length: 21 }, ( _, i ) => ( {
+			revid: 100 - i,
+			timestamp: '2026-01-01T00:00:00Z',
+			user: 'Admin',
+			userid: 1,
+			comment: '',
+			size: 100,
+			minor: false
+		} ) );
+		const mock = createMockMwn( {
+			request: vi.fn().mockResolvedValue( {
+				query: { pages: [ { revisions } ] }
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
+		const result = await handleGetPageHistoryTool( 'Test Page', 100 );
+
+		expect( mock.request ).toHaveBeenCalledWith(
+			expect.objectContaining( { rvlimit: 21 } )
+		);
+		expect( result.content.length ).toBe( 20 );
+		expect( result.content[ 0 ].text ).toContain( 'Revision ID: 99' );
+		expect( result.content[ 19 ].text ).toContain( 'Revision ID: 80' );
+	} );
+
+	it( 'uses rvlimit 20 when no boundary is provided', async () => {
+		const mock = createMockMwn( {
+			request: vi.fn().mockResolvedValue( {
+				query: { pages: [ { revisions: [ {
+					revid: 1, timestamp: '2026-01-01T00:00:00Z', user: 'Admin',
+					userid: 1, comment: '', size: 0, minor: false
+				} ] } ] }
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
+		await handleGetPageHistoryTool( 'Test Page' );
+
+		expect( mock.request ).toHaveBeenCalledWith(
+			expect.objectContaining( { rvlimit: 20 } )
+		);
+	} );
+
 	it( 'returns error on failure', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockRejectedValue( new Error( 'API error' ) )

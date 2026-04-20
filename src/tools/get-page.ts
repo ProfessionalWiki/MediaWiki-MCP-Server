@@ -96,7 +96,7 @@ export async function handleGetPageTool(
 		}
 
 		if ( content === ContentFormat.html ) {
-			if ( metadata ) {
+			if ( metadata && results.length === 0 ) {
 				const page = await mwn.read( title, {
 					rvprop: 'ids|timestamp|contentmodel'
 				} );
