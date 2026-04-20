@@ -5,6 +5,7 @@ import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontext
 /* eslint-enable n/no-missing-import */
 import { wikiService } from '../common/wikiService.js';
 import { removeMwnInstance } from '../common/mwn.js';
+import { removeLicenseCache } from '../resources/index.js';
 import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../common/wikiResource.js';
 
 export function removeWikiTool( server: McpServer ): RegisteredTool {
@@ -50,6 +51,7 @@ async function handleRemoveWikiTool( server: McpServer, uri: string ): Promise<C
 		wikiService.remove( wikiKey );
 		server.sendResourceListChanged();
 		removeMwnInstance( wikiKey );
+		removeLicenseCache( wikiKey );
 
 		return {
 			content: [ {

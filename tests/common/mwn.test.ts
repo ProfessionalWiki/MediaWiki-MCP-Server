@@ -86,6 +86,52 @@ describe( 'mwn instance management', () => {
 		expect( mockConstructor ).toHaveBeenCalledTimes( 2 );
 	} );
 
+	it( 'returns the original cached instance after switching away and back', async () => {
+		mockGetSiteInfo.mockResolvedValue( undefined );
+
+		const firstA = await getMwn();
+
+		currentWikiKey = 'wiki-b';
+		currentWikiConfig = {
+			server: 'https://wiki-b.example.com',
+			scriptpath: '/w'
+		};
+		await getMwn();
+
+		currentWikiKey = 'wiki-a';
+		currentWikiConfig = {
+			server: 'https://wiki-a.example.com',
+			scriptpath: '/w'
+		};
+		const secondA = await getMwn();
+
+		expect( secondA ).toBe( firstA );
+		expect( mockConstructor ).toHaveBeenCalledTimes( 2 );
+	} );
+
+	it( 'deduplicates concurrent first-calls for the same wiki', async () => {
+		mockGetSiteInfo.mockResolvedValue( undefined );
+
+		const [ first, second ] = await Promise.all( [ getMwn(), getMwn() ] );
+
+		expect( first ).toBe( second );
+		expect( mockConstructor ).toHaveBeenCalledOnce();
+		expect( mockGetSiteInfo ).toHaveBeenCalledOnce();
+	} );
+
+	it( 'removes a failed instance from the cache so the next call retries', async () => {
+		mockGetSiteInfo
+			.mockRejectedValueOnce( new Error( 'transient failure' ) )
+			.mockResolvedValueOnce( undefined );
+
+		await expect( getMwn() ).rejects.toThrow( 'transient failure' );
+
+		// Next call should retry (not return the cached rejected Promise).
+		const retry = await getMwn();
+		expect( retry ).toBeDefined();
+		expect( mockConstructor ).toHaveBeenCalledTimes( 2 );
+	} );
+
 	it( 'removeMwnInstance clears the correct entry', async () => {
 		mockGetSiteInfo.mockResolvedValue( undefined );
 

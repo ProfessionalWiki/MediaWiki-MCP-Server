@@ -7,6 +7,41 @@ import { wikiService } from '../common/wikiService.js';
 import { WIKI_RESOURCE_URI_PREFIX } from '../common/constants.js';
 import { getMwn } from '../common/mwn.js';
 
+type LicenseInfo = { url: string; title: string };
+
+const licenseCache = new Map<string, LicenseInfo>();
+
+export function removeLicenseCache( wikiKey: string ): void {
+	licenseCache.delete( wikiKey );
+}
+
+async function getLicenseInfo( wikiKey: string ): Promise<LicenseInfo | undefined> {
+	const cached = licenseCache.get( wikiKey );
+	if ( cached ) {
+		return cached;
+	}
+
+	try {
+		const mwn = await getMwn( wikiKey );
+		const response = await mwn.request( {
+			action: 'query',
+			meta: 'siteinfo',
+			siprop: 'rightsinfo',
+			formatversion: '2'
+		} );
+
+		const rightsInfo = response.query?.rightsinfo;
+		if ( rightsInfo?.url && rightsInfo.text ) {
+			const info: LicenseInfo = { url: rightsInfo.url, title: rightsInfo.text };
+			licenseCache.set( wikiKey, info );
+			return info;
+		}
+	} catch {
+		// Graceful fallback if mwn is not initialized or the request fails.
+	}
+	return undefined;
+}
+
 export function registerAllResources( server: McpServer ): void {
 	const resourceTemplate = new ResourceTemplate(
 		`${ WIKI_RESOURCE_URI_PREFIX }{wikiKey}`,
@@ -39,24 +74,9 @@ export function registerAllResources( server: McpServer ): void {
 		const sanitized = wikiService.sanitize( wikiConfig );
 		const result: Record<string, unknown> = { ...sanitized };
 
-		try {
-			const mwn = await getMwn();
-			const response = await mwn.request( {
-				action: 'query',
-				meta: 'siteinfo',
-				siprop: 'rightsinfo',
-				formatversion: '2'
-			} );
-
-			const rightsInfo = response.query?.rightsinfo;
-			if ( rightsInfo ) {
-				result.license = {
-					url: rightsInfo.url,
-					title: rightsInfo.text
-				};
-			}
-		} catch {
-			// Graceful fallback if mwn is not initialized
+		const license = await getLicenseInfo( wikiKey );
+		if ( license ) {
+			result.license = license;
 		}
 
 		return {

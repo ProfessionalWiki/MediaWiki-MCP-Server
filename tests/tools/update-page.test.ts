@@ -34,7 +34,7 @@ describe( 'update-page', () => {
 		expect( mock.save ).toHaveBeenCalledWith(
 			'My Page', 'Updated content',
 			expect.stringContaining( 'edit summary' ),
-			expect.objectContaining( { baserevid: 41 } )
+			expect.objectContaining( { baserevid: 41, nocreate: true } )
 		);
 	} );
 
@@ -49,5 +49,18 @@ describe( 'update-page', () => {
 
 		expect( result.isError ).toBe( true );
 		expect( result.content[ 0 ].text ).toContain( 'Edit conflict' );
+	} );
+
+	it( 'surfaces the missingtitle error from mwn when page does not exist', async () => {
+		const mock = createMockMwn( {
+			save: vi.fn().mockRejectedValue( new Error( 'The page you specified doesn\'t exist.' ) )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+		const result = await handleUpdatePageTool( 'Does Not Exist', 'content', 1 );
+
+		expect( result.isError ).toBe( true );
+		expect( result.content[ 0 ].text ).toContain( 'doesn\'t exist' );
 	} );
 } );

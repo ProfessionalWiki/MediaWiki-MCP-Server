@@ -45,7 +45,7 @@ describe( 'get-page-history', () => {
 		expect( result.content[ 0 ].text ).not.toContain( 'Delta' );
 	} );
 
-	it( 'maps olderThan to rvendid and skips boundary revision', async () => {
+	it( 'maps olderThan to rvstartid (default rvdir=older) and skips boundary revision', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { pages: [ { revisions: [
@@ -59,9 +59,10 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page', 100 );
 
-		expect( mock.request ).toHaveBeenCalledWith(
-			expect.objectContaining( { rvendid: 100 } )
-		);
+		const call = mock.request.mock.calls[ 0 ][ 0 ];
+		expect( call ).toMatchObject( { rvstartid: 100 } );
+		expect( call.rvdir ).toBeUndefined();
+		expect( call.rvendid ).toBeUndefined();
 		// Should skip the boundary revision (100)
 		expect( result.content.length ).toBe( 1 );
 		expect( result.content[ 0 ].text ).toContain( 'Revision ID: 99' );
@@ -102,6 +103,21 @@ describe( 'get-page-history', () => {
 		);
 	} );
 
+	it( 'returns isError when the page does not exist', async () => {
+		const mock = createMockMwn( {
+			request: vi.fn().mockResolvedValue( {
+				query: { pages: [ { missing: true, title: 'Nonexistent' } ] }
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
+		const result = await handleGetPageHistoryTool( 'Nonexistent' );
+
+		expect( result.isError ).toBe( true );
+		expect( result.content[ 0 ].text ).toContain( 'not found' );
+	} );
+
 	it( 'handles empty results', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
@@ -137,7 +153,7 @@ describe( 'get-page-history', () => {
 		const result = await handleGetPageHistoryTool( 'Test Page', 100 );
 
 		expect( mock.request ).toHaveBeenCalledWith(
-			expect.objectContaining( { rvlimit: 21 } )
+			expect.objectContaining( { rvlimit: 21, rvstartid: 100 } )
 		);
 		expect( result.content.length ).toBe( 20 );
 		expect( result.content[ 0 ].text ).toContain( 'Revision ID: 99' );

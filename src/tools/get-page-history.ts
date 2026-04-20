@@ -54,19 +54,20 @@ export async function handleGetPageHistoryTool(
 			prop: 'revisions',
 			titles: title,
 			rvprop: 'ids|timestamp|user|userid|comment|size|flags',
-			// Fetch one extra when a boundary is set, since rvendid/rvstartid
-			// are inclusive and we filter the boundary out below.
+			// Fetch one extra when a boundary is set, since rvstartid is
+			// inclusive and we filter the boundary out below.
 			rvlimit: PAGE_HISTORY_LIMIT + ( boundaryId ? 1 : 0 ),
 			formatversion: '2'
 		};
 
-		if ( olderThan ) {
-			params.rvendid = olderThan;
-		}
-
-		if ( newerThan ) {
-			params.rvstartid = newerThan;
-			params.rvdir = 'newer';
+		// Both olderThan and newerThan use rvstartid (the enumeration anchor);
+		// they differ only in direction. Default rvdir=older walks newest →
+		// oldest, so olderThan needs no rvdir override.
+		if ( boundaryId ) {
+			params.rvstartid = boundaryId;
+			if ( newerThan ) {
+				params.rvdir = 'newer';
+			}
 		}
 
 		if ( filter ) {
@@ -75,10 +76,21 @@ export async function handleGetPageHistoryTool(
 
 		const response = await mwn.request( params );
 		const page = response.query?.pages?.[ 0 ] as ApiPage | undefined;
+
+		if ( page?.missing ) {
+			return {
+				content: [ {
+					type: 'text',
+					text: `Page "${ title }" not found`
+				} as TextContent ],
+				isError: true
+			};
+		}
+
 		const revisions: ApiRevision[] = page?.revisions ?? [];
 
-		// rvendid/rvstartid are inclusive — filter out the boundary revision
-		// to preserve the exclusive semantics of olderThan/newerThan, and cap
+		// rvstartid is inclusive — filter out the boundary revision to
+		// preserve the exclusive semantics of olderThan/newerThan, and cap
 		// the result in case the boundary was absent from the window.
 		const filteredRevisions = boundaryId ?
 			revisions.filter( ( rev ) => rev.revid !== boundaryId ).slice( 0, PAGE_HISTORY_LIMIT ) :
