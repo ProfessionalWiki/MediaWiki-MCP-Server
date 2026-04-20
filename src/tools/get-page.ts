@@ -96,24 +96,6 @@ export async function handleGetPageTool(
 		}
 
 		if ( content === ContentFormat.html ) {
-			if ( metadata && results.length === 0 ) {
-				const page = await mwn.read( title, {
-					rvprop: 'ids|timestamp|contentmodel'
-				} );
-				if ( page.missing ) {
-					return {
-						content: [ {
-							type: 'text',
-							text: `Page "${ title }" not found`
-						} as TextContent ],
-						isError: true
-					};
-				}
-				results.push(
-					buildPageMetadata( page, page.revisions?.[ 0 ] )
-				);
-			}
-
 			const parseResult = await mwn.request( {
 				action: 'parse',
 				page: title,
