@@ -38,6 +38,23 @@ describe( 'create-page', () => {
 		);
 	} );
 
+	it( 'omits contentmodel when not provided, letting MediaWiki auto-detect by namespace', async () => {
+		const mock = createMockMwn( {
+			create: vi.fn().mockResolvedValue( {
+				result: 'Success', pageid: 11, title: 'Module:Foo',
+				contentmodel: 'Scribunto', oldrevid: 0, newrevid: 2,
+				newtimestamp: '2026-01-01T00:00:00Z'
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleCreatePageTool } = await import( '../../src/tools/create-page.js' );
+		await handleCreatePageTool( '-- lua', 'Module:Foo', undefined, undefined );
+
+		const opts = mock.create.mock.calls[ 0 ][ 3 ];
+		expect( opts ).not.toHaveProperty( 'contentmodel' );
+	} );
+
 	it( 'returns error on failure', async () => {
 		const mock = createMockMwn( {
 			create: vi.fn().mockRejectedValue( new Error( 'Page exists' ) )
