@@ -36,7 +36,7 @@ function buildRevisionMetadata(
 		text: [
 			`Revision ID: ${ rev.revid }`,
 			`Page ID: ${ page.pageid }`,
-			`Page Title: ${ page.title }`,
+			`Title: ${ page.title }`,
 			`User ID: ${ rev.userid }`,
 			`User Name: ${ rev.user }`,
 			`Timestamp: ${ rev.timestamp }`,

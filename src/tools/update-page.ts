@@ -38,7 +38,9 @@ export async function handleUpdatePageTool(
 		const result = await mwn.save(
 			title, source,
 			formatEditComment( 'update-page', comment ),
-			{ baserevid: latestId }
+			// nocreate: fail if the page does not exist, so a mis-typed
+			// title doesn't silently create a new page.
+			{ baserevid: latestId, nocreate: true }
 		);
 
 		return {
