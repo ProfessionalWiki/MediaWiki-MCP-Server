@@ -3,9 +3,9 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { makeRestGetRequest } from '../common/utils.js';
-import type { MwRestApiPageObject } from '../types/mwRestApi.js';
-import { ContentFormat, getSubEndpoint } from '../common/mwRestApiContentFormat.js';
+import { getMwn } from '../common/mwn.js';
+import { getPageUrl } from '../common/utils.js';
+import { ContentFormat } from '../common/contentFormat.js';
 
 export function getPageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
@@ -14,7 +14,7 @@ export function getPageTool( server: McpServer ): RegisteredTool {
 		{
 			title: z.string().describe( 'Wiki page title' ),
 			content: z.nativeEnum( ContentFormat ).optional().default( ContentFormat.source ).describe( 'Type of content to return' ),
-			metadata: z.boolean().optional().default( false ).describe( 'Whether to include metadata (page ID, revision info, license) in the response' )
+			metadata: z.boolean().optional().default( false ).describe( 'Whether to include metadata (page ID, revision info) in the response' )
 		},
 		{
 			title: 'Get page',
@@ -25,7 +25,24 @@ export function getPageTool( server: McpServer ): RegisteredTool {
 	);
 }
 
-async function handleGetPageTool(
+function buildPageMetadata(
+	page: { pageid: number; title: string },
+	rev?: { revid?: number; timestamp?: string; contentmodel?: string }
+): TextContent {
+	return {
+		type: 'text',
+		text: [
+			`Page ID: ${ page.pageid }`,
+			`Title: ${ page.title }`,
+			`Latest revision ID: ${ rev?.revid }`,
+			`Latest revision timestamp: ${ rev?.timestamp }`,
+			`Content model: ${ rev?.contentmodel }`,
+			`HTML URL: ${ getPageUrl( page.title ) }`
+		].join( '\n' )
+	};
+}
+
+export async function handleGetPageTool(
 	title: string, content: ContentFormat, metadata: boolean
 ): Promise<CallToolResult> {
 	if ( content === ContentFormat.none && !metadata ) {
@@ -39,69 +56,71 @@ async function handleGetPageTool(
 	}
 
 	try {
-		const data = await makeRestGetRequest<MwRestApiPageObject>(
-			`/v1/page/${ encodeURIComponent( title ) }${ getSubEndpoint( content ) }`
-		);
-		return {
-			content: getPageToolResult( data, content, metadata )
-		};
+		const mwn = await getMwn();
+		const results: TextContent[] = [];
+
+		const needsReadCall = metadata ||
+			content === ContentFormat.source ||
+			content === ContentFormat.none;
+		const needsSource = content === ContentFormat.source;
+
+		if ( needsReadCall ) {
+			const rvprop = needsSource ?
+				'ids|timestamp|contentmodel|content' :
+				'ids|timestamp|contentmodel';
+			const page = await mwn.read( title, { rvprop } );
+
+			if ( page.missing ) {
+				return {
+					content: [ {
+						type: 'text',
+						text: `Page "${ title }" not found`
+					} as TextContent ],
+					isError: true
+				};
+			}
+
+			const rev = page.revisions?.[ 0 ];
+
+			if ( metadata || content === ContentFormat.none ) {
+				results.push( buildPageMetadata( page, rev ) );
+			}
+
+			if ( needsSource && rev?.content !== undefined ) {
+				results.push( {
+					type: 'text',
+					text: metadata ?
+						`Source:\n${ rev.content }` : rev.content
+				} );
+			}
+		}
+
+		if ( content === ContentFormat.html ) {
+			const parseResult = await mwn.request( {
+				action: 'parse',
+				page: title,
+				prop: 'text',
+				formatversion: '2'
+			} );
+			const html = parseResult.parse?.text;
+
+			results.push( {
+				type: 'text',
+				text: metadata ?
+					`HTML:\n${ html }` : ( html ?? 'Not available' )
+			} );
+		}
+
+		return { content: results };
 	} catch ( error ) {
 		return {
 			content: [
-				{ type: 'text', text: `Failed to retrieve page data: ${ ( error as Error ).message }` } as TextContent
+				{
+					type: 'text',
+					text: `Failed to retrieve page data: ${ ( error as Error ).message }`
+				} as TextContent
 			],
 			isError: true
 		};
 	}
-}
-
-function getPageToolResult(
-	result: MwRestApiPageObject, content: ContentFormat, metadata: boolean
-): TextContent[] {
-	if ( content === ContentFormat.source && !metadata ) {
-		return [ {
-			type: 'text',
-			text: result.source ?? 'Not available'
-		} ];
-	}
-
-	if ( content === ContentFormat.html && !metadata ) {
-		return [ {
-			type: 'text',
-			text: result.html ?? 'Not available'
-		} ];
-	}
-
-	const results: TextContent[] = [ getPageMetadataTextContent( result ) ];
-
-	if ( result.source !== undefined ) {
-		results.push( {
-			type: 'text',
-			text: `Source:\n${ result.source }`
-		} );
-	}
-
-	if ( result.html !== undefined ) {
-		results.push( {
-			type: 'text',
-			text: `HTML:\n${ result.html }`
-		} );
-	}
-
-	return results;
-}
-
-function getPageMetadataTextContent( result: MwRestApiPageObject ): TextContent {
-	return {
-		type: 'text',
-		text: [
-			`Page ID: ${ result.id }`,
-			`Title: ${ result.title }`,
-			`Latest revision ID: ${ result.latest.id }`,
-			`Latest revision timestamp: ${ result.latest.timestamp }`,
-			`Content model: ${ result.content_model }`,
-			`License: ${ result.license.url } ${ result.license.title }`,
-			`HTML URL: ${ result.html_url ?? 'Not available' }`
-		].join( '\n' )
-	};
 }

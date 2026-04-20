@@ -3,8 +3,8 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { makeRestPostRequest, getPageUrl, formatEditComment } from '../common/utils.js';
-import type { MwRestApiPageObject } from '../types/mwRestApi.js';
+import { getMwn } from '../common/mwn.js';
+import { getPageUrl, formatEditComment } from '../common/utils.js';
 
 export function createPageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
@@ -27,22 +27,41 @@ export function createPageTool( server: McpServer ): RegisteredTool {
 	);
 }
 
-async function handleCreatePageTool(
+export async function handleCreatePageTool(
 	source: string,
 	title: string,
 	comment?: string,
 	contentModel?: string
 ): Promise<CallToolResult> {
-	let data: MwRestApiPageObject;
-
 	try {
-		data = await makeRestPostRequest<MwRestApiPageObject>( '/v1/page', {
-			source: source,
-			title: title,
-			comment: formatEditComment( 'create-page', comment ),
-			// eslint-disable-next-line camelcase
-			content_model: contentModel
-		}, true );
+		const mwn = await getMwn();
+		const result = await mwn.create(
+			title, source,
+			formatEditComment( 'create-page', comment ),
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			{ contentmodel: contentModel as any }
+		);
+
+		return {
+			content: [
+				{
+					type: 'text',
+					text: `Page created successfully: ${ getPageUrl( result.title ) }`
+				},
+				{
+					type: 'text',
+					text: [
+						'Page object:',
+						`Page ID: ${ result.pageid }`,
+						`Title: ${ result.title }`,
+						`Latest revision ID: ${ result.newrevid }`,
+						`Latest revision timestamp: ${ result.newtimestamp }`,
+						`Content model: ${ result.contentmodel }`,
+						`HTML URL: ${ getPageUrl( result.title ) }`
+					].join( '\n' )
+				}
+			]
+		};
 	} catch ( error ) {
 		return {
 			content: [
@@ -51,30 +70,4 @@ async function handleCreatePageTool(
 			isError: true
 		};
 	}
-
-	return {
-		content: createPageToolResult( data )
-	};
-}
-
-function createPageToolResult( result: MwRestApiPageObject ): TextContent[] {
-	return [
-		{
-			type: 'text',
-			text: `Page created successfully: ${ getPageUrl( result.title ) }`
-		},
-		{
-			type: 'text',
-			text: [
-				'Page object:',
-				`Page ID: ${ result.id }`,
-				`Title: ${ result.title }`,
-				`Latest revision ID: ${ result.latest.id }`,
-				`Latest revision timestamp: ${ result.latest.timestamp }`,
-				`Content model: ${ result.content_model }`,
-				`License: ${ result.license.url } ${ result.license.title }`,
-				`HTML URL: ${ result.html_url }`
-			].join( '\n' )
-		}
-	];
 }

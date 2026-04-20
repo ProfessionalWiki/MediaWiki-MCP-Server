@@ -1,76 +1,12 @@
 import fetch, { Response } from 'node-fetch';
 import { USER_AGENT } from '../server.js';
 import { wikiService } from './wikiService.js';
-import { getMwn } from './mwn.js';
-
-type RequestConfig = {
-	headers: Record<string, string>;
-	body: Record<string, unknown> | undefined;
-};
-
-async function withAuth(
-	headers: Record<string, string>,
-	body: Record<string, unknown> | undefined,
-	needAuth: boolean
-): Promise<RequestConfig> {
-	const { private: privateWiki, token } = wikiService.getCurrent().config;
-
-	if ( !needAuth && !privateWiki ) {
-		return { headers, body };
-	}
-
-	if ( token !== undefined && token !== null ) {
-		// OAuth2 authentication - just add Bearer token
-		return {
-			headers: { ...headers, Authorization: `Bearer ${ token }` },
-			body
-		};
-	}
-
-	// Cookie-based authentication - add cookies and CSRF token
-	const cookies = await getCookiesFromJar();
-	if ( cookies === undefined ) {
-		return { headers, body };
-	}
-
-	return {
-		headers: { ...headers, Cookie: cookies },
-		body: body ? { ...body, token: await getCsrfToken() } : body
-	};
-}
-
-async function getCsrfToken(): Promise<string> {
-	const mwn = await getMwn();
-	return await mwn.getCsrfToken();
-}
-
-async function getCookiesFromJar(): Promise<string | undefined> {
-	const mwn = await getMwn();
-	const cookieJar = mwn.cookieJar;
-	if ( !cookieJar ) {
-		return undefined;
-	}
-
-	const { server, scriptpath } = wikiService.getCurrent().config;
-
-	// Get cookies for the REST API URL
-	const restApiUrl = `${ server }${ scriptpath }/rest.php`;
-	const cookies = cookieJar.getCookieStringSync( restApiUrl );
-
-	if ( cookies ) {
-		return cookies;
-	}
-
-	// Fallback: try getting cookies for the domain
-	return cookieJar.getCookieStringSync( server ) || undefined;
-}
 
 async function fetchCore(
 	baseUrl: string,
 	options?: {
 		params?: Record<string, string>;
 		headers?: Record<string, string>;
-		body?: Record<string, unknown>;
 		method?: string;
 	}
 ): Promise<Response> {
@@ -95,13 +31,11 @@ async function fetchCore(
 		Object.assign( requestHeaders, options.headers );
 	}
 
-	const fetchOptions: { headers: Record<string, string>; method?: string; body?: string } = {
+	const fetchOptions: { headers: Record<string, string>; method?: string } = {
 		headers: requestHeaders,
 		method: options?.method || 'GET'
 	};
-	if ( options?.body ) {
-		fetchOptions.body = JSON.stringify( options.body );
-	}
+
 	const response = await fetch( url, fetchOptions );
 	if ( !response.ok ) {
 		const errorBody = await response.text().catch( () => 'Could not read error response body' );
@@ -123,82 +57,6 @@ export async function makeApiRequest<T>(
 	return ( await response.json() ) as T;
 }
 
-export async function makeRestGetRequest<T>(
-	path: string,
-	params?: Record<string, string>,
-	needAuth: boolean = false
-): Promise<T> {
-	const headers: Record<string, string> = {
-		Accept: 'application/json'
-	};
-
-	const { headers: authHeaders } = await withAuth(
-		headers,
-		undefined,
-		needAuth
-	);
-
-	const { server, scriptpath } = wikiService.getCurrent().config;
-
-	const response = await fetchCore( `${ server }${ scriptpath }/rest.php${ path }`, {
-		params,
-		headers: authHeaders
-	} );
-	return ( await response.json() ) as T;
-}
-
-export async function makeRestPutRequest<T>(
-	path: string,
-	body: Record<string, unknown>,
-	needAuth: boolean = false
-): Promise<T> {
-	const headers: Record<string, string> = {
-		Accept: 'application/json',
-		'Content-Type': 'application/json'
-	};
-
-	const { headers: authHeaders, body: authBody } = await withAuth(
-		headers,
-		body,
-		needAuth
-	);
-
-	const { server, scriptpath } = wikiService.getCurrent().config;
-
-	const response = await fetchCore( `${ server }${ scriptpath }/rest.php${ path }`, {
-		headers: authHeaders,
-		method: 'PUT',
-		body: authBody
-	} );
-	return ( await response.json() ) as T;
-}
-
-export async function makeRestPostRequest<T>(
-	path: string,
-	body?: Record<string, unknown>,
-	needAuth: boolean = false
-): Promise<T> {
-	const headers: Record<string, string> = {
-		Accept: 'application/json',
-		'Content-Type': 'application/json'
-	};
-
-	const { headers: authHeaders, body: authBody } = await withAuth(
-		headers,
-		body,
-		needAuth
-	);
-
-	const { server, scriptpath } = wikiService.getCurrent().config;
-
-	const response = await fetchCore( `${ server }${ scriptpath }/rest.php${ path }`, {
-		headers: authHeaders,
-		method: 'POST',
-		body: authBody
-	} );
-	return ( await response.json() ) as T;
-}
-
 export async function fetchPageHtml( url: string ): Promise<string | null> {
 	try {
 		const response = await fetchCore( url );
@@ -208,20 +66,13 @@ export async function fetchPageHtml( url: string ): Promise<string | null> {
 	}
 }
 
-export async function fetchImageAsBase64( url: string ): Promise<string | null> {
-	try {
-		const response = await fetchCore( url );
-		const arrayBuffer = await response.arrayBuffer();
-		const buffer = Buffer.from( arrayBuffer );
-		return buffer.toString( 'base64' );
-	} catch {
-		return null;
-	}
-}
-
 export function getPageUrl( title: string ): string {
 	const { server, articlepath } = wikiService.getCurrent().config;
-	return `${ server }${ articlepath }/${ encodeURIComponent( title ) }`;
+	// MediaWiki convention: spaces become underscores. encodeURI preserves
+	// '/' (subpages) and ':' (namespace prefixes) while encoding spaces and
+	// non-ASCII characters. Characters disallowed in MW titles ('#', '?',
+	// '|', '[', ']', etc.) cannot reach this function via a real page title.
+	return `${ server }${ articlepath }/${ encodeURI( title.replace( / /g, '_' ) ) }`;
 }
 
 export function formatEditComment( tool: string, comment?: string ): string {

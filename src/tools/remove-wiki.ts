@@ -4,7 +4,8 @@ import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { wikiService } from '../common/wikiService.js';
-import { clearMwnCache } from '../common/mwn.js';
+import { removeMwnInstance } from '../common/mwn.js';
+import { removeLicenseCache } from '../resources/index.js';
 import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../common/wikiResource.js';
 
 export function removeWikiTool( server: McpServer ): RegisteredTool {
@@ -49,7 +50,8 @@ async function handleRemoveWikiTool( server: McpServer, uri: string ): Promise<C
 
 		wikiService.remove( wikiKey );
 		server.sendResourceListChanged();
-		clearMwnCache();
+		removeMwnInstance( wikiKey );
+		removeLicenseCache( wikiKey );
 
 		return {
 			content: [ {

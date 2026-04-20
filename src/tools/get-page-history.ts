@@ -3,18 +3,20 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { makeRestGetRequest } from '../common/utils.js';
-import type { MwRestApiGetPageHistoryResponse, MwRestApiRevisionObject } from '../types/mwRestApi.js';
+import { getMwn } from '../common/mwn.js';
+import type { ApiPage, ApiRevision } from 'mwn';
+
+const PAGE_HISTORY_LIMIT = 20;
 
 export function getPageHistoryTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'get-page-history',
-		'Returns information about the latest revisions to a wiki page, in segments of 20 revisions, starting with the latest revision. The response includes API routes for the next oldest, next newest, and latest revision segments.',
+		`Returns information about the latest revisions to a wiki page, in segments of ${ PAGE_HISTORY_LIMIT } revisions, starting with the latest revision.`,
 		{
 			title: z.string().describe( 'Wiki page title' ),
-			olderThan: z.number().int().positive().optional().describe( 'Revision ID of the oldest revision to return' ),
-			newerThan: z.number().int().positive().optional().describe( 'Revision ID of the newest revision to return' ),
-			filter: z.string().optional().describe( 'Filter that returns only revisions with certain tags. Only support one filter per request.' )
+			olderThan: z.number().int().positive().optional().describe( 'Revision ID — return revisions older than this' ),
+			newerThan: z.number().int().positive().optional().describe( 'Revision ID — return revisions newer than this' ),
+			filter: z.string().optional().describe( 'Filter that returns only revisions with certain tags' )
 		},
 		{
 			title: 'Get page history',
@@ -27,29 +29,94 @@ export function getPageHistoryTool( server: McpServer ): RegisteredTool {
 	);
 }
 
-async function handleGetPageHistoryTool(
+export async function handleGetPageHistoryTool(
 	title: string,
 	olderThan?: number,
 	newerThan?: number,
 	filter?: string
-): Promise< CallToolResult > {
-	const params: Record<string, string> = {};
-	if ( olderThan ) {
-		params.olderThan = olderThan.toString();
-	}
-	if ( newerThan ) {
-		params.newerThan = newerThan.toString();
-	}
-	if ( filter ) {
-		params.filter = filter;
+): Promise<CallToolResult> {
+	if ( olderThan && newerThan ) {
+		return {
+			content: [ {
+				type: 'text',
+				text: 'Cannot use both olderThan and newerThan at the same time'
+			} ],
+			isError: true
+		};
 	}
 
-	let data: MwRestApiGetPageHistoryResponse;
 	try {
-		data = await makeRestGetRequest<MwRestApiGetPageHistoryResponse>(
-			`/v1/page/${ encodeURIComponent( title ) }/history`,
-			params
-		);
+		const mwn = await getMwn();
+		const boundaryId = olderThan ?? newerThan;
+
+		const params: Record<string, string | number | boolean> = {
+			action: 'query',
+			prop: 'revisions',
+			titles: title,
+			rvprop: 'ids|timestamp|user|userid|comment|size|flags',
+			// Fetch one extra when a boundary is set, since rvstartid is
+			// inclusive and we filter the boundary out below.
+			rvlimit: PAGE_HISTORY_LIMIT + ( boundaryId ? 1 : 0 ),
+			formatversion: '2'
+		};
+
+		// Both olderThan and newerThan use rvstartid (the enumeration anchor);
+		// they differ only in direction. Default rvdir=older walks newest →
+		// oldest, so olderThan needs no rvdir override.
+		if ( boundaryId ) {
+			params.rvstartid = boundaryId;
+			if ( newerThan ) {
+				params.rvdir = 'newer';
+			}
+		}
+
+		if ( filter ) {
+			params.rvtag = filter;
+		}
+
+		const response = await mwn.request( params );
+		const page = response.query?.pages?.[ 0 ] as ApiPage | undefined;
+
+		if ( page?.missing ) {
+			return {
+				content: [ {
+					type: 'text',
+					text: `Page "${ title }" not found`
+				} as TextContent ],
+				isError: true
+			};
+		}
+
+		const revisions: ApiRevision[] = page?.revisions ?? [];
+
+		// rvstartid is inclusive — filter out the boundary revision to
+		// preserve the exclusive semantics of olderThan/newerThan, and cap
+		// the result in case the boundary was absent from the window.
+		const filteredRevisions = boundaryId ?
+			revisions.filter( ( rev ) => rev.revid !== boundaryId ).slice( 0, PAGE_HISTORY_LIMIT ) :
+			revisions;
+
+		if ( filteredRevisions.length === 0 ) {
+			return {
+				content: [
+					{ type: 'text', text: 'No revisions found for page' } as TextContent
+				]
+			};
+		}
+
+		return {
+			content: filteredRevisions.map( ( rev ): TextContent => ( {
+				type: 'text',
+				text: [
+					`Revision ID: ${ rev.revid }`,
+					`Timestamp: ${ rev.timestamp }`,
+					`User: ${ rev.user } (ID: ${ rev.userid })`,
+					`Comment: ${ rev.comment }`,
+					`Size: ${ rev.size }`,
+					`Minor: ${ rev.minor ?? false }`
+				].join( '\n' )
+			} ) )
+		};
 	} catch ( error ) {
 		return {
 			content: [
@@ -58,30 +125,4 @@ async function handleGetPageHistoryTool(
 			isError: true
 		};
 	}
-
-	if ( data.revisions.length === 0 ) {
-		return {
-			content: [
-				{ type: 'text', text: 'No revisions found for page' } as TextContent
-			]
-		};
-	}
-
-	return {
-		content: data.revisions.map( getPageHistoryToolResult )
-	};
-}
-
-function getPageHistoryToolResult( result: MwRestApiRevisionObject ): TextContent {
-	return {
-		type: 'text',
-		text: [
-			`Revision ID: ${ result.id }`,
-			`Timestamp: ${ result.timestamp }`,
-			`User: ${ result.user.name } (ID: ${ result.user.id })`,
-			`Comment: ${ result.comment }`,
-			`Size: ${ result.size }`,
-			`Delta: ${ result.delta }`
-		].join( '\n' )
-	};
 }

@@ -3,8 +3,8 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { makeRestPutRequest, getPageUrl, formatEditComment } from '../common/utils.js';
-import type { MwRestApiPageObject } from '../types/mwRestApi.js';
+import { getMwn } from '../common/mwn.js';
+import { getPageUrl, formatEditComment } from '../common/utils.js';
 
 export function updatePageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
@@ -27,19 +27,42 @@ export function updatePageTool( server: McpServer ): RegisteredTool {
 	);
 }
 
-async function handleUpdatePageTool(
+export async function handleUpdatePageTool(
 	title: string,
 	source: string,
 	latestId: number,
 	comment?: string
 ): Promise<CallToolResult> {
-	let data: MwRestApiPageObject;
 	try {
-		data = await makeRestPutRequest<MwRestApiPageObject>( `/v1/page/${ encodeURIComponent( title ) }`, {
-			source: source,
-			comment: formatEditComment( 'update-page', comment ),
-			latest: { id: latestId }
-		}, true );
+		const mwn = await getMwn();
+		const result = await mwn.save(
+			title, source,
+			formatEditComment( 'update-page', comment ),
+			// nocreate: fail if the page does not exist, so a mis-typed
+			// title doesn't silently create a new page.
+			{ baserevid: latestId, nocreate: true }
+		);
+
+		return {
+			content: [
+				{
+					type: 'text',
+					text: `Page updated successfully: ${ getPageUrl( result.title ) }`
+				},
+				{
+					type: 'text',
+					text: [
+						'Page object:',
+						`Page ID: ${ result.pageid }`,
+						`Title: ${ result.title }`,
+						`Latest revision ID: ${ result.newrevid }`,
+						`Latest revision timestamp: ${ result.newtimestamp }`,
+						`Content model: ${ result.contentmodel }`,
+						`HTML URL: ${ getPageUrl( result.title ) }`
+					].join( '\n' )
+				}
+			]
+		};
 	} catch ( error ) {
 		return {
 			content: [
@@ -48,30 +71,4 @@ async function handleUpdatePageTool(
 			isError: true
 		};
 	}
-
-	return {
-		content: updatePageToolResult( data )
-	};
-}
-
-function updatePageToolResult( result: MwRestApiPageObject ): TextContent[] {
-	return [
-		{
-			type: 'text',
-			text: `Page updated successfully: ${ getPageUrl( result.title ) }`
-		},
-		{
-			type: 'text',
-			text: [
-				'Page object:',
-				`Page ID: ${ result.id }`,
-				`Title: ${ result.title }`,
-				`Latest revision ID: ${ result.latest.id }`,
-				`Latest revision timestamp: ${ result.latest.timestamp }`,
-				`Content model: ${ result.content_model }`,
-				`License: ${ result.license.url } ${ result.license.title }`,
-				`HTML URL: ${ result.html_url }`
-			].join( '\n' )
-		}
-	];
 }
