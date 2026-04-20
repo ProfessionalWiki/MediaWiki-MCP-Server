@@ -76,9 +76,10 @@ export async function handleGetPageHistoryTool(
 		const revisions: ApiRevision[] = page?.revisions ?? [];
 
 		// rvendid/rvstartid are inclusive — filter out the boundary revision
-		// to preserve the exclusive semantics of olderThan/newerThan
+		// to preserve the exclusive semantics of olderThan/newerThan, and cap
+		// the result at 20 in case the boundary was absent from the window.
 		const filteredRevisions = boundaryId ?
-			revisions.filter( ( rev ) => rev.revid !== boundaryId ) :
+			revisions.filter( ( rev ) => rev.revid !== boundaryId ).slice( 0, 20 ) :
 			revisions;
 
 		if ( filteredRevisions.length === 0 ) {
