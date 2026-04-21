@@ -143,14 +143,14 @@ Config values support `${VAR_NAME}` syntax for referencing environment variables
 }
 ```
 
-**Behaviour when a referenced variable is not set:**
+If a referenced variable is not set:
 
-- For secret fields (`token`, `username`, `password`): the server refuses to start with a clear error identifying the wiki, the field, and the unset variable. This fails fast so authentication problems surface at startup rather than as opaque later errors.
-- For non-secret fields: the `${VAR_NAME}` reference is left as-is.
+- **Secret fields** (`token`, `username`, `password`): the server exits at startup with an error naming the wiki, the field, and the missing variable. This surfaces authentication problems up front instead of as confusing failures later.
+- **Non-secret fields**: the `${VAR_NAME}` text is kept as-is.
 
 ### Secret sources
 
-Secret fields (`token`, `username`, `password`) additionally accept a structured credential source that runs an external command at startup and uses its stdout as the secret value. This lets you fetch secrets from a password manager or secret store without putting them on disk:
+As an alternative to `${VAR_NAME}`, secret fields can run an external command at startup and use its output as the secret. This lets you fetch credentials from a password manager, keyring, or secret store without writing them to disk:
 
 ```json
 {
@@ -172,9 +172,15 @@ Secret fields (`token`, `username`, `password`) additionally accept a structured
 }
 ```
 
-The command is invoked directly (no shell), with the `args` array passed verbatim. The trimmed stdout becomes the secret value. A 10-second timeout applies. If the command fails, times out, or produces no output, the server refuses to start and identifies the failing wiki and field; the secret value itself is never logged. Works with any CLI that prints a secret on stdout (`op`, `pass`, `secret-tool`, `bw`, Vault, custom shims, etc.).
+The command runs directly without a shell, with `args` passed exactly as given. Its trimmed stdout becomes the secret value. A 10-second timeout applies.
 
-Plaintext secrets still work but produce a one-line stderr warning at startup, nudging you toward `${VAR}` or an `{exec: …}` object.
+If the command fails, times out, or prints nothing, the server exits at startup. Error messages identify the failing wiki and field — the secret value itself is never logged.
+
+Any CLI that prints a credential to stdout works: 1Password's `op`, `pass`, `secret-tool`, Bitwarden's `bw`, HashiCorp Vault, or a custom script.
+
+### Plaintext secrets
+
+Plaintext credentials in `config.json` still work but print a one-line warning to stderr on startup. Prefer `${VAR}` or an `exec` source when possible.
 
 ### Authentication setup
 
