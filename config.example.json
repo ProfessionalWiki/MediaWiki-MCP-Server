@@ -22,6 +22,19 @@
       "password": null,
       "private": false,
       "tags": null
+    },
+    "my.wiki.org": {
+      "sitename": "Example wiki using a secret source",
+      "server": "https://my.wiki.org",
+      "articlepath": "/wiki",
+      "scriptpath": "/w",
+      "token": {
+        "exec": {
+          "command": "op",
+          "args": ["read", "op://Private/my-wiki/oauth-token"]
+        }
+      },
+      "private": false
     }
   }
 }

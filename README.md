@@ -143,7 +143,38 @@ Config values support `${VAR_NAME}` syntax for referencing environment variables
 }
 ```
 
-If an environment variable is not set, the `${VAR_NAME}` reference is left as-is.
+**Behaviour when a referenced variable is not set:**
+
+- For secret fields (`token`, `username`, `password`): the server refuses to start with a clear error identifying the wiki, the field, and the unset variable. This fails fast so authentication problems surface at startup rather than as opaque later errors.
+- For non-secret fields: the `${VAR_NAME}` reference is left as-is.
+
+### Secret sources
+
+Secret fields (`token`, `username`, `password`) additionally accept a structured credential source that runs an external command at startup and uses its stdout as the secret value. This lets you fetch secrets from a password manager or secret store without putting them on disk:
+
+```json
+{
+  "defaultWiki": "my.wiki.org",
+  "wikis": {
+    "my.wiki.org": {
+      "sitename": "My Wiki",
+      "server": "https://my.wiki.org",
+      "articlepath": "/wiki",
+      "scriptpath": "/w",
+      "token": {
+        "exec": {
+          "command": "op",
+          "args": ["read", "op://Private/my-wiki/oauth-token"]
+        }
+      }
+    }
+  }
+}
+```
+
+The command is invoked directly (no shell), with the `args` array passed verbatim. The trimmed stdout becomes the secret value. A 10-second timeout applies. If the command fails, times out, or produces no output, the server refuses to start and identifies the failing wiki and field; the secret value itself is never logged. Works with any CLI that prints a secret on stdout (`op`, `pass`, `secret-tool`, `bw`, Vault, custom shims, etc.).
+
+Plaintext secrets still work but produce a one-line stderr warning at startup, nudging you toward `${VAR}` or an `{exec: …}` object.
 
 ### Authentication setup
 
