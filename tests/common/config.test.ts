@@ -104,6 +104,46 @@ describe( 'loadConfigFromFile', () => {
 		} );
 	} );
 
+	describe( 'per-wiki readOnly', () => {
+		it( 'preserves readOnly: true through the loader', async () => {
+			setConfigFile( {
+				defaultWiki: 'w',
+				wikis: { w: { ...baseWiki, token: null, readOnly: true } }
+			} );
+			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
+			expect( loadConfigFromFile().wikis.w.readOnly ).toBe( true );
+		} );
+
+		it( 'preserves readOnly: false through the loader', async () => {
+			setConfigFile( {
+				defaultWiki: 'w',
+				wikis: { w: { ...baseWiki, token: null, readOnly: false } }
+			} );
+			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
+			expect( loadConfigFromFile().wikis.w.readOnly ).toBe( false );
+		} );
+
+		it( 'leaves readOnly undefined when the field is absent', async () => {
+			setConfigFile( {
+				defaultWiki: 'w',
+				wikis: { w: { ...baseWiki, token: null } }
+			} );
+			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
+			expect( loadConfigFromFile().wikis.w.readOnly ).toBeUndefined();
+		} );
+
+		it( 'throws when readOnly is not a boolean', async () => {
+			setConfigFile( {
+				defaultWiki: 'w',
+				wikis: { w: { ...baseWiki, token: null, readOnly: 'yes' } }
+			} );
+			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
+			expect( () => loadConfigFromFile() ).toThrow(
+				'Config error: wikis.w.readOnly must be a boolean'
+			);
+		} );
+	} );
+
 	describe( 'passthrough cases', () => {
 		it( 'passes through null secret fields unchanged', async () => {
 			setConfigFile( {
