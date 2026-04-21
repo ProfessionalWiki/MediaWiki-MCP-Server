@@ -9,16 +9,18 @@ import { getMwn } from '../common/mwn.js';
 export function searchPageByPrefixTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'search-page-by-prefix',
-		'Performs a prefix search for page titles.',
+		'Returns wiki page titles beginning with a given prefix (suited to autocomplete and title lookup). Only titles are returned — no snippets, sizes, or IDs. For full-text content search, use search-page.',
 		{
-			prefix: z.string().describe( 'Search prefix' ),
+			prefix: z.string().describe( 'Wiki page title prefix' ),
 			limit: z.number().int().min( 1 ).max( 500 ).optional().describe( 'Maximum number of results to return' ),
-			namespace: z.number().int().nonnegative().optional().describe( 'Namespace to search' )
+			namespace: z.number().int().nonnegative().optional().describe( 'Namespace ID to restrict the search to' )
 		},
 		{
 			title: 'Search page by prefix',
 			readOnlyHint: true,
-			destructiveHint: false
+			destructiveHint: false,
+			idempotentHint: true,
+			openWorldHint: true
 		} as ToolAnnotations,
 		async (
 			{ prefix, limit, namespace }

@@ -16,7 +16,7 @@ export enum BatchContentFormat {
 export function getPagesTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'get-pages',
-		`Fetches multiple wiki pages in one call. Use this instead of calling get-page repeatedly when you need a group of pages — e.g., reading a cluster of related articles, diffing a page family, or syncing pages to local storage. Accepts up to ${ MAX_TITLES } titles; missing pages are reported inline (not as errors). Use get-page for a single page or HTML output.`,
+		`Returns multiple wiki pages in one call (wikitext source or metadata only). Suited to reading a cluster of related pages, diffing a page family, or syncing pages to local storage. Accepts up to ${ MAX_TITLES } titles; missing pages are reported inline (not as errors). For a single page or HTML output, use get-page.`,
 		{
 			titles: z.array( z.string() ).describe( `Array of wiki page titles (1..${ MAX_TITLES })` ),
 			content: z.nativeEnum( BatchContentFormat ).optional().default( BatchContentFormat.source ).describe( 'Type of content to return; "none" returns metadata only' ),
@@ -26,7 +26,9 @@ export function getPagesTool( server: McpServer ): RegisteredTool {
 		{
 			title: 'Get pages',
 			readOnlyHint: true,
-			destructiveHint: false
+			destructiveHint: false,
+			idempotentHint: true,
+			openWorldHint: true
 		} as ToolAnnotations,
 		async ( { titles, content, metadata, followRedirects } ) => handleGetPagesTool(
 			titles, content, metadata, followRedirects

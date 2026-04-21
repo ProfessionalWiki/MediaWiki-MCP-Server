@@ -11,17 +11,19 @@ import { getPageUrl, formatEditComment } from '../common/utils.js';
 export function createPageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'create-page',
-		'Creates a wiki page with the provided content.',
+		'Creates a new wiki page with the provided content and returns the new page\'s title, page ID, and first revision ID. Fails if a page with the given title already exists; for existing pages, use update-page. The optional contentModel parameter selects a non-default content format (e.g. javascript, css); when omitted, MediaWiki picks the default for the title\'s namespace.',
 		{
 			source: z.string().describe( 'Page content in the format specified by the contentModel parameter' ),
 			title: z.string().describe( 'Wiki page title' ),
 			comment: z.string().optional().describe( 'Reason for creating the page' ),
-			contentModel: z.string().optional().describe( 'Type of content on the page. If omitted, MediaWiki picks the default for the title\'s namespace.' )
+			contentModel: z.string().optional().describe( 'Content model of the new page. If omitted, MediaWiki picks the default for the title\'s namespace.' )
 		},
 		{
 			title: 'Create page',
 			readOnlyHint: false,
-			destructiveHint: true
+			destructiveHint: false,
+			idempotentHint: true,
+			openWorldHint: true
 		} as ToolAnnotations,
 		async (
 			{ source, title, comment, contentModel }

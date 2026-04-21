@@ -11,17 +11,19 @@ const PAGE_HISTORY_LIMIT = 20;
 export function getPageHistoryTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'get-page-history',
-		`Returns information about the latest revisions to a wiki page, in segments of ${ PAGE_HISTORY_LIMIT } revisions, starting with the latest revision.`,
+		`Returns revision metadata (revision ID, timestamp, user, comment, size, minor flag) for a wiki page, in segments of ${ PAGE_HISTORY_LIMIT } revisions, newest first. Paginate with olderThan or newerThan (mutually exclusive). If the title does not exist, an error is returned.`,
 		{
 			title: z.string().describe( 'Wiki page title' ),
-			olderThan: z.number().int().positive().optional().describe( 'Revision ID — return revisions older than this' ),
-			newerThan: z.number().int().positive().optional().describe( 'Revision ID — return revisions newer than this' ),
-			filter: z.string().optional().describe( 'Filter that returns only revisions with certain tags' )
+			olderThan: z.number().int().positive().optional().describe( 'Revision ID — return revisions older than this (exclusive). Mutually exclusive with newerThan.' ),
+			newerThan: z.number().int().positive().optional().describe( 'Revision ID — return revisions newer than this (exclusive). Mutually exclusive with olderThan.' ),
+			filter: z.string().optional().describe( 'Change tag — return only revisions carrying this tag' )
 		},
 		{
 			title: 'Get page history',
 			readOnlyHint: true,
-			destructiveHint: false
+			destructiveHint: false,
+			idempotentHint: true,
+			openWorldHint: true
 		} as ToolAnnotations,
 		async (
 			{ title, olderThan, newerThan, filter }

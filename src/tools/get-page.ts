@@ -10,7 +10,7 @@ import { ContentFormat } from '../common/contentFormat.js';
 export function getPageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'get-page',
-		'Returns a wiki page. Use metadata=true to retrieve the revision ID, which can optionally be passed to update-page for edit-conflict detection. Set content="none" to fetch only metadata without content.',
+		'Returns a single wiki page (wikitext source, rendered HTML, or metadata only). If the title does not exist, an error is returned. Use metadata=true to retrieve the revision ID, which can optionally be passed to update-page for edit-conflict detection. Set content="none" to fetch only metadata. For more than one page at a time, use get-pages. For a specific historical revision, use get-revision.',
 		{
 			title: z.string().describe( 'Wiki page title' ),
 			content: z.nativeEnum( ContentFormat ).optional().default( ContentFormat.source ).describe( 'Type of content to return' ),
@@ -19,7 +19,9 @@ export function getPageTool( server: McpServer ): RegisteredTool {
 		{
 			title: 'Get page',
 			readOnlyHint: true,
-			destructiveHint: false
+			destructiveHint: false,
+			idempotentHint: true,
+			openWorldHint: true
 		} as ToolAnnotations,
 		async ( { title, content, metadata } ) => handleGetPageTool( title, content, metadata )
 	);

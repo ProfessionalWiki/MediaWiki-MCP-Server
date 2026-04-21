@@ -16,16 +16,18 @@ enum CategoryMemberType {
 export function getCategoryMembersTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'get-category-members',
-		'Gets all members in the category. Returns only page IDs, namespaces, and titles.',
+		'Returns each member\'s page ID, namespace ID, and wiki page title. Optionally filter by member type (page, file, subcat) or by namespace ID.',
 		{
-			category: z.string().describe( 'Category name' ),
+			category: z.string().describe( 'Category name (with or without the "Category:" prefix)' ),
 			types: z.array( z.nativeEnum( CategoryMemberType ) ).optional().describe( 'Types of members to include' ),
 			namespaces: z.array( z.number().int().nonnegative() ).optional().describe( 'Namespace IDs to filter by' )
 		},
 		{
 			title: 'Get category members',
 			readOnlyHint: true,
-			destructiveHint: false
+			destructiveHint: false,
+			idempotentHint: true,
+			openWorldHint: true
 		} as ToolAnnotations,
 		async (
 			{ category, types, namespaces }

@@ -11,17 +11,19 @@ import { getPageUrl, formatEditComment } from '../common/utils.js';
 export function updatePageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'update-page',
-		'Updates a wiki page. Replaces the existing content of a page with the provided content. Optionally pass latestId (from get-page with metadata=true) to enable edit-conflict detection.',
+		'Replaces the existing content of a wiki page and returns the new revision ID. Fails if the page does not exist; for new pages, use create-page. Pass latestId (obtained from get-page with metadata=true) to enable edit-conflict detection: if the page has been edited since that revision, the update is rejected rather than silently clobbering concurrent changes.',
 		{
 			title: z.string().describe( 'Wiki page title' ),
-			source: z.string().describe( 'Page content in the same content model of the existing page' ),
-			latestId: z.number().int().positive().optional().describe( 'Optional base revision ID for edit-conflict detection; obtain from get-page with metadata=true. If omitted, the update is applied without conflict detection.' ),
+			source: z.string().describe( 'Replacement page content in the existing page\'s content model' ),
+			latestId: z.number().int().positive().optional().describe( 'Base revision ID for edit-conflict detection; obtain from get-page with metadata=true. If omitted, the update is applied without conflict detection.' ),
 			comment: z.string().optional().describe( 'Summary of the edit' )
 		},
 		{
 			title: 'Update page',
 			readOnlyHint: false,
-			destructiveHint: true
+			destructiveHint: true,
+			idempotentHint: true,
+			openWorldHint: true
 		} as ToolAnnotations,
 		async (
 			{ title, source, latestId, comment }
