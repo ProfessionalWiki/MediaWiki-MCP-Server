@@ -11,6 +11,7 @@ export interface MockMwn {
 	uploadFromUrl: ReturnType<typeof vi.fn>;
 	request: ReturnType<typeof vi.fn>;
 	query: ReturnType<typeof vi.fn>;
+	massQuery: ReturnType<typeof vi.fn>;
 	getPagesByPrefix: ReturnType<typeof vi.fn>;
 	getCsrfToken: ReturnType<typeof vi.fn>;
 	Category: {
@@ -31,6 +32,7 @@ export function createMockMwn( overrides: Partial<MockMwn> = {} ): MockMwn {
 		uploadFromUrl: vi.fn(),
 		request: vi.fn(),
 		query: vi.fn(),
+		massQuery: vi.fn(),
 		getPagesByPrefix: vi.fn(),
 		getCsrfToken: vi.fn(),
 		Category: {
