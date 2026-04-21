@@ -118,6 +118,7 @@ Create a `config.json` file to configure wiki connections. Use the `config.examp
 | `username` | No | Bot username (fallback when OAuth2 is not available) |
 | `password` | No | Bot password (fallback when OAuth2 is not available) |
 | `private` | No | Whether the wiki requires authentication to read (default: `false`) |
+| `tags` | No | Change tag(s) applied to every write (must be registered on the wiki). Accepts a string or array of strings |
 
 ### Environment variable substitution
 
