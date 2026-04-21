@@ -64,6 +64,10 @@ function reset(): void {
 	}
 }
 
+function isWikiManagementAllowed(): boolean {
+	return config.allowWikiManagement !== false;
+}
+
 export const wikiService = {
 	getAll,
 	get,
@@ -72,5 +76,6 @@ export const wikiService = {
 	getCurrent,
 	setCurrent,
 	sanitize,
-	reset
+	reset,
+	isWikiManagementAllowed
 };
