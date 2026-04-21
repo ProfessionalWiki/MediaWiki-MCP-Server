@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import { execFileSync } from 'child_process';
 
 export interface WikiConfig {
 	/**
@@ -136,9 +137,86 @@ function resolveSecretField(
 		}
 		return raw;
 	}
+	if ( typeof raw === 'object' && !Array.isArray( raw ) ) {
+		return runExec( raw, wikiKey, fieldName );
+	}
 	throw new Error(
-		`Config error: wikis.${ wikiKey }.${ fieldName } must be a string or null`
+		`Config error: wikis.${ wikiKey }.${ fieldName } must be a string, null, or an {exec: …} object`
 	);
+}
+
+function runExec( raw: unknown, wikiKey: string, fieldName: SecretFieldName ): string {
+	const path = `wikis.${ wikiKey }.${ fieldName }`;
+	if ( typeof raw !== 'object' || raw === null ) {
+		throw new Error(
+			`Config error: ${ path } must be a string, null, or an {exec: …} object`
+		);
+	}
+	const src = raw as { exec?: unknown };
+	if ( typeof src.exec !== 'object' || src.exec === null || Array.isArray( src.exec ) ) {
+		throw new Error(
+			`Config error: ${ path } must be a string, null, or an {exec: …} object`
+		);
+	}
+	const exec = src.exec as { command?: unknown; args?: unknown };
+	if ( typeof exec.command !== 'string' || exec.command === '' ) {
+		throw new Error( `Config error: ${ path }.exec.command must be a non-empty string` );
+	}
+	if (
+		exec.args !== undefined &&
+		(
+			!Array.isArray( exec.args ) ||
+			!exec.args.every( ( a ) => typeof a === 'string' )
+		)
+	) {
+		throw new Error( `Config error: ${ path }.exec.args must be an array of strings` );
+	}
+	const command = exec.command;
+	const args = ( exec.args as string[] | undefined ) ?? [];
+
+	let stdout: string;
+	try {
+		stdout = execFileSync( command, args, {
+			timeout: 10_000,
+			encoding: 'utf-8',
+			stdio: [ 'ignore', 'pipe', 'pipe' ]
+		} );
+	} catch ( err: unknown ) {
+		const e = err as NodeJS.ErrnoException & {
+			signal?: string;
+			status?: number | null;
+			stderr?: Buffer | string;
+		};
+		if ( e.code === 'ENOENT' ) {
+			throw new Error(
+				`Config error: failed to fetch ${ path }: command "${ command }" not found`
+			);
+		}
+		if ( e.signal === 'SIGTERM' || e.code === 'ETIMEDOUT' ) {
+			throw new Error(
+				`Config error: failed to fetch ${ path }: command "${ command }" timed out after 10s`
+			);
+		}
+		if ( typeof e.status === 'number' && e.status !== 0 ) {
+			const stderrText = e.stderr ?
+				( Buffer.isBuffer( e.stderr ) ? e.stderr.toString( 'utf-8' ) : e.stderr ).slice( 0, 200 ) :
+				'';
+			throw new Error(
+				`Config error: failed to fetch ${ path }: command "${ command }" exited with status ${ e.status }. stderr: ${ stderrText }`
+			);
+		}
+		throw new Error(
+			`Config error: failed to fetch ${ path }: ${ e.message ?? 'unknown error' }`
+		);
+	}
+
+	const trimmed = stdout.replace( /\r?\n+$/, '' );
+	if ( trimmed === '' ) {
+		throw new Error(
+			`Config error: failed to fetch ${ path }: command "${ command }" produced no output`
+		);
+	}
+	return trimmed;
 }
 
 function resolveWiki( raw: unknown, wikiKey: string ): WikiConfig {
