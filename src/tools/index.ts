@@ -20,6 +20,7 @@ import { undeletePageTool } from './undelete-page.js';
 import { getCategoryMembersTool } from './get-category-members.js';
 import { searchPageByPrefixTool } from './search-page-by-prefix.js';
 import { parseWikitextTool } from './parse-wikitext.js';
+import { comparePagesTool } from './compare-pages.js';
 
 const toolRegistrars = [
 	getPageTool,
@@ -39,7 +40,8 @@ const toolRegistrars = [
 	undeletePageTool,
 	getCategoryMembersTool,
 	searchPageByPrefixTool,
-	parseWikitextTool
+	parseWikitextTool,
+	comparePagesTool
 ];
 
 export function registerAllTools( server: McpServer ): RegisteredTool[] {

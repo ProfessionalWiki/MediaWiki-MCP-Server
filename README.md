@@ -10,6 +10,7 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | Name | Description | Permissions |
 |---|---|---|
 | `add-wiki` | Adds a new wiki as an MCP resource from a URL. | - |
+| `compare-pages` | Diff two versions of a wiki page by revision, title, or supplied wikitext. | - |
 | `create-page` 🔐 | Create a new wiki page. | `Create, edit, and move pages` |
 | `delete-page` 🔐 | Delete a wiki page. | `Delete pages, revisions, and log entries` |
 | `get-category-members` | Gets all members in the category | - |
