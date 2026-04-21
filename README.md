@@ -143,7 +143,44 @@ Config values support `${VAR_NAME}` syntax for referencing environment variables
 }
 ```
 
-If an environment variable is not set, the `${VAR_NAME}` reference is left as-is.
+If a referenced variable is not set:
+
+- **Secret fields** (`token`, `username`, `password`): the server exits at startup with an error naming the wiki, the field, and the missing variable. This surfaces authentication problems up front instead of as confusing failures later.
+- **Non-secret fields**: the `${VAR_NAME}` text is kept as-is.
+
+### Secret sources
+
+As an alternative to `${VAR_NAME}`, secret fields can run an external command at startup and use its output as the secret. This lets you fetch credentials from a password manager, keyring, or secret store without writing them to disk:
+
+```json
+{
+  "defaultWiki": "my.wiki.org",
+  "wikis": {
+    "my.wiki.org": {
+      "sitename": "My Wiki",
+      "server": "https://my.wiki.org",
+      "articlepath": "/wiki",
+      "scriptpath": "/w",
+      "token": {
+        "exec": {
+          "command": "op",
+          "args": ["read", "op://Private/my-wiki/oauth-token"]
+        }
+      }
+    }
+  }
+}
+```
+
+The command runs directly without a shell, with `args` passed exactly as given. Its trimmed stdout becomes the secret value. A 10-second timeout applies.
+
+If the command fails, times out, or prints nothing, the server exits at startup. Error messages identify the failing wiki and field — the secret value itself is never logged.
+
+Any CLI that prints a credential to stdout works: 1Password's `op`, `pass`, `secret-tool`, Bitwarden's `bw`, HashiCorp Vault, or a custom script.
+
+### Plaintext secrets
+
+Plaintext credentials in `config.json` still work but print a one-line warning to stderr on startup. Prefer `${VAR}` or an `exec` source when possible.
 
 ### Authentication setup
 
