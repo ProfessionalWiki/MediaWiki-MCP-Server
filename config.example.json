@@ -19,7 +19,8 @@
       "token": null,
       "username": null,
       "password": null,
-      "private": false
+      "private": false,
+      "tags": "mcp-server"
     }
   }
 }

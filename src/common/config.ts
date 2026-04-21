@@ -34,6 +34,13 @@ export interface WikiConfig {
 	 * $wgGroupPermissions['*']['read'] = false; in MediaWiki
 	 */
 	private?: boolean;
+	/**
+	 * Change tag(s) applied to every write action made through this MCP
+	 * server. The tag(s) must be registered and active on the wiki (see
+	 * Special:Tags on the target wiki). If the tag is not applicable to
+	 * the action, MediaWiki returns a badtags error and the write fails.
+	 */
+	tags?: string | string[];
 }
 
 export type PublicWikiConfig = Omit<WikiConfig, 'token' | 'username' | 'password'>;
