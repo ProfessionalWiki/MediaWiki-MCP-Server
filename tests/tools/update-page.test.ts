@@ -38,6 +38,30 @@ describe( 'update-page', () => {
 		);
 	} );
 
+	it( 'calls mwn.save() without baserevid when latestId is omitted', async () => {
+		const mock = createMockMwn( {
+			save: vi.fn().mockResolvedValue( {
+				result: 'Success', pageid: 5, title: 'My Page',
+				contentmodel: 'wikitext', oldrevid: 41, newrevid: 42,
+				newtimestamp: '2026-01-02T00:00:00Z'
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+		const result = await handleUpdatePageTool( 'My Page', 'Updated content', undefined, 'edit summary' );
+
+		expect( result.isError ).toBeUndefined();
+		expect( result.content[ 0 ].text ).toContain( 'Page updated successfully' );
+		expect( mock.save ).toHaveBeenCalledWith(
+			'My Page', 'Updated content',
+			expect.stringContaining( 'edit summary' ),
+			expect.objectContaining( { nocreate: true } )
+		);
+		const options = mock.save.mock.calls[ 0 ][ 3 ];
+		expect( options ).not.toHaveProperty( 'baserevid' );
+	} );
+
 	it( 'returns error on failure', async () => {
 		const mock = createMockMwn( {
 			save: vi.fn().mockRejectedValue( new Error( 'Edit conflict' ) )
