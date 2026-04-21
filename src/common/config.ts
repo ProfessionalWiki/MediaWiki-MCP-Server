@@ -76,6 +76,10 @@ export const defaultConfig: Config = {
 		}
 	}
 };
+
+const SECRET_FIELDS = [ 'token', 'username', 'password' ] as const;
+type SecretFieldName = typeof SECRET_FIELDS[ number ];
+
 const configPath = process.env.CONFIG || 'config.json';
 
 function replaceEnvVars( value: string ): string {
@@ -102,11 +106,71 @@ function replaceEnvVarsInObject( obj: unknown ): unknown {
 	return obj;
 }
 
+function resolveSecretField(
+	raw: unknown,
+	wikiKey: string,
+	fieldName: SecretFieldName
+): string | null | undefined {
+	if ( raw === null || raw === undefined ) {
+		return raw;
+	}
+	if ( typeof raw === 'string' ) {
+		if ( raw.includes( '${' ) ) {
+			const substituted = replaceEnvVars( raw );
+			const unresolved = substituted.match( /\$\{([^}]+)\}/ );
+			if ( unresolved ) {
+				throw new Error(
+					`Config error: environment variable "${ unresolved[ 1 ] }" referenced by wikis.${ wikiKey }.${ fieldName } is not set`
+				);
+			}
+			return substituted;
+		}
+		return raw;
+	}
+	throw new Error(
+		`Config error: wikis.${ wikiKey }.${ fieldName } must be a string or null`
+	);
+}
+
+function resolveWiki( raw: unknown, wikiKey: string ): WikiConfig {
+	if ( typeof raw !== 'object' || raw === null || Array.isArray( raw ) ) {
+		throw new Error( `Config error: wikis.${ wikiKey } must be an object` );
+	}
+	const src = raw as Record<string, unknown>;
+	const resolved: Record<string, unknown> = {};
+	for ( const [ fieldKey, fieldValue ] of Object.entries( src ) ) {
+		if ( ( SECRET_FIELDS as readonly string[] ).includes( fieldKey ) ) {
+			resolved[ fieldKey ] = resolveSecretField( fieldValue, wikiKey, fieldKey as SecretFieldName );
+		} else {
+			resolved[ fieldKey ] = replaceEnvVarsInObject( fieldValue );
+		}
+	}
+	return resolved as unknown as WikiConfig;
+}
+
+function resolveConfig( parsed: unknown ): Config {
+	if ( typeof parsed !== 'object' || parsed === null || Array.isArray( parsed ) ) {
+		throw new Error( 'Config error: config.json must be an object' );
+	}
+	const p = parsed as Record<string, unknown>;
+	const defaultWiki = typeof p.defaultWiki === 'string' ? replaceEnvVars( p.defaultWiki ) : '';
+	const allowWikiManagement = typeof p.allowWikiManagement === 'boolean' ? p.allowWikiManagement : undefined;
+	const rawWikis = p.wikis;
+	if ( typeof rawWikis !== 'object' || rawWikis === null || Array.isArray( rawWikis ) ) {
+		return { defaultWiki, wikis: {}, allowWikiManagement };
+	}
+	const wikis: Record<string, WikiConfig> = {};
+	for ( const [ key, rawWiki ] of Object.entries( rawWikis ) ) {
+		wikis[ key ] = resolveWiki( rawWiki, key );
+	}
+	return { defaultWiki, wikis, allowWikiManagement };
+}
+
 export function loadConfigFromFile(): Config {
 	if ( !fs.existsSync( configPath ) ) {
 		return defaultConfig;
 	}
 	const rawData = fs.readFileSync( configPath, 'utf-8' );
 	const parsed = JSON.parse( rawData );
-	return replaceEnvVarsInObject( parsed ) as Config;
+	return resolveConfig( parsed );
 }
