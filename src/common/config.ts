@@ -129,6 +129,11 @@ function resolveSecretField(
 			}
 			return substituted;
 		}
+		if ( raw !== '' ) {
+			process.stderr.write(
+				`warning: wikis.${ wikiKey }.${ fieldName } contains a plaintext credential. Prefer \${VAR} or an {exec: …} object. See README.\n`
+			);
+		}
 		return raw;
 	}
 	throw new Error(

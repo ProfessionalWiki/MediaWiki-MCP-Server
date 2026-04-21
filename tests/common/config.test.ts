@@ -17,8 +17,11 @@ const baseWiki = {
 };
 
 describe( 'loadConfigFromFile', () => {
+	let stderrSpy: ReturnType<typeof vi.spyOn>;
+
 	beforeEach( () => {
 		vi.resetModules();
+		stderrSpy = vi.spyOn( process.stderr, 'write' ).mockImplementation( () => true );
 	} );
 
 	afterEach( () => {
@@ -116,6 +119,76 @@ describe( 'loadConfigFromFile', () => {
 			} );
 			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
 			expect( loadConfigFromFile().wikis.w.token ).toBe( 'plain-secret' );
+		} );
+	} );
+
+	describe( 'plaintext warnings', () => {
+		it( 'warns when a secret field is a plaintext literal', async () => {
+			setConfigFile( {
+				defaultWiki: 'w',
+				wikis: { w: { ...baseWiki, token: 'plain-secret-SENTINEL' } }
+			} );
+			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
+			loadConfigFromFile();
+
+			const output = stderrSpy.mock.calls.map( ( c ) => String( c[ 0 ] ) ).join( '' );
+			expect( output ).toContain( 'wikis.w.token' );
+			expect( output ).toContain( 'plaintext credential' );
+			expect( output ).not.toContain( 'plain-secret-SENTINEL' );
+		} );
+
+		it( 'does not warn for resolved ${VAR} secrets', async () => {
+			vi.stubEnv( 'SAFE_TOKEN', 'resolved' );
+			setConfigFile( {
+				defaultWiki: 'w',
+				wikis: { w: { ...baseWiki, token: '${SAFE_TOKEN}' } }
+			} );
+			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
+			loadConfigFromFile();
+
+			const output = stderrSpy.mock.calls.map( ( c ) => String( c[ 0 ] ) ).join( '' );
+			expect( output ).not.toContain( 'plaintext credential' );
+		} );
+
+		it( 'does not warn for null secrets', async () => {
+			setConfigFile( {
+				defaultWiki: 'w',
+				wikis: { w: { ...baseWiki, token: null, username: null, password: null } }
+			} );
+			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
+			loadConfigFromFile();
+
+			const output = stderrSpy.mock.calls.map( ( c ) => String( c[ 0 ] ) ).join( '' );
+			expect( output ).not.toContain( 'plaintext credential' );
+		} );
+
+		it( 'does not warn for empty-string secrets', async () => {
+			setConfigFile( {
+				defaultWiki: 'w',
+				wikis: { w: { ...baseWiki, token: '' } }
+			} );
+			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
+			loadConfigFromFile();
+
+			const output = stderrSpy.mock.calls.map( ( c ) => String( c[ 0 ] ) ).join( '' );
+			expect( output ).not.toContain( 'plaintext credential' );
+		} );
+
+		it( 'warns once per offending field across multiple wikis', async () => {
+			setConfigFile( {
+				defaultWiki: 'a',
+				wikis: {
+					a: { ...baseWiki, token: 'xxxxxxx', password: 'yyyyyyy' },
+					b: { ...baseWiki, username: 'zzzzzzz' }
+				}
+			} );
+			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
+			loadConfigFromFile();
+
+			const output = stderrSpy.mock.calls.map( ( c ) => String( c[ 0 ] ) ).join( '' );
+			expect( output ).toContain( 'wikis.a.token' );
+			expect( output ).toContain( 'wikis.a.password' );
+			expect( output ).toContain( 'wikis.b.username' );
 		} );
 	} );
 } );
