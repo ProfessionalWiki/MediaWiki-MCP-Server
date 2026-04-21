@@ -1,4 +1,5 @@
 {
+  "allowWikiManagement": true,
   "defaultWiki": "en.wikipedia.org",
   "wikis": {
     "en.wikipedia.org": {
