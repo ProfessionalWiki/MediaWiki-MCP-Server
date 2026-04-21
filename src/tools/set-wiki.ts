@@ -4,9 +4,15 @@ import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { wikiService } from '../common/wikiService.js';
+import type { WikiConfig } from '../common/config.js';
 import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../common/wikiResource.js';
 
-export function setWikiTool( server: McpServer ): RegisteredTool {
+export type OnActiveWikiChanged = ( activeWiki: Readonly<WikiConfig> ) => void;
+
+export function setWikiTool(
+	server: McpServer,
+	onActiveWikiChanged: OnActiveWikiChanged
+): RegisteredTool {
 	return server.tool(
 		'set-wiki',
 		'Selects the wiki to use for subsequent tool calls in this session. Required before interacting with a wiki that is not the configured default; the active wiki is consulted by every page, file, search, and history tool. Returns the new active wiki\'s sitename and server URL.',
@@ -20,11 +26,14 @@ export function setWikiTool( server: McpServer ): RegisteredTool {
 			idempotentHint: true,
 			openWorldHint: false
 		} as ToolAnnotations,
-		( { uri } ) => handleSetWikiTool( uri )
+		( { uri } ) => handleSetWikiTool( uri, onActiveWikiChanged )
 	);
 }
 
-async function handleSetWikiTool( uri: string ): Promise<CallToolResult> {
+async function handleSetWikiTool(
+	uri: string,
+	onActiveWikiChanged: OnActiveWikiChanged
+): Promise<CallToolResult> {
 	try {
 		const { wikiKey } = parseWikiResourceUri( uri );
 
@@ -41,6 +50,7 @@ async function handleSetWikiTool( uri: string ): Promise<CallToolResult> {
 		wikiService.setCurrent( wikiKey );
 
 		const newConfig = wikiService.getCurrent().config;
+		onActiveWikiChanged( newConfig );
 		return {
 			content: [ {
 				type: 'text',

@@ -8,7 +8,7 @@ import { getPageTool } from './get-page.js';
 import { getPagesTool } from './get-pages.js';
 import { getPageHistoryTool } from './get-page-history.js';
 import { searchPageTool } from './search-page.js';
-import { setWikiTool } from './set-wiki.js';
+import { setWikiTool, type OnActiveWikiChanged } from './set-wiki.js';
 import { addWikiTool } from './add-wiki.js';
 import { removeWikiTool } from './remove-wiki.js';
 import { updatePageTool } from './update-page.js';
@@ -51,7 +51,10 @@ const toolRegistrars: [ string, ToolRegistrar ][] = [
 
 const wikiManagementRegistrars: Set<ToolRegistrar> = new Set( [ addWikiTool, removeWikiTool ] );
 
-export function registerAllTools( server: McpServer ): Map<string, RegisteredTool> {
+export function registerAllTools(
+	server: McpServer,
+	onActiveWikiChanged: OnActiveWikiChanged
+): Map<string, RegisteredTool> {
 	const registered = new Map<string, RegisteredTool>();
 	const allowManagement = wikiService.isWikiManagementAllowed();
 
@@ -68,7 +71,7 @@ export function registerAllTools( server: McpServer ): Map<string, RegisteredToo
 	}
 
 	try {
-		registered.set( 'set-wiki', setWikiTool( server ) );
+		registered.set( 'set-wiki', setWikiTool( server, onActiveWikiChanged ) );
 	} catch ( error ) {
 		console.error( `Error registering tool: ${ ( error as Error ).message }` );
 	}
