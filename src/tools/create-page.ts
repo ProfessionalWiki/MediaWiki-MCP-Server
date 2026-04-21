@@ -4,6 +4,7 @@ import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
+import { wikiService } from '../common/wikiService.js';
 import { getPageUrl, formatEditComment } from '../common/utils.js';
 
 export function createPageTool( server: McpServer ): RegisteredTool {
@@ -36,7 +37,15 @@ export async function handleCreatePageTool(
 	try {
 		const mwn = await getMwn();
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const options = contentModel === undefined ? {} : { contentmodel: contentModel as any };
+		const options: { contentmodel?: any; tags?: string | string[] } = {};
+		if ( contentModel !== undefined ) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			options.contentmodel = contentModel as any;
+		}
+		const { config } = wikiService.getCurrent();
+		if ( config.tags !== undefined ) {
+			options.tags = config.tags;
+		}
 		const result = await mwn.create(
 			title, source,
 			formatEditComment( 'create-page', comment ),
