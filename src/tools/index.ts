@@ -2,6 +2,8 @@
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 /* eslint-enable n/no-missing-import */
 
+import { wikiService } from '../common/wikiService.js';
+
 import { getPageTool } from './get-page.js';
 import { getPagesTool } from './get-pages.js';
 import { getPageHistoryTool } from './get-page-history.js';
@@ -22,7 +24,9 @@ import { searchPageByPrefixTool } from './search-page-by-prefix.js';
 import { parseWikitextTool } from './parse-wikitext.js';
 import { comparePagesTool } from './compare-pages.js';
 
-const toolRegistrars = [
+type ToolRegistrar = ( server: McpServer ) => RegisteredTool;
+
+const toolRegistrars: ToolRegistrar[] = [
 	getPageTool,
 	getPagesTool,
 	getPageHistoryTool,
@@ -44,14 +48,23 @@ const toolRegistrars = [
 	comparePagesTool
 ];
 
+const wikiManagementRegistrars: Set<ToolRegistrar> = new Set( [ addWikiTool, removeWikiTool ] );
+
 export function registerAllTools( server: McpServer ): RegisteredTool[] {
-	const registeredTools: RegisteredTool[] = [];
+	const registered: RegisteredTool[] = [];
+	const allowManagement = wikiService.isWikiManagementAllowed();
+
 	for ( const registrar of toolRegistrars ) {
 		try {
-			registeredTools.push( registrar( server ) );
+			const tool = registrar( server );
+			if ( !allowManagement && wikiManagementRegistrars.has( registrar ) ) {
+				tool.disable();
+			}
+			registered.push( tool );
 		} catch ( error ) {
 			console.error( `Error registering tool: ${ ( error as Error ).message }` );
 		}
 	}
-	return registeredTools;
+
+	return registered;
 }

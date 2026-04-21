@@ -9,7 +9,7 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 
 | Name | Description | Permissions |
 |---|---|---|
-| `add-wiki` | Adds a new wiki as an MCP resource from a URL. | - |
+| `add-wiki` | Adds a new wiki as an MCP resource from a URL. Disabled when `allowWikiManagement` is `false`. | - |
 | `compare-pages` | Diff two versions of a wiki page by revision, title, or supplied wikitext. | - |
 | `create-page` 🔐 | Create a new wiki page. | `Create, edit, and move pages` |
 | `delete-page` 🔐 | Delete a wiki page. | `Delete pages, revisions, and log entries` |
@@ -20,7 +20,7 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | `get-pages` | Returns multiple wiki pages in one call (up to 50). | - |
 | `get-revision` | Returns the standard revision object for a page. | - |
 | `parse-wikitext` | Renders wikitext and returns the HTML, parse warnings, wikilinks, templates, and external URLs without saving a page. | - |
-| `remove-wiki` | Removes a wiki resource. | - |
+| `remove-wiki` | Removes a wiki resource. Disabled when `allowWikiManagement` is `false`. | - |
 | `search-page` | Search wiki page titles and contents for the provided search terms. | - |
 | `search-page-by-prefix` | Perform a prefix search for page titles. | - |
 | `set-wiki` | Sets the wiki resource to use for the current session. | - |
@@ -83,6 +83,7 @@ Create a `config.json` file to configure wiki connections. Use the `config.examp
 
 ```json
 {
+  "allowWikiManagement": true,
   "defaultWiki": "en.wikipedia.org",
   "wikis": {
     "en.wikipedia.org": {
@@ -103,6 +104,7 @@ Create a `config.json` file to configure wiki connections. Use the `config.examp
 
 | Field | Description |
 |---|---|
+| `allowWikiManagement` | Enables the `add-wiki` and `remove-wiki` tools. Set to `false` to freeze the list of configured wikis. Default: `true` |
 | `defaultWiki` | The default wiki identifier to use (matches a key in `wikis`) |
 | `wikis` | Object containing wiki configurations, keyed by domain/identifier |
 

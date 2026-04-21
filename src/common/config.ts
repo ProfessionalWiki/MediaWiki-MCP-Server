@@ -41,6 +41,11 @@ export type PublicWikiConfig = Omit<WikiConfig, 'token' | 'username' | 'password
 export interface Config {
 	wikis: { [key: string]: WikiConfig };
 	defaultWiki: string;
+	/**
+	 * When false, the `add-wiki` and `remove-wiki` tools are disabled, freezing
+	 * the configured wiki set at startup. Defaults to true.
+	 */
+	allowWikiManagement?: boolean;
 }
 
 export const defaultConfig: Config = {
