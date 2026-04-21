@@ -132,4 +132,31 @@ describe( 'update-page', () => {
 		const opts = mock.save.mock.calls[ 0 ][ 3 ];
 		expect( opts ).not.toHaveProperty( 'tags' );
 	} );
+
+	it( 'treats null tags as unset on save', async () => {
+		vi.mocked( wikiService.getCurrent ).mockReturnValueOnce( {
+			key: 'test-wiki',
+			config: {
+				server: 'https://test.wiki',
+				articlepath: '/wiki',
+				scriptpath: '/w',
+				tags: null
+			}
+		} as ReturnType<typeof wikiService.getCurrent> );
+
+		const mock = createMockMwn( {
+			save: vi.fn().mockResolvedValue( {
+				result: 'Success', pageid: 9, title: 'Null Tagged',
+				contentmodel: 'wikitext', oldrevid: 70, newrevid: 71,
+				newtimestamp: '2026-01-02T00:00:00Z'
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+		await handleUpdatePageTool( 'Null Tagged', 'content', undefined, 'summary' );
+
+		const opts = mock.save.mock.calls[ 0 ][ 3 ];
+		expect( opts ).not.toHaveProperty( 'tags' );
+	} );
 } );

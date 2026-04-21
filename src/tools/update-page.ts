@@ -44,7 +44,7 @@ export async function handleUpdatePageTool(
 			options.baserevid = latestId;
 		}
 		const { config } = wikiService.getCurrent();
-		if ( config.tags !== undefined ) {
+		if ( config.tags !== null && config.tags !== undefined ) {
 			options.tags = config.tags;
 		}
 		const result = await mwn.save(

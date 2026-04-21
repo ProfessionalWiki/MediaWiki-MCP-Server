@@ -40,7 +40,7 @@ export interface WikiConfig {
 	 * Special:Tags on the target wiki). If the tag is not applicable to
 	 * the action, MediaWiki returns a badtags error and the write fails.
 	 */
-	tags?: string | string[];
+	tags?: string | string[] | null;
 }
 
 export type PublicWikiConfig = Omit<WikiConfig, 'token' | 'username' | 'password'>;

@@ -37,7 +37,7 @@ export async function handleUndeletePageTool(
 		const mwn = await getMwn();
 		const { config } = wikiService.getCurrent();
 		const options: ApiUndeleteParams = {};
-		if ( config.tags !== undefined ) {
+		if ( config.tags !== null && config.tags !== undefined ) {
 			options.tags = config.tags;
 		}
 		data = await mwn.undelete(

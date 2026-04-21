@@ -112,4 +112,31 @@ describe( 'create-page', () => {
 		const opts = mock.create.mock.calls[ 0 ][ 3 ];
 		expect( opts ).not.toHaveProperty( 'tags' );
 	} );
+
+	it( 'treats null tags as unset', async () => {
+		vi.mocked( wikiService.getCurrent ).mockReturnValueOnce( {
+			key: 'test-wiki',
+			config: {
+				server: 'https://test.wiki',
+				articlepath: '/wiki',
+				scriptpath: '/w',
+				tags: null
+			}
+		} as ReturnType<typeof wikiService.getCurrent> );
+
+		const mock = createMockMwn( {
+			create: vi.fn().mockResolvedValue( {
+				result: 'Success', pageid: 14, title: 'Null Tagged Page',
+				contentmodel: 'wikitext', oldrevid: 0, newrevid: 5,
+				newtimestamp: '2026-01-01T00:00:00Z'
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleCreatePageTool } = await import( '../../src/tools/create-page.js' );
+		await handleCreatePageTool( 'Hello', 'Null Tagged Page', undefined, undefined );
+
+		const opts = mock.create.mock.calls[ 0 ][ 3 ];
+		expect( opts ).not.toHaveProperty( 'tags' );
+	} );
 } );

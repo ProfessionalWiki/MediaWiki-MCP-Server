@@ -42,7 +42,7 @@ export async function handleCreatePageTool(
 			options.contentmodel = contentModel as ApiEditPageParams[ 'contentmodel' ];
 		}
 		const { config } = wikiService.getCurrent();
-		if ( config.tags !== undefined ) {
+		if ( config.tags !== null && config.tags !== undefined ) {
 			options.tags = config.tags;
 		}
 		const result = await mwn.create(

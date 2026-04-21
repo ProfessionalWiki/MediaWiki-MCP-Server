@@ -37,7 +37,7 @@ export async function handleDeletePageTool(
 		const mwn = await getMwn();
 		const { config } = wikiService.getCurrent();
 		const options: ApiDeleteParams = {};
-		if ( config.tags !== undefined ) {
+		if ( config.tags !== null && config.tags !== undefined ) {
 			options.tags = config.tags;
 		}
 		data = await mwn.delete(

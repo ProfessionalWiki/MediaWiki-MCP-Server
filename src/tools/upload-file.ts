@@ -60,7 +60,7 @@ function getApiUploadParams( comment?: string ): ApiUploadParams {
 		comment: formatEditComment( 'upload-file', comment )
 	};
 	const { config } = wikiService.getCurrent();
-	if ( config.tags !== undefined ) {
+	if ( config.tags !== null && config.tags !== undefined ) {
 		params.tags = config.tags;
 	}
 	return params;
