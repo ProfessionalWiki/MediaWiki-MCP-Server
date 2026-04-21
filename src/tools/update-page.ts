@@ -9,11 +9,11 @@ import { getPageUrl, formatEditComment } from '../common/utils.js';
 export function updatePageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'update-page',
-		'Updates a wiki page. Replaces the existing content of a page with the provided content',
+		'Updates a wiki page. Replaces the existing content of a page with the provided content. Optionally pass latestId (from get-page with metadata=true) to enable edit-conflict detection.',
 		{
 			title: z.string().describe( 'Wiki page title' ),
 			source: z.string().describe( 'Page content in the same content model of the existing page' ),
-			latestId: z.number().int().positive().describe( 'Revision ID used as the base for the new source' ),
+			latestId: z.number().int().positive().optional().describe( 'Optional base revision ID for edit-conflict detection; obtain from get-page with metadata=true. If omitted, the update is applied without conflict detection.' ),
 			comment: z.string().optional().describe( 'Summary of the edit' )
 		},
 		{
@@ -30,17 +30,21 @@ export function updatePageTool( server: McpServer ): RegisteredTool {
 export async function handleUpdatePageTool(
 	title: string,
 	source: string,
-	latestId: number,
+	latestId?: number,
 	comment?: string
 ): Promise<CallToolResult> {
 	try {
 		const mwn = await getMwn();
+		// nocreate: fail if the page does not exist, so a mis-typed
+		// title doesn't silently create a new page.
+		const options: { nocreate: true; baserevid?: number } = { nocreate: true };
+		if ( latestId !== undefined ) {
+			options.baserevid = latestId;
+		}
 		const result = await mwn.save(
 			title, source,
 			formatEditComment( 'update-page', comment ),
-			// nocreate: fail if the page does not exist, so a mis-typed
-			// title doesn't silently create a new page.
-			{ baserevid: latestId, nocreate: true }
+			options
 		);
 
 		return {
