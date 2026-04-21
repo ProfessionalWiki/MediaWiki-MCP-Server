@@ -3,8 +3,10 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import type { ApiUndeleteResponse } from 'mwn';
+import type { ApiUndeleteParams } from 'types-mediawiki-api';
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
+import { wikiService } from '../common/wikiService.js';
 import { formatEditComment } from '../common/utils.js';
 
 export function undeletePageTool( server: McpServer ): RegisteredTool {
@@ -26,14 +28,23 @@ export function undeletePageTool( server: McpServer ): RegisteredTool {
 	);
 }
 
-async function handleUndeletePageTool(
+export async function handleUndeletePageTool(
 	title: string,
 	comment?: string
 ): Promise<CallToolResult> {
 	let data: ApiUndeleteResponse;
 	try {
 		const mwn = await getMwn();
-		data = await mwn.undelete( title, formatEditComment( 'undelete-page', comment ) );
+		const { config } = wikiService.getCurrent();
+		const options: ApiUndeleteParams = {};
+		if ( config.tags !== undefined ) {
+			options.tags = config.tags;
+		}
+		data = await mwn.undelete(
+			title,
+			formatEditComment( 'undelete-page', comment ),
+			options
+		);
 	} catch ( error ) {
 		return {
 			content: [

@@ -3,8 +3,10 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import type { ApiDeleteResponse } from 'mwn';
+import type { ApiDeleteParams } from 'types-mediawiki-api';
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
+import { wikiService } from '../common/wikiService.js';
 import { formatEditComment } from '../common/utils.js';
 
 export function deletePageTool( server: McpServer ): RegisteredTool {
@@ -26,14 +28,23 @@ export function deletePageTool( server: McpServer ): RegisteredTool {
 	);
 }
 
-async function handleDeletePageTool(
+export async function handleDeletePageTool(
 	title: string,
 	comment?: string
 ): Promise<CallToolResult> {
 	let data: ApiDeleteResponse;
 	try {
 		const mwn = await getMwn();
-		data = await mwn.delete( title, formatEditComment( 'delete-page', comment ) );
+		const { config } = wikiService.getCurrent();
+		const options: ApiDeleteParams = {};
+		if ( config.tags !== undefined ) {
+			options.tags = config.tags;
+		}
+		data = await mwn.delete(
+			title,
+			formatEditComment( 'delete-page', comment ),
+			options
+		);
 	} catch ( error ) {
 		return {
 			content: [
