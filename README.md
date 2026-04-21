@@ -402,6 +402,8 @@ The `release` GitHub workflow will trigger automatically:
 
 Contributions are welcome! Please feel free to submit a pull request or open an issue for bugs, feature requests, or suggestions.
 
+When adding or modifying a tool, please read the [tool description style guide](docs/tool-descriptions.md). It covers voice, depth, canonical MediaWiki terminology, and the annotation hints every tool must set.
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
