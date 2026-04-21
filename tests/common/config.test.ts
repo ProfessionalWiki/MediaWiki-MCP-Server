@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'fs';
 
 vi.mock( 'fs' );
-vi.mock( 'child_process' );
 
 const setConfigFile = ( cfg: unknown ) => {
 	vi.mocked( fs.existsSync ).mockReturnValue( true );
@@ -18,11 +17,8 @@ const baseWiki = {
 };
 
 describe( 'loadConfigFromFile', () => {
-	let stderrSpy: ReturnType<typeof vi.spyOn>;
-
 	beforeEach( () => {
 		vi.resetModules();
-		stderrSpy = vi.spyOn( process.stderr, 'write' ).mockImplementation( () => true );
 	} );
 
 	afterEach( () => {

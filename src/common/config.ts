@@ -80,6 +80,10 @@ export const defaultConfig: Config = {
 const SECRET_FIELDS = [ 'token', 'username', 'password' ] as const;
 type SecretFieldName = typeof SECRET_FIELDS[ number ];
 
+function isSecretField( name: string ): name is SecretFieldName {
+	return ( SECRET_FIELDS as readonly string[] ).includes( name );
+}
+
 const configPath = process.env.CONFIG || 'config.json';
 
 function replaceEnvVars( value: string ): string {
@@ -139,8 +143,8 @@ function resolveWiki( raw: unknown, wikiKey: string ): WikiConfig {
 	const src = raw as Record<string, unknown>;
 	const resolved: Record<string, unknown> = {};
 	for ( const [ fieldKey, fieldValue ] of Object.entries( src ) ) {
-		if ( ( SECRET_FIELDS as readonly string[] ).includes( fieldKey ) ) {
-			resolved[ fieldKey ] = resolveSecretField( fieldValue, wikiKey, fieldKey as SecretFieldName );
+		if ( isSecretField( fieldKey ) ) {
+			resolved[ fieldKey ] = resolveSecretField( fieldValue, wikiKey, fieldKey );
 		} else {
 			resolved[ fieldKey ] = replaceEnvVarsInObject( fieldValue );
 		}
