@@ -3,6 +3,7 @@ import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server
 /* eslint-enable n/no-missing-import */
 
 import { getPageTool } from './get-page.js';
+import { getPagesTool } from './get-pages.js';
 import { getPageHistoryTool } from './get-page-history.js';
 import { searchPageTool } from './search-page.js';
 import { setWikiTool } from './set-wiki.js';
@@ -21,6 +22,7 @@ import { searchPageByPrefixTool } from './search-page-by-prefix.js';
 
 const toolRegistrars = [
 	getPageTool,
+	getPagesTool,
 	getPageHistoryTool,
 	searchPageTool,
 	setWikiTool,
