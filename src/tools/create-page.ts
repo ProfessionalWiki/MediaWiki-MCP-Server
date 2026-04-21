@@ -2,8 +2,10 @@ import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { ApiEditPageParams } from 'types-mediawiki-api';
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
+import { wikiService } from '../common/wikiService.js';
 import { getPageUrl, formatEditComment } from '../common/utils.js';
 
 export function createPageTool( server: McpServer ): RegisteredTool {
@@ -35,8 +37,14 @@ export async function handleCreatePageTool(
 ): Promise<CallToolResult> {
 	try {
 		const mwn = await getMwn();
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const options = contentModel === undefined ? {} : { contentmodel: contentModel as any };
+		const options: ApiEditPageParams = {};
+		if ( contentModel !== undefined ) {
+			options.contentmodel = contentModel as ApiEditPageParams[ 'contentmodel' ];
+		}
+		const { config } = wikiService.getCurrent();
+		if ( config.tags !== null && config.tags !== undefined ) {
+			options.tags = config.tags;
+		}
 		const result = await mwn.create(
 			title, source,
 			formatEditComment( 'create-page', comment ),

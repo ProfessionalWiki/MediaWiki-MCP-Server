@@ -12,6 +12,7 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
+import { wikiService } from '../../src/common/wikiService.js';
 
 describe( 'update-page', () => {
 	beforeEach( () => { vi.clearAllMocks(); } );
@@ -86,5 +87,76 @@ describe( 'update-page', () => {
 
 		expect( result.isError ).toBe( true );
 		expect( result.content[ 0 ].text ).toContain( 'doesn\'t exist' );
+	} );
+
+	it( 'forwards configured array tags to mwn.save()', async () => {
+		vi.mocked( wikiService.getCurrent ).mockReturnValueOnce( {
+			key: 'test-wiki',
+			config: {
+				server: 'https://test.wiki',
+				articlepath: '/wiki',
+				scriptpath: '/w',
+				tags: [ 'mcp-server', 'automated' ]
+			}
+		} as ReturnType<typeof wikiService.getCurrent> );
+
+		const mock = createMockMwn( {
+			save: vi.fn().mockResolvedValue( {
+				result: 'Success', pageid: 7, title: 'Tagged Page',
+				contentmodel: 'wikitext', oldrevid: 50, newrevid: 51,
+				newtimestamp: '2026-01-02T00:00:00Z'
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+		await handleUpdatePageTool( 'Tagged Page', 'content', 50, 'summary' );
+
+		const opts = mock.save.mock.calls[ 0 ][ 3 ];
+		expect( opts ).toHaveProperty( 'tags', [ 'mcp-server', 'automated' ] );
+	} );
+
+	it( 'omits tags from save options when not configured', async () => {
+		const mock = createMockMwn( {
+			save: vi.fn().mockResolvedValue( {
+				result: 'Success', pageid: 8, title: 'Untagged',
+				contentmodel: 'wikitext', oldrevid: 60, newrevid: 61,
+				newtimestamp: '2026-01-02T00:00:00Z'
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+		await handleUpdatePageTool( 'Untagged', 'content', undefined, 'summary' );
+
+		const opts = mock.save.mock.calls[ 0 ][ 3 ];
+		expect( opts ).not.toHaveProperty( 'tags' );
+	} );
+
+	it( 'treats null tags as unset on save', async () => {
+		vi.mocked( wikiService.getCurrent ).mockReturnValueOnce( {
+			key: 'test-wiki',
+			config: {
+				server: 'https://test.wiki',
+				articlepath: '/wiki',
+				scriptpath: '/w',
+				tags: null
+			}
+		} as ReturnType<typeof wikiService.getCurrent> );
+
+		const mock = createMockMwn( {
+			save: vi.fn().mockResolvedValue( {
+				result: 'Success', pageid: 9, title: 'Null Tagged',
+				contentmodel: 'wikitext', oldrevid: 70, newrevid: 71,
+				newtimestamp: '2026-01-02T00:00:00Z'
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+		await handleUpdatePageTool( 'Null Tagged', 'content', undefined, 'summary' );
+
+		const opts = mock.save.mock.calls[ 0 ][ 3 ];
+		expect( opts ).not.toHaveProperty( 'tags' );
 	} );
 } );

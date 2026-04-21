@@ -6,6 +6,7 @@ import type { ApiUploadParams } from 'types-mediawiki-api';
 /* eslint-enable n/no-missing-import */
 import type { ApiUploadResponse } from 'mwn';
 import { getMwn } from '../common/mwn.js';
+import { wikiService } from '../common/wikiService.js';
 import { formatEditComment } from '../common/utils.js';
 
 export function uploadFileTool( server: McpServer ): RegisteredTool {
@@ -29,7 +30,7 @@ export function uploadFileTool( server: McpServer ): RegisteredTool {
 	);
 }
 
-async function handleUploadFileTool(
+export async function handleUploadFileTool(
 	filepath: string, title: string, text: string, comment?: string
 ): Promise< CallToolResult > {
 
@@ -55,9 +56,14 @@ async function handleUploadFileTool(
 }
 
 function getApiUploadParams( comment?: string ): ApiUploadParams {
-	return {
+	const params: ApiUploadParams = {
 		comment: formatEditComment( 'upload-file', comment )
 	};
+	const { config } = wikiService.getCurrent();
+	if ( config.tags !== null && config.tags !== undefined ) {
+		params.tags = config.tags;
+	}
+	return params;
 }
 
 function uploadFileToolResult( data: ApiUploadResponse ): TextContent[] {

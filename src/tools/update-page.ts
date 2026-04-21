@@ -2,8 +2,10 @@ import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { ApiEditPageParams } from 'types-mediawiki-api';
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
+import { wikiService } from '../common/wikiService.js';
 import { getPageUrl, formatEditComment } from '../common/utils.js';
 
 export function updatePageTool( server: McpServer ): RegisteredTool {
@@ -37,9 +39,13 @@ export async function handleUpdatePageTool(
 		const mwn = await getMwn();
 		// nocreate: fail if the page does not exist, so a mis-typed
 		// title doesn't silently create a new page.
-		const options: { nocreate: true; baserevid?: number } = { nocreate: true };
+		const options: ApiEditPageParams = { nocreate: true };
 		if ( latestId !== undefined ) {
 			options.baserevid = latestId;
+		}
+		const { config } = wikiService.getCurrent();
+		if ( config.tags !== null && config.tags !== undefined ) {
+			options.tags = config.tags;
 		}
 		const result = await mwn.save(
 			title, source,
