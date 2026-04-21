@@ -7,10 +7,33 @@ import { getMwn } from '../common/mwn.js';
 
 const DEFAULT_TITLE = 'API';
 
+type CategoryItem = { category: string; hidden?: boolean };
+type LinkItem = { title: string; exists?: boolean };
+
+function formatCategory( item: CategoryItem ): string {
+	const suffix = item.hidden ? ' (hidden)' : '';
+	return `- Category:${ item.category }${ suffix }`;
+}
+
+function formatLinkLike( item: LinkItem ): string {
+	const suffix = item.exists === false ? ' (missing)' : '';
+	return `- ${ item.title }${ suffix }`;
+}
+
+function bulletSection( header: string, lines: string[] ): TextContent | null {
+	if ( lines.length === 0 ) {
+		return null;
+	}
+	return {
+		type: 'text',
+		text: `${ header }:\n${ lines.join( '\n' ) }`
+	};
+}
+
 export function parseWikitextTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'parse-wikitext',
-		'Preview rendered wikitext without saving. Returns HTML, parse warnings, categories, links, templates, external links, and display title. Use this to verify sanitizer compliance, template expansion, and link resolution before committing an edit — or to test a wikitext combination that has no target page.',
+		'Render or preview wikitext through the live wiki without saving. Returns HTML, parse warnings, categories, wikilinks, templates, external URLs, and display title. Use this before create-page or update-page to dry-run a planned edit, or on standalone wikitext (template combinations, sanitizer checks) with no target page.',
 		{
 			wikitext: z.string().min( 1 ).describe( 'Wikitext source to render' ),
 			title: z.string().optional().describe(
@@ -25,8 +48,9 @@ export function parseWikitextTool( server: McpServer ): RegisteredTool {
 			readOnlyHint: true,
 			destructiveHint: false
 		} as ToolAnnotations,
-		async ( { wikitext, title, applyPreSaveTransform } ) =>
+		async ( { wikitext, title, applyPreSaveTransform } ) => (
 			handleParseWikitextTool( wikitext, title, applyPreSaveTransform )
+		)
 	);
 }
 
@@ -42,7 +66,7 @@ export async function handleParseWikitextTool(
 			text: wikitext,
 			title: title ?? DEFAULT_TITLE,
 			pst: applyPreSaveTransform,
-			prop: 'text|parsewarnings',
+			prop: 'text|parsewarnings|categories|links|templates|externallinks|displaytitle',
 			formatversion: '2'
 		} );
 
@@ -62,6 +86,44 @@ export async function handleParseWikitextTool(
 			type: 'text',
 			text: `HTML:\n${ html }`
 		} );
+
+		const effectiveTitle = title ?? DEFAULT_TITLE;
+		const displayTitle: string | undefined = parse.displaytitle;
+		if ( typeof displayTitle === 'string' && displayTitle !== effectiveTitle ) {
+			results.push( {
+				type: 'text',
+				text: `Display title: ${ displayTitle }`
+			} );
+		}
+
+		const categories: CategoryItem[] = Array.isArray( parse.categories ) ?
+			parse.categories : [];
+		const categoriesBlock = bulletSection( 'Categories', categories.map( formatCategory ) );
+		if ( categoriesBlock ) {
+			results.push( categoriesBlock );
+		}
+
+		const links: LinkItem[] = Array.isArray( parse.links ) ? parse.links : [];
+		const linksBlock = bulletSection( 'Links', links.map( formatLinkLike ) );
+		if ( linksBlock ) {
+			results.push( linksBlock );
+		}
+
+		const templates: LinkItem[] = Array.isArray( parse.templates ) ? parse.templates : [];
+		const templatesBlock = bulletSection( 'Templates', templates.map( formatLinkLike ) );
+		if ( templatesBlock ) {
+			results.push( templatesBlock );
+		}
+
+		const externallinks: string[] = Array.isArray( parse.externallinks ) ?
+			parse.externallinks : [];
+		const externalsBlock = bulletSection(
+			'External links',
+			externallinks.map( ( url ) => `- ${ url }` )
+		);
+		if ( externalsBlock ) {
+			results.push( externalsBlock );
+		}
 
 		return { content: results };
 	} catch ( error ) {
