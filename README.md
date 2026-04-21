@@ -17,6 +17,7 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | `get-page` | Returns the standard page object for a wiki page. | - |
 | `get-page-history` | Returns information about the latest revisions to a wiki page. | - |
 | `get-revision` | Returns the standard revision object for a page. | - |
+| `parse-wikitext` | Renders wikitext and returns the HTML, parse warnings, wikilinks, templates, and external URLs without saving a page. | - |
 | `remove-wiki` | Removes a wiki resource. | - |
 | `search-page` | Search wiki page titles and contents for the provided search terms. | - |
 | `search-page-by-prefix` | Perform a prefix search for page titles. | - |
