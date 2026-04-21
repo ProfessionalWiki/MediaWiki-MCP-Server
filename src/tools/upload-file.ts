@@ -12,17 +12,19 @@ import { formatEditComment } from '../common/utils.js';
 export function uploadFileTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'upload-file',
-		'Uploads a file to the wiki from the local disk.',
+		'Uploads a file from the local disk into the wiki\'s File namespace and returns the resulting file title and URL. Fails if a file with the target title already exists (the wiki does not silently overwrite existing files). To upload directly from a remote web address instead of a local path, use upload-file-from-url.',
 		{
 			filepath: z.string().describe( 'File path on the local disk' ),
-			title: z.string().describe( 'File title' ),
+			title: z.string().describe( 'File title (with or without the "File:" prefix)' ),
 			text: z.string().describe( 'Wikitext on the file page' ),
 			comment: z.string().optional().describe( 'Reason for uploading the file' )
 		},
 		{
 			title: 'Upload file',
 			readOnlyHint: false,
-			destructiveHint: true
+			destructiveHint: false,
+			idempotentHint: true,
+			openWorldHint: true
 		} as ToolAnnotations,
 		async (
 			{ filepath, title, text, comment }

@@ -33,11 +33,11 @@ function bulletSection( header: string, lines: string[] ): TextContent | null {
 export function parseWikitextTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'parse-wikitext',
-		'Render or preview wikitext through the live wiki without saving. Returns HTML, parse warnings, categories, wikilinks, templates, external URLs, and display title. Use this before create-page or update-page to dry-run a planned edit, or on standalone wikitext (template combinations, sanitizer checks) with no target page.',
+		'Renders wikitext through the live wiki without saving. Returns HTML, parse warnings, categories, wikilinks, templates, external URLs, and display title. Suited to dry-running a planned edit before create-page or update-page, or previewing standalone wikitext (template combinations, sanitizer checks) with no target page.',
 		{
-			wikitext: z.string().min( 1 ).describe( 'Wikitext source to render' ),
+			wikitext: z.string().min( 1 ).describe( 'Wikitext to render' ),
 			title: z.string().optional().describe(
-				'Page title context for magic words like {{PAGENAME}}. Defaults to "API".'
+				'Wiki page title providing context for magic words like {{PAGENAME}}. Defaults to "API".'
 			),
 			applyPreSaveTransform: z.boolean().optional().default( true ).describe(
 				'Apply pre-save transform (expand ~~~~ signatures, {{subst:}}, normalize whitespace). Matches editor "Show preview" behavior.'
@@ -46,7 +46,9 @@ export function parseWikitextTool( server: McpServer ): RegisteredTool {
 		{
 			title: 'Preview wikitext',
 			readOnlyHint: true,
-			destructiveHint: false
+			destructiveHint: false,
+			idempotentHint: true,
+			openWorldHint: true
 		} as ToolAnnotations,
 		async ( { wikitext, title, applyPreSaveTransform } ) => (
 			handleParseWikitextTool( wikitext, title, applyPreSaveTransform )

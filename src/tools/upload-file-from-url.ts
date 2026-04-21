@@ -12,17 +12,19 @@ import { formatEditComment } from '../common/utils.js';
 export function uploadFileFromUrlTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'upload-file-from-url',
-		'Uploads a file to the wiki from a web URL.',
+		'Fetches a file from a remote web URL and uploads it into the wiki\'s File namespace, returning the resulting file title and URL. Requires the wiki to have upload-by-URL enabled; if it is disabled, download the file locally and use upload-file instead. Fails if a file with the target title already exists.',
 		{
 			url: z.string().url().describe( 'URL of the file to upload' ),
-			title: z.string().describe( 'File title' ),
+			title: z.string().describe( 'File title (with or without the "File:" prefix)' ),
 			text: z.string().describe( 'Wikitext on the file page' ),
 			comment: z.string().optional().describe( 'Reason for uploading the file' )
 		},
 		{
 			title: 'Upload file from URL',
 			readOnlyHint: false,
-			destructiveHint: true
+			destructiveHint: false,
+			idempotentHint: true,
+			openWorldHint: true
 		} as ToolAnnotations,
 		async (
 			{ url, title, text, comment }

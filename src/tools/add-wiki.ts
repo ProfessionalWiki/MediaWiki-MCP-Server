@@ -9,13 +9,16 @@ import { discoverWiki } from '../common/wikiDiscovery.js';
 export function addWikiTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'add-wiki',
-		'Adds a new wiki to the MCP resources from a URL.',
+		'Registers a new wiki as an MCP resource by fetching its sitename and API configuration from any URL on the wiki (e.g. a page URL). The wiki becomes selectable via set-wiki at mcp://wikis/<servername>. Fails if the URL is not a MediaWiki wiki or if a wiki with the same key is already registered.',
 		{
 			wikiUrl: z.string().url().describe( 'Any URL from the target wiki (e.g. https://en.wikipedia.org/wiki/Main_Page)' )
 		},
 		{
 			title: 'Add wiki',
-			destructiveHint: true
+			readOnlyHint: false,
+			destructiveHint: false,
+			idempotentHint: true,
+			openWorldHint: true
 		} as ToolAnnotations,
 		( { wikiUrl } ) => handleAddWikiTool( server, wikiUrl )
 	);

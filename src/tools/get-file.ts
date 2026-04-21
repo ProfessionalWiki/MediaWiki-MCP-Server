@@ -9,14 +9,16 @@ import type { ApiPage, ImageInfo } from 'mwn';
 export function getFileTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'get-file',
-		'Returns information about a file, including links to download the file in thumbnail, preview, and original formats.',
+		'Returns metadata for a file (uploader, timestamp, size, MIME type) along with download URLs for the thumbnail, preview, and original. The File: prefix is added automatically if omitted.',
 		{
-			title: z.string().describe( 'File title' )
+			title: z.string().describe( 'File title (with or without the "File:" prefix)' )
 		},
 		{
 			title: 'Get file',
 			readOnlyHint: true,
-			destructiveHint: false
+			destructiveHint: false,
+			idempotentHint: true,
+			openWorldHint: true
 		} as ToolAnnotations,
 		async ( { title } ) => handleGetFileTool( title )
 	);

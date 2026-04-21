@@ -34,20 +34,22 @@ type Side = 'from' | 'to';
 export function comparePagesTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'compare-pages',
-		'Returns the changes between two versions of a wiki page as a compact text diff. Each side accepts a revision ID, page title (latest revision), or supplied wikitext; text-vs-text is rejected. Use this instead of fetching both sources and diffing locally — only the changes are returned. Set includeDiff=false for a cheap change-detection response that skips diff rendering and returns just the change flag, revision metadata, and size delta.',
+		'Returns the changes between two versions of a wiki page as a compact text diff. Each side accepts a revision ID, page title (latest revision), or supplied wikitext; text-vs-text is rejected. Cheaper than fetching both sources and diffing locally, because only the changes are returned. If a title or revision ID does not exist, an error is returned. Set includeDiff=false for a cheap change-detection response that skips diff rendering and returns just the change flag, revision metadata, and size delta.',
 		{
 			fromRevision: z.number().int().positive().optional().describe( 'Revision ID for the "from" side' ),
-			fromTitle: z.string().optional().describe( 'Page title for the "from" side (latest revision is used)' ),
+			fromTitle: z.string().optional().describe( 'Wiki page title for the "from" side (latest revision is used)' ),
 			fromText: z.string().optional().describe( 'Supplied wikitext for the "from" side' ),
 			toRevision: z.number().int().positive().optional().describe( 'Revision ID for the "to" side' ),
-			toTitle: z.string().optional().describe( 'Page title for the "to" side (latest revision is used)' ),
+			toTitle: z.string().optional().describe( 'Wiki page title for the "to" side (latest revision is used)' ),
 			toText: z.string().optional().describe( 'Supplied wikitext for the "to" side' ),
 			includeDiff: z.boolean().optional().describe( 'Include the diff body (default true). Set false for a cheap change-detection response.' )
 		},
 		{
 			title: 'Compare pages',
 			readOnlyHint: true,
-			destructiveHint: false
+			destructiveHint: false,
+			idempotentHint: true,
+			openWorldHint: true
 		} as ToolAnnotations,
 		async ( args ) => handleComparePagesTool( args as ComparePagesArgs )
 	);

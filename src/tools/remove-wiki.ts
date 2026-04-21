@@ -11,13 +11,16 @@ import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../common/wik
 export function removeWikiTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'remove-wiki',
-		'Removes a wiki from the MCP resources.',
+		'Removes a wiki from the MCP resources. Clears any cached credentials and license metadata for the wiki. Fails if the specified wiki is currently active; call set-wiki to switch to a different wiki first.',
 		{
 			uri: z.string().describe( 'MCP resource URI of the wiki to remove (e.g. mcp://wikis/en.wikipedia.org)' )
 		},
 		{
 			title: 'Remove wiki',
-			destructiveHint: true
+			readOnlyHint: false,
+			destructiveHint: true,
+			idempotentHint: true,
+			openWorldHint: false
 		} as ToolAnnotations,
 		( { uri } ) => handleRemoveWikiTool( server, uri )
 	);

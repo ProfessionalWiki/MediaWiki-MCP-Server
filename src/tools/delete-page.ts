@@ -12,7 +12,7 @@ import { formatEditComment } from '../common/utils.js';
 export function deletePageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'delete-page',
-		'Deletes a wiki page.',
+		'Removes a wiki page from public view and returns the deleted title. This is a soft delete: the page and its revision history remain in the database and can be restored with undelete-page until an administrator purges them. Fails if the page does not exist or the authenticated user lacks the delete permission.',
 		{
 			title: z.string().describe( 'Wiki page title' ),
 			comment: z.string().optional().describe( 'Reason for deleting the page' )
@@ -20,7 +20,9 @@ export function deletePageTool( server: McpServer ): RegisteredTool {
 		{
 			title: 'Delete page',
 			readOnlyHint: false,
-			destructiveHint: true
+			destructiveHint: true,
+			idempotentHint: true,
+			openWorldHint: true
 		} as ToolAnnotations,
 		async (
 			{ title, comment }

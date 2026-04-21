@@ -10,7 +10,7 @@ import { getPageUrl } from '../common/utils.js';
 export function searchPageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'search-page',
-		'Search wiki page titles and contents for the provided search terms, and returns matching pages.',
+		'Searches wiki page titles and page content (full-text) for the provided terms. Returns matching pages with a snippet, size, and timestamp. For title-prefix lookup (e.g. autocomplete), use search-page-by-prefix.',
 		{
 			query: z.string().describe( 'Search terms' ),
 			limit: z.number().int().min( 1 ).max( 100 ).optional().describe( 'Maximum number of search results to return' )
@@ -18,7 +18,9 @@ export function searchPageTool( server: McpServer ): RegisteredTool {
 		{
 			title: 'Search page',
 			readOnlyHint: true,
-			destructiveHint: false
+			destructiveHint: false,
+			idempotentHint: true,
+			openWorldHint: true
 		} as ToolAnnotations,
 		async ( { query, limit } ) => handleSearchPageTool( query, limit )
 	);

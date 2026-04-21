@@ -12,7 +12,7 @@ import { formatEditComment } from '../common/utils.js';
 export function undeletePageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'undelete-page',
-		'Undeletes a wiki page.',
+		'Restores a previously deleted wiki page, including its full revision history, and returns the restored title. The page must currently be in a deleted state (from delete-page); fails if no deleted revisions exist for the title or the authenticated user lacks the undelete permission.',
 		{
 			title: z.string().describe( 'Wiki page title' ),
 			comment: z.string().optional().describe( 'Reason for undeleting the page' )
@@ -20,7 +20,9 @@ export function undeletePageTool( server: McpServer ): RegisteredTool {
 		{
 			title: 'Undelete page',
 			readOnlyHint: false,
-			destructiveHint: true
+			destructiveHint: false,
+			idempotentHint: true,
+			openWorldHint: true
 		} as ToolAnnotations,
 		async (
 			{ title, comment }

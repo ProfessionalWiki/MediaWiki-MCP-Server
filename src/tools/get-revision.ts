@@ -11,7 +11,7 @@ import { ContentFormat } from '../common/contentFormat.js';
 export function getRevisionTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'get-revision',
-		'Returns a revision of a wiki page.',
+		'Returns a specific historical revision of a wiki page by revision ID (wikitext source, rendered HTML, or metadata only). If the revision ID does not exist, an error is returned. For the latest revision plus metadata, use get-page with metadata=true.',
 		{
 			revisionId: z.number().int().positive().describe( 'Revision ID' ),
 			content: z.nativeEnum( ContentFormat ).describe( 'Type of content to return' ).optional().default( ContentFormat.source ),
@@ -20,7 +20,9 @@ export function getRevisionTool( server: McpServer ): RegisteredTool {
 		{
 			title: 'Get revision',
 			readOnlyHint: true,
-			destructiveHint: false
+			destructiveHint: false,
+			idempotentHint: true,
+			openWorldHint: true
 		} as ToolAnnotations,
 		async (
 			{ revisionId, content, metadata }
