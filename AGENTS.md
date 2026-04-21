@@ -1,5 +1,11 @@
 # AGENTS.md
 
+## Contributing new tools
+
+New tools — and changes to existing tool descriptions, parameter documentation, or annotation hints — must follow the [tool description style guide](docs/tool-descriptions.md). The guide covers voice, depth, sibling disambiguation, canonical MediaWiki terminology, and annotation semantics.
+
+Every tool MUST set all four `ToolAnnotations` hints explicitly: `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`. This is not strictly required by the MCP spec but is required by OpenAI's ChatGPT developer mode, which rejects submissions missing any of the first three.
+
 ## Unit Tests
 
 Tool handler functions (`handleXxxTool`) must be exported for testability.

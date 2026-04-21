@@ -1,0 +1,166 @@
+# Tool Description Style Guide
+
+This guide is for anyone adding or modifying a tool in this MCP server. It codifies how to write tool descriptions, parameter documentation, and annotation hints so that LLMs consuming the server can select and use tools correctly.
+
+The guide has two parts:
+
+1. **Generic principles** — applicable to any MCP server. Grounded in published tool-use guidance from Anthropic, OpenAI, and Google.
+2. **MediaWiki conventions** — terminology, sibling-overlap notes, and common error patterns specific to this server.
+
+Read both before adding a new tool or rewriting an existing one.
+
+## Part 1 — Generic principles
+
+### Voice and opening
+
+Write tool descriptions in **third-person descriptive voice**. Start with a verb phrase describing what the tool does.
+
+- Do: `"Returns a wiki page."` / `"Renders wikitext through the live wiki without saving."`
+- Don't: `"This tool returns a wiki page."` (tautological preamble)
+- Don't: `"You should use this tool when..."` (instructs the model in second person)
+- Don't: `"Gets a page"` when the tool name already says `get-page` (tautology — add nothing)
+
+Third-person descriptive voice avoids point-of-view inconsistencies that degrade tool discovery. The description is injected into the system prompt; it should read as a capability statement, not a prompt fragment.
+
+### Coverage: what, when, parameters, caveats
+
+Every description answers at least:
+
+1. **What** the tool does.
+2. **What it returns.**
+
+Depth scales from there based on how much there is to disambiguate. Longer descriptions are warranted when any of the following apply:
+
+- **Sibling overlap.** Another tool in the set does something similar. State when to use this vs. the other.
+- **Non-obvious constraints.** Input combinations that are rejected, behaviour at boundaries, capped or truncated output.
+- **Usage hints.** Soft recommendations that help the model pick this tool for the right workflow.
+
+Apply proportional depth: don't pad simple tools with filler, don't keep tautological tools short. A one-sentence description is fine when there's nothing more to say; a paragraph is fine when there is.
+
+### Don't duplicate the schema
+
+The JSON Schema generated from zod already tells the model:
+
+- Parameter names, types, and required-vs-optional.
+- Enum values (use `z.enum(...)` or `z.nativeEnum(...)` — the model sees them).
+- Defaults (use `.default(...)` — the model sees them).
+
+Do not restate this in prose. Prose is for context the schema cannot express.
+
+### Avoid tautology
+
+A description that restates the tool name adds zero information. `"Deletes a wiki page"` for `delete-page` is a bad description. A better description says what "delete" means in MediaWiki (deleted pages are recoverable via `undelete-page` until purge), what the tool returns, and what errors the caller might see.
+
+### Sibling disambiguation with inline routing hints
+
+When two tools in the set overlap, each description should explicitly say when to pick it vs. the other. Use the pattern "Use this instead of X when Y" or "For Z, use X instead."
+
+Examples applicable to this server:
+
+- `get-page` vs `get-pages`: single vs. batch.
+- `search-page` vs `search-page-by-prefix`: full-text vs. title-prefix.
+- `get-revision` vs `get-page` with `metadata=true`: specific historical revision vs. latest with metadata.
+- `compare-pages` vs. fetching two sources and diffing client-side.
+
+### Don't instruct the model imperatively
+
+Describe the condition under which the tool is useful; let the model decide whether to call it.
+
+- Do: `"Required before interacting with a new wiki."`
+- Don't: `"You MUST call this tool before interacting with a new wiki."`
+
+The rule targets general imperatives aimed at the model ("You MUST...", "You should..."). Sibling routing hints that describe a choice — "For X, use Y" — are allowed because they describe tradeoffs about when each tool is appropriate, not commands. Prefer the "For X, use Y" pattern over "Prefer this over Y" or "Use this instead of Y," which read as instructions to the model.
+
+Imperative instructions to the model ("You should...", "You MUST...") in tool descriptions reduce robustness across different LLM implementations.
+
+### Tool consolidation stance (this codebase)
+
+Anthropic's engineering guidance recommends consolidating multiple actions into a single tool with an `action` parameter. OpenAI's Apps SDK recommends the opposite — one job per tool.
+
+This codebase follows **one job per tool** (separate `create-page`, `update-page`, `delete-page`, etc.). Do not consolidate when adding new tools; match the existing pattern. This is an explicit choice, not an oversight.
+
+### Parameter descriptions
+
+Every parameter has a `.describe()` call. Parameter docs complement the schema; they do not duplicate it.
+
+Parameter descriptions must:
+
+- **State format when non-obvious.** `"Revision ID"` is fine for an integer parameter; `"MCP resource URI of the wiki (e.g. mcp://wikis/en.wikipedia.org)"` is better than `"Wiki URI"`.
+- **Call out cross-parameter constraints.** E.g. `"If olderThan is set, newerThan must not be."` when such a constraint exists.
+- **Reuse canonical phrases** from Part 2 for recurring concepts (page title, revision ID, wikitext, namespace, etc.).
+- **Not restate the zod type.** `"Optional integer"` is redundant when the schema is `z.number().int().optional()`.
+- **Be concise.** A sentence or two per parameter. Complex behaviour belongs in the tool description, not in every parameter.
+
+### Annotation hints
+
+MCP's `ToolAnnotations` exposes four boolean hints that shape how clients route and display tools. Spec defaults exist, but **every tool in this repository sets all four explicitly** because OpenAI's ChatGPT developer mode rejects MCP submissions missing `readOnlyHint`, `destructiveHint`, or `openWorldHint`.
+
+Semantics (from the MCP 2025-11-25 spec):
+
+- **`readOnlyHint`** — if `true`, the tool does not modify its environment. Master switch; when `true`, the other behavioural hints are semantically irrelevant (but still set explicitly for clarity and cross-client compatibility).
+- **`destructiveHint`** — if `true`, the tool may perform destructive updates (delete, overwrite, remove). If `false`, the tool performs only additive updates (create new without replacing). Only meaningful when `readOnlyHint: false`. Spec default is `true`.
+- **`idempotentHint`** — if `true`, calling the tool repeatedly with the same arguments has no additional effect on the environment beyond the first call. A call that errors but leaves state unchanged still counts as idempotent. Only meaningful when `readOnlyHint: false`. Spec default is `false`.
+- **`openWorldHint`** — if `true`, the tool interacts with external entities (e.g. a remote API). If `false`, the tool's world is self-contained (server-local state only). Spec default is `true`.
+
+**Decision guide:**
+
+- Pure read-only tools: `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: true` (for tools that read from the wiki).
+- Write tools that delete, overwrite, or remove: `readOnlyHint: false`, `destructiveHint: true`.
+- Write tools that only add (create, append, upload-new): `readOnlyHint: false`, `destructiveHint: false`.
+- If the tool does not make network calls and only mutates server-local state (e.g. selecting the active wiki), `openWorldHint: false`.
+
+### Tool titles
+
+The `title` field on `ToolAnnotations` is a human-readable UI label. Use **sentence case**, **imperative verb phrasing**:
+
+- Do: `"Get page"`, `"Compare pages"`, `"Preview wikitext"`.
+- Don't: `"Get Page"` (title case), `"Page retrieval"` (nominal phrasing).
+
+Primarily a UI label. Don't rely on `title` for model routing — put disambiguation in the description.
+
+## Part 2 — MediaWiki conventions
+
+### Canonical terminology
+
+Use these exact terms in descriptions and parameter docs. Do not introduce synonyms.
+
+| Concept | Canonical term | Notes |
+|---|---|---|
+| Addressable content unit | **wiki page** | Not "article" (which is a specific namespace). |
+| Human-readable title | **page title** | Includes namespace prefix for non-main namespaces (e.g. `Talk:Foo`, `File:Bar.png`). |
+| Numeric revision identifier | **revision ID** | Not "revision number" or "revid". |
+| MediaWiki markup source | **wikitext** | Never "wiki source" or "wiki markup" in user-facing prose. |
+| Namespace identifier (integer) | **namespace ID** | Parameter descriptions state "Namespace ID"; prose may mention the namespace name parenthetically. |
+| Content format (wikitext, javascript, css, etc.) | **content model** | Matches MediaWiki's `contentmodel` API field. |
+
+### Page title vs file title
+
+File titles are page titles in the File namespace. The distinction surfaces at the parameter level:
+
+- For tools operating on any page (including file pages): use `"Wiki page title"` in the parameter description.
+- For tools operating specifically on file pages (`get-file`, `upload-file`, `upload-file-from-url`): use `"File title"` in the parameter description for clarity.
+
+Do not interchange these.
+
+### Common MediaWiki error patterns
+
+When an LLM invokes a tool that fails with one of these errors, the caller needs to understand what happened. Descriptions for tools that expose these errors should mention the condition (not the error code).
+
+- **`badtags`** — a change tag is configured that is not registered or not applicable to this action. Surfaces from write tools when the wiki's `tags` config is misset.
+- **`missingtitle`** — the target page does not exist. Surfaces from `get-page`, `update-page`, `compare-pages`, `get-page-history`.
+- **`nosuchrevid`** — the requested revision ID does not exist. Surfaces from `get-revision`, `compare-pages`.
+
+Example phrasing: `"Returns a wiki page. If the title does not exist, an error is returned."` — not `"...a missingtitle error is returned."`
+
+### Sibling overlap pairs in this codebase
+
+When writing or updating a tool in these pairs, each side's description should explicitly say when to use it vs. the other:
+
+- **`get-page` vs `get-pages`** — single page (supports full content formats including HTML) vs. batch (up to 50 pages, source or none).
+- **`search-page` vs `search-page-by-prefix`** — full-text content search vs. title-prefix search.
+- **`get-revision` vs `get-page` with `metadata=true`** — fetch a specific historical revision vs. fetch the latest revision with metadata attached.
+- **`compare-pages` vs. client-side diff** — `compare-pages` computes the diff server-side and returns a compact text diff; prefer it over fetching both sources and diffing locally.
+
+### Tool-consolidation stance
+
+This codebase keeps separate tools for distinct actions on the same object (create-page, update-page, delete-page, undelete-page). When adding a new tool, do not bundle multiple actions into a single tool with an `action` parameter; match the existing one-tool-per-action pattern.
