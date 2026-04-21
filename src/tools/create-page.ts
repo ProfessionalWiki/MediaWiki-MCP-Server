@@ -2,6 +2,7 @@ import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { ApiEditPageParams } from 'types-mediawiki-api';
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import { wikiService } from '../common/wikiService.js';
@@ -36,11 +37,9 @@ export async function handleCreatePageTool(
 ): Promise<CallToolResult> {
 	try {
 		const mwn = await getMwn();
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const options: { contentmodel?: any; tags?: string | string[] } = {};
+		const options: ApiEditPageParams = {};
 		if ( contentModel !== undefined ) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			options.contentmodel = contentModel as any;
+			options.contentmodel = contentModel as ApiEditPageParams[ 'contentmodel' ];
 		}
 		const { config } = wikiService.getCurrent();
 		if ( config.tags !== undefined ) {
