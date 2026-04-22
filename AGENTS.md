@@ -1,71 +1,35 @@
 # AGENTS.md
 
-## Contributing new tools
+Project context for AI coding agents working on this repo. For human users, start from [README.md](README.md).
 
-New tools — and changes to existing tool descriptions, parameter documentation, or annotation hints — must follow the [tool conventions](docs/tool-conventions.md). The guide covers voice, depth, sibling disambiguation, canonical MediaWiki terminology, and annotation semantics.
+## Repo layout
 
-Every tool MUST set all four `ToolAnnotations` hints explicitly: `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`. This is not strictly required by the MCP spec but is required by OpenAI's ChatGPT developer mode, which rejects submissions missing any of the first three.
+- `src/tools/` — one file per MCP tool (`handleXxxTool` handler + schema + registration).
+- `src/common/` — `mwn` wrapper, `wikiService`, config loading and substitution.
+- `src/resources/` — MCP resources exposing `mcp://wikis/{wikiKey}`.
+- `src/server.ts`, `src/stdio.ts`, `src/streamableHttp.ts`, `src/index.ts` — entry points and transports.
+- `tests/` — vitest suites; shared helpers in `tests/helpers/`.
 
-## Unit Tests
+## Commands
 
-Tool handler functions (`handleXxxTool`) must be exported for testability.
+- `npm run build` — compile TypeScript to `dist/`.
+- `npm test` — run the vitest suite once.
+- `npm run lint` — ESLint.
+- `npm run preflight` — full gate (install, lint, validate `server.json`, test, build, bundle). Run before a release.
+- `npm run inspector` — watch-mode build + MCP Inspector UI for interactive debugging.
 
-Tests use Vitest with mocked mwn. Each test file mocks `getMwn` and `wikiService` before any imports that depend on them:
+## Tool conventions
 
-```typescript
-vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
-vi.mock( '../../src/common/wikiService.js', () => ( {
-	wikiService: {
-		getCurrent: vi.fn().mockReturnValue( {
-			key: 'test-wiki',
-			config: { server: 'https://test.wiki', articlepath: '/wiki', scriptpath: '/w' }
-		} )
-	}
-} ) );
-```
+See [docs/tool-conventions.md](docs/tool-conventions.md) for tool design stance, description voice, parameter docs, annotation hints, sibling disambiguation, canonical MediaWiki terminology, and result-cap behavior. Consult before adding or modifying a tool.
 
-Use `createMockMwn()` from `tests/helpers/mock-mwn.ts` to create mock instances with method overrides.
+## Tool handlers
 
-## Integration Testing with MCP Inspector
+`handleXxxTool` functions must be exported from `src/tools/<name>.ts` so unit tests can import them.
 
-The [MCP Inspector CLI](https://github.com/modelcontextprotocol/inspector) tests tools against a real wiki. Build first with `npm run build`, then:
+## Testing
 
-```bash
-# List all tools
-npx @modelcontextprotocol/inspector --cli node dist/index.js \
-  --method tools/list
+Unit tests mock `getMwn` and `wikiService` **before** importing the handler under test. Use `createMockMwn()` from `tests/helpers/mock-mwn.ts`. See [docs/testing.md](docs/testing.md) for the full pattern, MCP Inspector CLI examples, and the bot-password setup required to exercise authenticated tools against a local wiki.
 
-# Call a tool
-npx @modelcontextprotocol/inspector --cli node dist/index.js \
-  --method tools/call \
-  --tool-name get-page \
-  --tool-arg 'title=Main Page' \
-  --tool-arg 'metadata=true'
+## Releasing
 
-# Read a resource
-npx @modelcontextprotocol/inspector --cli node dist/index.js \
-  --method resources/read \
-  --uri 'mcp://wikis/en.wikipedia.org'
-```
-
-Each invocation starts a fresh MCP session, so `set-wiki` does not persist between calls. Set `defaultWiki` in `config.json` to target a specific wiki.
-
-## Local Wiki with Bot Passwords
-
-Authenticated tools (create, update, delete, undelete, upload) require bot passwords. To set one up on a local MediaWiki:
-
-```bash
-docker exec <container> php /var/www/html/w/maintenance/run.php createBotPassword \
-  --appid mcp-server \
-  --grants 'basic,editpage,editprotected,createeditmovepage,uploadfile,highvolume,delete' \
-  <username>
-```
-
-Then add the credentials to `config.json` (copy from `config.example.json` if it doesn't exist):
-
-```json
-{
-  "username": "<username>@mcp-server",
-  "password": "<generated-password>"
-}
-```
+See [docs/releasing.md](docs/releasing.md).
