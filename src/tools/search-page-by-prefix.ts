@@ -2,14 +2,20 @@ import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
-import type { ApiQueryAllPagesParams } from 'types-mediawiki-api';
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
+import { appendTruncationMarker, type TruncationInfo } from '../common/truncation.js';
+
+interface AllPagesEntry {
+	pageid: number;
+	ns: number;
+	title: string;
+}
 
 export function searchPageByPrefixTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'search-page-by-prefix',
-		'Returns wiki page titles beginning with a given prefix (suited to autocomplete and title lookup). Only titles are returned — no snippets, sizes, or IDs. For full-text content search, use search-page.',
+		'Returns wiki page titles beginning with a given prefix (suited to autocomplete and title lookup). Only titles are returned — no snippets, sizes, or IDs. Accepts up to 500 titles per call (default 10); additional matches beyond the cap are flagged in the response. For full-text content search, use search-page.',
 		{
 			prefix: z.string().describe( 'Wiki page title prefix' ),
 			limit: z.number().int().min( 1 ).max( 500 ).optional().describe( 'Maximum number of results to return' ),
@@ -28,22 +34,50 @@ export function searchPageByPrefixTool( server: McpServer ): RegisteredTool {
 	);
 }
 
-async function handleSearchPageByPrefixTool(
+export async function handleSearchPageByPrefixTool(
 	prefix: string, limit?: number, namespace?: number
-): Promise< CallToolResult > {
-	let data: string[];
+): Promise<CallToolResult> {
 	try {
 		const mwn = await getMwn();
-		const options: ApiQueryAllPagesParams = {};
 
-		if ( limit ) {
-			options.aplimit = limit;
+		const params: Record<string, string | number | boolean> = {
+			action: 'query',
+			list: 'allpages',
+			apprefix: prefix,
+			formatversion: '2'
+		};
+		if ( limit !== undefined ) {
+			params.aplimit = limit;
 		}
-		if ( namespace ) {
-			options.apnamespace = namespace;
+		if ( namespace !== undefined ) {
+			params.apnamespace = namespace;
 		}
 
-		data = await mwn.getPagesByPrefix( prefix, options );
+		const response = await mwn.request( params );
+		const pages: AllPagesEntry[] = response.query?.allpages ?? [];
+
+		if ( pages.length === 0 ) {
+			return {
+				content: [
+					{ type: 'text', text: `No pages found with the prefix "${ prefix }"` } as TextContent
+				]
+			};
+		}
+
+		const content: TextContent[] = pages.map( ( page ): TextContent => ( {
+			type: 'text',
+			text: page.title
+		} ) );
+
+		const truncation: TruncationInfo | null = response.continue ? {
+			reason: 'capped-no-continuation',
+			returnedCount: pages.length,
+			limit: limit ?? 10,
+			itemNoun: 'titles',
+			narrowHint: 'narrow the prefix or raise limit (max 500)'
+		} : null;
+
+		return { content: appendTruncationMarker( content, truncation ) };
 	} catch ( error ) {
 		return {
 			content: [
@@ -52,23 +86,4 @@ async function handleSearchPageByPrefixTool(
 			isError: true
 		};
 	}
-
-	if ( data.length === 0 ) {
-		return {
-			content: [
-				{ type: 'text', text: `No pages found with the prefix "${ prefix }"` } as TextContent
-			]
-		};
-	}
-
-	return {
-		content: data.map( getSearchPageByPrefixToolResult )
-	};
-}
-
-function getSearchPageByPrefixToolResult( title: string ): TextContent {
-	return {
-		type: 'text',
-		text: title
-	};
 }
