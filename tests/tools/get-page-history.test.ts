@@ -214,4 +214,67 @@ describe( 'get-page-history', () => {
 		expect( result.isError ).toBe( true );
 		expect( result.content[ 0 ].text ).toContain( 'API error' );
 	} );
+
+	it( 'appends a more-available marker with olderThan when more revisions exist', async () => {
+		const mock = createMockMwn( {
+			request: vi.fn().mockResolvedValue( {
+				query: { pages: [ { revisions: [
+					{ revid: 100, timestamp: '2026-01-02T00:00:00Z', user: 'A', userid: 1, comment: '', size: 1, minor: false },
+					{ revid: 99, timestamp: '2026-01-01T00:00:00Z', user: 'A', userid: 1, comment: '', size: 1, minor: false }
+				] } ] },
+				continue: { rvcontinue: '20260101000000|98', continue: '||' }
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
+		const result = await handleGetPageHistoryTool( 'Test Page' );
+
+		const last = result.content[ result.content.length - 1 ] as { text: string };
+		expect( last.text ).toBe(
+			'More results available. Returned 2 revisions. To fetch the next segment, call get-page-history again with olderThan=99.'
+		);
+	} );
+
+	it( 'appends a more-available marker with newerThan when walking forward', async () => {
+		const mock = createMockMwn( {
+			request: vi.fn().mockResolvedValue( {
+				query: { pages: [ { revisions: [
+					{ revid: 50, timestamp: '2026-01-01T00:00:00Z', user: 'A', userid: 1, comment: '', size: 1, minor: false },
+					{ revid: 60, timestamp: '2026-01-02T00:00:00Z', user: 'A', userid: 1, comment: '', size: 1, minor: false }
+				] } ] },
+				continue: { rvcontinue: '20260103000000|70', continue: '||' }
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
+		const result = await handleGetPageHistoryTool( 'Test Page', undefined, 49 );
+
+		const last = result.content[ result.content.length - 1 ] as { text: string };
+		expect( last.text ).toBe(
+			'More results available. Returned 2 revisions. To fetch the next segment, call get-page-history again with newerThan=60.'
+		);
+
+		const call = mock.request.mock.calls[ 0 ][ 0 ];
+		expect( call.rvdir ).toBe( 'newer' );
+	} );
+
+	it( 'does not append a marker when response.continue is absent', async () => {
+		const mock = createMockMwn( {
+			request: vi.fn().mockResolvedValue( {
+				query: { pages: [ { revisions: [
+					{ revid: 100, timestamp: '2026-01-01T00:00:00Z', user: 'A', userid: 1, comment: '', size: 1, minor: false }
+				] } ] }
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
+		const result = await handleGetPageHistoryTool( 'Test Page' );
+
+		for ( const block of result.content ) {
+			expect( ( block as { text: string } ).text ).not.toContain( 'More results available' );
+		}
+	} );
 } );
