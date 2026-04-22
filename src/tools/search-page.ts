@@ -42,7 +42,7 @@ export async function handleSearchPageTool(
 			formatversion: '2'
 		};
 
-		if ( limit ) {
+		if ( limit !== undefined ) {
 			params.srlimit = limit;
 		}
 
