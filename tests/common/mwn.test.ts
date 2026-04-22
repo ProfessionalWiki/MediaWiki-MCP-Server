@@ -22,6 +22,16 @@ vi.mock( '../../src/server.js', () => ( {
 	USER_AGENT: 'test-agent'
 } ) );
 
+vi.mock( '../../src/common/requestContext.js', () => {
+	let token: string | undefined;
+	return {
+		getRuntimeToken: () => token,
+		_setRuntimeToken: ( t: string | undefined ) => {
+			token = t;
+		}
+	};
+} );
+
 let currentWikiKey = 'wiki-a';
 let currentWikiConfig: Record<string, unknown> = {
 	server: 'https://wiki-a.example.com',
@@ -39,6 +49,7 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 
 let getMwn: typeof import( '../../src/common/mwn.js' ).getMwn;
 let removeMwnInstance: typeof import( '../../src/common/mwn.js' ).removeMwnInstance;
+let setRuntimeToken: ( t: string | undefined ) => void;
 
 describe( 'mwn instance management', () => {
 
@@ -57,6 +68,10 @@ describe( 'mwn instance management', () => {
 		const mwnModule = await import( '../../src/common/mwn.js' );
 		getMwn = mwnModule.getMwn;
 		removeMwnInstance = mwnModule.removeMwnInstance;
+
+		const contextModule = await import( '../../src/common/requestContext.js' );
+		setRuntimeToken = ( contextModule as unknown as { _setRuntimeToken: ( t: string | undefined ) => void } )._setRuntimeToken;
+		setRuntimeToken( undefined );
 	} );
 
 	it( 'returns cached instance for same wiki key', async () => {
@@ -214,5 +229,147 @@ describe( 'mwn instance management', () => {
 		expect( result ).toBeDefined();
 		expect( mockInit ).not.toHaveBeenCalled();
 		expect( mockGetSiteInfo ).toHaveBeenCalledOnce();
+	} );
+} );
+
+describe( 'runtime token', () => {
+
+	beforeEach( async () => {
+		vi.resetModules();
+		mockInit.mockReset();
+		mockConstructor.mockReset();
+		mockGetSiteInfo.mockReset();
+
+		currentWikiKey = 'wiki-a';
+		currentWikiConfig = {
+			server: 'https://wiki-a.example.com',
+			scriptpath: '/w'
+		};
+
+		const mwnModule = await import( '../../src/common/mwn.js' );
+		getMwn = mwnModule.getMwn;
+		removeMwnInstance = mwnModule.removeMwnInstance;
+
+		const contextModule = await import( '../../src/common/requestContext.js' );
+		setRuntimeToken = ( contextModule as unknown as { _setRuntimeToken: ( t: string | undefined ) => void } )._setRuntimeToken;
+		setRuntimeToken( undefined );
+	} );
+
+	it( 'uses runtime token over config token', async () => {
+		currentWikiConfig = {
+			server: 'https://wiki-a.example.com',
+			scriptpath: '/w',
+			token: 'config-fallback'
+		};
+		const oauthInstance = { id: 'runtime' };
+		mockInit.mockResolvedValue( oauthInstance );
+		setRuntimeToken( 'runtime-token-X' );
+
+		const result = await getMwn();
+
+		expect( result ).toBe( oauthInstance );
+		expect( mockInit ).toHaveBeenCalledWith(
+			expect.objectContaining( {
+				OAuth2AccessToken: 'runtime-token-X'
+			} )
+		);
+	} );
+
+	it( 'uses runtime token when config has no credentials', async () => {
+		const oauthInstance = { id: 'runtime-no-config' };
+		mockInit.mockResolvedValue( oauthInstance );
+		setRuntimeToken( 'runtime-token-Y' );
+
+		const result = await getMwn();
+
+		expect( result ).toBe( oauthInstance );
+		expect( mockInit ).toHaveBeenCalledWith(
+			expect.objectContaining( {
+				OAuth2AccessToken: 'runtime-token-Y'
+			} )
+		);
+	} );
+
+	it( 'falls back to config token when no runtime token', async () => {
+		currentWikiConfig = {
+			server: 'https://wiki-a.example.com',
+			scriptpath: '/w',
+			token: 'config-token'
+		};
+		const oauthInstance = { id: 'config' };
+		mockInit.mockResolvedValue( oauthInstance );
+
+		const result = await getMwn();
+
+		expect( result ).toBe( oauthInstance );
+		expect( mockInit ).toHaveBeenCalledWith(
+			expect.objectContaining( {
+				OAuth2AccessToken: 'config-token'
+			} )
+		);
+	} );
+
+	it( 'does not cache runtime-token instances', async () => {
+		mockInit.mockResolvedValue( { id: 'first' } );
+		setRuntimeToken( 'same-token' );
+
+		await getMwn();
+
+		mockInit.mockResolvedValue( { id: 'second' } );
+
+		const second = await getMwn();
+
+		expect( second ).toEqual( { id: 'second' } );
+		expect( mockInit ).toHaveBeenCalledTimes( 2 );
+	} );
+
+	it( 'runtime-token calls do not pollute the config cache', async () => {
+		mockGetSiteInfo.mockResolvedValue( undefined );
+
+		// First: anonymous (cached)
+		const anon = await getMwn();
+
+		// Second: runtime token (should not affect cache)
+		mockInit.mockResolvedValue( { id: 'runtime' } );
+		setRuntimeToken( 'runtime-token-Z' );
+		await getMwn();
+
+		// Third: back to anonymous (should be cache hit)
+		setRuntimeToken( undefined );
+		const anonAgain = await getMwn();
+
+		expect( anonAgain ).toBe( anon );
+		expect( mockConstructor ).toHaveBeenCalledOnce();
+	} );
+
+	it( 'redacts token from error message', async () => {
+		setRuntimeToken( 'secret-token-123' );
+		mockInit.mockRejectedValue( new Error( 'OAuth failed: secret-token-123 is invalid' ) );
+
+		await expect( getMwn() ).rejects.toThrow( /\[REDACTED\]/ );
+		await expect( getMwn() ).rejects.not.toThrow( /secret-token-123/ );
+	} );
+
+	it( 'strips request, config, and response from error objects', async () => {
+		const err = new Error( 'connection failed' );
+		( err as Record<string, unknown> ).request = {
+			headers: { Authorization: 'Bearer secret' }
+		};
+		( err as Record<string, unknown> ).config = { url: 'https://...' };
+		( err as Record<string, unknown> ).response = {
+			config: { headers: { Authorization: 'Bearer secret' } }
+		};
+
+		setRuntimeToken( 'secret' );
+		mockInit.mockRejectedValue( err );
+
+		try {
+			await getMwn();
+			expect.unreachable( 'should have thrown' );
+		} catch ( caught ) {
+			expect( ( caught as Record<string, unknown> ).request ).toBeUndefined();
+			expect( ( caught as Record<string, unknown> ).config ).toBeUndefined();
+			expect( ( caught as Record<string, unknown> ).response ).toBeUndefined();
+		}
 	} );
 } );

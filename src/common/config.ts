@@ -20,6 +20,8 @@ export interface WikiConfig {
 	scriptpath: string;
 	/**
 	 * OAuth consumer token requested from Extension:OAuth.
+	 * Used as a fallback when no Authorization header is supplied
+	 * by the MCP client on the HTTP request.
 	 */
 	token?: string | null;
 	/**

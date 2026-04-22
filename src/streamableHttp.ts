@@ -7,6 +7,15 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { createServer } from './server.js';
+import { runtimeTokenStore } from './common/requestContext.js';
+
+function extractBearerToken( req: Request ): string | undefined {
+	const auth = req.headers.authorization;
+	if ( typeof auth === 'string' && auth.toLowerCase().startsWith( 'bearer ' ) ) {
+		return auth.slice( 7 );
+	}
+	return undefined;
+}
 
 const app = express();
 app.use( express.json() );
@@ -47,7 +56,10 @@ app.post( '/mcp', async ( req: Request, res: Response ) => {
 		return;
 	}
 
-	await transport.handleRequest( req, res, req.body );
+	const runtimeToken = extractBearerToken( req );
+	await runtimeTokenStore.run( { runtimeToken }, () =>
+		transport.handleRequest( req, res, req.body )
+	);
 } );
 
 const handleSessionRequest = async ( req: Request, res: Response ): Promise<void> => {
@@ -58,7 +70,10 @@ const handleSessionRequest = async ( req: Request, res: Response ): Promise<void
 	}
 
 	const transport = transports[ sessionId ];
-	await transport.handleRequest( req, res );
+	const runtimeToken = extractBearerToken( req );
+	await runtimeTokenStore.run( { runtimeToken }, () =>
+		transport.handleRequest( req, res )
+	);
 };
 
 app.get( '/mcp', handleSessionRequest );

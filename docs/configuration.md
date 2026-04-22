@@ -87,3 +87,28 @@ Accepts a string or an array of strings:
   }
 }
 ```
+
+## Per-request bearer token (HTTP transport)
+
+When using the Streamable HTTP transport (`MCP_TRANSPORT=http`), clients can authenticate to MediaWiki by sending an `Authorization` header on every request:
+
+```
+Authorization: Bearer <oauth2-access-token>
+```
+
+The token must be a MediaWiki OAuth2 access token obtained from `Special:OAuthConsumerRegistration/propose/oauth2` on the target wiki, with [Extension:OAuth](https://www.mediawiki.org/wiki/Extension:OAuth) installed.
+
+**Precedence**: request header → `config.json` `token` → `config.json` `username`/`password` → anonymous. When no `Authorization` header is present, the server falls back to the static credentials in `config.json`, preserving existing behaviour.
+
+Each request builds an independent MediaWiki session using the supplied token. Token rotation and revocation take effect immediately on the next request.
+
+Example with Claude Code:
+
+```
+claude mcp add --transport http my-wiki https://wiki.example.org/mcp \
+  --header "Authorization: Bearer eyJhbGciOi..."
+```
+
+### Reverse proxy requirements
+
+If the MCP server runs behind a reverse proxy (Caddy, nginx, Traefik), the proxy must forward the `Authorization` header to the MCP server intact. Configurations that strip or consume the header (e.g. `header_up -Authorization`, `proxy_set_header Authorization ""`, or a proxy-level basic auth handler on the MCP route) will cause the server to see no token and fall back to config/anonymous.
