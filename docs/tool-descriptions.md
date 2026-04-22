@@ -91,6 +91,19 @@ Parameter descriptions must:
 - **Not restate the zod type.** `"Optional integer"` is redundant when the schema is `z.number().int().optional()`.
 - **Be concise.** A sentence or two per parameter. Complex behaviour belongs in the tool description, not in every parameter.
 
+### Result caps and truncation signaling
+
+Tools that return variable-size result sets have a per-call cap. When the cap is hit, the tool appends a trailing text block to `content` describing the truncation. Two shapes:
+
+- **With continuation** (the caller can fetch more): `"More results available. Returned N <items>. To fetch the next segment, call <tool-name> again with <param>=<value>."`
+- **Without continuation** (the only remedy is a narrower query): `"Result capped at N <items>. Additional <items> may exist — <narrow-hint>."`
+
+Descriptions for these tools state the cap explicitly. If continuation is supported, descriptions reference the continuation parameter by name so the LLM can pick the right parameter without inspecting the schema.
+
+This convention doesn't apply to tools that reject oversize input (e.g. `get-pages`' 50-title cap): those return an error, not a truncation marker.
+
+There is no MCP-spec-level budget for tool output. Cap sizes are chosen to stay well under Anthropic's 25,000-token Claude Code default ([Writing tools for agents](https://www.anthropic.com/engineering/writing-tools-for-agents)) and revisited when [MCP discussion #2211](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/2211) ratifies a standard.
+
 ### Annotation hints
 
 MCP's `ToolAnnotations` exposes four boolean hints that shape how clients route and display tools. Spec defaults exist, but **every tool in this repository sets all four explicitly** because OpenAI's ChatGPT developer mode rejects MCP submissions missing `readOnlyHint`, `destructiveHint`, or `openWorldHint`.
