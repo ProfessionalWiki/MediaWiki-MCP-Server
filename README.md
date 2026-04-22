@@ -13,7 +13,7 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | `compare-pages` | Diff two versions of a wiki page by revision, title, or supplied wikitext. | - |
 | `create-page` 🔐 | Create a new wiki page. | `Create, edit, and move pages` |
 | `delete-page` 🔐 | Delete a wiki page. | `Delete pages, revisions, and log entries` |
-| `get-category-members` | Gets all members in the category | - |
+| `get-category-members` | Returns members of a category (up to 500 per call, paginated via `continueFrom`). | - |
 | `get-file` | Returns the standard file object for a file page. | - |
 | `get-page` | Returns the standard page object for a wiki page. | - |
 | `get-page-history` | Returns information about the latest revisions to a wiki page. | - |
