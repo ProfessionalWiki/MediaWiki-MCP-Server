@@ -3,7 +3,7 @@
 
 An MCP (Model Context Protocol) server that enables Large Language Model (LLM) clients to interact with any MediaWiki wiki.
 
-## Feature
+## Features
 
 ### Tools
 
@@ -122,67 +122,9 @@ Create a `config.json` file to configure wiki connections. Use the `config.examp
 | `private` | No | Whether the wiki requires authentication to read (default: `false`) |
 | `tags` | No | Change tag(s) applied to every write. The tag must be created and activated on the wiki at `Special:Tags` before use; MediaWiki returns a `badtags` error otherwise. Accepts a string or array of strings |
 
-### Environment variable substitution
+> For `${VAR}` environment variable substitution, `exec` secret sources (to read credentials from a password manager or keyring), the plaintext-warning behavior, and further `tags` notes, see [docs/configuration.md](docs/configuration.md).
 
-Config values support `${VAR_NAME}` syntax for referencing environment variables. This allows you to keep secrets out of your `config.json` file.
-
-```json
-{
-  "defaultWiki": "my.wiki.org",
-  "wikis": {
-    "my.wiki.org": {
-      "sitename": "My Wiki",
-      "server": "https://my.wiki.org",
-      "articlepath": "/wiki",
-      "scriptpath": "/w",
-      "token": "${WIKI_OAUTH_TOKEN}",
-      "username": "${WIKI_USERNAME}",
-      "password": "${WIKI_PASSWORD}"
-    }
-  }
-}
-```
-
-If a referenced variable is not set:
-
-- **Secret fields** (`token`, `username`, `password`): the server exits at startup with an error naming the wiki, the field, and the missing variable. This surfaces authentication problems up front instead of as confusing failures later.
-- **Non-secret fields**: the `${VAR_NAME}` text is kept as-is.
-
-### Secret sources
-
-As an alternative to `${VAR_NAME}`, secret fields can run an external command at startup and use its output as the secret. This lets you fetch credentials from a password manager, keyring, or secret store without writing them to disk:
-
-```json
-{
-  "defaultWiki": "my.wiki.org",
-  "wikis": {
-    "my.wiki.org": {
-      "sitename": "My Wiki",
-      "server": "https://my.wiki.org",
-      "articlepath": "/wiki",
-      "scriptpath": "/w",
-      "token": {
-        "exec": {
-          "command": "op",
-          "args": ["read", "op://Private/my-wiki/oauth-token"]
-        }
-      }
-    }
-  }
-}
-```
-
-The command runs directly without a shell, with `args` passed exactly as given. Its trimmed stdout becomes the secret value. A 10-second timeout applies.
-
-If the command fails, times out, or prints nothing, the server exits at startup. Error messages identify the failing wiki and field — the secret value itself is never logged.
-
-Any CLI that prints a credential to stdout works: 1Password's `op`, `pass`, `secret-tool`, Bitwarden's `bw`, HashiCorp Vault, or a custom script.
-
-### Plaintext secrets
-
-Plaintext credentials in `config.json` still work but print a one-line warning to stderr on startup. Prefer `${VAR}` or an `exec` source when possible.
-
-### Authentication setup
+## Authentication
 
 For tools marked with 🔐, authentication is required.
 
@@ -319,90 +261,13 @@ You should end up with something like the below in your `.claude.json` config:
 ```
 </details>
 
-## Development
-
-> 🐋 **Develop with Docker:** Replace the `npm run` part of the command with `make` (e.g. `make inspector`).
-
-
-### [MCP Inspector](https://github.com/modelcontextprotocol/inspector)
-
-Test and debug the MCP server without a MCP client and LLM.
-
-To start the development server and the MCP Inspector together:
-```sh
-npm run inspector
-```
-
-The command will build and start the MCP Proxy server locally at `6277` and the MCP Inspector client UI at `http://localhost:6274`.
-
-
-### [MCPJam Inspector](https://github.com/MCPJam/inspector)
-
-Test and debug the MCP server, with a built-in MCP client and support for different LLMs.
-
-To start the development server and the MCP Inspector together:
-```sh
-npm run mcpjam
-```
-
-### Test with MCP clients
-
-To enable your MCP client to use this MediaWiki MCP Server for local development: 
-
-1. [Install](#installation) the MCP server on your MCP client.
-2. Change the `command` and `args` values as shown in the [`mcp.json`](mcp.json) file (or [`mcp.docker.json`](mcp.docker.json) if you prefer to run the MCP server in Docker).
-3. Run the `dev` command so that the source will be compiled whenever there is a change:
-
-	```sh
-	npm run dev
-	```
-
-### Release process
-
-To release a new version:
-
-<details>
-<summary><b>1. Use npm version to create a release</b></summary>
-
-```sh
-# For patch release (0.1.1 → 0.1.2)
-npm version patch
-
-# For minor release (0.1.1 → 0.2.0)
-npm version minor
-
-# For major release (0.1.1 → 1.0.0)
-npm version major
-
-# Or specify exact version
-npm version 0.2.0
-```
-
-This command automatically:
-- Updates `package.json` and `package-lock.json`
-- Syncs the version in `server.json`, `mcpb/manifest.json`, `Dockerfile` (via the version script)
-- Creates a git commit
-- Creates a git tag (e.g., `v0.2.0`)
-</details>
-
-<details>
-<summary><b>2. Push to GitHub</b></summary>
-
-```sh
-git push origin master --follow-tags
-```
-
-The `release` GitHub workflow will trigger automatically:
-- Build a MCP bundle `.mcpb` and publish to [GitHub](https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/releases)
-- Build and publish to [NPM](https://www.npmjs.com/package/@professional-wiki/mediawiki-mcp-server) 
-- Publish to the [MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.professionalwiki/mediawiki-mcp-server)
-</details>
-
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a pull request or open an issue for bugs, feature requests, or suggestions.
+Contributions are welcome — pull requests and issues (bugs, feature requests, suggestions) both work.
 
-When adding or modifying a tool, please read the [tool conventions](docs/tool-conventions.md). It covers voice, depth, canonical MediaWiki terminology, and the annotation hints every tool must set.
+- **Working on tool code?** Start from [AGENTS.md](AGENTS.md) for repo layout, commands, and testing patterns.
+- **Adding or modifying a tool?** Read [docs/tool-conventions.md](docs/tool-conventions.md) — it covers description voice, parameter docs, annotation hints, and MediaWiki terminology conventions.
+- **Running a release?** See [docs/releasing.md](docs/releasing.md).
 
 ## License
 
