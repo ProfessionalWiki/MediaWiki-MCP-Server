@@ -69,4 +69,71 @@ describe( 'search-page', () => {
 		expect( result.isError ).toBe( true );
 		expect( result.content[ 0 ].text ).toContain( 'API error' );
 	} );
+
+	it( 'appends a capped marker when response.continue is present', async () => {
+		const mock = createMockMwn( {
+			request: vi.fn().mockResolvedValue( {
+				query: {
+					search: [ {
+						ns: 0, title: 'Test Page', pageid: 1, size: 1,
+						snippet: 's', timestamp: '2026-01-01T00:00:00Z'
+					} ]
+				},
+				continue: { sroffset: 10, continue: '-||' }
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
+		const result = await handleSearchPageTool( 'test', 10 );
+
+		expect( result.isError ).toBeUndefined();
+		const last = result.content[ result.content.length - 1 ] as { text: string };
+		expect( last.text ).toBe(
+			'Result capped at 10 matches. Additional matches may exist — narrow the query or raise limit (max 100).'
+		);
+	} );
+
+	it( 'does not append a marker when response.continue is absent', async () => {
+		const mock = createMockMwn( {
+			request: vi.fn().mockResolvedValue( {
+				query: {
+					search: [ {
+						ns: 0, title: 'A', pageid: 1, size: 1,
+						snippet: 's', timestamp: '2026-01-01T00:00:00Z'
+					} ]
+				}
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
+		const result = await handleSearchPageTool( 'test', 10 );
+
+		for ( const block of result.content ) {
+			expect( ( block as { text: string } ).text ).not.toContain( 'Result capped' );
+			expect( ( block as { text: string } ).text ).not.toContain( 'More results available' );
+		}
+	} );
+
+	it( 'uses the effective limit in the marker when no limit was provided', async () => {
+		const mock = createMockMwn( {
+			request: vi.fn().mockResolvedValue( {
+				query: {
+					search: [ {
+						ns: 0, title: 'A', pageid: 1, size: 1,
+						snippet: 's', timestamp: '2026-01-01T00:00:00Z'
+					} ]
+				},
+				continue: { sroffset: 10 }
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
+		const result = await handleSearchPageTool( 'test', undefined );
+
+		const last = result.content[ result.content.length - 1 ] as { text: string };
+		expect( last.text ).toContain( 'Result capped at 10 matches' );
+	} );
 } );
