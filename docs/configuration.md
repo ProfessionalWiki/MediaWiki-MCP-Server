@@ -25,7 +25,7 @@ Config values support `${VAR_NAME}` syntax for referencing environment variables
 
 If a referenced variable is not set:
 
-- **Secret fields** (`token`, `username`, `password`): the server exits at startup with an error naming the wiki, the field, and the missing variable. This surfaces authentication problems up front instead of as confusing failures later.
+- **Secret fields** (`token`, `username`, `password`): the server exits at startup with an error naming the wiki, the field, and the missing variable. This surfaces authentication problems up front, not as confusing failures later.
 - **Non-secret fields**: the `${VAR_NAME}` text is kept as-is.
 
 ## Secret sources
@@ -64,9 +64,9 @@ Plaintext credentials in `config.json` still work but print a one-line warning t
 
 ## Change tags (`tags`)
 
-The `tags` field applies one or more [change tags](https://www.mediawiki.org/wiki/Manual:Tags) to every write operation (create, update, delete, upload). The tag must be created and activated on the wiki at `Special:Tags` before use; otherwise MediaWiki returns a `badtags` error and the write fails.
+The `tags` field applies one or more [change tags](https://www.mediawiki.org/wiki/Manual:Tags) to every write (create, update, delete, upload). Register and activate the tag at `Special:Tags` first — otherwise MediaWiki returns a `badtags` error and the write fails.
 
-Accepts a string or array of strings:
+Accepts a string or an array of strings:
 
 ```json
 {

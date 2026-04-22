@@ -2,7 +2,7 @@
 
 Reference for unit tests, integration testing against a real wiki, and the local wiki setup needed to exercise authenticated tools.
 
-> 🐋 **Docker alternative:** Replace `npm run` with `make` (e.g. `make inspector`).
+> 🐋 **Docker alternative:** commands that use `npm run <script>` have a Makefile equivalent — run `make <script>` instead (e.g. `make test`, `make inspector`). The MCP Inspector CLI examples below use `npx` directly and have no Makefile target.
 
 ## Unit tests
 
@@ -39,11 +39,11 @@ Test and debug the MCP server interactively without an MCP client or LLM.
 npm run inspector
 ```
 
-Builds in watch mode and starts the MCP Proxy server at `localhost:6277` and the Inspector UI at `http://localhost:6274`.
+Starts a watch-mode TypeScript build plus the MCP Proxy server on port `6277` and the Inspector UI at http://localhost:6274.
 
 ## MCPJam Inspector
 
-Test and debug with a built-in MCP client and support for different LLMs.
+Like the MCP Inspector, but with a built-in MCP client that can drive the server against different LLMs — useful for checking how a given LLM actually calls the tools.
 
 ```sh
 npm run mcpjam
@@ -73,13 +73,13 @@ npx @modelcontextprotocol/inspector --cli node dist/index.js \
 
 Each invocation starts a fresh MCP session, so `set-wiki` does not persist between calls. Set `defaultWiki` in `config.json` to target a specific wiki.
 
-## Testing against MCP clients during development
+## Using a local build from your MCP client
 
-To wire your MCP client (Claude Desktop, VS Code, Cursor, etc.) into a locally-built copy:
+To point an MCP client (Claude Desktop, VS Code, Cursor, etc.) at a locally-built copy of the server:
 
-1. [Install](../README.md#installation) the MCP server on your MCP client.
-2. Change the `command` and `args` values as shown in the [`mcp.json`](../mcp.json) file (or [`mcp.docker.json`](../mcp.docker.json) if you prefer Docker).
-3. Run the `dev` command so sources recompile on change:
+1. [Install](../README.md#installation) the server on the client.
+2. Replace the `command` and `args` values with the ones from [`mcp.json`](../mcp.json) (or [`mcp.docker.json`](../mcp.docker.json) for Docker).
+3. Run the `dev` command so sources recompile on save:
 
    ```sh
    npm run dev
@@ -87,7 +87,7 @@ To wire your MCP client (Claude Desktop, VS Code, Cursor, etc.) into a locally-b
 
 ## Local wiki setup (for authenticated tools)
 
-Authenticated tools (create, update, delete, undelete, upload) require credentials. To set up bot passwords on a local MediaWiki running in Docker:
+Authenticated tools (create, update, delete, undelete, upload) need credentials. To create bot passwords on a local MediaWiki running in Docker:
 
 ```bash
 docker exec <container> php /var/www/html/w/maintenance/run.php createBotPassword \
@@ -105,4 +105,4 @@ Then add the credentials to `config.json` (copy from `config.example.json` if it
 }
 ```
 
-For production auth, OAuth2 is preferred — see the [Authentication](../README.md#authentication) section in README.
+For production authentication, use OAuth2 — see [Authentication](../README.md#authentication) in the README.

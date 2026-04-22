@@ -9,31 +9,32 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 
 | Name | Description | Permissions |
 |---|---|---|
-| `add-wiki` | Adds a new wiki as an MCP resource from a URL. Disabled when `allowWikiManagement` is `false`. | - |
+| `add-wiki` | Add a wiki as an MCP resource from its URL. Disabled when `allowWikiManagement` is `false`. | - |
 | `compare-pages` | Diff two versions of a wiki page by revision, title, or supplied wikitext. | - |
 | `create-page` 🔐 | Create a new wiki page. | `Create, edit, and move pages` |
 | `delete-page` 🔐 | Delete a wiki page. | `Delete pages, revisions, and log entries` |
-| `get-category-members` | Returns members of a category (up to 500 per call, paginated via `continueFrom`). | - |
-| `get-file` | Returns the standard file object for a file page. | - |
-| `get-page` | Returns the standard page object for a wiki page. | - |
-| `get-page-history` | Returns information about the latest revisions to a wiki page. | - |
-| `get-pages` | Returns multiple wiki pages in one call (up to 50). | - |
-| `get-revision` | Returns the standard revision object for a page. | - |
-| `parse-wikitext` | Renders wikitext and returns the HTML, parse warnings, wikilinks, templates, and external URLs without saving a page. | - |
-| `remove-wiki` | Removes a wiki resource. Disabled when `allowWikiManagement` is `false`. | - |
-| `search-page` | Search wiki page titles and contents for the provided search terms. | - |
-| `search-page-by-prefix` | Perform a prefix search for page titles. | - |
-| `set-wiki` | Sets the wiki resource to use for the current session. | - |
+| `get-category-members` | List members of a category (up to 500 per call, paginated via `continueFrom`). | - |
+| `get-file` | Fetch a file page. | - |
+| `get-page` | Fetch a wiki page. | - |
+| `get-page-history` | List recent revisions of a wiki page. | - |
+| `get-pages` | Fetch multiple wiki pages in one call (up to 50). | - |
+| `get-revision` | Fetch a specific revision of a page. | - |
+| `parse-wikitext` | Render wikitext to HTML without saving. Returns parse warnings, wikilinks, templates, and external URLs. | - |
+| `remove-wiki` | Remove a wiki resource. Disabled when `allowWikiManagement` is `false`. | - |
+| `search-page` | Search wiki page titles and contents. | - |
+| `search-page-by-prefix` | Search page titles by prefix. | - |
+| `set-wiki` | Set the active wiki for the current session. | - |
 | `undelete-page` 🔐 | Undelete a wiki page. | `Delete pages, revisions, and log entries` |
 | `update-page` 🔐 | Update an existing wiki page. | `Edit existing pages` |
-| `upload-file` 🔐 | Uploads a file to the wiki from the local disk. | `Upload new files` |
-| `upload-file-from-url` 🔐 | Uploads a file to the wiki from a web URL. | `Upload, replace, and move files` |
+| `upload-file` 🔐 | Upload a file to the wiki from local disk. | `Upload new files` |
+| `upload-file-from-url` 🔐 | Upload a file to the wiki from a URL. | `Upload, replace, and move files` |
 
 ### Resources
 
-`mcp://wikis/{wikiKey}`
-- Credentials (e.g., `token`, `username`, `password`) are never exposed in resource content.
-- After `add-wiki`/`remove-wiki`, the server sends `notifications/resources/list_changed` so clients refresh.
+**`mcp://wikis/{wikiKey}`** — per-wiki resource exposing `sitename`, `server`, `articlepath`, `scriptpath`, and a `private` flag.
+
+- Credentials (`token`, `username`, `password`) are never exposed in resource content.
+- After `add-wiki` or `remove-wiki`, the server sends `notifications/resources/list_changed` so clients refresh.
 
 <details><summary>Example list result</summary>
 
@@ -120,30 +121,26 @@ Create a `config.json` file to configure wiki connections. Use the `config.examp
 | `username` | No | Bot username (fallback when OAuth2 is not available) |
 | `password` | No | Bot password (fallback when OAuth2 is not available) |
 | `private` | No | Whether the wiki requires authentication to read (default: `false`) |
-| `tags` | No | Change tag(s) applied to every write. The tag must be created and activated on the wiki at `Special:Tags` before use; MediaWiki returns a `badtags` error otherwise. Accepts a string or array of strings |
+| `tags` | No | Change tag(s) to apply to every write (string or array). The tag must exist and be active at `Special:Tags` — see [docs/configuration.md](docs/configuration.md#change-tags-tags) for details. |
 
-> For `${VAR}` environment variable substitution, `exec` secret sources (to read credentials from a password manager or keyring), the plaintext-warning behavior, and further `tags` notes, see [docs/configuration.md](docs/configuration.md).
+> Environment variable substitution (`${VAR}`), secret sources that read from a password manager, and the plaintext-warning behavior are covered in [docs/configuration.md](docs/configuration.md).
 
 ## Authentication
 
-For tools marked with 🔐, authentication is required.
+Tools marked 🔐 require authentication.
 
-**Preferred method: OAuth2 Token**
+### OAuth2 (preferred)
 
-1. Navigate to `Special:OAuthConsumerRegistration/propose/oauth2` on your wiki
-2. Select "This consumer is for use only by [YourUsername]"
-3. Grant the necessary permissions
-4. After approval, you'll receive:
-   - Client ID
-   - Client Secret
-   - Access Token
-5. Add the `token` to your wiki configuration in `config.json`
+1. Navigate to `Special:OAuthConsumerRegistration/propose/oauth2` on your wiki.
+2. Select "This consumer is for use only by [YourUsername]".
+3. Grant the permissions your tools need — see the Permissions column in the [Tools](#tools) table.
+4. After approval, copy the **Access Token** into the `token` field for that wiki in `config.json`.
 
-> **Note:** OAuth2 requires the [OAuth extension](https://www.mediawiki.org/wiki/Special:MyLanguage/Extension:OAuth) to be installed on the wiki.
+> OAuth2 requires the [OAuth extension](https://www.mediawiki.org/wiki/Special:MyLanguage/Extension:OAuth) on the wiki.
 
-**Fallback method: Username & Password**
+### Bot password (fallback)
 
-If OAuth2 is not available on your wiki, you can use bot credentials (from `Special:BotPasswords` ) instead of the OAuth2 token.
+If the OAuth extension isn't available, create a bot password at `Special:BotPasswords` and set `username` and `password` in `config.json` instead of `token`.
 
 ## Installation
 

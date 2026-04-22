@@ -1,6 +1,6 @@
 # Releasing
 
-Maintainer-only. Instructions for cutting a new release of the MediaWiki MCP Server.
+How to cut a new release of the MediaWiki MCP Server. Maintainers only.
 
 ## 1. Create a release with `npm version`
 
