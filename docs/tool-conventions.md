@@ -1,6 +1,6 @@
-# Tool Description Style Guide
+# Tool Conventions
 
-This guide is for anyone adding or modifying a tool in this MCP server. It codifies how to write tool descriptions, parameter documentation, and annotation hints so that LLMs consuming the server can select and use tools correctly.
+This guide is for anyone adding or modifying a tool in this MCP server. It covers tool design decisions, how to write descriptions and parameter docs, the runtime conventions for returned content, and the metadata every tool must set.
 
 The guide has two parts:
 
@@ -11,7 +11,17 @@ Read both before adding a new tool or rewriting an existing one.
 
 ## Part 1 — Generic principles
 
-### Voice and opening
+### Tool design
+
+#### One job per tool
+
+Anthropic's engineering guidance recommends consolidating multiple actions into a single tool with an `action` parameter. OpenAI's Apps SDK recommends the opposite — one job per tool.
+
+This codebase follows **one job per tool** (separate `create-page`, `update-page`, `delete-page`, `undelete-page`, etc.). Do not consolidate when adding new tools; match the existing pattern. This is an explicit choice, not an oversight.
+
+### Descriptions
+
+#### Voice and opening
 
 Write tool descriptions in **third-person descriptive voice**. Start with a verb phrase describing what the tool does.
 
@@ -22,7 +32,7 @@ Write tool descriptions in **third-person descriptive voice**. Start with a verb
 
 Third-person descriptive voice avoids point-of-view inconsistencies that degrade tool discovery. The description is injected into the system prompt; it should read as a capability statement, not a prompt fragment.
 
-### Coverage: what, when, parameters, caveats
+#### Coverage: what, when, parameters, caveats
 
 Every description answers at least:
 
@@ -37,7 +47,7 @@ Depth scales from there based on how much there is to disambiguate. Longer descr
 
 Apply proportional depth: don't pad simple tools with filler, don't keep tautological tools short. A one-sentence description is fine when there's nothing more to say; a paragraph is fine when there is.
 
-### Don't duplicate the schema
+#### Don't duplicate the schema
 
 The JSON Schema generated from zod already tells the model:
 
@@ -47,11 +57,11 @@ The JSON Schema generated from zod already tells the model:
 
 Do not restate this in prose. Prose is for context the schema cannot express.
 
-### Avoid tautology
+#### Avoid tautology
 
 A description that restates the tool name adds zero information. `"Deletes a wiki page"` for `delete-page` is a bad description. A better description says what "delete" means in MediaWiki (deleted pages are recoverable via `undelete-page` until purge), what the tool returns, and what errors the caller might see.
 
-### Sibling disambiguation with inline routing hints
+#### Sibling disambiguation with inline routing hints
 
 When two tools in the set overlap, each description should explicitly say when to pick it vs. the other. Use the pattern "Use this instead of X when Y" or "For Z, use X instead."
 
@@ -62,7 +72,7 @@ Examples applicable to this server:
 - `get-revision` vs `get-page` with `metadata=true`: specific historical revision vs. latest with metadata.
 - `compare-pages` vs. fetching two sources and diffing client-side.
 
-### Don't instruct the model imperatively
+#### Don't instruct the model imperatively
 
 Describe the condition under which the tool is useful; let the model decide whether to call it.
 
@@ -73,13 +83,9 @@ The rule targets general imperatives aimed at the model ("You MUST...", "You sho
 
 Imperative instructions to the model ("You should...", "You MUST...") in tool descriptions reduce robustness across different LLM implementations.
 
-### Tool consolidation stance (this codebase)
+### Parameter docs
 
-Anthropic's engineering guidance recommends consolidating multiple actions into a single tool with an `action` parameter. OpenAI's Apps SDK recommends the opposite — one job per tool.
-
-This codebase follows **one job per tool** (separate `create-page`, `update-page`, `delete-page`, etc.). Do not consolidate when adding new tools; match the existing pattern. This is an explicit choice, not an oversight.
-
-### Parameter descriptions
+#### Parameter descriptions
 
 Every parameter has a `.describe()` call. Parameter docs complement the schema; they do not duplicate it.
 
@@ -91,7 +97,9 @@ Parameter descriptions must:
 - **Not restate the zod type.** `"Optional integer"` is redundant when the schema is `z.number().int().optional()`.
 - **Be concise.** A sentence or two per parameter. Complex behaviour belongs in the tool description, not in every parameter.
 
-### Result caps and truncation signaling
+### Runtime behavior
+
+#### Result caps and truncation signaling
 
 Tools that return variable-size result sets have a per-call cap. When the cap is hit, the tool appends a trailing text block to `content` describing the truncation. Two shapes:
 
@@ -104,7 +112,9 @@ This convention doesn't apply to tools that reject oversize input (e.g. `get-pag
 
 There is no MCP-spec-level budget for tool output. Cap sizes are chosen to stay well under Anthropic's 25,000-token Claude Code default ([Writing tools for agents](https://www.anthropic.com/engineering/writing-tools-for-agents)) and revisited when [MCP discussion #2211](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/2211) ratifies a standard.
 
-### Annotation hints
+### Metadata
+
+#### Annotation hints
 
 MCP's `ToolAnnotations` exposes four boolean hints that shape how clients route and display tools. Spec defaults exist, but **every tool in this repository sets all four explicitly** because OpenAI's ChatGPT developer mode rejects MCP submissions missing `readOnlyHint`, `destructiveHint`, or `openWorldHint`.
 
@@ -122,7 +132,7 @@ Semantics (from the MCP 2025-11-25 spec):
 - Write tools that only add (create, append, upload-new): `readOnlyHint: false`, `destructiveHint: false`.
 - If the tool does not make network calls and only mutates server-local state (e.g. selecting the active wiki), `openWorldHint: false`.
 
-### Tool titles
+#### Tool titles
 
 The `title` field on `ToolAnnotations` is a human-readable UI label. Use **sentence case**, **imperative verb phrasing**:
 
@@ -133,7 +143,9 @@ Primarily a UI label. Don't rely on `title` for model routing — put disambigua
 
 ## Part 2 — MediaWiki conventions
 
-### Canonical terminology
+### Terminology
+
+#### Canonical terminology
 
 Use these exact terms in descriptions and parameter docs. Do not introduce synonyms.
 
@@ -146,7 +158,7 @@ Use these exact terms in descriptions and parameter docs. Do not introduce synon
 | Namespace identifier (integer) | **namespace ID** | Parameter descriptions state "Namespace ID"; prose may mention the namespace name parenthetically. |
 | Content format (wikitext, javascript, css, etc.) | **content model** | Matches MediaWiki's `contentmodel` API field. |
 
-### Page title vs file title
+#### Page title vs file title
 
 File titles are page titles in the File namespace. The distinction surfaces at the parameter level:
 
@@ -155,7 +167,7 @@ File titles are page titles in the File namespace. The distinction surfaces at t
 
 Do not interchange these.
 
-### Common MediaWiki error patterns
+#### Common MediaWiki error patterns
 
 When an LLM invokes a tool that fails with one of these errors, the caller needs to understand what happened. Descriptions for tools that expose these errors should mention the condition (not the error code).
 
@@ -165,7 +177,9 @@ When an LLM invokes a tool that fails with one of these errors, the caller needs
 
 Example phrasing: `"Returns a wiki page. If the title does not exist, an error is returned."` — not `"...a missingtitle error is returned."`
 
-### Sibling overlap pairs in this codebase
+### This codebase
+
+#### Sibling overlap pairs
 
 When writing or updating a tool in these pairs, each side's description should explicitly say when to use it vs. the other:
 
@@ -173,7 +187,3 @@ When writing or updating a tool in these pairs, each side's description should e
 - **`search-page` vs `search-page-by-prefix`** — full-text content search vs. title-prefix search.
 - **`get-revision` vs `get-page` with `metadata=true`** — fetch a specific historical revision vs. fetch the latest revision with metadata attached.
 - **`compare-pages` vs. client-side diff** — `compare-pages` computes the diff server-side and returns a compact text diff; prefer it over fetching both sources and diffing locally.
-
-### Tool-consolidation stance
-
-This codebase keeps separate tools for distinct actions on the same object (create-page, update-page, delete-page, undelete-page). When adding a new tool, do not bundle multiple actions into a single tool with an `action` parameter; match the existing one-tool-per-action pattern.

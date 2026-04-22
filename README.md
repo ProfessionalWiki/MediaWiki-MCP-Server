@@ -3,37 +3,38 @@
 
 An MCP (Model Context Protocol) server that enables Large Language Model (LLM) clients to interact with any MediaWiki wiki.
 
-## Feature
+## Features
 
 ### Tools
 
 | Name | Description | Permissions |
 |---|---|---|
-| `add-wiki` | Adds a new wiki as an MCP resource from a URL. Disabled when `allowWikiManagement` is `false`. | - |
+| `add-wiki` | Add a wiki as an MCP resource from its URL. Disabled when `allowWikiManagement` is `false`. | - |
 | `compare-pages` | Diff two versions of a wiki page by revision, title, or supplied wikitext. | - |
 | `create-page` 🔐 | Create a new wiki page. | `Create, edit, and move pages` |
 | `delete-page` 🔐 | Delete a wiki page. | `Delete pages, revisions, and log entries` |
-| `get-category-members` | Returns members of a category (up to 500 per call, paginated via `continueFrom`). | - |
-| `get-file` | Returns the standard file object for a file page. | - |
-| `get-page` | Returns the standard page object for a wiki page. | - |
-| `get-page-history` | Returns information about the latest revisions to a wiki page. | - |
-| `get-pages` | Returns multiple wiki pages in one call (up to 50). | - |
-| `get-revision` | Returns the standard revision object for a page. | - |
-| `parse-wikitext` | Renders wikitext and returns the HTML, parse warnings, wikilinks, templates, and external URLs without saving a page. | - |
-| `remove-wiki` | Removes a wiki resource. Disabled when `allowWikiManagement` is `false`. | - |
-| `search-page` | Search wiki page titles and contents for the provided search terms. | - |
-| `search-page-by-prefix` | Perform a prefix search for page titles. | - |
-| `set-wiki` | Sets the wiki resource to use for the current session. | - |
+| `get-category-members` | List members of a category (up to 500 per call, paginated via `continueFrom`). | - |
+| `get-file` | Fetch a file page. | - |
+| `get-page` | Fetch a wiki page. | - |
+| `get-page-history` | List recent revisions of a wiki page. | - |
+| `get-pages` | Fetch multiple wiki pages in one call (up to 50). | - |
+| `get-revision` | Fetch a specific revision of a page. | - |
+| `parse-wikitext` | Render wikitext to HTML without saving. Returns parse warnings, wikilinks, templates, and external URLs. | - |
+| `remove-wiki` | Remove a wiki resource. Disabled when `allowWikiManagement` is `false`. | - |
+| `search-page` | Search wiki page titles and contents. | - |
+| `search-page-by-prefix` | Search page titles by prefix. | - |
+| `set-wiki` | Set the active wiki for the current session. | - |
 | `undelete-page` 🔐 | Undelete a wiki page. | `Delete pages, revisions, and log entries` |
 | `update-page` 🔐 | Update an existing wiki page. | `Edit existing pages` |
-| `upload-file` 🔐 | Uploads a file to the wiki from the local disk. | `Upload new files` |
-| `upload-file-from-url` 🔐 | Uploads a file to the wiki from a web URL. | `Upload, replace, and move files` |
+| `upload-file` 🔐 | Upload a file to the wiki from local disk. | `Upload new files` |
+| `upload-file-from-url` 🔐 | Upload a file to the wiki from a URL. | `Upload, replace, and move files` |
 
 ### Resources
 
-`mcp://wikis/{wikiKey}`
-- Credentials (e.g., `token`, `username`, `password`) are never exposed in resource content.
-- After `add-wiki`/`remove-wiki`, the server sends `notifications/resources/list_changed` so clients refresh.
+**`mcp://wikis/{wikiKey}`** — per-wiki resource exposing `sitename`, `server`, `articlepath`, `scriptpath`, and a `private` flag.
+
+- Credentials (`token`, `username`, `password`) are never exposed in resource content.
+- After `add-wiki` or `remove-wiki`, the server sends `notifications/resources/list_changed` so clients refresh.
 
 <details><summary>Example list result</summary>
 
@@ -120,88 +121,26 @@ Create a `config.json` file to configure wiki connections. Use the `config.examp
 | `username` | No | Bot username (fallback when OAuth2 is not available) |
 | `password` | No | Bot password (fallback when OAuth2 is not available) |
 | `private` | No | Whether the wiki requires authentication to read (default: `false`) |
-| `tags` | No | Change tag(s) applied to every write. The tag must be created and activated on the wiki at `Special:Tags` before use; MediaWiki returns a `badtags` error otherwise. Accepts a string or array of strings |
+| `tags` | No | Change tag(s) to apply to every write (string or array). The tag must exist and be active at `Special:Tags` — see [docs/configuration.md](docs/configuration.md#change-tags-tags) for details. |
 
-### Environment variable substitution
+> Environment variable substitution (`${VAR}`), secret sources that read from a password manager, and the plaintext-warning behavior are covered in [docs/configuration.md](docs/configuration.md).
 
-Config values support `${VAR_NAME}` syntax for referencing environment variables. This allows you to keep secrets out of your `config.json` file.
+## Authentication
 
-```json
-{
-  "defaultWiki": "my.wiki.org",
-  "wikis": {
-    "my.wiki.org": {
-      "sitename": "My Wiki",
-      "server": "https://my.wiki.org",
-      "articlepath": "/wiki",
-      "scriptpath": "/w",
-      "token": "${WIKI_OAUTH_TOKEN}",
-      "username": "${WIKI_USERNAME}",
-      "password": "${WIKI_PASSWORD}"
-    }
-  }
-}
-```
+Tools marked 🔐 require authentication.
 
-If a referenced variable is not set:
+### OAuth2 (preferred)
 
-- **Secret fields** (`token`, `username`, `password`): the server exits at startup with an error naming the wiki, the field, and the missing variable. This surfaces authentication problems up front instead of as confusing failures later.
-- **Non-secret fields**: the `${VAR_NAME}` text is kept as-is.
+1. Navigate to `Special:OAuthConsumerRegistration/propose/oauth2` on your wiki.
+2. Select "This consumer is for use only by [YourUsername]".
+3. Grant the permissions your tools need — see the Permissions column in the [Tools](#tools) table.
+4. After approval, copy the **Access Token** into the `token` field for that wiki in `config.json`.
 
-### Secret sources
+> OAuth2 requires the [OAuth extension](https://www.mediawiki.org/wiki/Special:MyLanguage/Extension:OAuth) on the wiki.
 
-As an alternative to `${VAR_NAME}`, secret fields can run an external command at startup and use its output as the secret. This lets you fetch credentials from a password manager, keyring, or secret store without writing them to disk:
+### Bot password (fallback)
 
-```json
-{
-  "defaultWiki": "my.wiki.org",
-  "wikis": {
-    "my.wiki.org": {
-      "sitename": "My Wiki",
-      "server": "https://my.wiki.org",
-      "articlepath": "/wiki",
-      "scriptpath": "/w",
-      "token": {
-        "exec": {
-          "command": "op",
-          "args": ["read", "op://Private/my-wiki/oauth-token"]
-        }
-      }
-    }
-  }
-}
-```
-
-The command runs directly without a shell, with `args` passed exactly as given. Its trimmed stdout becomes the secret value. A 10-second timeout applies.
-
-If the command fails, times out, or prints nothing, the server exits at startup. Error messages identify the failing wiki and field — the secret value itself is never logged.
-
-Any CLI that prints a credential to stdout works: 1Password's `op`, `pass`, `secret-tool`, Bitwarden's `bw`, HashiCorp Vault, or a custom script.
-
-### Plaintext secrets
-
-Plaintext credentials in `config.json` still work but print a one-line warning to stderr on startup. Prefer `${VAR}` or an `exec` source when possible.
-
-### Authentication setup
-
-For tools marked with 🔐, authentication is required.
-
-**Preferred method: OAuth2 Token**
-
-1. Navigate to `Special:OAuthConsumerRegistration/propose/oauth2` on your wiki
-2. Select "This consumer is for use only by [YourUsername]"
-3. Grant the necessary permissions
-4. After approval, you'll receive:
-   - Client ID
-   - Client Secret
-   - Access Token
-5. Add the `token` to your wiki configuration in `config.json`
-
-> **Note:** OAuth2 requires the [OAuth extension](https://www.mediawiki.org/wiki/Special:MyLanguage/Extension:OAuth) to be installed on the wiki.
-
-**Fallback method: Username & Password**
-
-If OAuth2 is not available on your wiki, you can use bot credentials (from `Special:BotPasswords` ) instead of the OAuth2 token.
+If the OAuth extension isn't available, create a bot password at `Special:BotPasswords` and set `username` and `password` in `config.json` instead of `token`.
 
 ## Installation
 
@@ -319,90 +258,13 @@ You should end up with something like the below in your `.claude.json` config:
 ```
 </details>
 
-## Development
-
-> 🐋 **Develop with Docker:** Replace the `npm run` part of the command with `make` (e.g. `make inspector`).
-
-
-### [MCP Inspector](https://github.com/modelcontextprotocol/inspector)
-
-Test and debug the MCP server without a MCP client and LLM.
-
-To start the development server and the MCP Inspector together:
-```sh
-npm run inspector
-```
-
-The command will build and start the MCP Proxy server locally at `6277` and the MCP Inspector client UI at `http://localhost:6274`.
-
-
-### [MCPJam Inspector](https://github.com/MCPJam/inspector)
-
-Test and debug the MCP server, with a built-in MCP client and support for different LLMs.
-
-To start the development server and the MCP Inspector together:
-```sh
-npm run mcpjam
-```
-
-### Test with MCP clients
-
-To enable your MCP client to use this MediaWiki MCP Server for local development: 
-
-1. [Install](#installation) the MCP server on your MCP client.
-2. Change the `command` and `args` values as shown in the [`mcp.json`](mcp.json) file (or [`mcp.docker.json`](mcp.docker.json) if you prefer to run the MCP server in Docker).
-3. Run the `dev` command so that the source will be compiled whenever there is a change:
-
-	```sh
-	npm run dev
-	```
-
-### Release process
-
-To release a new version:
-
-<details>
-<summary><b>1. Use npm version to create a release</b></summary>
-
-```sh
-# For patch release (0.1.1 → 0.1.2)
-npm version patch
-
-# For minor release (0.1.1 → 0.2.0)
-npm version minor
-
-# For major release (0.1.1 → 1.0.0)
-npm version major
-
-# Or specify exact version
-npm version 0.2.0
-```
-
-This command automatically:
-- Updates `package.json` and `package-lock.json`
-- Syncs the version in `server.json`, `mcpb/manifest.json`, `Dockerfile` (via the version script)
-- Creates a git commit
-- Creates a git tag (e.g., `v0.2.0`)
-</details>
-
-<details>
-<summary><b>2. Push to GitHub</b></summary>
-
-```sh
-git push origin master --follow-tags
-```
-
-The `release` GitHub workflow will trigger automatically:
-- Build a MCP bundle `.mcpb` and publish to [GitHub](https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/releases)
-- Build and publish to [NPM](https://www.npmjs.com/package/@professional-wiki/mediawiki-mcp-server) 
-- Publish to the [MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.professionalwiki/mediawiki-mcp-server)
-</details>
-
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a pull request or open an issue for bugs, feature requests, or suggestions.
+Contributions are welcome — pull requests and issues (bugs, feature requests, suggestions) both work.
 
-When adding or modifying a tool, please read the [tool description style guide](docs/tool-descriptions.md). It covers voice, depth, canonical MediaWiki terminology, and the annotation hints every tool must set.
+- **Working on tool code?** Start from [AGENTS.md](AGENTS.md) for repo layout, commands, and testing patterns.
+- **Adding or modifying a tool?** Read [docs/tool-conventions.md](docs/tool-conventions.md) — it covers description voice, parameter docs, annotation hints, and MediaWiki terminology conventions.
+- **Running a release?** See [docs/releasing.md](docs/releasing.md).
 
 ## License
 
