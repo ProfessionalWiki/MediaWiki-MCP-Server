@@ -5,6 +5,7 @@ import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontext
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import type { ApiPage, ApiRevision } from 'mwn';
+import { appendTruncationMarker, type TruncationInfo } from '../common/truncation.js';
 
 const PAGE_HISTORY_LIMIT = 20;
 
@@ -106,19 +107,40 @@ export async function handleGetPageHistoryTool(
 			};
 		}
 
-		return {
-			content: filteredRevisions.map( ( rev ): TextContent => ( {
-				type: 'text',
-				text: [
-					`Revision ID: ${ rev.revid }`,
-					`Timestamp: ${ rev.timestamp }`,
-					`User: ${ rev.user } (ID: ${ rev.userid })`,
-					`Comment: ${ rev.comment }`,
-					`Size: ${ rev.size }`,
-					`Minor: ${ rev.minor ?? false }`
-				].join( '\n' )
-			} ) )
-		};
+		const content: TextContent[] = filteredRevisions.map( ( rev ): TextContent => ( {
+			type: 'text',
+			text: [
+				`Revision ID: ${ rev.revid }`,
+				`Timestamp: ${ rev.timestamp }`,
+				`User: ${ rev.user } (ID: ${ rev.userid })`,
+				`Comment: ${ rev.comment }`,
+				`Size: ${ rev.size }`,
+				`Minor: ${ rev.minor ?? false }`
+			].join( '\n' )
+		} ) );
+
+		let truncation: TruncationInfo | null = null;
+		if ( response.continue?.rvcontinue && filteredRevisions.length > 0 ) {
+			// The response is always ordered from the boundary side to the
+			// advance side: default rvdir=older walks newest→oldest (last item
+			// is the oldest), rvdir=newer walks oldest→newest (last item is
+			// the newest). The last item is always what the caller should
+			// advance past; only the param name differs.
+			const walkingForward = newerThan !== undefined;
+			const anchorRev = filteredRevisions[ filteredRevisions.length - 1 ].revid!;
+			truncation = {
+				reason: 'more-available',
+				returnedCount: filteredRevisions.length,
+				itemNoun: 'revisions',
+				toolName: 'get-page-history',
+				continueWith: {
+					param: walkingForward ? 'newerThan' : 'olderThan',
+					value: anchorRev
+				}
+			};
+		}
+
+		return { content: appendTruncationMarker( content, truncation ) };
 	} catch ( error ) {
 		return {
 			content: [
