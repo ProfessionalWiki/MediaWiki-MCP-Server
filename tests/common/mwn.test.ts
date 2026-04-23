@@ -22,14 +22,9 @@ vi.mock( '../../src/server.js', () => ( {
 	USER_AGENT: 'test-agent'
 } ) );
 
-vi.mock( '../../src/common/requestContext.js', () => {
-	let token: string | undefined;
-	return {
-		getRuntimeToken: () => token,
-		_setRuntimeToken: ( t: string | undefined ) => {
-			token = t;
-		}
-	};
+vi.mock( '../../src/common/requestContext.js', async () => {
+	const { createRuntimeTokenMock } = await import( '../helpers/runtime-context.js' );
+	return createRuntimeTokenMock();
 } );
 
 let currentWikiKey = 'wiki-a';
