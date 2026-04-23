@@ -8,7 +8,7 @@ import { getPageTool } from './get-page.js';
 import { getPagesTool } from './get-pages.js';
 import { getPageHistoryTool } from './get-page-history.js';
 import { searchPageTool } from './search-page.js';
-import { setWikiTool } from './set-wiki.js';
+import { setWikiTool, type OnActiveWikiChanged } from './set-wiki.js';
 import { addWikiTool } from './add-wiki.js';
 import { removeWikiTool } from './remove-wiki.js';
 import { updatePageTool } from './update-page.js';
@@ -26,44 +26,54 @@ import { comparePagesTool } from './compare-pages.js';
 
 type ToolRegistrar = ( server: McpServer ) => RegisteredTool;
 
-const toolRegistrars: ToolRegistrar[] = [
-	getPageTool,
-	getPagesTool,
-	getPageHistoryTool,
-	searchPageTool,
-	setWikiTool,
-	addWikiTool,
-	removeWikiTool,
-	updatePageTool,
-	getFileTool,
-	createPageTool,
-	uploadFileTool,
-	uploadFileFromUrlTool,
-	deletePageTool,
-	getRevisionTool,
-	undeletePageTool,
-	getCategoryMembersTool,
-	searchPageByPrefixTool,
-	parseWikitextTool,
-	comparePagesTool
+// set-wiki is registered separately in registerAllTools because its
+// signature will take additional arguments in a subsequent change.
+const toolRegistrars: [ string, ToolRegistrar ][] = [
+	[ 'get-page', getPageTool ],
+	[ 'get-pages', getPagesTool ],
+	[ 'get-page-history', getPageHistoryTool ],
+	[ 'search-page', searchPageTool ],
+	[ 'add-wiki', addWikiTool ],
+	[ 'remove-wiki', removeWikiTool ],
+	[ 'update-page', updatePageTool ],
+	[ 'get-file', getFileTool ],
+	[ 'create-page', createPageTool ],
+	[ 'upload-file', uploadFileTool ],
+	[ 'upload-file-from-url', uploadFileFromUrlTool ],
+	[ 'delete-page', deletePageTool ],
+	[ 'get-revision', getRevisionTool ],
+	[ 'undelete-page', undeletePageTool ],
+	[ 'get-category-members', getCategoryMembersTool ],
+	[ 'search-page-by-prefix', searchPageByPrefixTool ],
+	[ 'parse-wikitext', parseWikitextTool ],
+	[ 'compare-pages', comparePagesTool ]
 ];
 
 const wikiManagementRegistrars: Set<ToolRegistrar> = new Set( [ addWikiTool, removeWikiTool ] );
 
-export function registerAllTools( server: McpServer ): RegisteredTool[] {
-	const registered: RegisteredTool[] = [];
+export function registerAllTools(
+	server: McpServer,
+	onActiveWikiChanged: OnActiveWikiChanged
+): Map<string, RegisteredTool> {
+	const registered = new Map<string, RegisteredTool>();
 	const allowManagement = wikiService.isWikiManagementAllowed();
 
-	for ( const registrar of toolRegistrars ) {
+	for ( const [ name, registrar ] of toolRegistrars ) {
 		try {
 			const tool = registrar( server );
 			if ( !allowManagement && wikiManagementRegistrars.has( registrar ) ) {
 				tool.disable();
 			}
-			registered.push( tool );
+			registered.set( name, tool );
 		} catch ( error ) {
 			console.error( `Error registering tool: ${ ( error as Error ).message }` );
 		}
+	}
+
+	try {
+		registered.set( 'set-wiki', setWikiTool( server, onActiveWikiChanged ) );
+	} catch ( error ) {
+		console.error( `Error registering tool: ${ ( error as Error ).message }` );
 	}
 
 	return registered;

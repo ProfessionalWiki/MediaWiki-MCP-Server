@@ -36,6 +36,13 @@ export interface WikiConfig {
 	 */
 	private?: boolean;
 	/**
+	 * When true, the six write tools (create-page, update-page,
+	 * delete-page, undelete-page, upload-file, upload-file-from-url)
+	 * are hidden from tools/list while this wiki is the active wiki.
+	 * Defaults to false.
+	 */
+	readOnly?: boolean;
+	/**
 	 * Change tag(s) applied to every write action made through this MCP
 	 * server. The tag(s) must be registered and active on the wiki (see
 	 * Special:Tags on the target wiki). If the tag is not applicable to
@@ -231,6 +238,11 @@ function resolveWiki( raw: unknown, wikiKey: string ): WikiConfig {
 		} else {
 			resolved[ fieldKey ] = replaceEnvVarsInObject( fieldValue );
 		}
+	}
+	if ( resolved.readOnly !== undefined && typeof resolved.readOnly !== 'boolean' ) {
+		throw new Error(
+			`Config error: wikis.${ wikiKey }.readOnly must be a boolean`
+		);
 	}
 	return resolved as unknown as WikiConfig;
 }
