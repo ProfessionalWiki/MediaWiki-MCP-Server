@@ -1,10 +1,18 @@
 const REDACTED = '[REDACTED]';
 
+const SENSITIVE_HEADER_PATTERN = /^(?:proxy-)?authorization$/i;
+
 function redactHeadersObject( obj: unknown ): void {
-	if ( obj && typeof obj === 'object' ) {
-		const headers = ( obj as Record<string, unknown> ).headers;
-		if ( headers && typeof headers === 'object' && 'Authorization' in headers ) {
-			( headers as Record<string, unknown> ).Authorization = REDACTED;
+	if ( !obj || typeof obj !== 'object' ) {
+		return;
+	}
+	const headers = ( obj as Record<string, unknown> ).headers;
+	if ( !headers || typeof headers !== 'object' ) {
+		return;
+	}
+	for ( const key of Object.keys( headers ) ) {
+		if ( SENSITIVE_HEADER_PATTERN.test( key ) ) {
+			( headers as Record<string, unknown> )[ key ] = REDACTED;
 		}
 	}
 }
@@ -19,8 +27,13 @@ export function redactAuthorizationHeader( err: unknown, token?: string ): void 
 	if ( e.response && typeof e.response === 'object' ) {
 		redactHeadersObject( ( e.response as Record<string, unknown> ).config );
 	}
+	// replaceAll with a string pattern does literal (non-regex) replacement —
+	// do not "refactor" this to a RegExp, which would misbehave on special chars in the token.
 	if ( token && typeof err.message === 'string' && err.message.includes( token ) ) {
 		err.message = err.message.replaceAll( token, REDACTED );
+	}
+	if ( token && typeof err.stack === 'string' && err.stack.includes( token ) ) {
+		err.stack = err.stack.replaceAll( token, REDACTED );
 	}
 }
 

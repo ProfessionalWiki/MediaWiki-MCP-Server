@@ -56,6 +56,30 @@ describe( 'redactAuthorizationHeader', () => {
 		expect( () => redactAuthorizationHeader( 'string' ) ).not.toThrow();
 		expect( () => redactAuthorizationHeader( { headers: {} } ) ).not.toThrow();
 	} );
+
+	it( 'redacts lowercase authorization header (axios-normalised)', () => {
+		const err = Object.assign( new Error( 'boom' ), {
+			config: { headers: { authorization: 'Bearer secret123' } }
+		} );
+		redactAuthorizationHeader( err );
+		expect( ( err as any ).config.headers.authorization ).toBe( '[REDACTED]' );
+	} );
+
+	it( 'keeps the Authorization field present (redacts, does not delete)', () => {
+		const err = Object.assign( new Error( 'boom' ), {
+			request: { headers: { Authorization: 'Bearer secret123' } }
+		} );
+		redactAuthorizationHeader( err );
+		expect( 'Authorization' in ( err as any ).request.headers ).toBe( true );
+		expect( ( err as any ).request.headers.Authorization ).toBe( '[REDACTED]' );
+	} );
+
+	it( 'redacts token substring in err.stack when token supplied', () => {
+		const err = new Error( 'plain' );
+		err.stack = 'Error: something went wrong with Bearer secret123\n    at X';
+		redactAuthorizationHeader( err, 'secret123' );
+		expect( err.stack ).toBe( 'Error: something went wrong with Bearer [REDACTED]\n    at X' );
+	} );
 } );
 
 describe( 'wrapMwnErrors', () => {
