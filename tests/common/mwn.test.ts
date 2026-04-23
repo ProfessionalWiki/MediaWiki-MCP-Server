@@ -192,7 +192,8 @@ describe( 'mwn instance management', () => {
 
 		const result = await getMwn();
 
-		expect( result ).toBe( oauthInstance );
+		// Instance is wrapped in a token-redacting Proxy; structural equality holds.
+		expect( result ).toEqual( oauthInstance );
 		expect( mockInit ).toHaveBeenCalledWith(
 			expect.objectContaining( {
 				OAuth2AccessToken: 'my-oauth-token'
@@ -212,7 +213,7 @@ describe( 'mwn instance management', () => {
 
 		const result = await getMwn();
 
-		expect( result ).toBe( loginInstance );
+		expect( result ).toEqual( loginInstance );
 		expect( mockInit ).toHaveBeenCalledWith(
 			expect.objectContaining( {
 				username: 'user',
@@ -267,7 +268,7 @@ describe( 'runtime token', () => {
 
 		const result = await getMwn();
 
-		expect( result ).toBe( oauthInstance );
+		expect( result ).toEqual( oauthInstance );
 		expect( mockInit ).toHaveBeenCalledWith(
 			expect.objectContaining( {
 				OAuth2AccessToken: 'runtime-token-X'
@@ -282,7 +283,7 @@ describe( 'runtime token', () => {
 
 		const result = await getMwn();
 
-		expect( result ).toBe( oauthInstance );
+		expect( result ).toEqual( oauthInstance );
 		expect( mockInit ).toHaveBeenCalledWith(
 			expect.objectContaining( {
 				OAuth2AccessToken: 'runtime-token-Y'
@@ -301,7 +302,7 @@ describe( 'runtime token', () => {
 
 		const result = await getMwn();
 
-		expect( result ).toBe( oauthInstance );
+		expect( result ).toEqual( oauthInstance );
 		expect( mockInit ).toHaveBeenCalledWith(
 			expect.objectContaining( {
 				OAuth2AccessToken: 'config-token'
@@ -350,12 +351,15 @@ describe( 'runtime token', () => {
 		await expect( getMwn() ).rejects.not.toThrow( /secret-token-123/ );
 	} );
 
-	it( 'strips request, config, and response from error objects', async () => {
+	it( 'redacts Authorization headers on request, config, and response of error objects', async () => {
 		const err = new Error( 'connection failed' );
 		( err as Record<string, unknown> ).request = {
 			headers: { Authorization: 'Bearer secret' }
 		};
-		( err as Record<string, unknown> ).config = { url: 'https://...' };
+		( err as Record<string, unknown> ).config = {
+			url: 'https://...',
+			headers: { Authorization: 'Bearer secret' }
+		};
 		( err as Record<string, unknown> ).response = {
 			config: { headers: { Authorization: 'Bearer secret' } }
 		};
@@ -367,9 +371,68 @@ describe( 'runtime token', () => {
 			await getMwn();
 			expect.unreachable( 'should have thrown' );
 		} catch ( caught ) {
-			expect( ( caught as Record<string, unknown> ).request ).toBeUndefined();
-			expect( ( caught as Record<string, unknown> ).config ).toBeUndefined();
-			expect( ( caught as Record<string, unknown> ).response ).toBeUndefined();
+			const c = caught as {
+				request: { headers: Record<string, string> };
+				config: { headers: Record<string, string> };
+				response: { config: { headers: Record<string, string> } };
+			};
+			expect( c.request.headers.Authorization ).toBe( '[REDACTED]' );
+			expect( c.config.headers.Authorization ).toBe( '[REDACTED]' );
+			expect( c.response.config.headers.Authorization ).toBe( '[REDACTED]' );
 		}
+	} );
+} );
+
+describe( 'post-init error redaction', () => {
+	beforeEach( async () => {
+		vi.resetModules();
+		mockInit.mockReset();
+		mockConstructor.mockReset();
+		mockGetSiteInfo.mockReset();
+		currentWikiKey = 'wiki-a';
+		currentWikiConfig = {
+			server: 'https://wiki-a.example.com',
+			scriptpath: '/w'
+		};
+		const mwnModule = await import( '../../src/common/mwn.js' );
+		getMwn = mwnModule.getMwn;
+		removeMwnInstance = mwnModule.removeMwnInstance;
+		const ctx = await import( '../../src/common/requestContext.js' );
+		setRuntimeToken = ( ctx as unknown as { _setRuntimeToken: typeof setRuntimeToken } )._setRuntimeToken;
+		setRuntimeToken( undefined );
+	} );
+
+	it( 'redacts Authorization on errors thrown by mwn methods after init', async () => {
+		const save = vi.fn().mockRejectedValue(
+			Object.assign( new Error( 'bad token' ), {
+				request: { headers: { Authorization: 'Bearer runtime-secret' } }
+			} )
+		);
+		mockInit.mockResolvedValueOnce( { save, id: 'wiki-a' } );
+		setRuntimeToken( 'runtime-secret' );
+
+		const instance = await getMwn();
+		await expect( ( instance as unknown as { save: () => Promise<unknown> } ).save() )
+			.rejects.toMatchObject( {
+				request: { headers: { Authorization: '[REDACTED]' } }
+			} );
+	} );
+
+	it( 'redacts token substrings and Authorization in init-time error messages', async () => {
+		mockInit.mockRejectedValueOnce(
+			Object.assign( new Error( 'init failed for Bearer init-secret' ), {
+				config: { headers: { Authorization: 'Bearer init-secret' } }
+			} )
+		);
+		setRuntimeToken( 'init-secret' );
+
+		const rejection = getMwn();
+		await expect( rejection ).rejects.toMatchObject( {
+			config: { headers: { Authorization: '[REDACTED]' } }
+		} );
+		await rejection.catch( ( err: Error ) => {
+			expect( err.message ).toContain( '[REDACTED]' );
+			expect( err.message ).not.toContain( 'init-secret' );
+		} );
 	} );
 } );
