@@ -9,12 +9,17 @@ import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { createServer } from './server.js';
 import { runtimeTokenStore } from './common/requestContext.js';
 
-function extractBearerToken( req: Request ): string | undefined {
-	const auth = req.headers.authorization;
-	if ( typeof auth === 'string' && auth.toLowerCase().startsWith( 'bearer ' ) ) {
-		return auth.slice( 7 );
+export function extractBearerToken( req: Request ): string | undefined {
+	const raw = req.headers.authorization;
+	if ( typeof raw !== 'string' ) {
+		return undefined;
 	}
-	return undefined;
+	const first = raw.split( ',' )[ 0 ].trim();
+	if ( !first.toLowerCase().startsWith( 'bearer ' ) ) {
+		return undefined;
+	}
+	const token = first.slice( 7 ).trim();
+	return token || undefined;
 }
 
 const app = express();
