@@ -37,6 +37,42 @@ export function redactAuthorizationHeader( err: unknown, token?: string ): void 
 	}
 }
 
+function isAsyncIterable( value: unknown ): value is AsyncIterable<unknown> {
+	return (
+		value !== null &&
+		typeof value === 'object' &&
+		typeof ( value as AsyncIterable<unknown> )[ Symbol.asyncIterator ] === 'function'
+	);
+}
+
+// Wrap an async iterable (e.g. mwn's *Gen methods, which return AsyncGenerators
+// — both iterable and iterator) so rejections from .next() / .return() / .throw()
+// during iteration go through the same redaction path as rejections from
+// Promise-returning methods.
+function wrapAsyncIterable<T>(
+	iter: AsyncIterable<T>,
+	token: string | undefined
+): AsyncIterableIterator<T> {
+	const inner = iter[ Symbol.asyncIterator ]();
+	const sanitise = <R>( p: Promise<R> ): Promise<R> => p.catch( ( err: unknown ) => {
+		redactAuthorizationHeader( err, token );
+		throw err;
+	} );
+	const wrapped: AsyncIterableIterator<T> = {
+		[ Symbol.asyncIterator ](): AsyncIterableIterator<T> {
+			return wrapped;
+		},
+		next: ( ...args ) => sanitise( inner.next( ...args ) ),
+		return: inner.return ?
+			( value ) => sanitise( inner.return!( value ) ) :
+			undefined,
+		throw: inner.throw ?
+			( e ) => sanitise( inner.throw!( e ) ) :
+			undefined
+	};
+	return wrapped;
+}
+
 export function wrapMwnErrors<T extends object>( target: T, token?: string ): T {
 	return new Proxy( target, {
 		get( obj, prop, receiver ): unknown {
@@ -55,6 +91,9 @@ export function wrapMwnErrors<T extends object>( target: T, token?: string ): T 
 							redactAuthorizationHeader( err, token );
 							throw err;
 						} );
+					}
+					if ( isAsyncIterable( result ) ) {
+						return wrapAsyncIterable( result, token );
 					}
 					return result;
 				} catch ( err ) {

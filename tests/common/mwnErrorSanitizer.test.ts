@@ -149,4 +149,58 @@ describe( 'wrapMwnErrors', () => {
 		const wrapped = wrapMwnErrors( target ) as typeof target;
 		await expect( wrapped.request() ).resolves.toEqual( { ok: true } );
 	} );
+
+	it( 'redacts Authorization on errors thrown during async iteration', async () => {
+		async function* failing(): AsyncGenerator<{ page: string }> {
+			yield { page: 'first' };
+			throw Object.assign( new Error( 'page fetch failed' ), {
+				request: { headers: { Authorization: 'Bearer secret123' } }
+			} );
+		}
+		const target = { readGen: vi.fn( () => failing() ) };
+		const wrapped = wrapMwnErrors( target ) as typeof target;
+
+		const iter = wrapped.readGen();
+		await expect( iter.next() ).resolves.toEqual( { value: { page: 'first' }, done: false } );
+		await expect( iter.next() ).rejects.toMatchObject( {
+			request: { headers: { Authorization: '[REDACTED]' } }
+		} );
+	} );
+
+	it( 'passes through normal async iteration values unchanged', async () => {
+		async function* ok(): AsyncGenerator<number> {
+			yield 1;
+			yield 2;
+			yield 3;
+		}
+		const target = { gen: vi.fn( () => ok() ) };
+		const wrapped = wrapMwnErrors( target ) as typeof target;
+
+		const results: number[] = [];
+		for await ( const v of wrapped.gen() ) {
+			results.push( v );
+		}
+		expect( results ).toEqual( [ 1, 2, 3 ] );
+	} );
+
+	it( 'forwards return() to the underlying iterator for early termination cleanup', async () => {
+		let cleanedUp = false;
+		async function* withCleanup(): AsyncGenerator<number> {
+			try {
+				yield 1;
+				yield 2;
+			} finally {
+				cleanedUp = true;
+			}
+		}
+		const target = { gen: vi.fn( () => withCleanup() ) };
+		const wrapped = wrapMwnErrors( target ) as typeof target;
+
+		for await ( const v of wrapped.gen() ) {
+			if ( v === 1 ) {
+				break;
+			}
+		}
+		expect( cleanedUp ).toBe( true );
+	} );
 } );
