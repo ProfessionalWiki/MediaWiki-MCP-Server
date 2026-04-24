@@ -14,149 +14,274 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 import { getMwn } from '../../src/common/mwn.js';
 import { wikiService } from '../../src/common/wikiService.js';
 
+function successResponse( overrides: Record<string, unknown> = {} ) {
+	return {
+		edit: {
+			result: 'Success',
+			pageid: 5,
+			title: 'My Page',
+			contentmodel: 'wikitext',
+			oldrevid: 41,
+			newrevid: 42,
+			newtimestamp: '2026-01-02T00:00:00Z',
+			...overrides
+		}
+	};
+}
+
+function mockEdit( response: unknown = successResponse() ) {
+	return createMockMwn( {
+		request: vi.fn().mockResolvedValue( response ),
+		getCsrfToken: vi.fn().mockResolvedValue( 'csrf-token' )
+	} );
+}
+
 describe( 'update-page', () => {
-	beforeEach( () => { vi.clearAllMocks(); } );
-
-	it( 'calls mwn.save() with baserevid for conflict detection', async () => {
-		const mock = createMockMwn( {
-			save: vi.fn().mockResolvedValue( {
-				result: 'Success', pageid: 5, title: 'My Page',
-				contentmodel: 'wikitext', oldrevid: 41, newrevid: 42,
-				newtimestamp: '2026-01-02T00:00:00Z'
-			} )
-		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
-
-		const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
-		const result = await handleUpdatePageTool( 'My Page', 'Updated content', 41, 'edit summary' );
-
-		expect( result.isError ).toBeUndefined();
-		expect( result.content[ 0 ].text ).toContain( 'Page updated successfully' );
-		expect( mock.save ).toHaveBeenCalledWith(
-			'My Page', 'Updated content',
-			expect.stringContaining( 'edit summary' ),
-			expect.objectContaining( { baserevid: 41, nocreate: true } )
-		);
+	beforeEach( () => {
+		vi.clearAllMocks();
 	} );
 
-	it( 'calls mwn.save() without baserevid when latestId is omitted', async () => {
-		const mock = createMockMwn( {
-			save: vi.fn().mockResolvedValue( {
-				result: 'Success', pageid: 5, title: 'My Page',
-				contentmodel: 'wikitext', oldrevid: 41, newrevid: 42,
-				newtimestamp: '2026-01-02T00:00:00Z'
-			} )
+	describe( 'full-page replacement', () => {
+		it( 'sends text=source with nocreate and baserevid for conflict detection', async () => {
+			const mock = mockEdit();
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			const result = await handleUpdatePageTool( {
+				title: 'My Page', source: 'Updated content', latestId: 41, comment: 'edit summary'
+			} );
+
+			expect( result.isError ).toBeUndefined();
+			expect( result.content[ 0 ].text ).toContain( 'Page updated successfully' );
+
+			const params = mock.request.mock.calls[ 0 ][ 0 ];
+			expect( params ).toMatchObject( {
+				action: 'edit',
+				title: 'My Page',
+				text: 'Updated content',
+				nocreate: true,
+				baserevid: 41,
+				token: 'csrf-token'
+			} );
+			expect( params.summary ).toContain( 'edit summary' );
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
-		const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
-		const result = await handleUpdatePageTool( 'My Page', 'Updated content', undefined, 'edit summary' );
+		it( 'omits baserevid when latestId is not supplied', async () => {
+			const mock = mockEdit();
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content[ 0 ].text ).toContain( 'Page updated successfully' );
-		expect( mock.save ).toHaveBeenCalledWith(
-			'My Page', 'Updated content',
-			expect.stringContaining( 'edit summary' ),
-			expect.objectContaining( { nocreate: true } )
-		);
-		const options = mock.save.mock.calls[ 0 ][ 3 ];
-		expect( options ).not.toHaveProperty( 'baserevid' );
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			await handleUpdatePageTool( { title: 'My Page', source: 'content' } );
+
+			const params = mock.request.mock.calls[ 0 ][ 0 ];
+			expect( params ).not.toHaveProperty( 'baserevid' );
+		} );
+
+		it( 'returns error when the API response lacks a Success result', async () => {
+			const mock = mockEdit( { edit: { result: 'Failure', code: 'abusefilter-disallowed' } } );
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			const result = await handleUpdatePageTool( { title: 'My Page', source: 'content' } );
+
+			expect( result.isError ).toBe( true );
+			expect( result.content[ 0 ].text ).toContain( 'Failed to update page' );
+		} );
+
+		it( 'returns error when mwn.request throws', async () => {
+			const mock = mockEdit();
+			mock.request = vi.fn().mockRejectedValue( new Error( 'Edit conflict' ) );
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			const result = await handleUpdatePageTool( { title: 'My Page', source: 'content', latestId: 41 } );
+
+			expect( result.isError ).toBe( true );
+			expect( result.content[ 0 ].text ).toContain( 'Edit conflict' );
+		} );
+
+		it( 'surfaces the missingtitle error from mwn when page does not exist', async () => {
+			const mock = mockEdit();
+			mock.request = vi.fn().mockRejectedValue( new Error( "The page you specified doesn't exist." ) );
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			const result = await handleUpdatePageTool( { title: 'Does Not Exist', source: 'content', latestId: 1 } );
+
+			expect( result.isError ).toBe( true );
+			expect( result.content[ 0 ].text ).toContain( "doesn't exist" );
+		} );
 	} );
 
-	it( 'returns error on failure', async () => {
-		const mock = createMockMwn( {
-			save: vi.fn().mockRejectedValue( new Error( 'Edit conflict' ) )
+	describe( 'tags', () => {
+		it( 'forwards configured array tags', async () => {
+			vi.mocked( wikiService.getCurrent ).mockReturnValueOnce( {
+				key: 'test-wiki',
+				config: {
+					server: 'https://test.wiki',
+					articlepath: '/wiki',
+					scriptpath: '/w',
+					tags: [ 'mcp-server', 'automated' ]
+				}
+			} as ReturnType<typeof wikiService.getCurrent> );
+			const mock = mockEdit();
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			await handleUpdatePageTool( { title: 'Tagged', source: 'content' } );
+
+			expect( mock.request.mock.calls[ 0 ][ 0 ] ).toHaveProperty( 'tags', [ 'mcp-server', 'automated' ] );
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
-		const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
-		const result = await handleUpdatePageTool( 'My Page', 'content', 41 );
+		it( 'omits tags when not configured', async () => {
+			const mock = mockEdit();
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toContain( 'Edit conflict' );
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			await handleUpdatePageTool( { title: 'Untagged', source: 'content' } );
+
+			expect( mock.request.mock.calls[ 0 ][ 0 ] ).not.toHaveProperty( 'tags' );
+		} );
 	} );
 
-	it( 'surfaces the missingtitle error from mwn when page does not exist', async () => {
-		const mock = createMockMwn( {
-			save: vi.fn().mockRejectedValue( new Error( 'The page you specified doesn\'t exist.' ) )
+	describe( 'section editing', () => {
+		it( 'forwards section=2 as section=\'2\' with text=source', async () => {
+			const mock = mockEdit();
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			const result = await handleUpdatePageTool( {
+				title: 'My Page', source: 'new section body', section: 2
+			} );
+
+			expect( result.isError ).toBeUndefined();
+			const params = mock.request.mock.calls[ 0 ][ 0 ];
+			expect( params ).toMatchObject( { section: '2', text: 'new section body' } );
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
-		const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
-		const result = await handleUpdatePageTool( 'Does Not Exist', 'content', 1 );
+		it( 'forwards section=0 (lead) as section=\'0\'', async () => {
+			const mock = mockEdit();
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toContain( 'doesn\'t exist' );
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			await handleUpdatePageTool( { title: 'My Page', source: 'lead', section: 0 } );
+
+			expect( mock.request.mock.calls[ 0 ][ 0 ] ).toMatchObject( { section: '0' } );
+		} );
+
+		it( 'maps nosuchsection error to a friendly message', async () => {
+			const mock = mockEdit();
+			mock.request = vi.fn().mockRejectedValue( new Error( 'nosuchsection: There is no section 99.' ) );
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			const result = await handleUpdatePageTool( { title: 'My Page', source: 'x', section: 99 } );
+
+			expect( result.isError ).toBe( true );
+			expect( result.content[ 0 ].text ).toBe( 'Section 99 does not exist' );
+		} );
+
+		it( 'forwards section=\'new\' with sectionTitle as sectiontitle', async () => {
+			const mock = mockEdit();
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			await handleUpdatePageTool( {
+				title: 'My Page', source: 'body', section: 'new', sectionTitle: 'History'
+			} );
+
+			const params = mock.request.mock.calls[ 0 ][ 0 ];
+			expect( params ).toMatchObject( {
+				section: 'new',
+				sectiontitle: 'History',
+				text: 'body'
+			} );
+		} );
+
+		it( 'rejects section=\'new\' without sectionTitle', async () => {
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			const result = await handleUpdatePageTool( {
+				title: 'My Page', source: 'body', section: 'new'
+			} );
+
+			expect( result.isError ).toBe( true );
+			expect( result.content[ 0 ].text ).toContain( 'sectionTitle is required when section=\'new\'' );
+		} );
+
+		it( 'rejects sectionTitle when section is a number', async () => {
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			const result = await handleUpdatePageTool( {
+				title: 'My Page', source: 'body', section: 2, sectionTitle: 'History'
+			} );
+
+			expect( result.isError ).toBe( true );
+			expect( result.content[ 0 ].text ).toContain( 'sectionTitle is only valid when section=\'new\'' );
+		} );
+
+		it( 'rejects sectionTitle when section is undefined', async () => {
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			const result = await handleUpdatePageTool( {
+				title: 'My Page', source: 'body', sectionTitle: 'History'
+			} );
+
+			expect( result.isError ).toBe( true );
+			expect( result.content[ 0 ].text ).toContain( 'sectionTitle is only valid when section=\'new\'' );
+		} );
 	} );
 
-	it( 'forwards configured array tags to mwn.save()', async () => {
-		vi.mocked( wikiService.getCurrent ).mockReturnValueOnce( {
-			key: 'test-wiki',
-			config: {
-				server: 'https://test.wiki',
-				articlepath: '/wiki',
-				scriptpath: '/w',
-				tags: [ 'mcp-server', 'automated' ]
-			}
-		} as ReturnType<typeof wikiService.getCurrent> );
+	describe( 'append/prepend mode', () => {
+		it( 'mode=append sends appendtext=source and omits text', async () => {
+			const mock = mockEdit();
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
-		const mock = createMockMwn( {
-			save: vi.fn().mockResolvedValue( {
-				result: 'Success', pageid: 7, title: 'Tagged Page',
-				contentmodel: 'wikitext', oldrevid: 50, newrevid: 51,
-				newtimestamp: '2026-01-02T00:00:00Z'
-			} )
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			await handleUpdatePageTool( {
+				title: 'My Page', source: '\n* New entry', mode: 'append'
+			} );
+
+			const params = mock.request.mock.calls[ 0 ][ 0 ];
+			expect( params ).toMatchObject( { appendtext: '\n* New entry' } );
+			expect( params ).not.toHaveProperty( 'text' );
+			expect( params ).not.toHaveProperty( 'prependtext' );
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
-		const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
-		await handleUpdatePageTool( 'Tagged Page', 'content', 50, 'summary' );
+		it( 'mode=prepend sends prependtext=source and omits text', async () => {
+			const mock = mockEdit();
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
-		const opts = mock.save.mock.calls[ 0 ][ 3 ];
-		expect( opts ).toHaveProperty( 'tags', [ 'mcp-server', 'automated' ] );
-	} );
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			await handleUpdatePageTool( {
+				title: 'My Page', source: 'intro\n', mode: 'prepend'
+			} );
 
-	it( 'omits tags from save options when not configured', async () => {
-		const mock = createMockMwn( {
-			save: vi.fn().mockResolvedValue( {
-				result: 'Success', pageid: 8, title: 'Untagged',
-				contentmodel: 'wikitext', oldrevid: 60, newrevid: 61,
-				newtimestamp: '2026-01-02T00:00:00Z'
-			} )
+			const params = mock.request.mock.calls[ 0 ][ 0 ];
+			expect( params ).toMatchObject( { prependtext: 'intro\n' } );
+			expect( params ).not.toHaveProperty( 'text' );
+			expect( params ).not.toHaveProperty( 'appendtext' );
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
-		const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
-		await handleUpdatePageTool( 'Untagged', 'content', undefined, 'summary' );
+		it( 'mode=append composes with section=2', async () => {
+			const mock = mockEdit();
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
-		const opts = mock.save.mock.calls[ 0 ][ 3 ];
-		expect( opts ).not.toHaveProperty( 'tags' );
-	} );
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			await handleUpdatePageTool( {
+				title: 'My Page', source: '\n* row', section: 2, mode: 'append'
+			} );
 
-	it( 'treats null tags as unset on save', async () => {
-		vi.mocked( wikiService.getCurrent ).mockReturnValueOnce( {
-			key: 'test-wiki',
-			config: {
-				server: 'https://test.wiki',
-				articlepath: '/wiki',
-				scriptpath: '/w',
-				tags: null
-			}
-		} as ReturnType<typeof wikiService.getCurrent> );
-
-		const mock = createMockMwn( {
-			save: vi.fn().mockResolvedValue( {
-				result: 'Success', pageid: 9, title: 'Null Tagged',
-				contentmodel: 'wikitext', oldrevid: 70, newrevid: 71,
-				newtimestamp: '2026-01-02T00:00:00Z'
-			} )
+			const params = mock.request.mock.calls[ 0 ][ 0 ];
+			expect( params ).toMatchObject( { section: '2', appendtext: '\n* row' } );
+			expect( params ).not.toHaveProperty( 'text' );
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
-		const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
-		await handleUpdatePageTool( 'Null Tagged', 'content', undefined, 'summary' );
+		it( 'rejects mode combined with section=\'new\'', async () => {
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			const result = await handleUpdatePageTool( {
+				title: 'My Page', source: 'body', section: 'new', sectionTitle: 'History', mode: 'append'
+			} );
 
-		const opts = mock.save.mock.calls[ 0 ][ 3 ];
-		expect( opts ).not.toHaveProperty( 'tags' );
+			expect( result.isError ).toBe( true );
+			expect( result.content[ 0 ].text ).toContain( 'mode is not compatible with section=\'new\'' );
+		} );
 	} );
 } );

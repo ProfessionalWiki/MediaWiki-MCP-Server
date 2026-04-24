@@ -11,7 +11,7 @@ import { getPageUrl, formatEditComment } from '../common/utils.js';
 export function createPageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'create-page',
-		'Creates a new wiki page with the provided content and returns the new page\'s title, page ID, and first revision ID. Fails if a page with the given title already exists; for existing pages, use update-page. The optional contentModel parameter selects a non-default content format (e.g. javascript, css); when omitted, MediaWiki picks the default for the title\'s namespace.',
+		'Creates a new wiki page with the provided content and returns the new page\'s title, page ID, and first revision ID. Fails if a page with the given title already exists; for existing pages, use update-page. The optional contentModel parameter selects a non-default content format (e.g. javascript, css); when omitted, MediaWiki picks the default for the title\'s namespace. For building up a large page across multiple calls, pair create-page with chained update-page(mode=\'append\') calls, each adding a chunk.',
 		{
 			source: z.string().describe( 'Page content in the format specified by the contentModel parameter' ),
 			title: z.string().describe( 'Wiki page title' ),
