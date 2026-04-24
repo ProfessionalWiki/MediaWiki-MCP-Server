@@ -16,14 +16,50 @@ vi.mock( '../../src/common/wikiService.js', async () => {
 	};
 } );
 
+import { z } from 'zod';
 import { discoverWiki } from '../../src/common/wikiDiscovery.js';
 import { wikiService, DuplicateWikiKeyError } from '../../src/common/wikiService.js';
 import { SsrfValidationError } from '../../src/common/ssrfGuard.js';
-import { assertStructuredError } from '../helpers/structuredResult.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess
+} from '../helpers/structuredResult.js';
+
+const AddWikiOutputSchema = z.object( {
+	wikiKey: z.string(),
+	sitename: z.string(),
+	server: z.string(),
+	articlepath: z.string(),
+	scriptpath: z.string()
+} );
 
 describe( 'add-wiki', () => {
 	beforeEach( () => {
 		vi.clearAllMocks();
+	} );
+
+	it( 'returns a structured payload on success', async () => {
+		vi.mocked( discoverWiki ).mockResolvedValue( {
+			servername: 'example.org',
+			sitename: 'Example Wiki',
+			server: 'https://example.org',
+			articlepath: '/wiki',
+			scriptpath: '/w'
+		} );
+		vi.mocked( wikiService.add ).mockImplementation( () => {} );
+
+		const { handleAddWikiTool } = await import( '../../src/tools/add-wiki.js' );
+		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
+		const result = await handleAddWikiTool( server, 'https://example.org/' );
+
+		const data = assertStructuredSuccess( result, AddWikiOutputSchema );
+		expect( data ).toEqual( {
+			wikiKey: 'example.org',
+			sitename: 'Example Wiki',
+			server: 'https://example.org',
+			articlepath: '/wiki',
+			scriptpath: '/w'
+		} );
 	} );
 
 	it( 'categorises SSRF rejections as invalid_input', async () => {

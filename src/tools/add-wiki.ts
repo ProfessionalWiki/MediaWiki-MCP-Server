@@ -1,27 +1,39 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { wikiService, DuplicateWikiKeyError } from '../common/wikiService.js';
 import { discoverWiki } from '../common/wikiDiscovery.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
+import { structuredResult } from '../common/structuredResult.js';
 import { SsrfValidationError } from '../common/ssrfGuard.js';
 
+const outputSchema = {
+	wikiKey: z.string(),
+	sitename: z.string(),
+	server: z.string(),
+	articlepath: z.string(),
+	scriptpath: z.string()
+};
+
 export function addWikiTool( server: McpServer ): RegisteredTool {
-	return server.tool(
+	return server.registerTool(
 		'add-wiki',
-		'Registers a new wiki as an MCP resource by fetching its sitename and API configuration from any URL on the wiki (e.g. a page URL). The wiki becomes selectable via set-wiki at mcp://wikis/<servername>. Fails if the URL is not a MediaWiki wiki or if a wiki with the same key is already registered.',
 		{
-			wikiUrl: z.string().url().describe( 'Any URL from the target wiki (e.g. https://en.wikipedia.org/wiki/Main_Page)' )
+			description: 'Registers a new wiki as an MCP resource by fetching its sitename and API configuration from any URL on the wiki (e.g. a page URL). The wiki becomes selectable via set-wiki at mcp://wikis/<servername>. Fails if the URL is not a MediaWiki wiki or if a wiki with the same key is already registered.',
+			inputSchema: {
+				wikiUrl: z.string().url().describe( 'Any URL from the target wiki (e.g. https://en.wikipedia.org/wiki/Main_Page)' )
+			},
+			outputSchema,
+			annotations: {
+				title: 'Add wiki',
+				readOnlyHint: false,
+				destructiveHint: false,
+				idempotentHint: true,
+				openWorldHint: true
+			} as ToolAnnotations
 		},
-		{
-			title: 'Add wiki',
-			readOnlyHint: false,
-			destructiveHint: false,
-			idempotentHint: true,
-			openWorldHint: true
-		} as ToolAnnotations,
 		( { wikiUrl } ) => handleAddWikiTool( server, wikiUrl )
 	);
 }
@@ -36,8 +48,8 @@ export async function handleAddWikiTool(
 		if ( error instanceof SsrfValidationError ) {
 			return errorResult( 'invalid_input', `Failed to add wiki: ${ error.message }` );
 		}
-		const { category } = classifyError( error );
-		return errorResult( category, `Failed to add wiki: ${ ( error as Error ).message }` );
+		const { category, code } = classifyError( error );
+		return errorResult( category, `Failed to add wiki: ${ ( error as Error ).message }`, code );
 	}
 
 	if ( wikiInfo === null ) {
@@ -60,19 +72,18 @@ export async function handleAddWikiTool(
 		wikiService.add( wikiInfo.servername, newConfig );
 		server.sendResourceListChanged();
 
-		return {
-			content: [
-				{
-					type: 'text',
-					text: `${ wikiInfo.sitename } (mcp://wikis/${ wikiInfo.servername }) has been added to MCP resources.`
-				} as TextContent
-			]
-		};
+		return structuredResult( {
+			wikiKey: wikiInfo.servername,
+			sitename: wikiInfo.sitename,
+			server: wikiInfo.server,
+			articlepath: wikiInfo.articlepath,
+			scriptpath: wikiInfo.scriptpath
+		} );
 	} catch ( error ) {
 		if ( error instanceof DuplicateWikiKeyError ) {
 			return errorResult( 'conflict', error.message );
 		}
-		const { category } = classifyError( error );
-		return errorResult( category, `Failed to add wiki: ${ ( error as Error ).message }` );
+		const { category, code } = classifyError( error );
+		return errorResult( category, `Failed to add wiki: ${ ( error as Error ).message }`, code );
 	}
 }
