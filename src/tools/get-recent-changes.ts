@@ -39,7 +39,7 @@ const inputSchema = {
 	hideAnon: z.boolean().optional().describe( 'Omit edits by anonymous users' ),
 	hideRedirects: z.boolean().optional().describe( 'Omit changes whose target is a redirect' ),
 	hidePatrolled: z.boolean().optional().describe(
-		'Omit patrolled edits (requires patrol rights on the wiki)'
+		'Omit patrolled edits. Requires patrol rights.'
 	),
 	continue: z.string().optional().describe(
 		"Continuation token from a prior call's truncation marker"
@@ -172,7 +172,7 @@ function formatChange( change: RecentChange ): TextContent {
 export function getRecentChangesTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'get-recent-changes',
-		'Returns recent change events on a wiki (edits and page creations by default; log actions, categorizations, and external changes via types), newest first, in segments of 50. Each row includes title, timestamp, user, revision IDs, size change, flags (minor/bot/new/anon), tags, and change type. Filter by timestamp window, namespaces, user, change tag, or noise flags (hideBots/hideMinor/hideAnon/hideRedirects/hidePatrolled). Paginate with the continue token from the truncation marker. For a single page\'s revision history, use get-page-history.',
+		'Returns recent change events, newest first, in segments of 50. Defaults to edits and page creations; set types to include log actions, categorizations, or external changes. Each row includes title, timestamp, user, revision IDs, size change, flags (minor/bot/new/anon), tags, and change type. Filter by timestamp window, namespaces, user, change tag, or hide flags (hideBots/hideMinor/hideAnon/hideRedirects/hidePatrolled). Paginate with the continue token from the truncation marker. For a single page\'s revision history, use get-page-history.',
 		inputSchema,
 		{
 			title: 'Get recent changes',
@@ -260,7 +260,7 @@ export async function handleGetRecentChangesTool(
 			return {
 				content: [ {
 					type: 'text',
-					text: 'No recent changes matched the given filters'
+					text: 'No recent changes matched the filters'
 				} as TextContent ]
 			};
 		}

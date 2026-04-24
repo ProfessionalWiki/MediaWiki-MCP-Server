@@ -422,7 +422,7 @@ describe( 'get-recent-changes — truncation and empty results', () => {
 		expect( result.isError ).toBeUndefined();
 		expect( result.content ).toHaveLength( 1 );
 		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'No recent changes matched the given filters'
+			'No recent changes matched the filters'
 		);
 	} );
 } );
