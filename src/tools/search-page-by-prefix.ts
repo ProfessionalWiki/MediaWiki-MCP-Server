@@ -5,6 +5,7 @@ import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontext
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import { appendTruncationMarker, type TruncationInfo } from '../common/truncation.js';
+import { classifyError, errorResult } from '../common/errorMapping.js';
 
 interface AllPagesEntry {
 	pageid: number;
@@ -79,11 +80,7 @@ export async function handleSearchPageByPrefixTool(
 
 		return { content: appendTruncationMarker( content, truncation ) };
 	} catch ( error ) {
-		return {
-			content: [
-				{ type: 'text', text: `Failed to retrieve search data: ${ ( error as Error ).message }` } as TextContent
-			],
-			isError: true
-		};
+		const { category } = classifyError( error );
+		return errorResult( category, `Failed to retrieve search data: ${ ( error as Error ).message }` );
 	}
 }

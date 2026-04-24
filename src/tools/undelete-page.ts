@@ -8,6 +8,7 @@ import type { ApiUndeleteParams } from 'types-mediawiki-api';
 import { getMwn } from '../common/mwn.js';
 import { wikiService } from '../common/wikiService.js';
 import { formatEditComment } from '../common/utils.js';
+import { classifyError, errorResult } from '../common/errorMapping.js';
 
 export function undeletePageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
@@ -48,15 +49,8 @@ export async function handleUndeletePageTool(
 			options
 		);
 	} catch ( error ) {
-		return {
-			content: [
-				{
-					type: 'text',
-					text: `Undelete failed: ${ ( error as Error ).message }`
-				} as TextContent
-			],
-			isError: true
-		};
+		const { category } = classifyError( error );
+		return errorResult( category, `Failed to undelete page: ${ ( error as Error ).message }` );
 	}
 
 	return {

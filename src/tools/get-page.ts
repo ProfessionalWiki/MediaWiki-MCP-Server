@@ -12,6 +12,7 @@ import {
 	truncateByBytes,
 	type TruncationInfo
 } from '../common/truncation.js';
+import { classifyError, errorResult } from '../common/errorMapping.js';
 
 export function getPageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
@@ -93,22 +94,10 @@ export async function handleGetPageTool(
 	section?: number
 ): Promise<CallToolResult> {
 	if ( content === ContentFormat.none && !metadata ) {
-		return {
-			content: [ {
-				type: 'text',
-				text: 'When content is set to "none", metadata must be true'
-			} ],
-			isError: true
-		};
+		return errorResult( 'invalid_input', 'When content is set to "none", metadata must be true' );
 	}
 	if ( section !== undefined && content === ContentFormat.none ) {
-		return {
-			content: [ {
-				type: 'text',
-				text: 'section is not compatible with content="none"'
-			} ],
-			isError: true
-		};
+		return errorResult( 'invalid_input', 'section is not compatible with content="none"' );
 	}
 
 	try {
@@ -133,13 +122,7 @@ export async function handleGetPageTool(
 			const page = await mwn.read( title, readParams );
 
 			if ( page.missing ) {
-				return {
-					content: [ {
-						type: 'text',
-						text: `Page "${ title }" not found`
-					} as TextContent ],
-					isError: true
-				};
+				return errorResult( 'not_found', `Page "${ title }" not found` );
 			}
 
 			const rev = page.revisions?.[ 0 ];
@@ -221,14 +204,7 @@ export async function handleGetPageTool(
 
 		return { content: results };
 	} catch ( error ) {
-		return {
-			content: [
-				{
-					type: 'text',
-					text: `Failed to retrieve page data: ${ ( error as Error ).message }`
-				} as TextContent
-			],
-			isError: true
-		};
+		const { category } = classifyError( error );
+		return errorResult( category, `Failed to retrieve page data: ${ ( error as Error ).message }` );
 	}
 }

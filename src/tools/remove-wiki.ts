@@ -1,12 +1,13 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { wikiService } from '../common/wikiService.js';
 import { removeMwnInstance } from '../common/mwn.js';
 import { removeLicenseCache } from '../resources/index.js';
 import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../common/wikiResource.js';
+import { errorResult } from '../common/errorMapping.js';
 
 export function removeWikiTool( server: McpServer ): RegisteredTool {
 	return server.tool(
@@ -32,23 +33,14 @@ async function handleRemoveWikiTool( server: McpServer, uri: string ): Promise<C
 
 		const wikiToRemove = wikiService.get( wikiKey );
 		if ( !wikiToRemove ) {
-			return {
-				content: [ {
-					type: 'text',
-					text: `mcp://wikis/${ wikiKey } not found in MCP resources.`
-				} as TextContent ],
-				isError: true
-			};
+			return errorResult( 'invalid_input', `mcp://wikis/${ wikiKey } not found in MCP resources` );
 		}
 
 		if ( wikiService.getCurrent().key === wikiKey ) {
-			return {
-				content: [ {
-					type: 'text',
-					text: 'Cannot remove the currently active wiki. Please set a different wiki as the active wiki before removing this one.'
-				} as TextContent ],
-				isError: true
-			};
+			return errorResult(
+				'conflict',
+				'Cannot remove the currently active wiki. Please set a different wiki as the active wiki before removing this one.'
+			);
 		}
 
 		wikiService.remove( wikiKey );
@@ -60,17 +52,11 @@ async function handleRemoveWikiTool( server: McpServer, uri: string ): Promise<C
 			content: [ {
 				type: 'text',
 				text: `${ wikiToRemove.sitename } (mcp://wikis/${ wikiKey }) has been removed from MCP resources.`
-			} as TextContent ]
+			} ]
 		};
 	} catch ( error ) {
 		if ( error instanceof InvalidWikiResourceUriError ) {
-			return {
-				content: [ {
-					type: 'text',
-					text: error.message
-				} as TextContent ],
-				isError: true
-			};
+			return errorResult( 'invalid_input', error.message );
 		}
 		throw error;
 	}

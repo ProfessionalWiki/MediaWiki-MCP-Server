@@ -7,6 +7,7 @@ import { getMwn } from '../common/mwn.js';
 import type { ApiPage, ApiRevision } from 'mwn';
 import { getPageUrl } from '../common/utils.js';
 import { ContentFormat } from '../common/contentFormat.js';
+import { classifyError, errorResult } from '../common/errorMapping.js';
 
 export function getRevisionTool( server: McpServer ): RegisteredTool {
 	return server.tool(
@@ -54,13 +55,7 @@ export async function handleGetRevisionTool(
 	revisionId: number, content: ContentFormat, metadata: boolean
 ): Promise<CallToolResult> {
 	if ( content === ContentFormat.none && !metadata ) {
-		return {
-			content: [ {
-				type: 'text',
-				text: 'When content is set to "none", metadata must be true'
-			} ],
-			isError: true
-		};
+		return errorResult( 'invalid_input', 'When content is set to "none", metadata must be true' );
 	}
 
 	try {
@@ -87,13 +82,7 @@ export async function handleGetRevisionTool(
 			const rev: ApiRevision | undefined = page?.revisions?.[ 0 ];
 
 			if ( !rev || !page ) {
-				return {
-					content: [ {
-						type: 'text',
-						text: `Revision ${ revisionId } not found`
-					} as TextContent ],
-					isError: true
-				};
+				return errorResult( 'not_found', `Revision ${ revisionId } not found` );
 			}
 
 			if ( needsMetadata ) {
@@ -127,14 +116,7 @@ export async function handleGetRevisionTool(
 
 		return { content: results };
 	} catch ( error ) {
-		return {
-			content: [
-				{
-					type: 'text',
-					text: `Failed to retrieve revision data: ${ ( error as Error ).message }`
-				} as TextContent
-			],
-			isError: true
-		};
+		const { category } = classifyError( error );
+		return errorResult( category, `Failed to retrieve revision data: ${ ( error as Error ).message }` );
 	}
 }

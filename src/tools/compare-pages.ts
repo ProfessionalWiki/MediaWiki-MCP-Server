@@ -9,6 +9,7 @@ import {
 	truncationMarker,
 	truncateByBytes
 } from '../common/truncation.js';
+import { classifyError, errorResult } from '../common/errorMapping.js';
 
 interface ComparePagesArgs {
 	fromRevision?: number;
@@ -57,13 +58,6 @@ export function comparePagesTool( server: McpServer ): RegisteredTool {
 		} as ToolAnnotations,
 		async ( args ) => handleComparePagesTool( args as ComparePagesArgs )
 	);
-}
-
-function errorResult( text: string ): CallToolResult {
-	return {
-		content: [ { type: 'text', text } as TextContent ],
-		isError: true
-	};
 }
 
 function countSide( side: Side, args: ComparePagesArgs ): number {
@@ -145,14 +139,14 @@ export async function handleComparePagesTool(
 ): Promise<CallToolResult> {
 	const fromError = validateSide( 'from', args );
 	if ( fromError ) {
-		return errorResult( fromError );
+		return errorResult( 'invalid_input', fromError );
 	}
 	const toError = validateSide( 'to', args );
 	if ( toError ) {
-		return errorResult( toError );
+		return errorResult( 'invalid_input', toError );
 	}
 	if ( args.fromText !== undefined && args.toText !== undefined ) {
-		return errorResult( 'Cannot compare supplied text against supplied text' );
+		return errorResult( 'invalid_input', 'Cannot compare supplied text against supplied text' );
 	}
 
 	const includeDiff = args.includeDiff ?? true;
@@ -171,7 +165,7 @@ export async function handleComparePagesTool(
 		const compare = response.compare as CompareResponse | undefined;
 
 		if ( !compare ) {
-			return errorResult( 'Failed to compare pages: no compare result returned' );
+			return errorResult( 'upstream_failure', 'Failed to compare pages: no compare result returned' );
 		}
 
 		const anchorTitle = compare.fromtitle ?? compare.totitle;
@@ -227,23 +221,30 @@ export async function handleComparePagesTool(
 
 		return { content: results };
 	} catch ( error ) {
+		const { category, code } = classifyError( error );
 		const msg = ( error as Error ).message;
-		if ( /nosuchrevid/i.test( msg ) ) {
+		if ( code === 'nosuchrevid' ) {
 			const idMatch = msg.match( /\b(\d+)\b/ );
-			if ( idMatch ) {
-				return errorResult( `Revision ${ idMatch[ 1 ] } not found` );
+			let id: string | undefined = idMatch?.[ 1 ];
+			if ( id === undefined && args.fromRevision !== undefined ) {
+				id = String( args.fromRevision );
 			}
-			return errorResult( `Revision not found: ${ msg }` );
-		}
-		if ( /missingtitle/i.test( msg ) ) {
-			const titleMatch = msg.match( /["'`]([^"'`]+)["'`]/ );
-			const missingTitle = titleMatch?.[ 1 ] ?? args.fromTitle ?? args.toTitle;
+			if ( id === undefined && args.toRevision !== undefined ) {
+				id = String( args.toRevision );
+			}
 			return errorResult(
-				missingTitle ?
-					`Page "${ missingTitle }" not found` :
-					`Page not found: ${ msg }`
+				'not_found',
+				id !== undefined ? `Revision ${ id } not found` : 'Revision not found'
 			);
 		}
-		return errorResult( `Failed to compare pages: ${ msg }` );
+		if ( code === 'missingtitle' ) {
+			const titleMatch = msg.match( /["'`]([^"'`]+)["'`]/ );
+			const title = titleMatch?.[ 1 ] ?? args.fromTitle ?? args.toTitle;
+			return errorResult(
+				'not_found',
+				title !== undefined ? `Page "${ title }" not found` : 'Page not found'
+			);
+		}
+		return errorResult( category, `Failed to compare pages: ${ msg }` );
 	}
 }

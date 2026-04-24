@@ -3,8 +3,10 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { wikiService } from '../common/wikiService.js';
+import { wikiService, DuplicateWikiKeyError } from '../common/wikiService.js';
 import { discoverWiki } from '../common/wikiDiscovery.js';
+import { classifyError, errorResult } from '../common/errorMapping.js';
+import { SsrfValidationError } from '../common/ssrfGuard.js';
 
 export function addWikiTool( server: McpServer ): RegisteredTool {
 	return server.tool(
@@ -31,27 +33,18 @@ export async function handleAddWikiTool(
 	try {
 		wikiInfo = await discoverWiki( wikiUrl );
 	} catch ( error ) {
-		return {
-			content: [
-				{
-					type: 'text',
-					text: `Failed to add wiki: ${ ( error as Error ).message }`
-				} as TextContent
-			],
-			isError: true
-		};
+		if ( error instanceof SsrfValidationError ) {
+			return errorResult( 'invalid_input', `Failed to add wiki: ${ error.message }` );
+		}
+		const { category } = classifyError( error );
+		return errorResult( category, `Failed to add wiki: ${ ( error as Error ).message }` );
 	}
 
 	if ( wikiInfo === null ) {
-		return {
-			content: [
-				{
-					type: 'text',
-					text: 'Failed to determine wiki info. Please ensure the URL is correct and the wiki is accessible.'
-				} as TextContent
-			],
-			isError: true
-		};
+		return errorResult(
+			'upstream_failure',
+			'Failed to determine wiki info. Please ensure the URL is correct and the wiki is accessible.'
+		);
 	}
 
 	try {
@@ -76,14 +69,10 @@ export async function handleAddWikiTool(
 			]
 		};
 	} catch ( error ) {
-		return {
-			content: [
-				{
-					type: 'text',
-					text: `Failed to add wiki: ${ ( error as Error ).message }`
-				} as TextContent
-			],
-			isError: true
-		};
+		if ( error instanceof DuplicateWikiKeyError ) {
+			return errorResult( 'conflict', error.message );
+		}
+		const { category } = classifyError( error );
+		return errorResult( category, `Failed to add wiki: ${ ( error as Error ).message }` );
 	}
 }

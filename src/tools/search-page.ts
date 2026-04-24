@@ -7,6 +7,7 @@ import { getMwn } from '../common/mwn.js';
 import type { ApiSearchResult } from 'mwn';
 import { getPageUrl } from '../common/utils.js';
 import { appendTruncationMarker, type TruncationInfo } from '../common/truncation.js';
+import { classifyError, errorResult } from '../common/errorMapping.js';
 
 export function searchPageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
@@ -79,11 +80,7 @@ export async function handleSearchPageTool(
 
 		return { content: appendTruncationMarker( content, truncation ) };
 	} catch ( error ) {
-		return {
-			content: [
-				{ type: 'text', text: `Failed to retrieve search data: ${ ( error as Error ).message }` } as TextContent
-			],
-			isError: true
-		};
+		const { category } = classifyError( error );
+		return errorResult( category, `Failed to retrieve search data: ${ ( error as Error ).message }` );
 	}
 }

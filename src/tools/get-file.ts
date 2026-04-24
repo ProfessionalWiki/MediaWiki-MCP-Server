@@ -1,10 +1,11 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import type { ApiPage, ImageInfo } from 'mwn';
+import { classifyError, errorResult } from '../common/errorMapping.js';
 
 export function getFileTool( server: McpServer ): RegisteredTool {
 	return server.tool(
@@ -42,23 +43,13 @@ export async function handleGetFileTool( title: string ): Promise<CallToolResult
 		const page = response.query?.pages?.[ 0 ] as ApiPage | undefined;
 
 		if ( !page || page.missing ) {
-			return {
-				content: [
-					{ type: 'text', text: `File "${ title }" not found` } as TextContent
-				],
-				isError: true
-			};
+			return errorResult( 'not_found', `File "${ title }" not found` );
 		}
 
 		const info: ImageInfo | undefined = page.imageinfo?.[ 0 ];
 
 		if ( !info ) {
-			return {
-				content: [
-					{ type: 'text', text: `No file info available for "${ title }"` } as TextContent
-				],
-				isError: true
-			};
+			return errorResult( 'not_found', `No file info available for "${ title }"` );
 		}
 
 		return {
@@ -82,11 +73,7 @@ export async function handleGetFileTool( title: string ): Promise<CallToolResult
 			]
 		};
 	} catch ( error ) {
-		return {
-			content: [
-				{ type: 'text', text: `Failed to retrieve file data: ${ ( error as Error ).message }` } as TextContent
-			],
-			isError: true
-		};
+		const { category } = classifyError( error );
+		return errorResult( category, `Failed to retrieve file data: ${ ( error as Error ).message }` );
 	}
 }

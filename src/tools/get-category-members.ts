@@ -5,6 +5,7 @@ import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontext
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import { appendTruncationMarker, type TruncationInfo } from '../common/truncation.js';
+import { classifyError, errorResult } from '../common/errorMapping.js';
 
 enum CategoryMemberType {
 	file = 'file',
@@ -97,12 +98,7 @@ export async function handleGetCategoryMembersTool(
 
 		return { content: appendTruncationMarker( content, truncation ) };
 	} catch ( error ) {
-		return {
-			content: [ {
-				type: 'text',
-				text: `Get category members failed: ${ ( error as Error ).message }`
-			} as TextContent ],
-			isError: true
-		};
+		const { category } = classifyError( error );
+		return errorResult( category, `Failed to retrieve category members: ${ ( error as Error ).message }` );
 	}
 }

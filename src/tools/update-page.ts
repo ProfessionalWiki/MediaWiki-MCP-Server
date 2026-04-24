@@ -1,11 +1,12 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import { wikiService } from '../common/wikiService.js';
 import { getPageUrl, formatEditComment } from '../common/utils.js';
+import { classifyError, errorResult } from '../common/errorMapping.js';
 
 interface UpdatePageArgs {
 	title: string;
@@ -54,26 +55,19 @@ export function updatePageTool( server: McpServer ): RegisteredTool {
 	);
 }
 
-function errorResult( text: string ): CallToolResult {
-	return {
-		content: [ { type: 'text', text } as TextContent ],
-		isError: true
-	};
-}
-
 export async function handleUpdatePageTool(
 	args: UpdatePageArgs
 ): Promise<CallToolResult> {
 	const { title, source, latestId, comment, section, mode, sectionTitle } = args;
 
 	if ( section === 'new' && mode !== undefined ) {
-		return errorResult( 'mode is not compatible with section=\'new\'' );
+		return errorResult( 'invalid_input', 'mode is not compatible with section=\'new\'' );
 	}
 	if ( section === 'new' && sectionTitle === undefined ) {
-		return errorResult( 'sectionTitle is required when section=\'new\'' );
+		return errorResult( 'invalid_input', 'sectionTitle is required when section=\'new\'' );
 	}
 	if ( sectionTitle !== undefined && section !== 'new' ) {
-		return errorResult( 'sectionTitle is only valid when section=\'new\'' );
+		return errorResult( 'invalid_input', 'sectionTitle is only valid when section=\'new\'' );
 	}
 
 	try {
@@ -115,7 +109,7 @@ export async function handleUpdatePageTool(
 		const edit = response?.edit as ApiEditResponse | undefined;
 
 		if ( !edit || edit.result !== 'Success' ) {
-			return errorResult( `Failed to update page: ${ JSON.stringify( edit ?? response ) }` );
+			return errorResult( 'upstream_failure', `Failed to update page: ${ JSON.stringify( edit ?? response ) }` );
 		}
 
 		const resolvedTitle = edit.title ?? title;
@@ -140,11 +134,12 @@ export async function handleUpdatePageTool(
 			]
 		};
 	} catch ( error ) {
+		const { category, code } = classifyError( error );
 		const msg = ( error as Error ).message;
-		if ( /nosuchsection/i.test( msg ) ) {
+		if ( code === 'nosuchsection' ) {
 			const label = section === undefined ? 'unknown' : String( section );
-			return errorResult( `Section ${ label } does not exist` );
+			return errorResult( 'not_found', `Section ${ label } does not exist` );
 		}
-		return errorResult( `Failed to update page: ${ msg }` );
+		return errorResult( category, `Failed to update page: ${ msg }` );
 	}
 }
