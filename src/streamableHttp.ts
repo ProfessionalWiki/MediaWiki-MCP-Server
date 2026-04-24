@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
-import express, { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
+import { Request, Response } from 'express';
 /* eslint-disable n/no-missing-import */
+import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { createServer } from './server.js';
+import { resolveHttpConfig } from './common/httpConfig.js';
 import { runtimeTokenStore } from './common/requestContext.js';
 
 export function extractBearerToken( req: Request ): string | undefined {
@@ -22,8 +24,8 @@ export function extractBearerToken( req: Request ): string | undefined {
 	return token || undefined;
 }
 
-const app = express();
-app.use( express.json() );
+const { host, port, allowedHosts } = resolveHttpConfig();
+const app = createMcpExpressApp( { host, allowedHosts } );
 
 const transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
 
@@ -62,8 +64,9 @@ app.post( '/mcp', async ( req: Request, res: Response ) => {
 	}
 
 	const runtimeToken = extractBearerToken( req );
-	await runtimeTokenStore.run( { runtimeToken }, () =>
-		transport.handleRequest( req, res, req.body )
+	await runtimeTokenStore.run(
+		{ runtimeToken },
+		() => transport.handleRequest( req, res, req.body )
 	);
 } );
 
@@ -76,8 +79,9 @@ const handleSessionRequest = async ( req: Request, res: Response ): Promise<void
 
 	const transport = transports[ sessionId ];
 	const runtimeToken = extractBearerToken( req );
-	await runtimeTokenStore.run( { runtimeToken }, () =>
-		transport.handleRequest( req, res )
+	await runtimeTokenStore.run(
+		{ runtimeToken },
+		() => transport.handleRequest( req, res )
 	);
 };
 
@@ -90,7 +94,6 @@ app.get( '/health', ( _req: Request, res: Response ) => {
 	res.status( 200 ).json( { status: 'ok' } );
 } );
 
-const PORT = process.env.PORT || 3000;
-app.listen( PORT, () => {
-	console.error( `MCP Streamable HTTP Server listening on port ${ PORT }` );
+app.listen( port, host, () => {
+	console.error( `MCP Streamable HTTP Server listening on ${ host }:${ port }` );
 } );

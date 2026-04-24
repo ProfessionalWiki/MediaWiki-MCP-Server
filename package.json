@@ -68,6 +68,7 @@
 		"@types/express": "^5.0.2",
 		"@types/node": "^25.0.2",
 		"@types/node-fetch": "^2.6.12",
+		"@types/supertest": "^7.2.0",
 		"@typescript-eslint/eslint-plugin": "^8.19.0",
 		"@typescript-eslint/parser": "^8.19.0",
 		"ajv": "^8.17.1",
@@ -75,6 +76,7 @@
 		"concurrently": "^9.1.2",
 		"eslint": "^8.57.0",
 		"eslint-config-wikimedia": "^0.32.2",
+		"supertest": "^7.2.2",
 		"typescript": "^6.0.2",
 		"vitest": "^4.1.1"
 	}
