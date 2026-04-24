@@ -2,7 +2,19 @@
 import type { TextContent } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 
-export const CONTENT_MAX_BYTES = 50000;
+export const DEFAULT_CONTENT_MAX_BYTES = 50000;
+
+export function resolveContentMaxBytes(): number {
+	const raw = process.env.MCP_CONTENT_MAX_BYTES;
+	if ( raw === undefined || raw === '' ) {
+		return DEFAULT_CONTENT_MAX_BYTES;
+	}
+	const parsed = Number.parseInt( raw, 10 );
+	if ( !Number.isFinite( parsed ) || parsed <= 0 ) {
+		return DEFAULT_CONTENT_MAX_BYTES;
+	}
+	return parsed;
+}
 
 export type TruncationInfo =
 	| {
@@ -84,7 +96,7 @@ export interface TruncatedContent {
 
 export function truncateByBytes(
 	text: string,
-	maxBytes: number = CONTENT_MAX_BYTES
+	maxBytes: number = resolveContentMaxBytes()
 ): TruncatedContent {
 	const buffer = Buffer.from( text, 'utf8' );
 	const totalBytes = buffer.byteLength;
