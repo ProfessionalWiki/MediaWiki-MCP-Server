@@ -53,7 +53,7 @@
 		"mcpjam": "concurrently --kill-others \"tsc --watch\" \"npx -y @mcpjam/inspector@latest node $(pwd)/dist/index.js\"",
 		"bundle": "npm run build && node scripts/bundle.cjs",
 		"preversion": "npm run preflight",
-		"version": "node scripts/sync-version.cjs && git add server.json mcpb/manifest.json Dockerfile"
+		"version": "node scripts/sync-version.cjs && git add server.json mcpb/manifest.json gemini-extension.json Dockerfile"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.25.2",
