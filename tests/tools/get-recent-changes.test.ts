@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
+import { TruncationSchema } from '../../src/common/schemas.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
 vi.mock( '../../src/common/wikiService.js', () => ( {
@@ -12,9 +14,43 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
-import { assertStructuredError } from '../helpers/structuredResult.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess
+} from '../helpers/structuredResult.js';
 
 const RC_PROP = 'user|userid|comment|flags|timestamp|title|ids|sizes|tags|loginfo';
+
+const RecentChangeSchema = z.object( {
+	type: z.enum( [ 'edit', 'new', 'log', 'categorize', 'external' ] ),
+	title: z.string(),
+	timestamp: z.string(),
+	user: z.string().optional(),
+	userid: z.number().int().nonnegative().optional(),
+	anon: z.boolean().optional(),
+	userhidden: z.boolean().optional(),
+	commenthidden: z.boolean().optional(),
+	revid: z.number().int().nonnegative().optional(),
+	oldRevid: z.number().int().nonnegative().optional(),
+	newlen: z.number().int().nonnegative().optional(),
+	oldlen: z.number().int().nonnegative().optional(),
+	sizeDelta: z.number().int().optional(),
+	comment: z.string().optional(),
+	minor: z.boolean().optional(),
+	bot: z.boolean().optional(),
+	isNew: z.boolean().optional(),
+	redirect: z.boolean().optional(),
+	unpatrolled: z.boolean().optional(),
+	tags: z.array( z.string() ).optional(),
+	logtype: z.string().optional(),
+	logaction: z.string().optional(),
+	logparams: z.record( z.string(), z.unknown() ).optional()
+} );
+
+const RecentChangesSchema = z.object( {
+	changes: z.array( RecentChangeSchema ),
+	truncation: TruncationSchema.optional()
+} );
 
 function mockRequest( response: unknown ) {
 	const mock = createMockMwn( {
@@ -164,10 +200,10 @@ describe( 'get-recent-changes — error handling', () => {
 	} );
 } );
 
-describe( 'get-recent-changes — formatter', () => {
+describe( 'get-recent-changes — payload shape', () => {
 	beforeEach( () => { vi.clearAllMocks(); } );
 
-	it( 'renders an edit row with all optional fields', async () => {
+	it( 'emits a full edit row with sizeDelta computed server-side', async () => {
 		mockRequest( {
 			query: { recentchanges: [ {
 				type: 'edit',
@@ -189,46 +225,27 @@ describe( 'get-recent-changes — formatter', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		const text = ( result.content[ 0 ] as { text: string } ).text;
-		expect( text ).toContain( 'Type: edit' );
-		expect( text ).toContain( 'Title: Help:Foo' );
-		expect( text ).toContain( 'Timestamp: 2026-01-01T12:34:56Z' );
-		expect( text ).toContain( 'User: Alice (ID: 42)' );
-		expect( text ).toContain( 'Revision: 1234567 (from 1234500)' );
-		expect( text ).toContain( 'Size: 1523 bytes (+23)' );
-		expect( text ).toContain( 'Comment: typo fix' );
-		expect( text ).toContain( 'Flags: minor, bot' );
-		expect( text ).toContain( 'Tags: mobile-edit' );
-	} );
-
-	it( 'omits Flags, Tags, Comment, and Unpatrolled lines when absent', async () => {
-		mockRequest( {
-			query: { recentchanges: [ {
-				type: 'edit',
-				title: 'Foo',
-				timestamp: '2026-01-01T00:00:00Z',
-				user: 'Bob',
-				userid: 7,
-				revid: 100,
-				old_revid: 99,
-				newlen: 100,
-				oldlen: 100,
-				comment: '',
-				tags: []
-			} ] }
+		const data = assertStructuredSuccess( result, RecentChangesSchema );
+		expect( data.changes ).toHaveLength( 1 );
+		expect( data.changes[ 0 ] ).toMatchObject( {
+			type: 'edit',
+			title: 'Help:Foo',
+			timestamp: '2026-01-01T12:34:56Z',
+			user: 'Alice',
+			userid: 42,
+			revid: 1234567,
+			oldRevid: 1234500,
+			newlen: 1523,
+			oldlen: 1500,
+			sizeDelta: 23,
+			comment: 'typo fix',
+			minor: true,
+			bot: true,
+			tags: [ 'mobile-edit' ]
 		} );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		const result = await handleGetRecentChangesTool( {} );
-
-		const text = ( result.content[ 0 ] as { text: string } ).text;
-		expect( text ).not.toContain( 'Flags:' );
-		expect( text ).not.toContain( 'Tags:' );
-		expect( text ).not.toContain( 'Comment:' );
-		expect( text ).not.toContain( 'Unpatrolled:' );
-		expect( text ).toContain( 'Size: 100 bytes (+0)' );
 	} );
 
-	it( 'renders a new-page row without the (from ...) suffix and with positive delta', async () => {
+	it( 'renders a new-page row with isNew=true and a positive sizeDelta', async () => {
 		mockRequest( {
 			query: { recentchanges: [ {
 				type: 'new',
@@ -248,15 +265,17 @@ describe( 'get-recent-changes — formatter', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		const text = ( result.content[ 0 ] as { text: string } ).text;
-		expect( text ).toContain( 'Type: new' );
-		expect( text ).toContain( 'Revision: 500' );
-		expect( text ).not.toContain( '(from' );
-		expect( text ).toContain( 'Size: 240 bytes (+240)' );
-		expect( text ).toContain( 'Flags: new' );
+		const data = assertStructuredSuccess( result, RecentChangesSchema );
+		expect( data.changes[ 0 ] ).toMatchObject( {
+			type: 'new',
+			revid: 500,
+			oldRevid: 0,
+			sizeDelta: 240,
+			isNew: true
+		} );
 	} );
 
-	it( 'renders a log row with Log line and logparams, no Revision or Size', async () => {
+	it( 'renders a log row with logtype, logaction and logparams preserved', async () => {
 		mockRequest( {
 			query: { recentchanges: [ {
 				type: 'log',
@@ -274,37 +293,17 @@ describe( 'get-recent-changes — formatter', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( { types: [ 'log' ] } );
 
-		const text = ( result.content[ 0 ] as { text: string } ).text;
-		expect( text ).toContain( 'Type: log' );
-		expect( text ).toContain( 'Log: block/block (' );
-		expect( text ).toContain( 'duration=infinity' );
-		expect( text ).not.toContain( 'Revision:' );
-		expect( text ).not.toContain( 'Size:' );
-	} );
-
-	it( 'renders a log row with no logparams as a bare Log line', async () => {
-		mockRequest( {
-			query: { recentchanges: [ {
-				type: 'log',
-				title: 'Example',
-				timestamp: '2026-01-01T00:00:00Z',
-				user: 'Admin',
-				userid: 1,
-				comment: '',
-				logtype: 'patrol',
-				logaction: 'patrol',
-				tags: []
-			} ] }
+		const data = assertStructuredSuccess( result, RecentChangesSchema );
+		expect( data.changes[ 0 ] ).toMatchObject( {
+			type: 'log',
+			logtype: 'block',
+			logaction: 'block',
+			logparams: { duration: 'infinity', flags: [ 'nocreate' ] }
 		} );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		const result = await handleGetRecentChangesTool( { types: [ 'log' ] } );
-
-		const text = ( result.content[ 0 ] as { text: string } ).text;
-		expect( text ).toContain( 'Log: patrol/patrol' );
-		expect( text ).not.toContain( 'Log: patrol/patrol (' );
+		expect( data.changes[ 0 ].revid ).toBeUndefined();
 	} );
 
-	it( 'renders an anon edit as User: <IP> (anonymous)', async () => {
+	it( 'preserves anon flag on anonymous edits', async () => {
 		mockRequest( {
 			query: { recentchanges: [ {
 				type: 'edit',
@@ -323,13 +322,13 @@ describe( 'get-recent-changes — formatter', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		const text = ( result.content[ 0 ] as { text: string } ).text;
-		expect( text ).toContain( 'User: 192.0.2.1 (anonymous)' );
-		expect( text ).not.toContain( '(ID:' );
-		expect( text ).toContain( 'Flags: anon' );
+		const data = assertStructuredSuccess( result, RecentChangesSchema );
+		expect( data.changes[ 0 ].user ).toBe( '192.0.2.1' );
+		expect( data.changes[ 0 ].anon ).toBe( true );
+		expect( data.changes[ 0 ].userid ).toBeUndefined();
 	} );
 
-	it( 'renders hidden user as User: (hidden) and drops hidden comment line', async () => {
+	it( 'drops comment when commenthidden is set and preserves userhidden', async () => {
 		mockRequest( {
 			query: { recentchanges: [ {
 				type: 'edit',
@@ -337,6 +336,7 @@ describe( 'get-recent-changes — formatter', () => {
 				timestamp: '2026-01-01T00:00:00Z',
 				userhidden: true,
 				commenthidden: true,
+				comment: 'this should be dropped',
 				revid: 100,
 				old_revid: 99,
 				newlen: 100,
@@ -347,12 +347,13 @@ describe( 'get-recent-changes — formatter', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		const text = ( result.content[ 0 ] as { text: string } ).text;
-		expect( text ).toContain( 'User: (hidden)' );
-		expect( text ).not.toContain( 'Comment:' );
+		const data = assertStructuredSuccess( result, RecentChangesSchema );
+		expect( data.changes[ 0 ].userhidden ).toBe( true );
+		expect( data.changes[ 0 ].commenthidden ).toBe( true );
+		expect( data.changes[ 0 ].comment ).toBeUndefined();
 	} );
 
-	it( 'renders Unpatrolled: yes when unpatrolled is set on the row', async () => {
+	it( 'preserves unpatrolled when set on the row', async () => {
 		mockRequest( {
 			query: { recentchanges: [ {
 				type: 'edit',
@@ -372,11 +373,11 @@ describe( 'get-recent-changes — formatter', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( { showPatrolStatus: true } );
 
-		const text = ( result.content[ 0 ] as { text: string } ).text;
-		expect( text ).toContain( 'Unpatrolled: yes' );
+		const data = assertStructuredSuccess( result, RecentChangesSchema );
+		expect( data.changes[ 0 ].unpatrolled ).toBe( true );
 	} );
 
-	it( 'omits the Unpatrolled line when unpatrolled is not set', async () => {
+	it( 'omits unpatrolled when not set on the row', async () => {
 		mockRequest( {
 			query: { recentchanges: [ {
 				type: 'edit',
@@ -395,16 +396,15 @@ describe( 'get-recent-changes — formatter', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( { showPatrolStatus: true } );
 
-		const text = ( result.content[ 0 ] as { text: string } ).text;
-		expect( text ).not.toContain( 'Unpatrolled' );
+		const data = assertStructuredSuccess( result, RecentChangesSchema );
+		expect( data.changes[ 0 ].unpatrolled ).toBeUndefined();
 	} );
-
 } );
 
 describe( 'get-recent-changes — truncation and empty results', () => {
 	beforeEach( () => { vi.clearAllMocks(); } );
 
-	it( 'appends a more-available marker when rccontinue is present', async () => {
+	it( 'attaches a more-available truncation when rccontinue is present', async () => {
 		const rows = Array.from( { length: 2 }, ( _, i ) => ( {
 			type: 'edit',
 			title: `Page ${ i }`,
@@ -426,13 +426,17 @@ describe( 'get-recent-changes — truncation and empty results', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		const last = result.content[ result.content.length - 1 ] as { text: string };
-		expect( last.text ).toBe(
-			'More results available. Returned 2 changes. To fetch the next segment, call get-recent-changes again with continue="20260101000000|1234".'
-		);
+		const data = assertStructuredSuccess( result, RecentChangesSchema );
+		expect( data.truncation ).toEqual( {
+			reason: 'more-available',
+			returnedCount: 2,
+			itemNoun: 'changes',
+			toolName: 'get-recent-changes',
+			continueWith: { param: 'continue', value: '20260101000000|1234' }
+		} );
 	} );
 
-	it( 'does not append a marker when rccontinue is absent', async () => {
+	it( 'omits truncation when rccontinue is absent', async () => {
 		mockRequest( {
 			query: { recentchanges: [ {
 				type: 'edit', title: 'Foo', timestamp: '2026-01-01T00:00:00Z',
@@ -443,20 +447,17 @@ describe( 'get-recent-changes — truncation and empty results', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		for ( const block of result.content ) {
-			expect( ( block as { text: string } ).text ).not.toContain( 'More results available' );
-		}
+		const data = assertStructuredSuccess( result, RecentChangesSchema );
+		expect( data.truncation ).toBeUndefined();
 	} );
 
-	it( 'returns a single "no matches" message for empty results', async () => {
+	it( 'returns an empty changes array when no matches', async () => {
 		mockRequest( { query: { recentchanges: [] } } );
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content ).toHaveLength( 1 );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'No recent changes matched the filters'
-		);
+		const data = assertStructuredSuccess( result, RecentChangesSchema );
+		expect( data.changes ).toEqual( [] );
+		expect( data.truncation ).toBeUndefined();
 	} );
 } );
