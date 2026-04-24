@@ -16,6 +16,7 @@ function setConfig( config: Partial<Config> ): void {
 						scriptpath: '/w'
 					}
 				},
+				uploadDirs: [],
 				...config
 			} )
 		};
@@ -43,5 +44,23 @@ describe( 'wikiService.isWikiManagementAllowed', () => {
 		setConfig( { allowWikiManagement: false } );
 		const { wikiService } = await import( '../../src/common/wikiService.js' );
 		expect( wikiService.isWikiManagementAllowed() ).toBe( false );
+	} );
+} );
+
+describe( 'wikiService.getUploadDirs', () => {
+	beforeEach( () => {
+		vi.resetModules();
+	} );
+
+	it( 'returns an empty array when no uploadDirs are configured', async () => {
+		setConfig( { uploadDirs: [] } );
+		const { wikiService } = await import( '../../src/common/wikiService.js' );
+		expect( wikiService.getUploadDirs() ).toEqual( [] );
+	} );
+
+	it( 'returns the configured uploadDirs list', async () => {
+		setConfig( { uploadDirs: [ '/var/lib/uploads', '/tmp/incoming' ] } );
+		const { wikiService } = await import( '../../src/common/wikiService.js' );
+		expect( wikiService.getUploadDirs() ).toEqual( [ '/var/lib/uploads', '/tmp/incoming' ] );
 	} );
 } );

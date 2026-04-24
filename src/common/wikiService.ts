@@ -75,6 +75,10 @@ function isWikiManagementAllowed(): boolean {
 	return config.allowWikiManagement !== false;
 }
 
+function getUploadDirs(): readonly string[] {
+	return config.uploadDirs;
+}
+
 export const wikiService = {
 	getAll,
 	get,
@@ -84,5 +88,6 @@ export const wikiService = {
 	setCurrent,
 	sanitize,
 	reset,
-	isWikiManagementAllowed
+	isWikiManagementAllowed,
+	getUploadDirs
 };
