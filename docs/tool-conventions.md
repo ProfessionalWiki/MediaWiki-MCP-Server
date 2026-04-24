@@ -172,9 +172,9 @@ Do not interchange these.
 
 #### Common MediaWiki error patterns
 
-Every tool error return is a single text block of the form `category: message`, with `isError: true`. The category is one of a fixed set (see § "Error categories" below) and lets an LLM caller pattern-match the failure class; the message carries human-readable detail. Tool descriptions continue to describe the *conditions* a tool can fail on (e.g. "if the page does not exist") but do not name the category — the taxonomy is documented once, here.
+Each tool error returns as a single text block shaped `category: message`, with `isError: true`. The category lets an LLM caller pattern-match the failure class (see "Error categories" below for the full set); the message carries the detail. Tool descriptions name the *conditions* a tool can fail on (e.g. "if the page does not exist"), never the category — the taxonomy lives only in this section.
 
-- **`badtags`** — a change tag is configured that is not registered or not applicable to this action. Surfaces from write tools when the wiki's `tags` config is misset. Category: `invalid_input`.
+- **`badtags`** — the configured change tag is either unregistered or not applicable to this action. Surfaces from write tools when the wiki's `tags` config is misset. Category: `invalid_input`.
 - **`missingtitle`** — the target page does not exist. Surfaces from `get-page`, `update-page`, `compare-pages`, `get-page-history`. Category: `not_found`.
 - **`nosuchrevid`** — the requested revision ID does not exist. Surfaces from `get-revision`, `compare-pages`. Category: `not_found`.
 
@@ -182,19 +182,19 @@ Example phrasing: `"Returns a wiki page. If the title does not exist, an error i
 
 #### Error categories
 
-Seven categories cover every error a tool emits. The specific message carries detail; the category is the LLM's pattern-match handle.
+Seven categories cover every error a tool emits:
 
 | Category | When it's emitted | Typical LLM response |
 |---|---|---|
-| `not_found` | Target page, revision, section, or file does not exist. | Re-check identifier; search if appropriate. |
-| `permission_denied` | Authed user lacks the permission (including page protection and abuse-filter blocks). | Surface to user; don't retry as same user. |
-| `invalid_input` | Caller supplied incompatible or malformed arguments, or the wiki rejected them as invalid. | Fix the arguments and retry. |
-| `conflict` | Edit conflict (`latestId` mismatch), `create-page` on existing title, or `upload-file` without overwrite. | Re-read latest state; reconcile; retry. |
-| `authentication` | Credentials missing, invalid, or expired. | Re-authenticate; do not retry as anonymous. |
+| `not_found` | Target page, revision, section, or file does not exist. | Re-check the identifier; search if appropriate. |
+| `permission_denied` | The authenticated user lacks the permission (including page protection and abuse-filter blocks). | Surface to the user; don't retry as the same user. |
+| `invalid_input` | Arguments are incompatible or malformed, or the wiki rejected them as invalid. | Fix the arguments and retry. |
+| `conflict` | Edit conflict (`latestId` mismatch), `create-page` on an existing title, or `upload-file` without overwrite. | Re-read the latest state; reconcile; retry. |
+| `authentication` | Credentials are missing, invalid, or expired. | Re-authenticate; don't retry as anonymous. |
 | `rate_limited` | The wiki throttled this caller. | Back off and retry. |
-| `upstream_failure` | Unrecognised MediaWiki error, network failure, read-only mode, or any unrecognised throw shape. | Retry with caution; surface if persistent. |
+| `upstream_failure` | Unclassified MediaWiki error, network failure, read-only mode, or any unexpected throw. | Retry with caution; surface if persistent. |
 
-Unrecognised MW error codes map to `upstream_failure` with the raw message passed through, so information isn't lost at the cost of a coarser category.
+Unrecognised MW error codes fall through to `upstream_failure` with the raw message preserved — information survives, just at a coarser category.
 
 Worked examples:
 
