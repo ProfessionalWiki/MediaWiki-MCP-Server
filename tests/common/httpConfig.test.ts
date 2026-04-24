@@ -108,4 +108,83 @@ describe( 'resolveHttpConfig', () => {
 			expect( resolveHttpConfig().allowedHosts ).toBeUndefined();
 		} );
 	} );
+
+	describe( 'allowedOrigins', () => {
+		it( 'defaults to the localhost trio on the bound port for a 127.0.0.1 bind', () => {
+			expect( resolveHttpConfig().allowedOrigins ).toEqual( [
+				'http://localhost:3000',
+				'http://127.0.0.1:3000',
+				'http://[::1]:3000'
+			] );
+		} );
+
+		it( 'tracks the bound PORT in the localhost default list', () => {
+			vi.stubEnv( 'PORT', '8080' );
+			expect( resolveHttpConfig().allowedOrigins ).toEqual( [
+				'http://localhost:8080',
+				'http://127.0.0.1:8080',
+				'http://[::1]:8080'
+			] );
+		} );
+
+		it.each( [ 'localhost', '::1' ] )(
+			'defaults to the localhost trio when MCP_BIND is %s',
+			( value ) => {
+				vi.stubEnv( 'MCP_BIND', value );
+				expect( resolveHttpConfig().allowedOrigins ).toEqual( [
+					'http://localhost:3000',
+					'http://127.0.0.1:3000',
+					'http://[::1]:3000'
+				] );
+			}
+		);
+
+		it( 'is undefined when bound to 0.0.0.0 without MCP_ALLOWED_ORIGINS', () => {
+			vi.stubEnv( 'MCP_BIND', '0.0.0.0' );
+			expect( resolveHttpConfig().allowedOrigins ).toBeUndefined();
+		} );
+
+		it( 'is undefined when bound to an external host without MCP_ALLOWED_ORIGINS', () => {
+			vi.stubEnv( 'MCP_BIND', 'wiki.example.org' );
+			expect( resolveHttpConfig().allowedOrigins ).toBeUndefined();
+		} );
+
+		it( 'MCP_ALLOWED_ORIGINS overrides the localhost default', () => {
+			vi.stubEnv( 'MCP_ALLOWED_ORIGINS', 'https://app.example.org' );
+			expect( resolveHttpConfig().allowedOrigins ).toEqual( [ 'https://app.example.org' ] );
+		} );
+
+		it( 'parses multiple comma-separated MCP_ALLOWED_ORIGINS entries', () => {
+			vi.stubEnv( 'MCP_BIND', '0.0.0.0' );
+			vi.stubEnv( 'MCP_ALLOWED_ORIGINS', 'https://a.example,https://b.example' );
+			expect( resolveHttpConfig().allowedOrigins ).toEqual( [
+				'https://a.example',
+				'https://b.example'
+			] );
+		} );
+
+		it( 'trims whitespace and drops empty entries', () => {
+			vi.stubEnv( 'MCP_BIND', '0.0.0.0' );
+			vi.stubEnv( 'MCP_ALLOWED_ORIGINS', ' https://a.example , ,  https://b.example ' );
+			expect( resolveHttpConfig().allowedOrigins ).toEqual( [
+				'https://a.example',
+				'https://b.example'
+			] );
+		} );
+
+		it( 'falls back to the localhost default when MCP_ALLOWED_ORIGINS is empty', () => {
+			vi.stubEnv( 'MCP_ALLOWED_ORIGINS', '' );
+			expect( resolveHttpConfig().allowedOrigins ).toEqual( [
+				'http://localhost:3000',
+				'http://127.0.0.1:3000',
+				'http://[::1]:3000'
+			] );
+		} );
+
+		it( 'is undefined when MCP_ALLOWED_ORIGINS is only separators and bound to 0.0.0.0', () => {
+			vi.stubEnv( 'MCP_BIND', '0.0.0.0' );
+			vi.stubEnv( 'MCP_ALLOWED_ORIGINS', ',,,' );
+			expect( resolveHttpConfig().allowedOrigins ).toBeUndefined();
+		} );
+	} );
 } );

@@ -142,4 +142,16 @@ If the MCP server runs behind a reverse proxy (Caddy, nginx, Traefik), the proxy
 
 **Host header allowlist.** On any public deployment, set `MCP_ALLOWED_HOSTS` to the comma-separated hostnames your proxy forwards (e.g. `MCP_ALLOWED_HOSTS=wiki.example.org`). This engages the SDK's DNS-rebinding check — requests to `/mcp` with a non-matching `Host` are rejected with a 403 JSON-RPC error. On a localhost bind, leaving it unset is safe (the SDK auto-allows `localhost`, `127.0.0.1`, and `[::1]`). On a public bind, leaving it unset turns the check off and the SDK logs a warning at startup.
 
-The allowlist applies only to `/mcp`. The `/health` endpoint is always reachable so container healthchecks and liveness probes (which hit `http://localhost:<port>/health`) keep working regardless of what you put in `MCP_ALLOWED_HOSTS`.
+**Origin header allowlist.** Set `MCP_ALLOWED_ORIGINS` to the browser origins allowed to call `/mcp`. An origin is the scheme, host, and (only if non-default) port — for example `https://wiki.example.org`. When the allowlist is configured and an incoming `Origin` is present but not listed, the SDK returns 403. On a localhost bind, the default allowlist is the three loopback origins on the bound port (`http://localhost:<port>`, `http://127.0.0.1:<port>`, `http://[::1]:<port>`) so browser clients running alongside the server keep working. On a non-localhost bind, leaving it unset turns Origin validation off and the server logs a startup warning.
+
+Matching is exact string equality against what the browser sends. These values all silently 403 every browser request:
+
+- bare hostname (`wiki.example.org`) — missing scheme
+- trailing slash (`https://wiki.example.org/`) — browsers don't include it
+- path (`https://wiki.example.org/mcp`) — browsers don't include it
+- explicit default port (`https://wiki.example.org:443`) — browsers drop default ports when serializing
+- uppercase scheme (`HTTPS://...`) — browsers lowercase it
+
+When in doubt, open your deployed site in a browser and log `window.location.origin` — copy that value verbatim.
+
+Both allowlists apply only to `/mcp`. The `/health` endpoint is always reachable so container healthchecks and liveness probes (which hit `http://localhost:<port>/health`) keep working regardless of what you put in `MCP_ALLOWED_HOSTS` or `MCP_ALLOWED_ORIGINS`.
