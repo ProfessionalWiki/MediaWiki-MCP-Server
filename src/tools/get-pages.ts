@@ -10,6 +10,7 @@ import {
 	truncationMarker,
 	truncateByBytes
 } from '../common/truncation.js';
+import { classifyError, errorResult } from '../common/errorMapping.js';
 
 const MAX_TITLES = 50;
 
@@ -124,22 +125,13 @@ export async function handleGetPagesTool(
 	followRedirects: boolean = true
 ): Promise<CallToolResult> {
 	if ( titles.length === 0 ) {
-		return {
-			content: [ { type: 'text', text: 'titles must contain at least one entry' } as TextContent ],
-			isError: true
-		};
+		return errorResult( 'invalid_input', 'titles must contain at least one entry' );
 	}
 	if ( titles.length > MAX_TITLES ) {
-		return {
-			content: [ { type: 'text', text: `titles must contain at most ${ MAX_TITLES } entries` } as TextContent ],
-			isError: true
-		};
+		return errorResult( 'invalid_input', `titles must contain at most ${ MAX_TITLES } entries` );
 	}
 	if ( content === BatchContentFormat.none && !metadata ) {
-		return {
-			content: [ { type: 'text', text: 'When content is set to "none", metadata must be true' } as TextContent ],
-			isError: true
-		};
+		return errorResult( 'invalid_input', 'When content is set to "none", metadata must be true' );
 	}
 
 	try {
@@ -301,12 +293,7 @@ export async function handleGetPagesTool(
 
 		return { content: results };
 	} catch ( error ) {
-		return {
-			content: [ {
-				type: 'text',
-				text: `Failed to retrieve pages: ${ ( error as Error ).message }`
-			} as TextContent ],
-			isError: true
-		};
+		const { category } = classifyError( error );
+		return errorResult( category, `Failed to retrieve pages: ${ ( error as Error ).message }` );
 	}
 }

@@ -8,6 +8,7 @@ import {
 	truncationMarker,
 	truncateByBytes
 } from '../common/truncation.js';
+import { classifyError, errorResult } from '../common/errorMapping.js';
 
 const DEFAULT_TITLE = 'API';
 
@@ -144,12 +145,7 @@ export async function handleParseWikitextTool(
 
 		return { content: results };
 	} catch ( error ) {
-		return {
-			content: [ {
-				type: 'text',
-				text: `Failed to preview wikitext: ${ ( error as Error ).message }`
-			} ],
-			isError: true
-		};
+		const { category } = classifyError( error );
+		return errorResult( category, `Failed to preview wikitext: ${ ( error as Error ).message }` );
 	}
 }

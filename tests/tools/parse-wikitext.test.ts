@@ -120,7 +120,7 @@ describe( 'parse-wikitext', () => {
 
 		expect( result.isError ).toBe( true );
 		expect( result.content[ 0 ].text ).toBe(
-			'Failed to preview wikitext: Network down'
+			'upstream_failure: Failed to preview wikitext: Network down'
 		);
 	} );
 

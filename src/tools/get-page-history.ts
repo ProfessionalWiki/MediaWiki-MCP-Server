@@ -6,6 +6,7 @@ import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontext
 import { getMwn } from '../common/mwn.js';
 import type { ApiPage, ApiRevision } from 'mwn';
 import { appendTruncationMarker, type TruncationInfo } from '../common/truncation.js';
+import { classifyError, errorResult } from '../common/errorMapping.js';
 
 const PAGE_HISTORY_LIMIT = 20;
 
@@ -39,13 +40,7 @@ export async function handleGetPageHistoryTool(
 	filter?: string
 ): Promise<CallToolResult> {
 	if ( olderThan && newerThan ) {
-		return {
-			content: [ {
-				type: 'text',
-				text: 'Cannot use both olderThan and newerThan at the same time'
-			} ],
-			isError: true
-		};
+		return errorResult( 'invalid_input', 'Cannot use both olderThan and newerThan at the same time' );
 	}
 
 	try {
@@ -81,13 +76,7 @@ export async function handleGetPageHistoryTool(
 		const page = response.query?.pages?.[ 0 ] as ApiPage | undefined;
 
 		if ( page?.missing ) {
-			return {
-				content: [ {
-					type: 'text',
-					text: `Page "${ title }" not found`
-				} as TextContent ],
-				isError: true
-			};
+			return errorResult( 'not_found', `Page "${ title }" not found` );
 		}
 
 		const revisions: ApiRevision[] = page?.revisions ?? [];
@@ -142,11 +131,7 @@ export async function handleGetPageHistoryTool(
 
 		return { content: appendTruncationMarker( content, truncation ) };
 	} catch ( error ) {
-		return {
-			content: [
-				{ type: 'text', text: `Failed to retrieve page history: ${ ( error as Error ).message }` } as TextContent
-			],
-			isError: true
-		};
+		const { category } = classifyError( error );
+		return errorResult( category, `Failed to retrieve page history: ${ ( error as Error ).message }` );
 	}
 }
