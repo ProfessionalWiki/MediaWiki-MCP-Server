@@ -1,12 +1,13 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import type { ApiEditPageParams } from 'types-mediawiki-api';
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import { wikiService } from '../common/wikiService.js';
 import { getPageUrl, formatEditComment } from '../common/utils.js';
+import { classifyError, errorResult } from '../common/errorMapping.js';
 
 export function createPageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
@@ -74,11 +75,7 @@ export async function handleCreatePageTool(
 			]
 		};
 	} catch ( error ) {
-		return {
-			content: [
-				{ type: 'text', text: `Failed to create page: ${ ( error as Error ).message }` } as TextContent
-			],
-			isError: true
-		};
+		const { category } = classifyError( error );
+		return errorResult( category, `Failed to create page: ${ ( error as Error ).message }` );
 	}
 }

@@ -8,6 +8,7 @@ import type { ApiUploadResponse } from 'mwn';
 import { getMwn } from '../common/mwn.js';
 import { wikiService } from '../common/wikiService.js';
 import { formatEditComment } from '../common/utils.js';
+import { classifyError, errorResult } from '../common/errorMapping.js';
 
 export function uploadFileTool( server: McpServer ): RegisteredTool {
 	return server.tool(
@@ -41,15 +42,8 @@ export async function handleUploadFileTool(
 		const mwn = await getMwn();
 		data = await mwn.upload( filepath, title, text, getApiUploadParams( comment ) );
 	} catch ( error ) {
-		return {
-			content: [
-				{
-					type: 'text',
-					text: `Upload failed: ${ ( error as Error ).message }`
-				} as TextContent
-			],
-			isError: true
-		};
+		const { category } = classifyError( error );
+		return errorResult( category, `Upload failed: ${ ( error as Error ).message }` );
 	}
 
 	return {

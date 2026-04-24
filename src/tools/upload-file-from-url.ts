@@ -8,6 +8,7 @@ import type { ApiUploadResponse } from 'mwn';
 import { getMwn } from '../common/mwn.js';
 import { wikiService } from '../common/wikiService.js';
 import { formatEditComment } from '../common/utils.js';
+import { classifyError, errorResult } from '../common/errorMapping.js';
 
 export function uploadFileFromUrlTool( server: McpServer ): RegisteredTool {
 	return server.tool(
@@ -46,26 +47,14 @@ export async function handleUploadFileFromUrlTool(
 		// Prevent the LLM from attempting to find an existing image on the wiki
 		// after failing to upload by URL.
 		if ( errorMessage.includes( 'copyuploaddisabled' ) ) {
-			return {
-				content: [
-					{
-						type: 'text',
-						text: 'Upload failed: Upload by URL is disabled for this wiki. Please download the image from the URL to the local disk first, then use the upload-file tool to upload it from the local file path.'
-					} as TextContent
-				],
-				isError: true
-			};
+			return errorResult(
+				'invalid_input',
+				'Upload failed: Upload by URL is disabled for this wiki. Please download the image from the URL to the local disk first, then use the upload-file tool to upload it from the local file path.'
+			);
 		}
 
-		return {
-			content: [
-				{
-					type: 'text',
-					text: `Upload failed: ${ ( error as Error ).message }`
-				} as TextContent
-			],
-			isError: true
-		};
+		const { category } = classifyError( error );
+		return errorResult( category, `Upload failed: ${ ( error as Error ).message }` );
 	}
 
 	return {
