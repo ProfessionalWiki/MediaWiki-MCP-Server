@@ -121,8 +121,8 @@ describe( 'get-page', () => {
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Missing Page', 'source', false );
 
-		assertStructuredError( result, 'not_found' );
-		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'not found' );
+		const envelope = assertStructuredError( result, 'not_found' );
+		expect( envelope.message ).toContain( 'not found' );
 	} );
 
 	it( 'returns both metadata and source when both requested', async () => {
@@ -158,8 +158,8 @@ describe( 'get-page', () => {
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Test Page', 'source', false );
 
-		assertStructuredError( result, 'upstream_failure' );
-		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'API error' );
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toContain( 'API error' );
 	} );
 
 	it( 'forwards section as rvsection for source content', async () => {
@@ -209,8 +209,8 @@ describe( 'get-page', () => {
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Test Page', 'none', true, 2 );
 
-		assertStructuredError( result, 'invalid_input' );
-		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'section is not compatible with content="none"' );
+		const envelope = assertStructuredError( result, 'invalid_input' );
+		expect( envelope.message ).toContain( 'section is not compatible with content="none"' );
 	} );
 
 	it( 'reports the full-page size in metadata even when section is set', async () => {

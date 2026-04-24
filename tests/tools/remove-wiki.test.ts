@@ -82,8 +82,8 @@ describe( 'remove-wiki', () => {
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleRemoveWikiTool>[0];
 		const result = await handleRemoveWikiTool( server, 'mcp://wikis/unknown.example.org' );
 
-		assertStructuredError( result, 'invalid_input' );
-		expect( ( result.structuredContent as { message: string } ).message ).toMatch(
+		const envelope = assertStructuredError( result, 'invalid_input' );
+		expect( envelope.message ).toMatch(
 			/unknown\.example\.org.*not found/
 		);
 	} );
@@ -102,8 +102,8 @@ describe( 'remove-wiki', () => {
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleRemoveWikiTool>[0];
 		const result = await handleRemoveWikiTool( server, 'mcp://wikis/example.org' );
 
-		assertStructuredError( result, 'conflict' );
-		expect( ( result.structuredContent as { message: string } ).message ).toMatch(
+		const envelope = assertStructuredError( result, 'conflict' );
+		expect( envelope.message ).toMatch(
 			/currently active wiki/
 		);
 	} );

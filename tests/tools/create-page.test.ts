@@ -77,8 +77,8 @@ describe( 'create-page', () => {
 		const { handleCreatePageTool } = await import( '../../src/tools/create-page.js' );
 		const result = await handleCreatePageTool( 'Hello', 'Existing Page', undefined, 'wikitext' );
 
-		assertStructuredError( result, 'upstream_failure' );
-		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'Page exists' );
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toContain( 'Page exists' );
 	} );
 
 	it( 'forwards configured tags to mwn.create()', async () => {

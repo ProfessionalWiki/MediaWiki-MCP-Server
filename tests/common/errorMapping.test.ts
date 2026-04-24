@@ -97,10 +97,10 @@ describe( 'classifyError', () => {
 describe( 'errorResult', () => {
 	it( 'builds a structured envelope with isError', () => {
 		const result = errorResult( 'not_found', 'Page "Foo" not found' );
-		assertStructuredError( result, 'not_found' );
-		expect( ( result.structuredContent as { message: string } ).message )
+		const envelope = assertStructuredError( result, 'not_found' );
+		expect( envelope.message )
 			.toBe( 'Page "Foo" not found' );
-		expect( ( result.structuredContent as { code?: string } ).code ).toBeUndefined();
+		expect( envelope.code ).toBeUndefined();
 	} );
 
 	it( 'preserves the full message in the envelope', () => {
@@ -108,8 +108,8 @@ describe( 'errorResult', () => {
 			'upstream_failure',
 			'Failed to fetch: connection refused'
 		);
-		assertStructuredError( result, 'upstream_failure' );
-		expect( ( result.structuredContent as { message: string } ).message )
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message )
 			.toBe( 'Failed to fetch: connection refused' );
 	} );
 

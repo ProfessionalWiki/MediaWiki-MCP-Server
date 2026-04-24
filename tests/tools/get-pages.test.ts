@@ -94,8 +94,8 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [], 'source', false );
 
-			assertStructuredError( result, 'invalid_input' );
-			expect( ( result.structuredContent as { message: string } ).message ).toContain( 'titles' );
+			const envelope = assertStructuredError( result, 'invalid_input' );
+			expect( envelope.message ).toContain( 'titles' );
 		} );
 
 		it( 'more than 50 titles returns validation error', async () => {
@@ -103,16 +103,16 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( titles, 'source', false );
 
-			assertStructuredError( result, 'invalid_input' );
-			expect( ( result.structuredContent as { message: string } ).message ).toContain( '50' );
+			const envelope = assertStructuredError( result, 'invalid_input' );
+			expect( envelope.message ).toContain( '50' );
 		} );
 
 		it( 'content=none + metadata=false returns validation error', async () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'Foo' ], 'none', false );
 
-			assertStructuredError( result, 'invalid_input' );
-			expect( ( result.structuredContent as { message: string } ).message ).toContain( 'metadata must be true' );
+			const envelope = assertStructuredError( result, 'invalid_input' );
+			expect( envelope.message ).toContain( 'metadata must be true' );
 		} );
 	} );
 
@@ -248,9 +248,9 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'Foo' ], 'source', false, true );
 
-			assertStructuredError( result, 'upstream_failure' );
-			expect( ( result.structuredContent as { message: string } ).message ).toContain( 'Failed to retrieve pages' );
-			expect( ( result.structuredContent as { message: string } ).message ).toContain( 'API error' );
+			const envelope = assertStructuredError( result, 'upstream_failure' );
+			expect( envelope.message ).toContain( 'Failed to retrieve pages' );
+			expect( envelope.message ).toContain( 'API error' );
 		} );
 
 		it( 'redirect followed: entry has redirectedFrom and target title', async () => {
@@ -377,9 +377,9 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'Foo' ], 'source', false, false );
 
-			assertStructuredError( result, 'upstream_failure' );
-			expect( ( result.structuredContent as { message: string } ).message ).toContain( 'Failed to retrieve pages' );
-			expect( ( result.structuredContent as { message: string } ).message ).toContain( 'read error' );
+			const envelope = assertStructuredError( result, 'upstream_failure' );
+			expect( envelope.message ).toContain( 'Failed to retrieve pages' );
+			expect( envelope.message ).toContain( 'read error' );
 		} );
 	} );
 

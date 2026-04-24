@@ -141,8 +141,8 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		assertStructuredError( result, 'upstream_failure' );
-		expect( ( result.structuredContent as { message: string } ).message ).toBe(
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toBe(
 			'Failed to preview wikitext: Network down'
 		);
 	} );

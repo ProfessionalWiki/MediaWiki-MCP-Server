@@ -133,8 +133,8 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Nonexistent' );
 
-		assertStructuredError( result, 'not_found' );
-		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'not found' );
+		const envelope = assertStructuredError( result, 'not_found' );
+		expect( envelope.message ).toContain( 'not found' );
 	} );
 
 	it( 'returns an empty revisions array when the API returns none', async () => {
@@ -234,8 +234,8 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page' );
 
-		assertStructuredError( result, 'upstream_failure' );
-		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'API error' );
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toContain( 'API error' );
 	} );
 
 	it( 'attaches a more-available truncation with olderThan when more revisions exist', async () => {

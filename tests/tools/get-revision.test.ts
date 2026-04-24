@@ -135,8 +135,8 @@ describe( 'get-revision', () => {
 		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
 		const result = await handleGetRevisionTool( 99999, 'source', false );
 
-		assertStructuredError( result, 'not_found' );
-		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'not found' );
+		const envelope = assertStructuredError( result, 'not_found' );
+		expect( envelope.message ).toContain( 'not found' );
 	} );
 
 	it( 'returns error on failure', async () => {
@@ -148,7 +148,7 @@ describe( 'get-revision', () => {
 		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
 		const result = await handleGetRevisionTool( 42, 'source', false );
 
-		assertStructuredError( result, 'upstream_failure' );
-		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'API error' );
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toContain( 'API error' );
 	} );
 } );

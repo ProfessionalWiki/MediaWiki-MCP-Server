@@ -137,7 +137,7 @@ describe( 'search-page-by-prefix', () => {
 		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
 		const result = await handleSearchPageByPrefixTool( 'A', undefined, undefined );
 
-		assertStructuredError( result, 'upstream_failure' );
-		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'API error' );
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toContain( 'API error' );
 	} );
 } );

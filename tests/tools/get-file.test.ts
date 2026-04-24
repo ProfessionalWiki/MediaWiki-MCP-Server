@@ -87,8 +87,8 @@ describe( 'get-file', () => {
 		const { handleGetFileTool } = await import( '../../src/tools/get-file.js' );
 		const result = await handleGetFileTool( 'Missing.png' );
 
-		assertStructuredError( result, 'not_found' );
-		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'not found' );
+		const envelope = assertStructuredError( result, 'not_found' );
+		expect( envelope.message ).toContain( 'not found' );
 	} );
 
 	it( 'returns error on API failure', async () => {
@@ -100,7 +100,7 @@ describe( 'get-file', () => {
 		const { handleGetFileTool } = await import( '../../src/tools/get-file.js' );
 		const result = await handleGetFileTool( 'Example.png' );
 
-		assertStructuredError( result, 'upstream_failure' );
-		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'API error' );
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toContain( 'API error' );
 	} );
 } );

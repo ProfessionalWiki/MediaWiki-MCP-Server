@@ -175,7 +175,7 @@ describe( 'get-category-members', () => {
 		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
 		const result = await handleGetCategoryMembersTool( 'Foo' );
 
-		assertStructuredError( result, 'upstream_failure' );
-		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'API error' );
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toContain( 'API error' );
 	} );
 } );

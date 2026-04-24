@@ -79,8 +79,8 @@ describe( 'upload-file-from-url', () => {
 			'A cat.'
 		);
 
-		assertStructuredError( result, 'invalid_input', 'copyuploaddisabled' );
-		expect( ( result.structuredContent as { message: string } ).message ).toMatch(
+		const envelope = assertStructuredError( result, 'invalid_input', 'copyuploaddisabled' );
+		expect( envelope.message ).toMatch(
 			/Upload by URL is disabled/
 		);
 	} );
@@ -98,8 +98,8 @@ describe( 'upload-file-from-url', () => {
 			'A cat.'
 		);
 
-		assertStructuredError( result, 'upstream_failure' );
-		expect( ( result.structuredContent as { message: string } ).message ).toMatch(
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toMatch(
 			/Failed to upload file: Connection refused/
 		);
 	} );

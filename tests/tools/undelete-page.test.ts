@@ -95,8 +95,8 @@ describe( 'undelete-page', () => {
 		const { handleUndeletePageTool } = await import( '../../src/tools/undelete-page.js' );
 		const result = await handleUndeletePageTool( 'Some Page' );
 
-		assertStructuredError( result, 'upstream_failure' );
-		expect( ( result.structuredContent as { message: string } ).message ).toMatch(
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toMatch(
 			/Failed to undelete page: Network down/
 		);
 	} );

@@ -33,13 +33,18 @@ export function assertStructuredError(
 	code?: string
 ): ErrorEnvelope {
 	expect( result.isError ).toBe( true );
-	const envelope = ErrorEnvelopeSchema.parse( result.structuredContent );
+	// Error envelopes ride in content[0].text as JSON rather than as
+	// structuredContent, so that they don't get rejected by strict MCP
+	// clients validating against a tool's success outputSchema.
+	expect( result.structuredContent ).toBeUndefined();
+	expect( result.content ).toHaveLength( 1 );
+	expect( result.content![ 0 ].type ).toBe( 'text' );
+	const envelope = ErrorEnvelopeSchema.parse(
+		JSON.parse( ( result.content![ 0 ] as TextContent ).text )
+	);
 	expect( envelope.category ).toBe( category );
 	if ( code !== undefined ) {
 		expect( envelope.code ).toBe( code );
 	}
-	expect( result.content ).toHaveLength( 1 );
-	expect( result.content![ 0 ].type ).toBe( 'text' );
-	expect( JSON.parse( ( result.content![ 0 ] as TextContent ).text ) ).toEqual( envelope );
 	return envelope;
 }

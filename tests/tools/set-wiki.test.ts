@@ -72,8 +72,8 @@ describe( 'set-wiki', () => {
 		const { handleSetWikiTool } = await import( '../../src/tools/set-wiki.js' );
 		const result = await handleSetWikiTool( 'mcp://wikis/unknown.example.org', vi.fn() );
 
-		assertStructuredError( result, 'invalid_input' );
-		expect( ( result.structuredContent as { message: string } ).message ).toMatch(
+		const envelope = assertStructuredError( result, 'invalid_input' );
+		expect( envelope.message ).toMatch(
 			/unknown\.example\.org.*not found/
 		);
 	} );

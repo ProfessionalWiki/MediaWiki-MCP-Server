@@ -87,8 +87,8 @@ describe( 'search-page', () => {
 		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
 		const result = await handleSearchPageTool( 'test', undefined );
 
-		assertStructuredError( result, 'upstream_failure' );
-		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'API error' );
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toContain( 'API error' );
 	} );
 
 	it( 'attaches capped-no-continuation truncation when response.continue is present', async () => {

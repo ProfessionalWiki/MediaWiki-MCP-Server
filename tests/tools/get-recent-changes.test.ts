@@ -173,8 +173,8 @@ describe( 'get-recent-changes — handler validation', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( { user: 'Alice', excludeUser: 'Bob' } );
 
-		assertStructuredError( result, 'invalid_input' );
-		expect( ( result.structuredContent as { message: string } ).message ).toContain(
+		const envelope = assertStructuredError( result, 'invalid_input' );
+		expect( envelope.message ).toContain(
 			'user and excludeUser are mutually exclusive'
 		);
 		expect( mock.request ).not.toHaveBeenCalled();
@@ -193,8 +193,8 @@ describe( 'get-recent-changes — error handling', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( { since: 'garbage' } );
 
-		assertStructuredError( result, 'upstream_failure' );
-		expect( ( result.structuredContent as { message: string } ).message ).toContain(
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toContain(
 			'Failed to retrieve recent changes: badtimestamp'
 		);
 	} );

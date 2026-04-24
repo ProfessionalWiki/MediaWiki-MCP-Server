@@ -58,8 +58,8 @@ describe( 'upload-file', () => {
 		const { handleUploadFileTool } = await import( '../../src/tools/upload-file.js' );
 		const result = await handleUploadFileTool( '/etc/passwd', 'File:Shadow', 'body' );
 
-		assertStructuredError( result, 'invalid_input' );
-		expect( ( result.structuredContent as { message: string } ).message ).toMatch(
+		const envelope = assertStructuredError( result, 'invalid_input' );
+		expect( envelope.message ).toMatch(
 			/Failed to upload file:.*not allowed/
 		);
 		expect( mock.upload ).not.toHaveBeenCalled();
@@ -75,8 +75,8 @@ describe( 'upload-file', () => {
 		const { handleUploadFileTool } = await import( '../../src/tools/upload-file.js' );
 		const result = await handleUploadFileTool( '/home/user/uploads/x.jpg', 'File:X', 'body' );
 
-		assertStructuredError( result, 'upstream_failure' );
-		expect( ( result.structuredContent as { message: string } ).message ).toMatch(
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toMatch(
 			/Failed to upload file: Connection refused/
 		);
 		expect( mock.upload ).not.toHaveBeenCalled();

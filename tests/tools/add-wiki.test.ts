@@ -73,8 +73,8 @@ describe( 'add-wiki', () => {
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
 		const result = await handleAddWikiTool( server, 'http://169.254.169.254/' );
 
-		assertStructuredError( result, 'invalid_input' );
-		expect( ( result.structuredContent as { message: string } ).message ).toMatch(
+		const envelope = assertStructuredError( result, 'invalid_input' );
+		expect( envelope.message ).toMatch(
 			/Failed to add wiki:.*169\.254\.169\.254/
 		);
 	} );
@@ -95,8 +95,8 @@ describe( 'add-wiki', () => {
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
 		const result = await handleAddWikiTool( server, 'https://example.org/' );
 
-		assertStructuredError( result, 'conflict' );
-		expect( ( result.structuredContent as { message: string } ).message ).toBe(
+		const envelope = assertStructuredError( result, 'conflict' );
+		expect( envelope.message ).toBe(
 			'Wiki "example.org" already exists in configuration'
 		);
 	} );
@@ -110,8 +110,8 @@ describe( 'add-wiki', () => {
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
 		const result = await handleAddWikiTool( server, 'https://example.org/' );
 
-		assertStructuredError( result, 'upstream_failure' );
-		expect( ( result.structuredContent as { message: string } ).message ).toMatch(
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toMatch(
 			/Failed to add wiki: Connection refused/
 		);
 	} );
