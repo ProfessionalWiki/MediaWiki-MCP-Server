@@ -261,9 +261,25 @@ export async function handleGetRecentChangesTool(
 		const response = await mwn.request( params );
 		const changes = ( response.query?.recentchanges ?? [] ) as RecentChange[];
 
+		if ( changes.length === 0 ) {
+			return {
+				content: [ {
+					type: 'text',
+					text: 'No recent changes matched the given filters'
+				} as TextContent ]
+			};
+		}
+
 		const content: TextContent[] = changes.map( formatChange );
 
-		const truncation: TruncationInfo | null = null; // Task 3 wires this.
+		const nextCursor: string | undefined = response.continue?.rccontinue;
+		const truncation: TruncationInfo | null = nextCursor ? {
+			reason: 'more-available',
+			returnedCount: changes.length,
+			itemNoun: 'changes',
+			toolName: 'get-recent-changes',
+			continueWith: { param: 'continue', value: nextCursor }
+		} : null;
 
 		return { content: appendTruncationMarker( content, truncation ) };
 	} catch ( error ) {

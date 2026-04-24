@@ -366,3 +366,63 @@ describe( 'get-recent-changes — formatter', () => {
 		expect( text ).not.toContain( 'Unpatrolled' );
 	} );
 } );
+
+describe( 'get-recent-changes — truncation and empty results', () => {
+	beforeEach( () => { vi.clearAllMocks(); } );
+
+	it( 'appends a more-available marker when rccontinue is present', async () => {
+		const rows = Array.from( { length: 2 }, ( _, i ) => ( {
+			type: 'edit',
+			title: `Page ${ i }`,
+			timestamp: '2026-01-01T00:00:00Z',
+			user: 'Alice',
+			userid: 42,
+			revid: 100 + i,
+			old_revid: 99 + i,
+			newlen: 100,
+			oldlen: 100,
+			comment: '',
+			tags: []
+		} ) );
+		mockRequest( {
+			query: { recentchanges: rows },
+			continue: { rccontinue: '20260101000000|1234', continue: '-||' }
+		} );
+
+		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
+		const result = await handleGetRecentChangesTool( {} );
+
+		const last = result.content[ result.content.length - 1 ] as { text: string };
+		expect( last.text ).toBe(
+			'More results available. Returned 2 changes. To fetch the next segment, call get-recent-changes again with continue="20260101000000|1234".'
+		);
+	} );
+
+	it( 'does not append a marker when rccontinue is absent', async () => {
+		mockRequest( {
+			query: { recentchanges: [ {
+				type: 'edit', title: 'Foo', timestamp: '2026-01-01T00:00:00Z',
+				user: 'A', userid: 1, revid: 100, old_revid: 99,
+				newlen: 100, oldlen: 100, comment: '', tags: []
+			} ] }
+		} );
+		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
+		const result = await handleGetRecentChangesTool( {} );
+
+		for ( const block of result.content ) {
+			expect( ( block as { text: string } ).text ).not.toContain( 'More results available' );
+		}
+	} );
+
+	it( 'returns a single "no matches" message for empty results', async () => {
+		mockRequest( { query: { recentchanges: [] } } );
+		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
+		const result = await handleGetRecentChangesTool( {} );
+
+		expect( result.isError ).toBeUndefined();
+		expect( result.content ).toHaveLength( 1 );
+		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
+			'No recent changes matched the given filters'
+		);
+	} );
+} );
