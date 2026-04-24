@@ -1,7 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import express, { type Express, type Request } from 'express';
 import request from 'supertest';
+/* eslint-disable n/no-missing-import */
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+/* eslint-enable n/no-missing-import */
 import {
+	createMcpPostHandler,
 	createSessionRequestHandler,
 	extractBearerToken,
 	hashBearer,
@@ -252,5 +256,77 @@ describe( 'session-bearer binding (GET/DELETE handler)', () => {
 			.set( 'Authorization', 'Bearer nope' );
 		expect( res.status ).toBe( 401 );
 		expect( handleRequest ).not.toHaveBeenCalled();
+	} );
+} );
+
+describe( 'origin validation (transport-level)', () => {
+	const initializeBody = {
+		jsonrpc: '2.0',
+		id: 1,
+		method: 'initialize',
+		params: {
+			protocolVersion: '2025-11-25',
+			capabilities: {},
+			clientInfo: { name: 'origin-test-client', version: '0.0.0' }
+		}
+	};
+
+	function stubCreateServer(): McpServer {
+		return new McpServer(
+			{ name: 'origin-test-server', version: '0.0.0' },
+			{ capabilities: {} }
+		);
+	}
+
+	function buildApp( allowedOrigins: string[] | undefined ): Express {
+		const app = express();
+		app.use( express.json() );
+		const sessions: SessionRegistry = {};
+		app.post( '/mcp', createMcpPostHandler(
+			sessions,
+			stubCreateServer,
+			{ allowedOrigins }
+		) );
+		return app;
+	}
+
+	it( 'returns 403 with a JSON-RPC error body when the Origin header is not in the allowlist', async () => {
+		const res = await request( buildApp( [ 'http://good.example' ] ) )
+			.post( '/mcp' )
+			.set( 'Accept', 'application/json, text/event-stream' )
+			.set( 'Origin', 'http://evil.example' )
+			.send( initializeBody );
+		expect( res.status ).toBe( 403 );
+		expect( res.body?.jsonrpc ).toBe( '2.0' );
+		expect( res.body?.id ).toBeNull();
+		expect( typeof res.body?.error?.code ).toBe( 'number' );
+		expect( typeof res.body?.error?.message ).toBe( 'string' );
+		expect( res.body?.error?.message ).toMatch( /origin/i );
+	} );
+
+	it( 'does not reject when the Origin header matches an allowlist entry', async () => {
+		const res = await request( buildApp( [ 'http://good.example' ] ) )
+			.post( '/mcp' )
+			.set( 'Accept', 'application/json, text/event-stream' )
+			.set( 'Origin', 'http://good.example' )
+			.send( initializeBody );
+		expect( res.status ).not.toBe( 403 );
+	} );
+
+	it( 'does not reject on Origin when the allowlist is undefined', async () => {
+		const res = await request( buildApp( undefined ) )
+			.post( '/mcp' )
+			.set( 'Accept', 'application/json, text/event-stream' )
+			.set( 'Origin', 'http://anything.example' )
+			.send( initializeBody );
+		expect( res.status ).not.toBe( 403 );
+	} );
+
+	it( 'does not reject on Origin when the header is absent', async () => {
+		const res = await request( buildApp( [ 'http://good.example' ] ) )
+			.post( '/mcp' )
+			.set( 'Accept', 'application/json, text/event-stream' )
+			.send( initializeBody );
+		expect( res.status ).not.toBe( 403 );
 	} );
 } );
