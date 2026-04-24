@@ -1,16 +1,18 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import type { Mwn } from 'mwn';
 import { getMwn } from '../common/mwn.js';
 import { getPageUrl } from '../common/utils.js';
 import {
-	truncationMarker,
-	truncateByBytes
+	truncateByBytes,
+	type TruncationInfo
 } from '../common/truncation.js';
+import { TruncationSchema } from '../common/schemas.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
+import { structuredResult } from '../common/structuredResult.js';
 
 const MAX_TITLES = 50;
 
@@ -19,23 +21,45 @@ export enum BatchContentFormat {
 	none = 'none'
 }
 
+const PageEntrySchema = z.object( {
+	requestedTitle: z.string(),
+	pageId: z.number().int().nonnegative().optional(),
+	title: z.string().optional(),
+	redirectedFrom: z.string().optional(),
+	latestRevisionId: z.number().int().nonnegative().optional(),
+	latestRevisionTimestamp: z.string().optional(),
+	contentModel: z.string().optional(),
+	url: z.string().optional(),
+	source: z.string().optional(),
+	truncation: TruncationSchema.optional()
+} );
+type PageEntry = z.infer<typeof PageEntrySchema>;
+
+const outputSchema = {
+	pages: z.array( PageEntrySchema ),
+	missing: z.array( z.string() ).optional()
+};
+
 export function getPagesTool( server: McpServer ): RegisteredTool {
-	return server.tool(
+	return server.registerTool(
 		'get-pages',
-		`Returns multiple wiki pages in one call (wikitext source or metadata only). Suited to reading a cluster of related pages, diffing a page family, or syncing pages to local storage. Accepts up to ${ MAX_TITLES } titles; missing pages are reported inline (not as errors). Each page's content is truncated at 50000 bytes with a trailing marker listing available sections; get-page with section=N fetches a specific section. For a single page or HTML output, use get-page.`,
 		{
-			titles: z.array( z.string() ).describe( `Array of wiki page titles (1..${ MAX_TITLES })` ),
-			content: z.nativeEnum( BatchContentFormat ).optional().default( BatchContentFormat.source ).describe( 'Type of content to return; "none" returns metadata only' ),
-			metadata: z.boolean().optional().default( false ).describe( 'Whether to include metadata (page ID, revision info) in the response' ),
-			followRedirects: z.boolean().optional().default( true ).describe( 'Follow wiki redirects. When true (default), redirect targets are returned with a "Redirected from:" line in the metadata. Set false to fetch redirect pseudo-pages as-is (sync-fidelity).' )
+			description: `Returns multiple wiki pages in one call (wikitext source or metadata only). Suited to reading a cluster of related pages, diffing a page family, or syncing pages to local storage. Accepts up to ${ MAX_TITLES } titles; missing pages are reported inline (not as errors). Each page's content is truncated at 50000 bytes with a trailing marker listing available sections; get-page with section=N fetches a specific section. For a single page or HTML output, use get-page.`,
+			inputSchema: {
+				titles: z.array( z.string() ).describe( `Array of wiki page titles (1..${ MAX_TITLES })` ),
+				content: z.nativeEnum( BatchContentFormat ).optional().default( BatchContentFormat.source ).describe( 'Type of content to return; "none" returns metadata only' ),
+				metadata: z.boolean().optional().default( false ).describe( 'Whether to include metadata (page ID, revision info) in the response' ),
+				followRedirects: z.boolean().optional().default( true ).describe( 'Follow wiki redirects. When true (default), redirect targets are returned with a "Redirected from:" line in the metadata. Set false to fetch redirect pseudo-pages as-is (sync-fidelity).' )
+			},
+			outputSchema,
+			annotations: {
+				title: 'Get pages',
+				readOnlyHint: true,
+				destructiveHint: false,
+				idempotentHint: true,
+				openWorldHint: true
+			} as ToolAnnotations
 		},
-		{
-			title: 'Get pages',
-			readOnlyHint: true,
-			destructiveHint: false,
-			idempotentHint: true,
-			openWorldHint: true
-		} as ToolAnnotations,
 		async ( { titles, content, metadata, followRedirects } ) => handleGetPagesTool(
 			titles, content, metadata, followRedirects
 		)
@@ -62,27 +86,6 @@ interface ApiPageLike {
 interface RedirectOrNormalizedEntry {
 	from: string;
 	to: string;
-}
-
-function buildMetadataLines(
-	page: ApiPageLike,
-	rev: PageRev | undefined,
-	redirectedFrom: string | undefined
-): string {
-	const lines = [
-		`Page ID: ${ page.pageid }`,
-		`Title: ${ page.title }`
-	];
-	if ( redirectedFrom !== undefined ) {
-		lines.push( `Redirected from: ${ redirectedFrom }` );
-	}
-	lines.push(
-		`Latest revision ID: ${ rev?.revid }`,
-		`Latest revision timestamp: ${ rev?.timestamp }`,
-		`Content model: ${ rev?.contentmodel }`,
-		`HTML URL: ${ getPageUrl( page.title ) }`
-	);
-	return lines.join( '\n' );
 }
 
 interface PageSectionsApi {
@@ -198,21 +201,18 @@ export async function handleGetPagesTool(
 			}
 		}
 
-		const results: TextContent[] = [];
-		// emitted is keyed by resolved title so redirect/normalization aliases
-		// collapse to one emission; missingSeen is keyed by requested title
-		// because misses have no resolved title to key on.
+		const entries: PageEntry[] = [];
 		const emitted = new Set<string>();
 		const missing: string[] = [];
 		const missingSeen = new Set<string>();
 
-		interface PendingMarker {
-			position: number;
+		interface PendingTruncation {
+			entryIndex: number;
 			title: string;
 			returnedBytes: number;
 			totalBytes: number;
 		}
-		const pendingMarkers: PendingMarker[] = [];
+		const pendingTruncations: PendingTruncation[] = [];
 
 		for ( const requested of titles ) {
 			let resolvedTitle: string;
@@ -241,41 +241,42 @@ export async function handleGetPagesTool(
 			}
 			emitted.add( page.title );
 
-			results.push( { type: 'text', text: `--- ${ requested } ---` } );
-
 			const rev = page.revisions?.[ 0 ];
+			const entry: PageEntry = {
+				requestedTitle: requested,
+				pageId: page.pageid,
+				title: page.title,
+				url: getPageUrl( page.title )
+			};
+			if ( viaRedirect ) {
+				entry.redirectedFrom = requested;
+			}
 			if ( metadata ) {
-				results.push( {
-					type: 'text',
-					text: buildMetadataLines( page, rev, viaRedirect ? requested : undefined )
-				} );
+				entry.latestRevisionId = rev?.revid;
+				entry.latestRevisionTimestamp = rev?.timestamp;
+				entry.contentModel = rev?.contentmodel;
 			}
 			if ( needsSource && rev?.content !== undefined ) {
 				const truncated = truncateByBytes( rev.content );
-				results.push( {
-					type: 'text',
-					text: metadata ? `Source:\n${ truncated.text }` : truncated.text
-				} );
+				entry.source = truncated.text;
 				if ( truncated.truncated ) {
-					// Reserve a slot; the marker's section list is filled in after
-					// a single parallel pass fetches outlines for every truncated page.
-					results.push( { type: 'text', text: '' } );
-					pendingMarkers.push( {
-						position: results.length - 1,
+					pendingTruncations.push( {
+						entryIndex: entries.length,
 						title: page.title,
 						returnedBytes: truncated.returnedBytes,
 						totalBytes: truncated.totalBytes
 					} );
 				}
 			}
+			entries.push( entry );
 		}
 
-		if ( pendingMarkers.length > 0 ) {
+		if ( pendingTruncations.length > 0 ) {
 			const sectionLists = await Promise.all(
-				pendingMarkers.map( ( p ) => fetchSectionsList( mwn, p.title ) )
+				pendingTruncations.map( ( p ) => fetchSectionsList( mwn, p.title ) )
 			);
-			pendingMarkers.forEach( ( p, i ) => {
-				results[ p.position ] = truncationMarker( {
+			pendingTruncations.forEach( ( p, i ) => {
+				const info: TruncationInfo = {
 					reason: 'content-truncated',
 					returnedBytes: p.returnedBytes,
 					totalBytes: p.totalBytes,
@@ -283,17 +284,17 @@ export async function handleGetPagesTool(
 					toolName: 'get-pages',
 					sections: sectionLists[ i ],
 					remedyHint: 'To read a specific section, call get-page again with section=N.'
-				} );
+				};
+				entries[ p.entryIndex ].truncation = info;
 			} );
 		}
 
-		if ( missing.length > 0 ) {
-			results.push( { type: 'text', text: `Missing: ${ missing.join( ', ' ) }` } );
-		}
-
-		return { content: results };
+		return structuredResult( {
+			pages: entries,
+			...( missing.length > 0 ? { missing } : {} )
+		} );
 	} catch ( error ) {
-		const { category } = classifyError( error );
-		return errorResult( category, `Failed to retrieve pages: ${ ( error as Error ).message }` );
+		const { category, code } = classifyError( error );
+		return errorResult( category, `Failed to retrieve pages: ${ ( error as Error ).message }`, code );
 	}
 }
