@@ -1,15 +1,14 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import { inlineDiffToText } from '../common/diffFormat.js';
-import {
-	truncationMarker,
-	truncateByBytes
-} from '../common/truncation.js';
+import { truncateByBytes } from '../common/truncation.js';
+import { TruncationSchema } from '../common/schemas.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
+import { structuredResult } from '../common/structuredResult.js';
 
 interface ComparePagesArgs {
 	fromRevision?: number;
@@ -36,26 +35,46 @@ interface CompareResponse {
 
 type Side = 'from' | 'to';
 
+const SideSchema = z.object( {
+	title: z.string().optional(),
+	revisionId: z.number().int().nonnegative().optional(),
+	timestamp: z.string().optional(),
+	size: z.number().int().nonnegative(),
+	isSuppliedText: z.boolean()
+} );
+
+const outputSchema = {
+	changed: z.boolean(),
+	from: SideSchema,
+	to: SideSchema,
+	sizeDelta: z.number().int(),
+	diff: z.string().optional(),
+	truncation: TruncationSchema.optional()
+};
+
 export function comparePagesTool( server: McpServer ): RegisteredTool {
-	return server.tool(
+	return server.registerTool(
 		'compare-pages',
-		'Returns the changes between two versions of a wiki page as a compact text diff. Each side accepts a revision ID, page title (latest revision), or supplied wikitext; text-vs-text is rejected. Cheaper than fetching both sources and diffing locally, because only the changes are returned. If a title or revision ID does not exist, an error is returned. Set includeDiff=false for a cheap change-detection response that skips diff rendering and returns just the change flag, revision metadata, and size delta. Diff output is truncated at 50000 bytes with a trailing marker; a narrower revision range or includeDiff=false avoids truncation.',
 		{
-			fromRevision: z.number().int().positive().optional().describe( 'Revision ID for the "from" side' ),
-			fromTitle: z.string().optional().describe( 'Wiki page title for the "from" side (latest revision is used)' ),
-			fromText: z.string().optional().describe( 'Supplied wikitext for the "from" side' ),
-			toRevision: z.number().int().positive().optional().describe( 'Revision ID for the "to" side' ),
-			toTitle: z.string().optional().describe( 'Wiki page title for the "to" side (latest revision is used)' ),
-			toText: z.string().optional().describe( 'Supplied wikitext for the "to" side' ),
-			includeDiff: z.boolean().optional().describe( 'Include the diff body (default true). Set false for a cheap change-detection response.' )
+			description: 'Returns the changes between two versions of a wiki page as a compact text diff. Each side accepts a revision ID, page title (latest revision), or supplied wikitext; text-vs-text is rejected. Cheaper than fetching both sources and diffing locally, because only the changes are returned. If a title or revision ID does not exist, an error is returned. Set includeDiff=false for a cheap change-detection response that skips diff rendering and returns just the change flag, revision metadata, and size delta. Diff output is truncated at 50000 bytes with a trailing marker; a narrower revision range or includeDiff=false avoids truncation.',
+			inputSchema: {
+				fromRevision: z.number().int().positive().optional().describe( 'Revision ID for the "from" side' ),
+				fromTitle: z.string().optional().describe( 'Wiki page title for the "from" side (latest revision is used)' ),
+				fromText: z.string().optional().describe( 'Supplied wikitext for the "from" side' ),
+				toRevision: z.number().int().positive().optional().describe( 'Revision ID for the "to" side' ),
+				toTitle: z.string().optional().describe( 'Wiki page title for the "to" side (latest revision is used)' ),
+				toText: z.string().optional().describe( 'Supplied wikitext for the "to" side' ),
+				includeDiff: z.boolean().optional().describe( 'Include the diff body (default true). Set false for a cheap change-detection response.' )
+			},
+			outputSchema,
+			annotations: {
+				title: 'Compare pages',
+				readOnlyHint: true,
+				destructiveHint: false,
+				idempotentHint: true,
+				openWorldHint: true
+			} as ToolAnnotations
 		},
-		{
-			title: 'Compare pages',
-			readOnlyHint: true,
-			destructiveHint: false,
-			idempotentHint: true,
-			openWorldHint: true
-		} as ToolAnnotations,
 		async ( args ) => handleComparePagesTool( args as ComparePagesArgs )
 	);
 }
@@ -94,31 +113,6 @@ function buildSideParams( side: Side, args: ComparePagesArgs ): Record<string, s
 		params[ `${ side }text-main` ] = text;
 	}
 	return params;
-}
-
-function formatSideLine(
-	prefix: string,
-	anchorTitle: string | undefined,
-	info: {
-		title?: string;
-		revid?: number;
-		timestamp?: string;
-		size?: number;
-		isSuppliedText: boolean;
-	},
-	includeTimestamp: boolean
-): string {
-	const title = info.title ?? anchorTitle ?? '(unknown)';
-	if ( info.isSuppliedText ) {
-		return `${ prefix }${ title } (supplied text, ${ info.size ?? 0 } bytes)`;
-	}
-	const metaParts: string[] = [];
-	if ( includeTimestamp && info.timestamp ) {
-		metaParts.push( info.timestamp );
-	}
-	metaParts.push( `${ info.size ?? 0 } bytes` );
-	const revClause = info.revid !== undefined ? ` @ rev ${ info.revid }` : '';
-	return `${ prefix }${ title }${ revClause } (${ metaParts.join( ', ' ) })`;
 }
 
 function detectChanged( compare: CompareResponse, diffText: string ): boolean {
@@ -168,7 +162,6 @@ export async function handleComparePagesTool(
 			return errorResult( 'upstream_failure', 'Failed to compare pages: no compare result returned' );
 		}
 
-		const anchorTitle = compare.fromtitle ?? compare.totitle;
 		const diffText = compare.body ? inlineDiffToText( compare.body ) : '';
 		const changed = detectChanged( compare, diffText );
 		// MediaWiki omits fromsize/tosize when the side is supplied text;
@@ -181,45 +174,41 @@ export async function handleComparePagesTool(
 		);
 		const sizeDelta = toSize - fromSize;
 
-		const headerLines = [
-			`Changed: ${ changed }`,
-			formatSideLine( 'From: ', anchorTitle, {
+		const payload: Record<string, unknown> = {
+			changed,
+			from: {
 				title: compare.fromtitle,
-				revid: compare.fromrevid,
-				timestamp: compare.fromtimestamp,
+				revisionId: compare.fromrevid,
+				timestamp: includeDiff ? compare.fromtimestamp : undefined,
 				size: fromSize,
 				isSuppliedText: args.fromText !== undefined
-			}, includeDiff ),
-			formatSideLine( 'To:   ', anchorTitle, {
+			},
+			to: {
 				title: compare.totitle,
-				revid: compare.torevid,
-				timestamp: compare.totimestamp,
+				revisionId: compare.torevid,
+				timestamp: includeDiff ? compare.totimestamp : undefined,
 				size: toSize,
 				isSuppliedText: args.toText !== undefined
-			}, includeDiff ),
-			`Size delta: ${ sizeDelta > 0 ? '+' : '' }${ sizeDelta }`
-		];
-
-		const results: TextContent[] = [
-			{ type: 'text', text: headerLines.join( '\n' ) }
-		];
+			},
+			sizeDelta
+		};
 
 		if ( includeDiff && changed && diffText ) {
 			const truncated = truncateByBytes( diffText );
-			results.push( { type: 'text', text: truncated.text } );
+			payload.diff = truncated.text;
 			if ( truncated.truncated ) {
-				results.push( truncationMarker( {
+				payload.truncation = {
 					reason: 'content-truncated',
 					returnedBytes: truncated.returnedBytes,
 					totalBytes: truncated.totalBytes,
 					itemNoun: 'diff',
 					toolName: 'compare-pages',
 					remedyHint: 'To avoid truncation, compare a narrower revision range or set includeDiff=false for a metadata-only response.'
-				} ) );
+				};
 			}
 		}
 
-		return { content: results };
+		return structuredResult( payload );
 	} catch ( error ) {
 		const { category, code } = classifyError( error );
 		const msg = ( error as Error ).message;
@@ -234,7 +223,8 @@ export async function handleComparePagesTool(
 			}
 			return errorResult(
 				'not_found',
-				id !== undefined ? `Revision ${ id } not found` : 'Revision not found'
+				id !== undefined ? `Revision ${ id } not found` : 'Revision not found',
+				code
 			);
 		}
 		if ( code === 'missingtitle' ) {
@@ -242,9 +232,10 @@ export async function handleComparePagesTool(
 			const title = titleMatch?.[ 1 ] ?? args.fromTitle ?? args.toTitle;
 			return errorResult(
 				'not_found',
-				title !== undefined ? `Page "${ title }" not found` : 'Page not found'
+				title !== undefined ? `Page "${ title }" not found` : 'Page not found',
+				code
 			);
 		}
-		return errorResult( category, `Failed to compare pages: ${ msg }` );
+		return errorResult( category, `Failed to compare pages: ${ msg }`, code );
 	}
 }

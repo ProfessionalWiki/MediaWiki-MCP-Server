@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
+import { TruncationSchema } from '../../src/common/schemas.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
 vi.mock( '../../src/common/wikiService.js', () => ( {
@@ -13,7 +15,27 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 
 import { getMwn } from '../../src/common/mwn.js';
 import { handleComparePagesTool } from '../../src/tools/compare-pages.js';
-import { assertStructuredError } from '../helpers/structuredResult.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess
+} from '../helpers/structuredResult.js';
+
+const SideSchema = z.object( {
+	title: z.string().optional(),
+	revisionId: z.number().int().nonnegative().optional(),
+	timestamp: z.string().optional(),
+	size: z.number().int().nonnegative(),
+	isSuppliedText: z.boolean()
+} );
+
+const CompareSchema = z.object( {
+	changed: z.boolean(),
+	from: SideSchema,
+	to: SideSchema,
+	sizeDelta: z.number().int(),
+	diff: z.string().optional(),
+	truncation: TruncationSchema.optional()
+} );
 
 const PAIRED_CHANGE_HTML = [
 	'<table class="diff">',
@@ -48,13 +70,26 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 57
 		} );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content ).toHaveLength( 2 );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Changed: true' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'From: Foo @ rev 42 (2026-01-01T00:00:00Z, 100 bytes)' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'To:   Foo @ rev 57 (2026-01-02T00:00:00Z, 105 bytes)' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Size delta: +5' );
-		expect( ( result.content[ 1 ] as { text: string } ).text ).toBe( '@@ Line 1 @@\n- old\n+ new' );
+		const data = assertStructuredSuccess( result, CompareSchema );
+		expect( data ).toMatchObject( {
+			changed: true,
+			from: {
+				title: 'Foo',
+				revisionId: 42,
+				timestamp: '2026-01-01T00:00:00Z',
+				size: 100,
+				isSuppliedText: false
+			},
+			to: {
+				title: 'Foo',
+				revisionId: 57,
+				timestamp: '2026-01-02T00:00:00Z',
+				size: 105,
+				isSuppliedText: false
+			},
+			sizeDelta: 5,
+			diff: '@@ Line 1 @@\n- old\n+ new'
+		} );
 
 		const call = request.mock.calls[ 0 ][ 0 ];
 		expect( call.action ).toBe( 'compare' );
@@ -63,7 +98,7 @@ describe( 'compare-pages', () => {
 		expect( call.prop ).toContain( 'diff' );
 	} );
 
-	it( 'cheap mode omits diff from prop and returns one block', async () => {
+	it( 'cheap mode omits diff from prop and payload', async () => {
 		const request = vi.fn().mockResolvedValue( {
 			compare: {
 				fromrevid: 42, fromtitle: 'Foo', fromsize: 100,
@@ -76,11 +111,11 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 57, includeDiff: false
 		} );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content ).toHaveLength( 1 );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Changed: true' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Size delta: +5' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).not.toContain( '2026-' );
+		const data = assertStructuredSuccess( result, CompareSchema );
+		expect( data.changed ).toBe( true );
+		expect( data.sizeDelta ).toBe( 5 );
+		expect( data.diff ).toBeUndefined();
+		expect( data.from.timestamp ).toBeUndefined();
 
 		const call = request.mock.calls[ 0 ][ 0 ];
 		expect( call.prop.split( '|' ) ).not.toContain( 'diff' );
@@ -101,13 +136,13 @@ describe( 'compare-pages', () => {
 			fromTitle: 'Foo', toRevision: 42
 		} );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content ).toHaveLength( 1 );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Changed: false' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Size delta: 0' );
+		const data = assertStructuredSuccess( result, CompareSchema );
+		expect( data.changed ).toBe( false );
+		expect( data.sizeDelta ).toBe( 0 );
+		expect( data.diff ).toBeUndefined();
 	} );
 
-	it( 'renders supplied text side as "(supplied text, N bytes)"', async () => {
+	it( 'sets isSuppliedText on the supplied-text side', async () => {
 		const request = vi.fn().mockResolvedValue( {
 			compare: {
 				fromsize: 50,
@@ -121,9 +156,16 @@ describe( 'compare-pages', () => {
 			fromText: 'my draft', toTitle: 'Foo'
 		} );
 
-		expect( result.isError ).toBeUndefined();
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'From: Foo (supplied text, 50 bytes)' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'To:   Foo @ rev 57' );
+		const data = assertStructuredSuccess( result, CompareSchema );
+		expect( data.from ).toMatchObject( {
+			size: 50,
+			isSuppliedText: true
+		} );
+		expect( data.to ).toMatchObject( {
+			title: 'Foo',
+			revisionId: 57,
+			isSuppliedText: false
+		} );
 
 		const call = request.mock.calls[ 0 ][ 0 ];
 		expect( call.fromslots ).toBe( 'main' );
@@ -132,8 +174,6 @@ describe( 'compare-pages', () => {
 	} );
 
 	it( 'computes byte size locally when MediaWiki omits it for supplied text', async () => {
-		// MediaWiki's action=compare omits fromsize/tosize for supplied-text
-		// sides. The tool must fall back to the client-side byte length.
 		const request = vi.fn().mockResolvedValue( {
 			compare: {
 				torevid: 57, totitle: 'Foo', tosize: 100,
@@ -146,10 +186,10 @@ describe( 'compare-pages', () => {
 			fromText: 'hello world', toTitle: 'Foo'
 		} );
 
-		expect( result.isError ).toBeUndefined();
+		const data = assertStructuredSuccess( result, CompareSchema );
 		// 'hello world' is 11 bytes in UTF-8.
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'From: Foo (supplied text, 11 bytes)' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Size delta: +89' );
+		expect( data.from.size ).toBe( 11 );
+		expect( data.sizeDelta ).toBe( 89 );
 	} );
 
 	it( 'returns validation error when no from* is given', async () => {
@@ -180,7 +220,7 @@ describe( 'compare-pages', () => {
 		);
 	} );
 
-	it( 'maps nosuchrevid errors to a friendly message', async () => {
+	it( 'maps nosuchrevid errors to a friendly message with code', async () => {
 		const request = vi.fn().mockRejectedValue( new Error( 'nosuchrevid: There is no revision with ID 99999.' ) );
 		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
 
@@ -188,11 +228,11 @@ describe( 'compare-pages', () => {
 			fromRevision: 99999, toRevision: 57
 		} );
 
-		assertStructuredError( result, 'not_found' );
+		assertStructuredError( result, 'not_found', 'nosuchrevid' );
 		expect( ( result.structuredContent as { message: string } ).message ).toBe( 'Revision 99999 not found' );
 	} );
 
-	it( 'maps missingtitle errors to a friendly message', async () => {
+	it( 'maps missingtitle errors to a friendly message with code', async () => {
 		const request = vi.fn().mockRejectedValue( new Error( 'missingtitle: The page you specified doesn\'t exist.' ) );
 		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
 
@@ -200,7 +240,7 @@ describe( 'compare-pages', () => {
 			fromTitle: 'Nope', toTitle: 'Foo'
 		} );
 
-		assertStructuredError( result, 'not_found' );
+		assertStructuredError( result, 'not_found', 'missingtitle' );
 		expect( ( result.structuredContent as { message: string } ).message ).toBe( 'Page "Nope" not found' );
 	} );
 
@@ -241,13 +281,12 @@ describe( 'compare-pages', () => {
 			fromTitle: 'Foo', toRevision: 42, includeDiff: false
 		} );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content ).toHaveLength( 1 );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Changed: false' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Size delta: 0' );
+		const data = assertStructuredSuccess( result, CompareSchema );
+		expect( data.changed ).toBe( false );
+		expect( data.sizeDelta ).toBe( 0 );
 	} );
 
-	it( 'full mode returns only the header when body is empty', async () => {
+	it( 'full mode omits diff field when body is empty', async () => {
 		const request = vi.fn().mockResolvedValue( {
 			compare: {
 				fromrevid: 42, fromtitle: 'Foo', fromsize: 100,
@@ -261,9 +300,9 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 42
 		} );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content ).toHaveLength( 1 );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Changed: false' );
+		const data = assertStructuredSuccess( result, CompareSchema );
+		expect( data.changed ).toBe( false );
+		expect( data.diff ).toBeUndefined();
 	} );
 
 	it( 'returns error when API response has no compare field', async () => {
@@ -288,7 +327,7 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 99999
 		} );
 
-		assertStructuredError( result, 'not_found' );
+		assertStructuredError( result, 'not_found', 'nosuchrevid' );
 		expect( ( result.structuredContent as { message: string } ).message ).toBe( 'Revision 99999 not found' );
 	} );
 
@@ -300,12 +339,11 @@ describe( 'compare-pages', () => {
 			fromTitle: 'Foo', toTitle: 'Bar'
 		} );
 
-		assertStructuredError( result, 'not_found' );
+		assertStructuredError( result, 'not_found', 'missingtitle' );
 		expect( ( result.structuredContent as { message: string } ).message ).toBe( 'Page "Bar" not found' );
 	} );
 
-	it( 'truncates oversized diff body with a content-truncated marker', async () => {
-		// Build a diff body large enough that inlineDiffToText yields > 50000 bytes
+	it( 'truncates oversized diff with a content-truncated truncation field', async () => {
 		const bigOld = 'a'.repeat( 30000 );
 		const bigNew = 'b'.repeat( 30000 );
 		const bigDiffHtml = [
@@ -328,16 +366,17 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 57
 		} );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content ).toHaveLength( 3 );
-		expect( ( result.content[ 1 ] as any ).text ).toHaveLength( 50000 );
-		const marker = ( result.content[ 2 ] as any ).text as string;
-		expect( marker ).toMatch( /^Content truncated at 50000 of \d+ bytes\./ );
-		expect( marker ).toContain( 'compare a narrower revision range or set includeDiff=false' );
-		expect( marker ).not.toContain( 'Available sections' );
+		const data = assertStructuredSuccess( result, CompareSchema );
+		expect( data.diff ).toHaveLength( 50000 );
+		expect( data.truncation ).toMatchObject( {
+			reason: 'content-truncated',
+			returnedBytes: 50000,
+			itemNoun: 'diff',
+			toolName: 'compare-pages'
+		} );
 	} );
 
-	it( 'cheap mode (includeDiff=false) emits no content-truncated marker even for oversized changes', async () => {
+	it( 'cheap mode (includeDiff=false) never attaches a content-truncated truncation', async () => {
 		const request = vi.fn().mockResolvedValue( {
 			compare: {
 				fromrevid: 42, fromtitle: 'Foo', fromsize: 100,
@@ -351,12 +390,8 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 57, includeDiff: false
 		} );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content ).toHaveLength( 1 );
-		const hasMarker = result.content.some(
-			( c: any ) => c.text?.startsWith( 'Content truncated at' )
-		);
-		expect( hasMarker ).toBe( false );
+		const data = assertStructuredSuccess( result, CompareSchema );
+		expect( data.truncation ).toBeUndefined();
 	} );
 
 	it( 'cheap mode uses diffsize to detect same-byte-count changes', async () => {
@@ -373,9 +408,8 @@ describe( 'compare-pages', () => {
 			fromText: 'hallo world!', toTitle: 'Foo', includeDiff: false
 		} );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content ).toHaveLength( 1 );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Changed: true' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Size delta: 0' );
+		const data = assertStructuredSuccess( result, CompareSchema );
+		expect( data.changed ).toBe( true );
+		expect( data.sizeDelta ).toBe( 0 );
 	} );
 } );
