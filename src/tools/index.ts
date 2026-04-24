@@ -20,6 +20,7 @@ import { deletePageTool } from './delete-page.js';
 import { getRevisionTool } from './get-revision.js';
 import { undeletePageTool } from './undelete-page.js';
 import { getCategoryMembersTool } from './get-category-members.js';
+import { getRecentChangesTool } from './get-recent-changes.js';
 import { searchPageByPrefixTool } from './search-page-by-prefix.js';
 import { parseWikitextTool } from './parse-wikitext.js';
 import { comparePagesTool } from './compare-pages.js';
@@ -32,6 +33,7 @@ const toolRegistrars: [ string, ToolRegistrar ][] = [
 	[ 'get-page', getPageTool ],
 	[ 'get-pages', getPagesTool ],
 	[ 'get-page-history', getPageHistoryTool ],
+	[ 'get-recent-changes', getRecentChangesTool ],
 	[ 'search-page', searchPageTool ],
 	[ 'add-wiki', addWikiTool ],
 	[ 'remove-wiki', removeWikiTool ],
