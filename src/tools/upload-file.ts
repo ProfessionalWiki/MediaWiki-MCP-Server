@@ -15,7 +15,7 @@ import { structuredResult } from '../common/structuredResult.js';
 const outputSchema = {
 	filename: z.string(),
 	pageUrl: z.string(),
-	fileUrl: z.string()
+	fileUrl: z.string().optional()
 };
 
 export function uploadFileTool( server: McpServer ): RegisteredTool {
@@ -75,7 +75,7 @@ export async function handleUploadFileTool(
 	return structuredResult( {
 		filename,
 		pageUrl: imageinfo?.descriptionurl ?? getPageUrl( `File:${ filename }` ),
-		fileUrl: imageinfo?.url ?? ''
+		...( imageinfo?.url !== undefined ? { fileUrl: imageinfo.url } : {} )
 	} );
 }
 

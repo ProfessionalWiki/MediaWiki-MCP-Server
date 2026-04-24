@@ -82,12 +82,13 @@ describe( 'get-category-members', () => {
 		} );
 	} );
 
-	it( 'returns each member as a structured entry', async () => {
+	it( 'returns each member as a structured entry with type surfaced', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { categorymembers: [
-					{ pageid: 1, ns: 0, title: 'Alpha' },
-					{ pageid: 2, ns: 6, title: 'File:Bar.png' }
+					{ pageid: 1, ns: 0, title: 'Alpha', type: 'page' },
+					{ pageid: 2, ns: 6, title: 'File:Bar.png', type: 'file' },
+					{ pageid: 3, ns: 14, title: 'Category:Sub', type: 'subcat' }
 				] }
 			} )
 		} );
@@ -98,10 +99,34 @@ describe( 'get-category-members', () => {
 
 		const data = assertStructuredSuccess( result, CategoryMembersSchema );
 		expect( data.members ).toEqual( [
-			{ title: 'Alpha', pageId: 1, namespace: 0 },
-			{ title: 'File:Bar.png', pageId: 2, namespace: 6 }
+			{ title: 'Alpha', pageId: 1, namespace: 0, type: 'page' },
+			{ title: 'File:Bar.png', pageId: 2, namespace: 6, type: 'file' },
+			{ title: 'Category:Sub', pageId: 3, namespace: 14, type: 'subcat' }
 		] );
 		expect( data.truncation ).toBeUndefined();
+
+		const call = mock.request.mock.calls[ 0 ][ 0 ];
+		expect( call.cmprop ).toBe( 'ids|title|type' );
+	} );
+
+	it( 'omits type from entries when MediaWiki omits it', async () => {
+		const mock = createMockMwn( {
+			request: vi.fn().mockResolvedValue( {
+				query: { categorymembers: [
+					{ pageid: 1, ns: 0, title: 'Alpha' }
+				] }
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
+		const result = await handleGetCategoryMembersTool( 'Foo' );
+
+		const data = assertStructuredSuccess( result, CategoryMembersSchema );
+		expect( data.members ).toEqual( [
+			{ title: 'Alpha', pageId: 1, namespace: 0 }
+		] );
+		expect( data.members[ 0 ].type ).toBeUndefined();
 	} );
 
 	it( 'attaches a more-available truncation with the continueFrom cursor', async () => {

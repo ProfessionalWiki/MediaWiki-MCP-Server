@@ -39,7 +39,7 @@ const SideSchema = z.object( {
 	title: z.string().optional(),
 	revisionId: z.number().int().nonnegative().optional(),
 	timestamp: z.string().optional(),
-	size: z.number().int().nonnegative(),
+	size: z.number().int().nonnegative().optional(),
 	isSuppliedText: z.boolean()
 } );
 
@@ -47,7 +47,7 @@ const outputSchema = {
 	changed: z.boolean(),
 	from: SideSchema,
 	to: SideSchema,
-	sizeDelta: z.number().int(),
+	sizeDelta: z.number().int().optional(),
 	diff: z.string().optional(),
 	truncation: TruncationSchema.optional()
 };
@@ -166,13 +166,17 @@ export async function handleComparePagesTool(
 		const changed = detectChanged( compare, diffText );
 		// MediaWiki omits fromsize/tosize when the side is supplied text;
 		// we have the text locally, so compute the byte length ourselves.
+		// For title/revision sides where MW still omits size (rare) we leave
+		// the field undefined rather than reporting a misleading 0.
 		const fromSize = compare.fromsize ?? (
-			args.fromText !== undefined ? Buffer.byteLength( args.fromText, 'utf8' ) : 0
+			args.fromText !== undefined ? Buffer.byteLength( args.fromText, 'utf8' ) : undefined
 		);
 		const toSize = compare.tosize ?? (
-			args.toText !== undefined ? Buffer.byteLength( args.toText, 'utf8' ) : 0
+			args.toText !== undefined ? Buffer.byteLength( args.toText, 'utf8' ) : undefined
 		);
-		const sizeDelta = toSize - fromSize;
+		const sizeDelta = ( fromSize !== undefined && toSize !== undefined ) ?
+			toSize - fromSize :
+			undefined;
 
 		const payload: Record<string, unknown> = {
 			changed,
@@ -190,7 +194,7 @@ export async function handleComparePagesTool(
 				size: toSize,
 				isSuppliedText: args.toText !== undefined
 			},
-			sizeDelta
+			...( sizeDelta !== undefined ? { sizeDelta } : {} )
 		};
 
 		if ( includeDiff && changed && diffText ) {

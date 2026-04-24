@@ -19,6 +19,7 @@ interface CategoryMember {
 	pageid: number;
 	ns: number;
 	title: string;
+	type?: 'page' | 'file' | 'subcat';
 }
 
 function normalizeCategoryTitle( input: string ): string {
@@ -71,7 +72,7 @@ export async function handleGetCategoryMembersTool(
 			action: 'query',
 			list: 'categorymembers',
 			cmtitle: normalizeCategoryTitle( category ),
-			cmprop: 'ids|title',
+			cmprop: 'ids|title|type',
 			formatversion: '2'
 		};
 		if ( types && types.length > 0 ) {
@@ -101,7 +102,8 @@ export async function handleGetCategoryMembersTool(
 			members: members.map( ( m ) => ( {
 				title: m.title,
 				pageId: m.pageid,
-				namespace: m.ns
+				namespace: m.ns,
+				...( m.type !== undefined ? { type: m.type } : {} )
 			} ) ),
 			...( truncation !== null ? { truncation } : {} )
 		} );

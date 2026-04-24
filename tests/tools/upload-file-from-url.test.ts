@@ -25,7 +25,7 @@ import {
 const UploadFileOutputSchema = z.object( {
 	filename: z.string(),
 	pageUrl: z.string(),
-	fileUrl: z.string()
+	fileUrl: z.string().optional()
 } );
 
 describe( 'upload-file-from-url', () => {

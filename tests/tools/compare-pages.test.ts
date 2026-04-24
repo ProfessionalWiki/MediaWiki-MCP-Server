@@ -24,7 +24,7 @@ const SideSchema = z.object( {
 	title: z.string().optional(),
 	revisionId: z.number().int().nonnegative().optional(),
 	timestamp: z.string().optional(),
-	size: z.number().int().nonnegative(),
+	size: z.number().int().nonnegative().optional(),
 	isSuppliedText: z.boolean()
 } );
 
@@ -32,7 +32,7 @@ const CompareSchema = z.object( {
 	changed: z.boolean(),
 	from: SideSchema,
 	to: SideSchema,
-	sizeDelta: z.number().int(),
+	sizeDelta: z.number().int().optional(),
 	diff: z.string().optional(),
 	truncation: TruncationSchema.optional()
 } );
