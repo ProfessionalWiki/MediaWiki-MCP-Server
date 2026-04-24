@@ -225,11 +225,13 @@ export async function handleComparePagesTool(
 		const msg = ( error as Error ).message;
 		if ( code === 'nosuchrevid' ) {
 			const idMatch = msg.match( /\b(\d+)\b/ );
-			const id = idMatch?.[ 1 ] ?? (
-				args.fromRevision !== undefined ? String( args.fromRevision ) :
-					args.toRevision !== undefined ? String( args.toRevision ) :
-						undefined
-			);
+			let id: string | undefined = idMatch?.[ 1 ];
+			if ( id === undefined && args.fromRevision !== undefined ) {
+				id = String( args.fromRevision );
+			}
+			if ( id === undefined && args.toRevision !== undefined ) {
+				id = String( args.toRevision );
+			}
 			return errorResult(
 				'not_found',
 				id !== undefined ? `Revision ${ id } not found` : 'Revision not found'
