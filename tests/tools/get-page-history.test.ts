@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
+import { RevisionSummarySchema, TruncationSchema } from '../../src/common/schemas.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
 vi.mock( '../../src/common/wikiService.js', () => ( {
@@ -12,10 +14,20 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
-import { assertStructuredError } from '../helpers/structuredResult.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess
+} from '../helpers/structuredResult.js';
+
+const PageHistorySchema = z.object( {
+	revisions: z.array( RevisionSummarySchema ),
+	truncation: TruncationSchema.optional()
+} );
 
 describe( 'get-page-history', () => {
-	beforeEach( () => { vi.clearAllMocks(); } );
+	beforeEach( () => {
+		vi.clearAllMocks();
+	} );
 
 	it( 'returns basic revision history', async () => {
 		const mock = createMockMwn( {
@@ -40,10 +52,16 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page' );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content[ 0 ].text ).toContain( 'Revision ID: 100' );
-		expect( result.content[ 0 ].text ).toContain( 'User: Admin (ID: 1)' );
-		expect( result.content[ 0 ].text ).not.toContain( 'Delta' );
+		const data = assertStructuredSuccess( result, PageHistorySchema );
+		expect( data.revisions ).toEqual( [ {
+			revid: 100,
+			timestamp: '2026-01-01T00:00:00Z',
+			user: 'Admin',
+			userid: 1,
+			comment: 'edit',
+			size: 500,
+			minor: false
+		} ] );
 	} );
 
 	it( 'maps olderThan to rvstartid (default rvdir=older) and skips boundary revision', async () => {
@@ -64,9 +82,9 @@ describe( 'get-page-history', () => {
 		expect( call ).toMatchObject( { rvstartid: 100 } );
 		expect( call.rvdir ).toBeUndefined();
 		expect( call.rvendid ).toBeUndefined();
-		// Should skip the boundary revision (100)
-		expect( result.content.length ).toBe( 1 );
-		expect( result.content[ 0 ].text ).toContain( 'Revision ID: 99' );
+
+		const data = assertStructuredSuccess( result, PageHistorySchema );
+		expect( data.revisions.map( ( r ) => r.revid ) ).toEqual( [ 99 ] );
 	} );
 
 	it( 'maps newerThan to rvstartid with rvdir=newer', async () => {
@@ -83,9 +101,9 @@ describe( 'get-page-history', () => {
 		expect( mock.request ).toHaveBeenCalledWith(
 			expect.objectContaining( { rvstartid: 50, rvdir: 'newer' } )
 		);
-		// Should skip the boundary revision (50)
-		expect( result.content.length ).toBe( 1 );
-		expect( result.content[ 0 ].text ).toContain( 'Revision ID: 101' );
+
+		const data = assertStructuredSuccess( result, PageHistorySchema );
+		expect( data.revisions.map( ( r ) => r.revid ) ).toEqual( [ 101 ] );
 	} );
 
 	it( 'maps filter to rvtag', async () => {
@@ -119,7 +137,7 @@ describe( 'get-page-history', () => {
 		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'not found' );
 	} );
 
-	it( 'handles empty results', async () => {
+	it( 'returns an empty revisions array when the API returns none', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { pages: [ { revisions: [] } ] }
@@ -130,7 +148,9 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page' );
 
-		expect( result.content[ 0 ].text ).toContain( 'No revisions found' );
+		const data = assertStructuredSuccess( result, PageHistorySchema );
+		expect( data.revisions ).toEqual( [] );
+		expect( data.truncation ).toBeUndefined();
 	} );
 
 	it( 'returns full segment of 20 revisions when boundary filters one out', async () => {
@@ -156,9 +176,10 @@ describe( 'get-page-history', () => {
 		expect( mock.request ).toHaveBeenCalledWith(
 			expect.objectContaining( { rvlimit: 21, rvstartid: 100 } )
 		);
-		expect( result.content.length ).toBe( 20 );
-		expect( result.content[ 0 ].text ).toContain( 'Revision ID: 99' );
-		expect( result.content[ 19 ].text ).toContain( 'Revision ID: 80' );
+		const data = assertStructuredSuccess( result, PageHistorySchema );
+		expect( data.revisions ).toHaveLength( 20 );
+		expect( data.revisions[ 0 ].revid ).toBe( 99 );
+		expect( data.revisions[ 19 ].revid ).toBe( 80 );
 	} );
 
 	it( 'caps result at 20 when boundary revision is not in the returned window', async () => {
@@ -181,7 +202,8 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page', 999 );
 
-		expect( result.content.length ).toBe( 20 );
+		const data = assertStructuredSuccess( result, PageHistorySchema );
+		expect( data.revisions ).toHaveLength( 20 );
 	} );
 
 	it( 'uses rvlimit 20 when no boundary is provided', async () => {
@@ -216,7 +238,7 @@ describe( 'get-page-history', () => {
 		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'API error' );
 	} );
 
-	it( 'appends a more-available marker with olderThan when more revisions exist', async () => {
+	it( 'attaches a more-available truncation with olderThan when more revisions exist', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { pages: [ { revisions: [
@@ -231,13 +253,17 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page' );
 
-		const last = result.content[ result.content.length - 1 ] as { text: string };
-		expect( last.text ).toBe(
-			'More results available. Returned 2 revisions. To fetch the next segment, call get-page-history again with olderThan=99.'
-		);
+		const data = assertStructuredSuccess( result, PageHistorySchema );
+		expect( data.truncation ).toEqual( {
+			reason: 'more-available',
+			returnedCount: 2,
+			itemNoun: 'revisions',
+			toolName: 'get-page-history',
+			continueWith: { param: 'olderThan', value: 99 }
+		} );
 	} );
 
-	it( 'appends a more-available marker with newerThan when walking forward', async () => {
+	it( 'attaches a more-available truncation with newerThan when walking forward', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { pages: [ { revisions: [
@@ -252,16 +278,20 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page', undefined, 49 );
 
-		const last = result.content[ result.content.length - 1 ] as { text: string };
-		expect( last.text ).toBe(
-			'More results available. Returned 2 revisions. To fetch the next segment, call get-page-history again with newerThan=60.'
-		);
+		const data = assertStructuredSuccess( result, PageHistorySchema );
+		expect( data.truncation ).toEqual( {
+			reason: 'more-available',
+			returnedCount: 2,
+			itemNoun: 'revisions',
+			toolName: 'get-page-history',
+			continueWith: { param: 'newerThan', value: 60 }
+		} );
 
 		const call = mock.request.mock.calls[ 0 ][ 0 ];
 		expect( call.rvdir ).toBe( 'newer' );
 	} );
 
-	it( 'does not append a marker when response.continue is absent', async () => {
+	it( 'omits truncation when response.continue is absent', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { pages: [ { revisions: [
@@ -274,8 +304,7 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page' );
 
-		for ( const block of result.content ) {
-			expect( ( block as { text: string } ).text ).not.toContain( 'More results available' );
-		}
+		const data = assertStructuredSuccess( result, PageHistorySchema );
+		expect( data.truncation ).toBeUndefined();
 	} );
 } );
