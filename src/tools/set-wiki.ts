@@ -7,31 +7,41 @@ import { wikiService } from '../common/wikiService.js';
 import type { WikiConfig } from '../common/config.js';
 import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../common/wikiResource.js';
 import { errorResult } from '../common/errorMapping.js';
+import { structuredResult } from '../common/structuredResult.js';
 
 export type OnActiveWikiChanged = ( activeWiki: Readonly<WikiConfig> ) => void;
+
+const outputSchema = {
+	wikiKey: z.string(),
+	sitename: z.string(),
+	server: z.string()
+};
 
 export function setWikiTool(
 	server: McpServer,
 	onActiveWikiChanged: OnActiveWikiChanged
 ): RegisteredTool {
-	return server.tool(
+	return server.registerTool(
 		'set-wiki',
-		'Selects the wiki to use for subsequent tool calls in this session. Required before interacting with a wiki that is not the configured default; the active wiki is consulted by every page, file, search, and history tool. Returns the new active wiki\'s sitename and server URL.',
 		{
-			uri: z.string().describe( 'MCP resource URI of the wiki to use (e.g. mcp://wikis/en.wikipedia.org)' )
+			description: 'Selects the wiki to use for subsequent tool calls in this session. Required before interacting with a wiki that is not the configured default; the active wiki is consulted by every page, file, search, and history tool. Returns the new active wiki\'s sitename and server URL.',
+			inputSchema: {
+				uri: z.string().describe( 'MCP resource URI of the wiki to use (e.g. mcp://wikis/en.wikipedia.org)' )
+			},
+			outputSchema,
+			annotations: {
+				title: 'Set wiki',
+				readOnlyHint: false,
+				destructiveHint: false,
+				idempotentHint: true,
+				openWorldHint: false
+			} as ToolAnnotations
 		},
-		{
-			title: 'Set wiki',
-			readOnlyHint: false,
-			destructiveHint: false,
-			idempotentHint: true,
-			openWorldHint: false
-		} as ToolAnnotations,
 		( { uri } ) => handleSetWikiTool( uri, onActiveWikiChanged )
 	);
 }
 
-async function handleSetWikiTool(
+export async function handleSetWikiTool(
 	uri: string,
 	onActiveWikiChanged: OnActiveWikiChanged
 ): Promise<CallToolResult> {
@@ -46,12 +56,11 @@ async function handleSetWikiTool(
 
 		const newConfig = wikiService.getCurrent().config;
 		onActiveWikiChanged( newConfig );
-		return {
-			content: [ {
-				type: 'text',
-				text: `Wiki set to ${ newConfig.sitename } (${ newConfig.server })`
-			} ]
-		};
+		return structuredResult( {
+			wikiKey,
+			sitename: newConfig.sitename,
+			server: newConfig.server
+		} );
 	} catch ( error ) {
 		if ( error instanceof InvalidWikiResourceUriError ) {
 			return errorResult( 'invalid_input', error.message );
