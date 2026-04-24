@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import { execFileSync } from 'child_process';
 
 export interface WikiConfig {
@@ -63,10 +64,17 @@ export interface Config {
 	 * the configured wiki set at startup. Defaults to true.
 	 */
 	allowWikiManagement?: boolean;
+	/**
+	 * Absolute directories from which `upload-file` may read. Merged from
+	 * `config.json` `uploadDirs` and the `MCP_UPLOAD_DIRS` env var. Each entry
+	 * is canonicalised via `fs.realpathSync` at load. Empty → uploads disabled.
+	 */
+	uploadDirs: readonly string[];
 }
 
 export const defaultConfig: Config = {
 	defaultWiki: 'en.wikipedia.org',
+	uploadDirs: [],
 	wikis: {
 		'en.wikipedia.org': {
 			sitename: 'Wikipedia',
@@ -228,6 +236,54 @@ function runExec( raw: unknown, wikiKey: string, fieldName: SecretFieldName ): s
 	return trimmed;
 }
 
+function resolveUploadDirs( rawFromConfig: unknown ): readonly string[] {
+	const fromConfig: string[] = [];
+	if ( rawFromConfig !== undefined ) {
+		if ( !Array.isArray( rawFromConfig ) ) {
+			throw new Error( 'Config error: uploadDirs must be an array of strings' );
+		}
+		for ( const entry of rawFromConfig ) {
+			if ( typeof entry !== 'string' ) {
+				throw new Error( 'Config error: uploadDirs entries must be strings' );
+			}
+			if ( !path.isAbsolute( entry ) ) {
+				throw new Error( `Config error: uploadDirs entry "${ entry }" must be absolute` );
+			}
+			fromConfig.push( entry );
+		}
+	}
+
+	const envRaw = process.env.MCP_UPLOAD_DIRS;
+	const fromEnv: string[] = [];
+	if ( envRaw ) {
+		for ( const entry of envRaw.split( ':' ) ) {
+			if ( entry === '' ) {
+				continue;
+			}
+			if ( !path.isAbsolute( entry ) ) {
+				throw new Error( `Config error: MCP_UPLOAD_DIRS entry "${ entry }" must be absolute` );
+			}
+			fromEnv.push( entry );
+		}
+	}
+
+	const canonicalised: string[] = [];
+	for ( const raw of [ ...fromEnv, ...fromConfig ] ) {
+		let canonical: string;
+		try {
+			canonical = fs.realpathSync( raw );
+		} catch ( err ) {
+			throw new Error(
+				`Config error: realpath failed for uploadDirs entry "${ raw }": ${ ( err as Error ).message }`
+			);
+		}
+		if ( !canonicalised.includes( canonical ) ) {
+			canonicalised.push( canonical );
+		}
+	}
+	return canonicalised;
+}
+
 function resolveWiki( raw: unknown, wikiKey: string ): WikiConfig {
 	if ( typeof raw !== 'object' || raw === null || Array.isArray( raw ) ) {
 		throw new Error( `Config error: wikis.${ wikiKey } must be an object` );
@@ -256,20 +312,21 @@ function resolveConfig( parsed: unknown ): Config {
 	const p = parsed as Record<string, unknown>;
 	const defaultWiki = typeof p.defaultWiki === 'string' ? replaceEnvVars( p.defaultWiki ) : '';
 	const allowWikiManagement = typeof p.allowWikiManagement === 'boolean' ? p.allowWikiManagement : undefined;
+	const uploadDirs = resolveUploadDirs( p.uploadDirs );
 	const rawWikis = p.wikis;
 	if ( typeof rawWikis !== 'object' || rawWikis === null || Array.isArray( rawWikis ) ) {
-		return { defaultWiki, wikis: {}, allowWikiManagement };
+		return { defaultWiki, wikis: {}, allowWikiManagement, uploadDirs };
 	}
 	const wikis: Record<string, WikiConfig> = {};
 	for ( const [ key, rawWiki ] of Object.entries( rawWikis ) ) {
 		wikis[ key ] = resolveWiki( rawWiki, key );
 	}
-	return { defaultWiki, wikis, allowWikiManagement };
+	return { defaultWiki, wikis, allowWikiManagement, uploadDirs };
 }
 
 export function loadConfigFromFile(): Config {
 	if ( !fs.existsSync( configPath ) ) {
-		return defaultConfig;
+		return { ...defaultConfig, uploadDirs: resolveUploadDirs( undefined ) };
 	}
 	const rawData = fs.readFileSync( configPath, 'utf-8' );
 	const parsed = JSON.parse( rawData );

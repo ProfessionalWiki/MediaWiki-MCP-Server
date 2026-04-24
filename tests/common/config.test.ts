@@ -234,6 +234,112 @@ describe( 'loadConfigFromFile', () => {
 		} );
 	} );
 
+	describe( 'uploadDirs', () => {
+		beforeEach( () => {
+			vi.mocked( fs.realpathSync ).mockImplementation( ( p ) => String( p ) );
+		} );
+
+		it( 'defaults to an empty array when neither source is set', async () => {
+			setConfigFile( { defaultWiki: 'w', wikis: { w: baseWiki } } );
+			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
+			expect( loadConfigFromFile().uploadDirs ).toEqual( [] );
+		} );
+
+		it( 'honours MCP_UPLOAD_DIRS even when no config.json exists', async () => {
+			vi.mocked( fs.existsSync ).mockReturnValue( false );
+			vi.stubEnv( 'MCP_UPLOAD_DIRS', '/x' );
+			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
+			expect( loadConfigFromFile().uploadDirs ).toEqual( [ '/x' ] );
+		} );
+
+		it( 'parses config.json uploadDirs and canonicalises each entry', async () => {
+			vi.mocked( fs.realpathSync ).mockImplementation( ( p ) => {
+				if ( p === '/home/user/uploads' ) {
+					return '/var/lib/uploads';
+				}
+				return String( p );
+			} );
+			setConfigFile( {
+				defaultWiki: 'w',
+				wikis: { w: baseWiki },
+				uploadDirs: [ '/home/user/uploads', '/tmp/incoming' ]
+			} );
+			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
+			expect( loadConfigFromFile().uploadDirs ).toEqual( [
+				'/var/lib/uploads',
+				'/tmp/incoming'
+			] );
+		} );
+
+		it( 'parses MCP_UPLOAD_DIRS env var with colon separator', async () => {
+			vi.stubEnv( 'MCP_UPLOAD_DIRS', '/a:/b' );
+			setConfigFile( { defaultWiki: 'w', wikis: { w: baseWiki } } );
+			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
+			expect( loadConfigFromFile().uploadDirs ).toEqual( [ '/a', '/b' ] );
+		} );
+
+		it( 'unions config.json and env-var sources, dedup after canonicalisation', async () => {
+			vi.stubEnv( 'MCP_UPLOAD_DIRS', '/a:/b' );
+			setConfigFile( {
+				defaultWiki: 'w',
+				wikis: { w: baseWiki },
+				uploadDirs: [ '/b', '/c' ]
+			} );
+			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
+			expect( loadConfigFromFile().uploadDirs ).toEqual( [ '/a', '/b', '/c' ] );
+		} );
+
+		it( 'treats empty MCP_UPLOAD_DIRS as unset', async () => {
+			vi.stubEnv( 'MCP_UPLOAD_DIRS', '' );
+			setConfigFile( { defaultWiki: 'w', wikis: { w: baseWiki } } );
+			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
+			expect( loadConfigFromFile().uploadDirs ).toEqual( [] );
+		} );
+
+		it( 'throws when uploadDirs contains a non-string', async () => {
+			setConfigFile( {
+				defaultWiki: 'w',
+				wikis: { w: baseWiki },
+				uploadDirs: [ '/a', 42 ]
+			} );
+			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
+			expect( () => loadConfigFromFile() ).toThrow( /uploadDirs/ );
+		} );
+
+		it( 'throws when a config uploadDirs entry is relative', async () => {
+			setConfigFile( {
+				defaultWiki: 'w',
+				wikis: { w: baseWiki },
+				uploadDirs: [ 'relative/path' ]
+			} );
+			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
+			expect( () => loadConfigFromFile() ).toThrow( /must be absolute/ );
+		} );
+
+		it( 'throws when MCP_UPLOAD_DIRS contains a relative entry', async () => {
+			vi.stubEnv( 'MCP_UPLOAD_DIRS', '/ok:relative' );
+			setConfigFile( { defaultWiki: 'w', wikis: { w: baseWiki } } );
+			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
+			expect( () => loadConfigFromFile() ).toThrow( /must be absolute/ );
+		} );
+
+		it( 'throws when an entry cannot be canonicalised', async () => {
+			vi.mocked( fs.realpathSync ).mockImplementation( ( p ) => {
+				if ( p === '/does/not/exist' ) {
+					throw Object.assign( new Error( 'ENOENT' ), { code: 'ENOENT' } );
+				}
+				return String( p );
+			} );
+			setConfigFile( {
+				defaultWiki: 'w',
+				wikis: { w: baseWiki },
+				uploadDirs: [ '/does/not/exist' ]
+			} );
+			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
+			expect( () => loadConfigFromFile() ).toThrow( /realpath/ );
+		} );
+	} );
+
 	describe( 'exec credential source', () => {
 		const SENTINEL = 'SENTINEL-NEVER-LEAK';
 
