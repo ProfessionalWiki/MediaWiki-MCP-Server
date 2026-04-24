@@ -5,6 +5,13 @@ import { Agent as HttpsAgent } from 'node:https';
 // eslint-disable-next-line n/no-missing-import
 import ipaddr from 'ipaddr.js';
 
+export class SsrfValidationError extends Error {
+	public constructor( message: string ) {
+		super( message );
+		this.name = 'SsrfValidationError';
+	}
+}
+
 // ipaddr.js .range() classifies most reserved space correctly, but leaves
 // these as 'unicast' in v1.9.1. We treat them as non-public explicitly.
 const EXTRA_BLOCKED_V4: Record<string, [ipaddr.IPv4, number]> = {
@@ -23,7 +30,7 @@ export async function assertPublicDestination(
 	const normalized = urlString.startsWith( '//' ) ? 'https:' + urlString : urlString;
 	const url = new URL( normalized );
 	if ( url.protocol !== 'https:' && url.protocol !== 'http:' ) {
-		throw new Error(
+		throw new SsrfValidationError(
 			`Refusing to fetch URL with unsupported scheme "${ url.protocol }": ${ urlString }`
 		);
 	}
@@ -34,7 +41,7 @@ export async function assertPublicDestination(
 
 	const addresses = await lookup( hostname, { all: true } );
 	if ( addresses.length === 0 ) {
-		throw new Error(
+		throw new SsrfValidationError(
 			`DNS lookup for "${ hostname }" returned no addresses: ${ normalized }`
 		);
 	}
@@ -84,7 +91,7 @@ function assertAddressIsUnicast( address: string, urlString: string ): void {
 	try {
 		parsed = ipaddr.parse( address );
 	} catch {
-		throw new Error(
+		throw new SsrfValidationError(
 			`Refusing to fetch URL resolving to unparseable address "${ address }": ${ urlString }`
 		);
 	}
@@ -95,7 +102,7 @@ function assertAddressIsUnicast( address: string, urlString: string ): void {
 
 	const range = parsed.range();
 	if ( range !== 'unicast' ) {
-		throw new Error(
+		throw new SsrfValidationError(
 			`Refusing to fetch URL resolving to non-public address ${ address } (${ range }): ${ urlString }`
 		);
 	}
@@ -104,7 +111,7 @@ function assertAddressIsUnicast( address: string, urlString: string ): void {
 		ipaddr.subnetMatch( parsed as ipaddr.IPv4, EXTRA_BLOCKED_V4, 'unicast' ) :
 		ipaddr.subnetMatch( parsed as ipaddr.IPv6, EXTRA_BLOCKED_V6, 'unicast' );
 	if ( extraMatch !== 'unicast' ) {
-		throw new Error(
+		throw new SsrfValidationError(
 			`Refusing to fetch URL resolving to non-public address ${ address } (${ extraMatch }): ${ urlString }`
 		);
 	}

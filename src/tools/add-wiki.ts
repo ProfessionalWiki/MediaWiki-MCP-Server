@@ -6,6 +6,7 @@ import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontext
 import { wikiService, DuplicateWikiKeyError } from '../common/wikiService.js';
 import { discoverWiki } from '../common/wikiDiscovery.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
+import { SsrfValidationError } from '../common/ssrfGuard.js';
 
 export function addWikiTool( server: McpServer ): RegisteredTool {
 	return server.tool(
@@ -32,15 +33,11 @@ export async function handleAddWikiTool(
 	try {
 		wikiInfo = await discoverWiki( wikiUrl );
 	} catch ( error ) {
-		return {
-			content: [
-				{
-					type: 'text',
-					text: `Failed to add wiki: ${ ( error as Error ).message }`
-				} as TextContent
-			],
-			isError: true
-		};
+		if ( error instanceof SsrfValidationError ) {
+			return errorResult( 'invalid_input', `Failed to add wiki: ${ error.message }` );
+		}
+		const { category } = classifyError( error );
+		return errorResult( category, `Failed to add wiki: ${ ( error as Error ).message }` );
 	}
 
 	if ( wikiInfo === null ) {
