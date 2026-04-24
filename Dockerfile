@@ -40,6 +40,7 @@ ENV NODE_ENV=production
 # Set environment variables for StreamableHTTP
 ENV PORT=8080
 ENV MCP_TRANSPORT=http
+ENV MCP_BIND=0.0.0.0
 
 # Expose HTTP port
 EXPOSE 8080
