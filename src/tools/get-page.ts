@@ -1,38 +1,56 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import type { Mwn } from 'mwn';
 import { getMwn } from '../common/mwn.js';
 import { getPageUrl } from '../common/utils.js';
 import { ContentFormat } from '../common/contentFormat.js';
 import {
-	truncationMarker,
 	truncateByBytes,
 	type TruncationInfo
 } from '../common/truncation.js';
+import { TruncationSchema } from '../common/schemas.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
+import { structuredResult } from '../common/structuredResult.js';
+
+const outputSchema = {
+	pageId: z.number().int().nonnegative().optional(),
+	title: z.string().optional(),
+	latestRevisionId: z.number().int().nonnegative().optional(),
+	latestRevisionTimestamp: z.string().optional(),
+	contentModel: z.string().optional(),
+	size: z.number().int().nonnegative().optional(),
+	url: z.string().optional(),
+	sections: z.array( z.string() ).optional(),
+	source: z.string().optional(),
+	html: z.string().optional(),
+	truncation: TruncationSchema.optional()
+};
 
 export function getPageTool( server: McpServer ): RegisteredTool {
-	return server.tool(
+	return server.registerTool(
 		'get-page',
-		'Returns a single wiki page (wikitext source, rendered HTML, or metadata only). If the title does not exist, an error is returned. Use metadata=true to retrieve the revision ID (for edit-conflict detection), page size, and section outline. Set content="none" to fetch only metadata. Large content is truncated at 50000 bytes with a trailing marker listing available sections; a follow-up call with section=N fetches a specific section. For more than one page at a time, use get-pages. For a specific historical revision, use get-revision.',
 		{
-			title: z.string().describe( 'Wiki page title' ),
-			content: z.nativeEnum( ContentFormat ).optional().default( ContentFormat.source ).describe( 'Type of content to return' ),
-			metadata: z.boolean().optional().default( false ).describe(
-				'Whether to include metadata (page ID, revision info, size, section outline) in the response'
-			),
-			section: z.number().int().nonnegative().optional().describe( 'Section number (0 = lead; 1..N = heading sections). Narrows content to one section.' )
+			description: 'Returns a single wiki page (wikitext source, rendered HTML, or metadata only). If the title does not exist, an error is returned. Use metadata=true to retrieve the revision ID (for edit-conflict detection), page size, and section outline. Set content="none" to fetch only metadata. Large content is truncated at 50000 bytes with a trailing marker listing available sections; a follow-up call with section=N fetches a specific section. For more than one page at a time, use get-pages. For a specific historical revision, use get-revision.',
+			inputSchema: {
+				title: z.string().describe( 'Wiki page title' ),
+				content: z.nativeEnum( ContentFormat ).optional().default( ContentFormat.source ).describe( 'Type of content to return' ),
+				metadata: z.boolean().optional().default( false ).describe(
+					'Whether to include metadata (page ID, revision info, size, section outline) in the response'
+				),
+				section: z.number().int().nonnegative().optional().describe( 'Section number (0 = lead; 1..N = heading sections). Narrows content to one section.' )
+			},
+			outputSchema,
+			annotations: {
+				title: 'Get page',
+				readOnlyHint: true,
+				destructiveHint: false,
+				idempotentHint: true,
+				openWorldHint: true
+			} as ToolAnnotations
 		},
-		{
-			title: 'Get page',
-			readOnlyHint: true,
-			destructiveHint: false,
-			idempotentHint: true,
-			openWorldHint: true
-		} as ToolAnnotations,
 		async ( { title, content, metadata, section } ) => (
 			handleGetPageTool( title, content, metadata, section )
 		)
@@ -57,36 +75,6 @@ async function fetchSectionsList( mwn: Mwn, title: string ): Promise<string[]> {
 	return [ '', ...apiSections.map( ( s ) => s.line ?? '' ) ];
 }
 
-function formatSectionsBlock( sections: string[] ): string {
-	const lines = sections.map( ( heading, index ) => {
-		const label = index === 0 ? 'Lead' : heading;
-		return `- ${ index }: ${ label }`;
-	} );
-	return `Sections:\n${ lines.join( '\n' ) }`;
-}
-
-function buildPageMetadata(
-	page: { pageid: number; title: string },
-	rev: { revid?: number; timestamp?: string; contentmodel?: string; size?: number } | undefined,
-	sections: string[] | undefined
-): TextContent {
-	const lines = [
-		`Page ID: ${ page.pageid }`,
-		`Title: ${ page.title }`,
-		`Latest revision ID: ${ rev?.revid }`,
-		`Latest revision timestamp: ${ rev?.timestamp }`,
-		`Content model: ${ rev?.contentmodel }`
-	];
-	if ( rev?.size !== undefined ) {
-		lines.push( `Size: ${ rev.size }` );
-	}
-	if ( sections !== undefined ) {
-		lines.push( formatSectionsBlock( sections ) );
-	}
-	lines.push( `HTML URL: ${ getPageUrl( page.title ) }` );
-	return { type: 'text', text: lines.join( '\n' ) };
-}
-
 export async function handleGetPageTool(
 	title: string,
 	content: ContentFormat,
@@ -102,7 +90,20 @@ export async function handleGetPageTool(
 
 	try {
 		const mwn = await getMwn();
-		const results: TextContent[] = [];
+
+		const payload: {
+			pageId?: number;
+			title?: string;
+			latestRevisionId?: number;
+			latestRevisionTimestamp?: string;
+			contentModel?: string;
+			size?: number;
+			url?: string;
+			sections?: string[];
+			source?: string;
+			html?: string;
+			truncation?: TruncationInfo;
+		} = {};
 
 		const needsReadCall = metadata ||
 			content === ContentFormat.source ||
@@ -132,20 +133,28 @@ export async function handleGetPageTool(
 			}
 
 			if ( metadata || content === ContentFormat.none ) {
-				results.push( buildPageMetadata( page, rev, sections ) );
+				payload.pageId = page.pageid;
+				payload.title = page.title;
+				payload.latestRevisionId = rev?.revid;
+				payload.latestRevisionTimestamp = rev?.timestamp;
+				payload.contentModel = rev?.contentmodel;
+				if ( rev?.size !== undefined ) {
+					payload.size = rev.size;
+				}
+				if ( sections !== undefined ) {
+					payload.sections = sections;
+				}
+				payload.url = getPageUrl( page.title );
 			}
 
 			if ( needsSource && rev?.content !== undefined ) {
 				const truncated = truncateByBytes( rev.content );
-				results.push( {
-					type: 'text',
-					text: metadata ? `Source:\n${ truncated.text }` : truncated.text
-				} );
+				payload.source = truncated.text;
 				if ( truncated.truncated ) {
 					if ( sections === undefined ) {
 						sections = await fetchSectionsList( mwn, title );
 					}
-					const info: TruncationInfo = {
+					payload.truncation = {
 						reason: 'content-truncated',
 						returnedBytes: truncated.returnedBytes,
 						totalBytes: truncated.totalBytes,
@@ -154,7 +163,6 @@ export async function handleGetPageTool(
 						sections,
 						remedyHint: 'To read a specific section, call get-page again with section=N.'
 					};
-					results.push( truncationMarker( info ) );
 				}
 			}
 		}
@@ -171,24 +179,24 @@ export async function handleGetPageTool(
 			}
 			const parseResult = await mwn.request( parseParams );
 			const html: string | undefined = parseResult.parse?.text;
-			const htmlSource = html ?? '';
-			const truncated = truncateByBytes( htmlSource );
 
-			if ( html === undefined ) {
-				results.push( {
-					type: 'text',
-					text: metadata ? 'HTML:\nNot available' : 'Not available'
-				} );
-			} else {
-				results.push( {
-					type: 'text',
-					text: metadata ? `HTML:\n${ truncated.text }` : truncated.text
-				} );
+			if ( html !== undefined ) {
+				const truncated = truncateByBytes( html );
+				payload.html = truncated.text;
+
+				if ( payload.title === undefined ) {
+					payload.title = parseResult.parse?.title ?? title;
+					if ( parseResult.parse?.pageid !== undefined ) {
+						payload.pageId = parseResult.parse.pageid;
+					}
+					payload.url = getPageUrl( payload.title );
+				}
+
 				if ( truncated.truncated ) {
 					if ( sections === undefined ) {
 						sections = await fetchSectionsList( mwn, title );
 					}
-					const info: TruncationInfo = {
+					payload.truncation = {
 						reason: 'content-truncated',
 						returnedBytes: truncated.returnedBytes,
 						totalBytes: truncated.totalBytes,
@@ -197,14 +205,13 @@ export async function handleGetPageTool(
 						sections,
 						remedyHint: 'To read a specific section, call get-page again with section=N.'
 					};
-					results.push( truncationMarker( info ) );
 				}
 			}
 		}
 
-		return { content: results };
+		return structuredResult( payload );
 	} catch ( error ) {
-		const { category } = classifyError( error );
-		return errorResult( category, `Failed to retrieve page data: ${ ( error as Error ).message }` );
+		const { category, code } = classifyError( error );
+		return errorResult( category, `Failed to retrieve page data: ${ ( error as Error ).message }`, code );
 	}
 }
