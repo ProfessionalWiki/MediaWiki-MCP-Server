@@ -29,18 +29,18 @@ interface ApiEditResponse {
 export function updatePageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'update-page',
-		'Replaces the existing content of a wiki page and returns the new revision ID. Fails if the page does not exist; for new pages, use create-page. Pass latestId (obtained from get-page with metadata=true) to enable edit-conflict detection: if the page has been edited since that revision, the update is rejected rather than silently clobbering concurrent changes. For large pages, section=N updates a single section (paired with get-page section=N for reads), section=\'new\' appends a new heading section (sectionTitle required), and mode=append/prepend sends only the new text instead of the full page source. Each call is a separate revision; a failed chunk in a chain leaves a partially-updated page — re-fetching latestId between chained calls preserves conflict detection.',
+		'Replaces the existing content of a wiki page and returns the new revision ID. Fails if the page does not exist; for new pages, use create-page. Pass latestId (obtained from get-page with metadata=true) to enable edit-conflict detection: if the page has been edited since that revision, the update is rejected rather than silently clobbering concurrent changes. For large pages, three modifiers avoid shipping the full source: section=N edits one section (pairs with get-page section=N for reads), section=\'new\' adds a new heading section, and mode=\'append\' or \'prepend\' sends a delta. Each call is a separate revision; for chains of mode=\'append\' calls, re-fetching latestId between calls confirms the previous chunk landed before the next.',
 		{
 			title: z.string().describe( 'Wiki page title' ),
-			source: z.string().describe( 'Replacement content in the existing page\'s content model. Interpreted as that section\'s content only when section is set.' ),
+			source: z.string().describe( 'The content to write, in the existing page\'s content model. Interpreted as the full page by default; as the given section\'s content when section is set; or as a delta (appended or prepended) when mode is set.' ),
 			latestId: z.number().int().positive().optional().describe( 'Base revision ID for edit-conflict detection; obtain from get-page with metadata=true. If omitted, the update is applied without conflict detection.' ),
 			comment: z.string().optional().describe( 'Summary of the edit' ),
 			// eslint-disable-next-line es-x/no-set-prototype-union -- z.union, not Set.prototype.union
 			section: z.union( [
 				z.number().int().nonnegative(),
 				z.literal( 'new' )
-			] ).optional().describe( 'Section number to edit (0 = lead; 1..N = existing heading sections) or \'new\' to append a new heading section. When set, source is interpreted as that section\'s content only.' ),
-			mode: z.enum( [ 'append', 'prepend' ] ).optional().describe( 'Treat source as a delta appended to the end (\'append\') or prepended to the start (\'prepend\') of the existing content, rather than replacing it. Each mode=append/prepend call is its own revision.' ),
+			] ).optional().describe( 'Section to edit: 0 (lead), 1..N (existing heading sections), or \'new\' to append a new heading section.' ),
+			mode: z.enum( [ 'append', 'prepend' ] ).optional().describe( 'Adds source to the existing content instead of replacing it: \'append\' to the end, \'prepend\' to the start.' ),
 			sectionTitle: z.string().optional().describe( 'Heading for a new section; required when section=\'new\', rejected otherwise.' )
 		},
 		{
