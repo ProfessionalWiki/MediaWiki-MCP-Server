@@ -123,7 +123,7 @@ Any MCP client that supports HTTP transport authentication can be configured to 
 
 **Precedence**: request header → `config.json` `token` → `config.json` `username`/`password` → anonymous. When no `Authorization` header is present, the server falls back to the static credentials in `config.json`, preserving existing behaviour.
 
-Each request builds an independent MediaWiki session using the supplied token. Token rotation and revocation take effect immediately on the next request.
+Each request builds an independent MediaWiki session using the supplied token. Token rotation and revocation take effect on the next MCP session started with the new token.
 
 Example configuration with Claude Code:
 
