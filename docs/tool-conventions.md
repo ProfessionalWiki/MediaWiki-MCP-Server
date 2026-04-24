@@ -172,13 +172,37 @@ Do not interchange these.
 
 #### Common MediaWiki error patterns
 
-When an LLM invokes a tool that fails with one of these errors, the caller needs to understand what happened. Descriptions for tools that expose these errors should mention the condition (not the error code).
+Every tool error return is a single text block of the form `category: message`, with `isError: true`. The category is one of a fixed set (see § "Error categories" below) and lets an LLM caller pattern-match the failure class; the message carries human-readable detail. Tool descriptions continue to describe the *conditions* a tool can fail on (e.g. "if the page does not exist") but do not name the category — the taxonomy is documented once, here.
 
-- **`badtags`** — a change tag is configured that is not registered or not applicable to this action. Surfaces from write tools when the wiki's `tags` config is misset.
-- **`missingtitle`** — the target page does not exist. Surfaces from `get-page`, `update-page`, `compare-pages`, `get-page-history`.
-- **`nosuchrevid`** — the requested revision ID does not exist. Surfaces from `get-revision`, `compare-pages`.
+- **`badtags`** — a change tag is configured that is not registered or not applicable to this action. Surfaces from write tools when the wiki's `tags` config is misset. Category: `invalid_input`.
+- **`missingtitle`** — the target page does not exist. Surfaces from `get-page`, `update-page`, `compare-pages`, `get-page-history`. Category: `not_found`.
+- **`nosuchrevid`** — the requested revision ID does not exist. Surfaces from `get-revision`, `compare-pages`. Category: `not_found`.
 
 Example phrasing: `"Returns a wiki page. If the title does not exist, an error is returned."` — not `"...a missingtitle error is returned."`
+
+#### Error categories
+
+Seven categories cover every error a tool emits. The specific message carries detail; the category is the LLM's pattern-match handle.
+
+| Category | When it's emitted | Typical LLM response |
+|---|---|---|
+| `not_found` | Target page, revision, section, or file does not exist. | Re-check identifier; search if appropriate. |
+| `permission_denied` | Authed user lacks the permission (including page protection and abuse-filter blocks). | Surface to user; don't retry as same user. |
+| `invalid_input` | Caller supplied incompatible or malformed arguments, or the wiki rejected them as invalid. | Fix the arguments and retry. |
+| `conflict` | Edit conflict (`latestId` mismatch), `create-page` on existing title, or `upload-file` without overwrite. | Re-read latest state; reconcile; retry. |
+| `authentication` | Credentials missing, invalid, or expired. | Re-authenticate; do not retry as anonymous. |
+| `rate_limited` | The wiki throttled this caller. | Back off and retry. |
+| `upstream_failure` | Unrecognised MediaWiki error, network failure, read-only mode, or any non-`Error` throw. | Retry with caution; surface if persistent. |
+
+Unrecognised MW error codes map to `upstream_failure` with the raw message passed through, so information isn't lost at the cost of a coarser category.
+
+Worked examples:
+
+```
+not_found: Page "Example" not found
+invalid_input: Must supply exactly one of fromRevision, fromTitle, fromText
+upstream_failure: readonly — wiki is currently in read-only mode
+```
 
 ### This codebase
 
