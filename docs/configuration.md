@@ -88,6 +88,25 @@ Accepts a string or an array of strings:
 }
 ```
 
+## Structured tool output (`MCP_STRUCTURED_OUTPUT`)
+
+Every tool emits a typed payload. How that payload rides on the wire depends on `MCP_STRUCTURED_OUTPUT`:
+
+| Mode | Env var | `content[]` | `structuredContent` | `outputSchema` advertised? |
+|---|---|---|---|---|
+| Content (default) | unset, `false`, `0` | one `text` block containing `JSON.stringify(payload)` | absent | no |
+| Structured (opt-in) | `true`, `1` | `[]` (empty) | typed payload | yes |
+
+Default (content mode) works for every MCP client — typed data is delivered as a JSON text block in `content[0]`. The LLM sees the same information; the client has no special requirements.
+
+Opt-in structured mode halves per-response token usage on content-heavy tools (`get-page`, `get-pages`, `parse-wikitext`, `compare-pages`) by avoiding the JSON duplicate, at the cost of requiring a client that honours `structuredContent`.
+
+**Safe to opt in** (reads `structuredContent`): Claude Desktop, Claude Code, MCP Inspector, VS Code Copilot, ChatGPT Apps SDK, Goose, anything built on `@modelcontextprotocol/sdk` ≥ 2025-06-18.
+
+**Do not opt in** (reads only `content[]`, would see empty responses): Cursor, Cline, the Claude API `mcp_servers` connector. These clients require the default mode.
+
+Errors always ride as JSON in `content[0].text` with `isError: true`, in both modes. The envelope shape is `{category, message, code?}` — see [tool-conventions.md](tool-conventions.md#error-handling).
+
 ## Upload directories
 
 The `upload-file` tool reads local files from the server's filesystem. Uploads are **disabled by default**: the operator must explicitly allowlist one or more directories. Every `upload-file` call returns an error until at least one directory is configured.

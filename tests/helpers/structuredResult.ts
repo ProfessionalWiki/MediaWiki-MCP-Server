@@ -13,17 +13,34 @@ export function assertStructuredSuccess<S extends z.ZodTypeAny>(
 	schema: S
 ): z.infer<S> {
 	expect( result.isError ).toBeFalsy();
-	expect( result.structuredContent ).toBeDefined();
-	const parsed = schema.safeParse( result.structuredContent );
+	// Structured-output on: payload is in structuredContent, content is empty.
+	// Structured-output off (default): payload is JSON in content[0].text, no
+	// structuredContent. The helper accepts either.
+	const hasStructured = result.structuredContent !== undefined;
+	const hasContentPayload = ( result.content?.length ?? 0 ) > 0;
+	expect( hasStructured || hasContentPayload ).toBe( true );
+
+	let raw: unknown;
+	if ( hasContentPayload ) {
+		expect( result.content![ 0 ].type ).toBe( 'text' );
+		raw = JSON.parse( ( result.content![ 0 ] as TextContent ).text );
+		// When both channels are populated they must agree after a JSON round-trip
+		// (which drops undefined fields, matching what JSON.stringify emits).
+		if ( hasStructured ) {
+			expect( raw ).toEqual(
+				JSON.parse( JSON.stringify( result.structuredContent ) )
+			);
+		}
+	} else {
+		raw = result.structuredContent;
+	}
+
+	const parsed = schema.safeParse( raw );
 	if ( !parsed.success ) {
 		throw new Error(
-			`structuredContent failed schema validation: ${ JSON.stringify( parsed.error.issues ) }`
+			`tool output failed schema validation: ${ JSON.stringify( parsed.error.issues ) }`
 		);
 	}
-	expect( result.content ).toHaveLength( 1 );
-	expect( result.content![ 0 ].type ).toBe( 'text' );
-	const fallback = JSON.parse( ( result.content![ 0 ] as TextContent ).text );
-	expect( fallback ).toEqual( JSON.parse( JSON.stringify( result.structuredContent ) ) );
 	return parsed.data;
 }
 
