@@ -7,7 +7,7 @@ import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { ApiUploadResponse } from 'mwn';
 import { getMwn } from '../common/mwn.js';
 import { wikiService } from '../common/wikiService.js';
-import { assertAllowedPath } from '../common/uploadGuard.js';
+import { assertAllowedPath, UploadValidationError } from '../common/uploadGuard.js';
 import { formatEditComment } from '../common/utils.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 
@@ -42,15 +42,11 @@ export async function handleUploadFileTool(
 	try {
 		resolvedPath = await assertAllowedPath( filepath, wikiService.getUploadDirs() );
 	} catch ( error ) {
-		return {
-			content: [
-				{
-					type: 'text',
-					text: ( error as Error ).message
-				} as TextContent
-			],
-			isError: true
-		};
+		if ( error instanceof UploadValidationError ) {
+			return errorResult( 'invalid_input', `Failed to upload file: ${ error.message }` );
+		}
+		const { category } = classifyError( error );
+		return errorResult( category, `Failed to upload file: ${ ( error as Error ).message }` );
 	}
 
 	let data: ApiUploadResponse;

@@ -15,13 +15,19 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 	}
 } ) );
 
-vi.mock( '../../src/common/uploadGuard.js', () => ( {
-	assertAllowedPath: vi.fn()
-} ) );
+vi.mock( '../../src/common/uploadGuard.js', async () => {
+	const actual = await vi.importActual<typeof import( '../../src/common/uploadGuard.js' )>(
+		'../../src/common/uploadGuard.js'
+	);
+	return {
+		...actual,
+		assertAllowedPath: vi.fn()
+	};
+} );
 
 import { getMwn } from '../../src/common/mwn.js';
 import { wikiService } from '../../src/common/wikiService.js';
-import { assertAllowedPath } from '../../src/common/uploadGuard.js';
+import { assertAllowedPath, UploadValidationError } from '../../src/common/uploadGuard.js';
 
 describe( 'upload-file', () => {
 	beforeEach( () => {
@@ -29,9 +35,11 @@ describe( 'upload-file', () => {
 		vi.mocked( wikiService.getUploadDirs ).mockReturnValue( [ '/home/user/uploads' ] );
 	} );
 
-	it( 'returns isError and does not call mwn.upload when the guard rejects the filepath', async () => {
+	it( 'categorises UploadValidationError as invalid_input and does not call mwn.upload', async () => {
 		vi.mocked( assertAllowedPath ).mockRejectedValue(
-			new Error( 'Upload rejected: "/etc/passwd" is not allowed by the configured upload directories.' )
+			new UploadValidationError(
+				'"/etc/passwd" is not allowed by the configured upload directories.'
+			)
 		);
 		const mock = createMockMwn( { upload: vi.fn() } );
 		vi.mocked( getMwn ).mockResolvedValue( mock as any );
@@ -40,7 +48,26 @@ describe( 'upload-file', () => {
 		const result = await handleUploadFileTool( '/etc/passwd', 'File:Shadow', 'body' );
 
 		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toMatch( /Upload rejected/ );
+		expect( ( result.content[ 0 ] as { text: string } ).text ).toMatch(
+			/^invalid_input: Failed to upload file:.*not allowed/
+		);
+		expect( mock.upload ).not.toHaveBeenCalled();
+	} );
+
+	it( 'categorises unexpected guard errors via classifyError', async () => {
+		vi.mocked( assertAllowedPath ).mockRejectedValue(
+			new Error( 'Connection refused' )
+		);
+		const mock = createMockMwn( { upload: vi.fn() } );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleUploadFileTool } = await import( '../../src/tools/upload-file.js' );
+		const result = await handleUploadFileTool( '/home/user/uploads/x.jpg', 'File:X', 'body' );
+
+		expect( result.isError ).toBe( true );
+		expect( ( result.content[ 0 ] as { text: string } ).text ).toMatch(
+			/^upstream_failure: Failed to upload file: Connection refused/
+		);
 		expect( mock.upload ).not.toHaveBeenCalled();
 	} );
 
