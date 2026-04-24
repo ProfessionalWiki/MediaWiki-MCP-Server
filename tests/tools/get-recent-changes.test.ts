@@ -127,7 +127,7 @@ describe( 'get-recent-changes — handler validation', () => {
 
 		expect( result.isError ).toBe( true );
 		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain(
-			'Cannot use both user and excludeUser at the same time'
+			'invalid_input: user and excludeUser are mutually exclusive'
 		);
 		expect( mock.request ).not.toHaveBeenCalled();
 	} );

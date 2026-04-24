@@ -5,6 +5,7 @@ import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontext
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import { appendTruncationMarker, type TruncationInfo } from '../common/truncation.js';
+import { classifyError, errorResult } from '../common/errorMapping.js';
 
 const RC_LIMIT = 50;
 const RC_PROP = 'user|userid|comment|flags|timestamp|title|ids|sizes|tags|loginfo|patrolled';
@@ -208,13 +209,7 @@ export async function handleGetRecentChangesTool(
 	args: RecentChangesArgs
 ): Promise<CallToolResult> {
 	if ( args.user && args.excludeUser ) {
-		return {
-			content: [ {
-				type: 'text',
-				text: 'Cannot use both user and excludeUser at the same time'
-			} as TextContent ],
-			isError: true
-		};
+		return errorResult( 'invalid_input', 'user and excludeUser are mutually exclusive' );
 	}
 
 	try {
@@ -283,12 +278,7 @@ export async function handleGetRecentChangesTool(
 
 		return { content: appendTruncationMarker( content, truncation ) };
 	} catch ( error ) {
-		return {
-			content: [ {
-				type: 'text',
-				text: `Failed to retrieve recent changes: ${ ( error as Error ).message }`
-			} as TextContent ],
-			isError: true
-		};
+		const { category } = classifyError( error );
+		return errorResult( category, `Failed to retrieve recent changes: ${ ( error as Error ).message }` );
 	}
 }
