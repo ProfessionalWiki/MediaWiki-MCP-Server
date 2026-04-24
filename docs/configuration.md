@@ -139,3 +139,7 @@ claude mcp add --transport http my-wiki https://wiki.example.org/mcp \
 **Trust boundary.** The server trusts any `Authorization: Bearer` header it receives without performing origin checks. Run it behind a reverse proxy that terminates client connections and forwards only intended traffic, or bind it to a trusted interface (e.g. `127.0.0.1`) — never expose the HTTP port directly on an untrusted network.
 
 If the MCP server runs behind a reverse proxy (Caddy, nginx, Traefik), the proxy must forward the `Authorization` header to the MCP server intact. Configurations that strip or consume the header (e.g. `header_up -Authorization`, `proxy_set_header Authorization ""`, or a proxy-level basic auth handler on the MCP route) will cause the server to see no token and fall back to config/anonymous.
+
+**Host header allowlist.** On any public deployment, set `MCP_ALLOWED_HOSTS` to the comma-separated hostnames your proxy forwards (e.g. `MCP_ALLOWED_HOSTS=wiki.example.org`). This engages the SDK's DNS-rebinding check — requests to `/mcp` with a non-matching `Host` are rejected with a 403 JSON-RPC error. On a localhost bind, leaving it unset is safe (the SDK auto-allows `localhost`, `127.0.0.1`, and `[::1]`). On a public bind, leaving it unset turns the check off and the SDK logs a warning at startup.
+
+The allowlist applies only to `/mcp`. The `/health` endpoint is always reachable so container healthchecks and liveness probes (which hit `http://localhost:<port>/health`) keep working regardless of what you put in `MCP_ALLOWED_HOSTS`.

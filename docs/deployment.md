@@ -13,6 +13,8 @@ The server can run as a remote HTTP endpoint for clients that only accept URLs (
 
 - `MCP_TRANSPORT=http` — switch to the StreamableHTTP transport (the Dockerfile sets this by default).
 - `PORT` — listen port (default `3000` locally, `8080` in Docker).
+- `MCP_BIND` — listen interface (default `127.0.0.1`; the Dockerfile overrides to `0.0.0.0` so container port forwarding reaches the listener). Set to `0.0.0.0` outside Docker only when you need remote access.
+- `MCP_ALLOWED_HOSTS` — comma-separated Host-header allowlist (e.g. `MCP_ALLOWED_HOSTS=wiki.example.org`). Set it on any non-localhost bind — without it, the SDK disables its DNS-rebinding check and logs a startup warning. Not needed on localhost binds, where the SDK auto-allows `localhost`, `127.0.0.1`, and `[::1]`. A bare hostname in `MCP_BIND` counts as non-localhost: the auto-allowlist only matches those three literals.
 
 ## Shape 1 — Single-wiki, read-only, anonymous
 
@@ -65,6 +67,7 @@ Hosted-use notes:
 - **The server process sees every caller's token in flight.** Treat it as a secret-handling component: avoid verbose error logging, and don't pipe raw error objects into error-tracking services that capture arbitrary fields.
 - **Single wiki only for now.** A bearer is scoped to one MediaWiki OAuth2 realm, and `set-wiki` hasn't been audited for concurrent-caller safety. Multi-wiki bearer deployment is on the roadmap.
 - **Reverse proxy must forward `Authorization` intact** and strip it on untrusted inbound paths. The MCP server trusts any `Authorization: Bearer` header it sees — see [configuration.md — reverse proxy requirements](configuration.md#reverse-proxy-requirements).
+- **Set `MCP_ALLOWED_HOSTS` to the hostname(s) your reverse proxy forwards** (e.g. `MCP_ALLOWED_HOSTS=wiki.example.org`). Without it, the SDK's DNS-rebinding check is off and non-matching `Host` headers are not rejected.
 
 ## Docker
 
@@ -75,4 +78,13 @@ docker build -t mediawiki-mcp-server .
 docker run --rm -p 8080:8080 -v "$(pwd)/config.json:/app/config.json:ro" mediawiki-mcp-server
 ```
 
-The image sets `MCP_TRANSPORT=http` and `PORT=8080`, runs as a non-root user, and exposes `/health` for orchestration probes. No image is published; build from source.
+For public deployments, set the Host-header allowlist:
+
+```bash
+docker run --rm -p 8080:8080 \
+  -e MCP_ALLOWED_HOSTS=wiki.example.org \
+  -v "$(pwd)/config.json:/app/config.json:ro" \
+  mediawiki-mcp-server
+```
+
+The image sets `MCP_TRANSPORT=http`, `PORT=8080`, and `MCP_BIND=0.0.0.0` (needed for container port forwarding), runs as a non-root user, and exposes `/health` for orchestration probes. No image is published; build from source.

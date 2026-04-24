@@ -1,13 +1,20 @@
 #!/usr/bin/env node
 
-import express, { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
+import express, { type RequestHandler, type Request, type Response } from 'express';
 /* eslint-disable n/no-missing-import */
+import {
+	hostHeaderValidation,
+	localhostHostValidation
+} from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { createServer } from './server.js';
+import { resolveHttpConfig } from './common/httpConfig.js';
 import { runtimeTokenStore } from './common/requestContext.js';
+
+const LOCALHOST_HOSTS = [ '127.0.0.1', 'localhost', '::1' ];
 
 export function extractBearerToken( req: Request ): string | undefined {
 	const raw = req.headers.authorization;
@@ -22,8 +29,34 @@ export function extractBearerToken( req: Request ): string | undefined {
 	return token || undefined;
 }
 
+export function resolveMcpHostValidation(
+	host: string,
+	allowedHosts: string[] | undefined
+): RequestHandler | undefined {
+	if ( allowedHosts ) {
+		return hostHeaderValidation( allowedHosts );
+	}
+	if ( LOCALHOST_HOSTS.includes( host ) ) {
+		return localhostHostValidation();
+	}
+	if ( host === '0.0.0.0' || host === '::' ) {
+		console.warn(
+			`Warning: Server is binding to ${ host } without DNS rebinding protection. ` +
+			'Set MCP_ALLOWED_HOSTS to restrict allowed Host-header values, ' +
+			'or use authentication to protect your server.'
+		);
+	}
+	return undefined;
+}
+
+const { host, port, allowedHosts } = resolveHttpConfig();
 const app = express();
 app.use( express.json() );
+
+const hostValidation = resolveMcpHostValidation( host, allowedHosts );
+if ( hostValidation ) {
+	app.use( '/mcp', hostValidation );
+}
 
 const transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
 
@@ -62,8 +95,9 @@ app.post( '/mcp', async ( req: Request, res: Response ) => {
 	}
 
 	const runtimeToken = extractBearerToken( req );
-	await runtimeTokenStore.run( { runtimeToken }, () =>
-		transport.handleRequest( req, res, req.body )
+	await runtimeTokenStore.run(
+		{ runtimeToken },
+		() => transport.handleRequest( req, res, req.body )
 	);
 } );
 
@@ -76,8 +110,9 @@ const handleSessionRequest = async ( req: Request, res: Response ): Promise<void
 
 	const transport = transports[ sessionId ];
 	const runtimeToken = extractBearerToken( req );
-	await runtimeTokenStore.run( { runtimeToken }, () =>
-		transport.handleRequest( req, res )
+	await runtimeTokenStore.run(
+		{ runtimeToken },
+		() => transport.handleRequest( req, res )
 	);
 };
 
@@ -90,7 +125,6 @@ app.get( '/health', ( _req: Request, res: Response ) => {
 	res.status( 200 ).json( { status: 'ok' } );
 } );
 
-const PORT = process.env.PORT || 3000;
-app.listen( PORT, () => {
-	console.error( `MCP Streamable HTTP Server listening on port ${ PORT }` );
+app.listen( port, host, () => {
+	console.error( `MCP Streamable HTTP Server listening on ${ host }:${ port }` );
 } );
