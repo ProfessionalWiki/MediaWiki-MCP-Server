@@ -13,7 +13,7 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 
 import { getMwn } from '../../src/common/mwn.js';
 
-const RC_PROP = 'user|userid|comment|flags|timestamp|title|ids|sizes|tags|loginfo|patrolled';
+const RC_PROP = 'user|userid|comment|flags|timestamp|title|ids|sizes|tags|loginfo';
 
 function mockRequest( response: unknown ) {
 	const mock = createMockMwn( {
@@ -108,6 +108,17 @@ describe( 'get-recent-changes — parameter mapping', () => {
 		expect( mock.request.mock.calls[ 0 ][ 0 ].rcshow ).toBeUndefined();
 	} );
 
+	it( 'appends patrolled to rcprop only when showPatrolStatus is set', async () => {
+		const mockOff = mockRequest( { query: { recentchanges: [] } } );
+		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
+		await handleGetRecentChangesTool( {} );
+		expect( mockOff.request.mock.calls[ 0 ][ 0 ].rcprop ).toBe( RC_PROP );
+
+		const mockOn = mockRequest( { query: { recentchanges: [] } } );
+		await handleGetRecentChangesTool( { showPatrolStatus: true } );
+		expect( mockOn.request.mock.calls[ 0 ][ 0 ].rcprop ).toBe( `${ RC_PROP }|patrolled` );
+	} );
+
 	it( 'maps continue token to rccontinue', async () => {
 		const mock = mockRequest( { query: { recentchanges: [] } } );
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
@@ -171,8 +182,7 @@ describe( 'get-recent-changes — formatter', () => {
 				comment: 'typo fix',
 				minor: true,
 				bot: true,
-				tags: [ 'mobile-edit' ],
-				unpatrolled: true
+				tags: [ 'mobile-edit' ]
 			} ] }
 		} );
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
@@ -188,7 +198,6 @@ describe( 'get-recent-changes — formatter', () => {
 		expect( text ).toContain( 'Comment: typo fix' );
 		expect( text ).toContain( 'Flags: minor, bot' );
 		expect( text ).toContain( 'Tags: mobile-edit' );
-		expect( text ).toContain( 'Unpatrolled: yes' );
 	} );
 
 	it( 'omits Flags, Tags, Comment, and Unpatrolled lines when absent', async () => {
@@ -342,7 +351,7 @@ describe( 'get-recent-changes — formatter', () => {
 		expect( text ).not.toContain( 'Comment:' );
 	} );
 
-	it( 'omits the Unpatrolled line for patrolled edits', async () => {
+	it( 'renders Unpatrolled: yes when unpatrolled is set on the row', async () => {
 		mockRequest( {
 			query: { recentchanges: [ {
 				type: 'edit',
@@ -355,16 +364,40 @@ describe( 'get-recent-changes — formatter', () => {
 				newlen: 100,
 				oldlen: 90,
 				comment: '',
-				patrolled: true,
+				tags: [],
+				unpatrolled: true
+			} ] }
+		} );
+		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
+		const result = await handleGetRecentChangesTool( { showPatrolStatus: true } );
+
+		const text = ( result.content[ 0 ] as { text: string } ).text;
+		expect( text ).toContain( 'Unpatrolled: yes' );
+	} );
+
+	it( 'omits the Unpatrolled line when unpatrolled is not set', async () => {
+		mockRequest( {
+			query: { recentchanges: [ {
+				type: 'edit',
+				title: 'Foo',
+				timestamp: '2026-01-01T00:00:00Z',
+				user: 'Alice',
+				userid: 42,
+				revid: 100,
+				old_revid: 99,
+				newlen: 100,
+				oldlen: 90,
+				comment: '',
 				tags: []
 			} ] }
 		} );
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		const result = await handleGetRecentChangesTool( {} );
+		const result = await handleGetRecentChangesTool( { showPatrolStatus: true } );
 
 		const text = ( result.content[ 0 ] as { text: string } ).text;
 		expect( text ).not.toContain( 'Unpatrolled' );
 	} );
+
 } );
 
 describe( 'get-recent-changes — truncation and empty results', () => {

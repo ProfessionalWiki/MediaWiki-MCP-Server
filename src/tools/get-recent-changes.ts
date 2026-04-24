@@ -8,7 +8,7 @@ import { appendTruncationMarker, type TruncationInfo } from '../common/truncatio
 import { classifyError, errorResult } from '../common/errorMapping.js';
 
 const RC_LIMIT = 50;
-const RC_PROP = 'user|userid|comment|flags|timestamp|title|ids|sizes|tags|loginfo|patrolled';
+const RC_PROP = 'user|userid|comment|flags|timestamp|title|ids|sizes|tags|loginfo';
 
 const RcType = z.enum( [ 'edit', 'new', 'log', 'categorize', 'external' ] );
 
@@ -41,6 +41,9 @@ const inputSchema = {
 	hidePatrolled: z.boolean().optional().describe(
 		'Omit patrolled edits. Requires patrol rights.'
 	),
+	showPatrolStatus: z.boolean().optional().describe(
+		'Include per-row patrol status; adds an "Unpatrolled: yes" line to unpatrolled rows. Requires patrol rights.'
+	),
 	continue: z.string().optional().describe(
 		"Continuation token from a prior call's truncation marker"
 	)
@@ -59,6 +62,7 @@ type RecentChangesArgs = {
 	hideAnon?: boolean;
 	hideRedirects?: boolean;
 	hidePatrolled?: boolean;
+	showPatrolStatus?: boolean;
 	continue?: string;
 };
 
@@ -80,7 +84,6 @@ interface RecentChange {
 	bot?: boolean;
 	new?: boolean;
 	redirect?: boolean;
-	patrolled?: boolean;
 	unpatrolled?: boolean;
 	tags?: string[];
 	logtype?: string;
@@ -172,7 +175,7 @@ function formatChange( change: RecentChange ): TextContent {
 export function getRecentChangesTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'get-recent-changes',
-		'Returns recent change events, newest first, in segments of 50. Defaults to edits and page creations; set types to include log actions, categorizations, or external changes. Each row includes title, timestamp, user, revision IDs, size change, flags (minor/bot/new/anon), tags, and change type. Filter by timestamp window, namespaces, user, change tag, or hide flags (hideBots/hideMinor/hideAnon/hideRedirects/hidePatrolled). Paginate with the continue token from the truncation marker. For a single page\'s revision history, use get-page-history.',
+		'Returns recent change events, newest first, in segments of 50. Defaults to edits and page creations; set types to include log actions, categorizations, or external changes. Each row includes title, timestamp, user, revision IDs, size change, flags (minor/bot/new/anon), tags, and change type. Filter by timestamp window, namespaces, user, change tag, or hide flags (hideBots/hideMinor/hideAnon/hideRedirects/hidePatrolled). Pass showPatrolStatus to include per-row patrol state (requires patrol rights). Paginate with the continue token from the truncation marker. For a single page\'s revision history, use get-page-history.',
 		inputSchema,
 		{
 			title: 'Get recent changes',
@@ -217,13 +220,15 @@ export async function handleGetRecentChangesTool(
 
 		const types = args.types ?? [ 'edit', 'new' ];
 
+		const rcprop = args.showPatrolStatus ? `${ RC_PROP }|patrolled` : RC_PROP;
+
 		const params: Record<string, string | number | boolean> = {
 			action: 'query',
 			list: 'recentchanges',
 			rctype: types.join( '|' ),
 			rclimit: RC_LIMIT,
 			rcdir: 'older',
-			rcprop: RC_PROP,
+			rcprop,
 			formatversion: '2'
 		};
 
