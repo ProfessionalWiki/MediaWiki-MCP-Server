@@ -265,6 +265,20 @@ You should end up with something like the below in your `.claude.json` config:
 ```
 </details>
 
+<details>
+<summary><b>Install in Gemini CLI</b></summary>
+
+Run:
+
+```bash
+gemini extensions install https://github.com/ProfessionalWiki/MediaWiki-MCP-Server
+```
+
+This installs the extension from the latest GitHub Release. To pin a specific version, append `--ref=<tag>` (for example `--ref=v0.6.5`).
+
+See the [Gemini CLI extensions documentation](https://github.com/google-gemini/gemini-cli/tree/main/docs/extensions) for how to update, list, or uninstall extensions.
+</details>
+
 ## Deployment
 
 Running the server as a remote HTTP endpoint for other users has its own configuration requirements — see [docs/deployment.md](docs/deployment.md).
