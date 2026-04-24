@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { ErrorCategory } from '../../src/common/errorMapping.js';
 import { classifyError, errorResult } from '../../src/common/errorMapping.js';
 import { createMockMwnError } from '../helpers/mock-mwn-error.js';
+import { assertStructuredError } from '../helpers/structuredResult.js';
 
 describe( 'classifyError', () => {
 	describe( 'maps MW .code to category', () => {
@@ -94,22 +95,26 @@ describe( 'classifyError', () => {
 } );
 
 describe( 'errorResult', () => {
-	it( 'builds prose-prefix CallToolResult with isError', () => {
+	it( 'builds a structured envelope with isError', () => {
 		const result = errorResult( 'not_found', 'Page "Foo" not found' );
-		expect( result ).toEqual( {
-			isError: true,
-			content: [ { type: 'text', text: 'not_found: Page "Foo" not found' } ]
-		} );
+		assertStructuredError( result, 'not_found' );
+		expect( ( result.structuredContent as { message: string } ).message )
+			.toBe( 'Page "Foo" not found' );
+		expect( ( result.structuredContent as { code?: string } ).code ).toBeUndefined();
 	} );
 
-	it( 'preserves colons in messages', () => {
+	it( 'preserves the full message in the envelope', () => {
 		const result = errorResult(
 			'upstream_failure',
 			'Failed to fetch: connection refused'
 		);
-		expect( result.content[ 0 ] ).toEqual( {
-			type: 'text',
-			text: 'upstream_failure: Failed to fetch: connection refused'
-		} );
+		assertStructuredError( result, 'upstream_failure' );
+		expect( ( result.structuredContent as { message: string } ).message )
+			.toBe( 'Failed to fetch: connection refused' );
+	} );
+
+	it( 'carries an optional MediaWiki error code', () => {
+		const result = errorResult( 'conflict', 'clash', 'editconflict' );
+		assertStructuredError( result, 'conflict', 'editconflict' );
 	} );
 } );

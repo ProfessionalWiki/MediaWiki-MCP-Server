@@ -15,6 +15,7 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
+import { assertStructuredError } from '../helpers/structuredResult.js';
 
 // Build a response page object shaped as mwn.massQuery returns
 // (formatversion=2, prop=revisions, rvslots=main). Slots still need flattening
@@ -75,8 +76,8 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [], 'source', false );
 
-			expect( result.isError ).toBe( true );
-			expect( ( result.content[ 0 ] as any ).text ).toContain( 'titles' );
+			assertStructuredError( result, 'invalid_input' );
+			expect( ( result.structuredContent as { message: string } ).message ).toContain( 'titles' );
 		} );
 
 		it( 'more than 50 titles returns validation error', async () => {
@@ -84,16 +85,16 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( titles, 'source', false );
 
-			expect( result.isError ).toBe( true );
-			expect( ( result.content[ 0 ] as any ).text ).toContain( '50' );
+			assertStructuredError( result, 'invalid_input' );
+			expect( ( result.structuredContent as { message: string } ).message ).toContain( '50' );
 		} );
 
 		it( 'content=none + metadata=false returns validation error', async () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'Foo' ], 'none', false );
 
-			expect( result.isError ).toBe( true );
-			expect( ( result.content[ 0 ] as any ).text ).toContain( 'metadata must be true' );
+			assertStructuredError( result, 'invalid_input' );
+			expect( ( result.structuredContent as { message: string } ).message ).toContain( 'metadata must be true' );
 		} );
 	} );
 
@@ -237,9 +238,9 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'Foo' ], 'source', false, true );
 
-			expect( result.isError ).toBe( true );
-			expect( ( result.content[ 0 ] as any ).text ).toContain( 'Failed to retrieve pages' );
-			expect( ( result.content[ 0 ] as any ).text ).toContain( 'API error' );
+			assertStructuredError( result, 'upstream_failure' );
+			expect( ( result.structuredContent as { message: string } ).message ).toContain( 'Failed to retrieve pages' );
+			expect( ( result.structuredContent as { message: string } ).message ).toContain( 'API error' );
 		} );
 
 		it( 'redirect followed: emits under requested header, Title shows target, Redirected from line present', async () => {
@@ -368,9 +369,9 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'Foo' ], 'source', false, false );
 
-			expect( result.isError ).toBe( true );
-			expect( ( result.content[ 0 ] as any ).text ).toContain( 'Failed to retrieve pages' );
-			expect( ( result.content[ 0 ] as any ).text ).toContain( 'read error' );
+			assertStructuredError( result, 'upstream_failure' );
+			expect( ( result.structuredContent as { message: string } ).message ).toContain( 'Failed to retrieve pages' );
+			expect( ( result.structuredContent as { message: string } ).message ).toContain( 'read error' );
 		} );
 	} );
 

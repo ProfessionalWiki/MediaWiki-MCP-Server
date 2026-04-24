@@ -15,6 +15,7 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
+import { assertStructuredError } from '../helpers/structuredResult.js';
 
 describe( 'get-page', () => {
 	beforeEach( () => {
@@ -95,8 +96,8 @@ describe( 'get-page', () => {
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Missing Page', 'source', false );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toContain( 'not found' );
+		assertStructuredError( result, 'not_found' );
+		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'not found' );
 	} );
 
 	it( 'returns both metadata and source when both requested', async () => {
@@ -132,8 +133,8 @@ describe( 'get-page', () => {
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Test Page', 'source', false );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toContain( 'API error' );
+		assertStructuredError( result, 'upstream_failure' );
+		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'API error' );
 	} );
 
 	it( 'forwards section as rvsection for source content', async () => {
@@ -183,8 +184,8 @@ describe( 'get-page', () => {
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Test Page', 'none', true, 2 );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toContain( 'section is not compatible with content="none"' );
+		assertStructuredError( result, 'invalid_input' );
+		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'section is not compatible with content="none"' );
 	} );
 
 	it( 'reports the full-page Size in metadata even when section is set (size is revision-level, not section-level)', async () => {

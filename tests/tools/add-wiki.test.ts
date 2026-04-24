@@ -19,6 +19,7 @@ vi.mock( '../../src/common/wikiService.js', async () => {
 import { discoverWiki } from '../../src/common/wikiDiscovery.js';
 import { wikiService, DuplicateWikiKeyError } from '../../src/common/wikiService.js';
 import { SsrfValidationError } from '../../src/common/ssrfGuard.js';
+import { assertStructuredError } from '../helpers/structuredResult.js';
 
 describe( 'add-wiki', () => {
 	beforeEach( () => {
@@ -36,9 +37,9 @@ describe( 'add-wiki', () => {
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
 		const result = await handleAddWikiTool( server, 'http://169.254.169.254/' );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toMatch(
-			/^invalid_input: Failed to add wiki:.*169\.254\.169\.254/
+		assertStructuredError( result, 'invalid_input' );
+		expect( ( result.structuredContent as { message: string } ).message ).toMatch(
+			/Failed to add wiki:.*169\.254\.169\.254/
 		);
 	} );
 
@@ -58,9 +59,9 @@ describe( 'add-wiki', () => {
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
 		const result = await handleAddWikiTool( server, 'https://example.org/' );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'conflict: Wiki "example.org" already exists in configuration'
+		assertStructuredError( result, 'conflict' );
+		expect( ( result.structuredContent as { message: string } ).message ).toBe(
+			'Wiki "example.org" already exists in configuration'
 		);
 	} );
 
@@ -73,9 +74,9 @@ describe( 'add-wiki', () => {
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
 		const result = await handleAddWikiTool( server, 'https://example.org/' );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toMatch(
-			/^upstream_failure: Failed to add wiki: Connection refused/
+		assertStructuredError( result, 'upstream_failure' );
+		expect( ( result.structuredContent as { message: string } ).message ).toMatch(
+			/Failed to add wiki: Connection refused/
 		);
 	} );
 } );

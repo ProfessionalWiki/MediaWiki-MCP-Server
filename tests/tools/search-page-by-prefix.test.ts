@@ -12,6 +12,7 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
+import { assertStructuredError } from '../helpers/structuredResult.js';
 
 describe( 'search-page-by-prefix', () => {
 	beforeEach( () => { vi.clearAllMocks(); } );
@@ -113,7 +114,7 @@ describe( 'search-page-by-prefix', () => {
 		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
 		const result = await handleSearchPageByPrefixTool( 'A', undefined, undefined );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'API error' );
+		assertStructuredError( result, 'upstream_failure' );
+		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'API error' );
 	} );
 } );

@@ -12,6 +12,7 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
+import { assertStructuredError } from '../helpers/structuredResult.js';
 
 describe( 'get-page-history', () => {
 	beforeEach( () => { vi.clearAllMocks(); } );
@@ -114,8 +115,8 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Nonexistent' );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toContain( 'not found' );
+		assertStructuredError( result, 'not_found' );
+		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'not found' );
 	} );
 
 	it( 'handles empty results', async () => {
@@ -211,8 +212,8 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page' );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toContain( 'API error' );
+		assertStructuredError( result, 'upstream_failure' );
+		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'API error' );
 	} );
 
 	it( 'appends a more-available marker with olderThan when more revisions exist', async () => {

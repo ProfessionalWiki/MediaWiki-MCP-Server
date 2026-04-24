@@ -13,6 +13,7 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 
 import { getMwn } from '../../src/common/mwn.js';
 import { wikiService } from '../../src/common/wikiService.js';
+import { assertStructuredError } from '../helpers/structuredResult.js';
 
 function successResponse( overrides: Record<string, unknown> = {} ) {
 	return {
@@ -84,8 +85,8 @@ describe( 'update-page', () => {
 			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
 			const result = await handleUpdatePageTool( { title: 'My Page', source: 'content' } );
 
-			expect( result.isError ).toBe( true );
-			expect( result.content[ 0 ].text ).toContain( 'Failed to update page' );
+			assertStructuredError( result, 'upstream_failure' );
+			expect( ( result.structuredContent as { message: string } ).message ).toContain( 'Failed to update page' );
 		} );
 
 		it( 'returns error when mwn.request throws', async () => {
@@ -96,8 +97,8 @@ describe( 'update-page', () => {
 			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
 			const result = await handleUpdatePageTool( { title: 'My Page', source: 'content', latestId: 41 } );
 
-			expect( result.isError ).toBe( true );
-			expect( result.content[ 0 ].text ).toContain( 'Edit conflict' );
+			assertStructuredError( result, 'upstream_failure' );
+			expect( ( result.structuredContent as { message: string } ).message ).toContain( 'Edit conflict' );
 		} );
 
 		it( 'surfaces the missingtitle error from mwn when page does not exist', async () => {
@@ -108,8 +109,8 @@ describe( 'update-page', () => {
 			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
 			const result = await handleUpdatePageTool( { title: 'Does Not Exist', source: 'content', latestId: 1 } );
 
-			expect( result.isError ).toBe( true );
-			expect( result.content[ 0 ].text ).toContain( "doesn't exist" );
+			assertStructuredError( result, 'upstream_failure' );
+			expect( ( result.structuredContent as { message: string } ).message ).toContain( "doesn't exist" );
 		} );
 	} );
 
@@ -177,8 +178,8 @@ describe( 'update-page', () => {
 			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
 			const result = await handleUpdatePageTool( { title: 'My Page', source: 'x', section: 99 } );
 
-			expect( result.isError ).toBe( true );
-			expect( result.content[ 0 ].text ).toBe( 'not_found: Section 99 does not exist' );
+			assertStructuredError( result, 'not_found' );
+			expect( ( result.structuredContent as { message: string } ).message ).toBe( 'Section 99 does not exist' );
 		} );
 
 		it( 'forwards section=\'new\' with sectionTitle as sectiontitle', async () => {
@@ -204,8 +205,8 @@ describe( 'update-page', () => {
 				title: 'My Page', source: 'body', section: 'new'
 			} );
 
-			expect( result.isError ).toBe( true );
-			expect( result.content[ 0 ].text ).toContain( 'sectionTitle is required when section=\'new\'' );
+			assertStructuredError( result, 'invalid_input' );
+			expect( ( result.structuredContent as { message: string } ).message ).toContain( 'sectionTitle is required when section=\'new\'' );
 		} );
 
 		it( 'rejects sectionTitle when section is a number', async () => {
@@ -214,8 +215,8 @@ describe( 'update-page', () => {
 				title: 'My Page', source: 'body', section: 2, sectionTitle: 'History'
 			} );
 
-			expect( result.isError ).toBe( true );
-			expect( result.content[ 0 ].text ).toContain( 'sectionTitle is only valid when section=\'new\'' );
+			assertStructuredError( result, 'invalid_input' );
+			expect( ( result.structuredContent as { message: string } ).message ).toContain( 'sectionTitle is only valid when section=\'new\'' );
 		} );
 
 		it( 'rejects sectionTitle when section is undefined', async () => {
@@ -224,8 +225,8 @@ describe( 'update-page', () => {
 				title: 'My Page', source: 'body', sectionTitle: 'History'
 			} );
 
-			expect( result.isError ).toBe( true );
-			expect( result.content[ 0 ].text ).toContain( 'sectionTitle is only valid when section=\'new\'' );
+			assertStructuredError( result, 'invalid_input' );
+			expect( ( result.structuredContent as { message: string } ).message ).toContain( 'sectionTitle is only valid when section=\'new\'' );
 		} );
 	} );
 
@@ -280,8 +281,8 @@ describe( 'update-page', () => {
 				title: 'My Page', source: 'body', section: 'new', sectionTitle: 'History', mode: 'append'
 			} );
 
-			expect( result.isError ).toBe( true );
-			expect( result.content[ 0 ].text ).toContain( 'mode is not compatible with section=\'new\'' );
+			assertStructuredError( result, 'invalid_input' );
+			expect( ( result.structuredContent as { message: string } ).message ).toContain( 'mode is not compatible with section=\'new\'' );
 		} );
 	} );
 } );

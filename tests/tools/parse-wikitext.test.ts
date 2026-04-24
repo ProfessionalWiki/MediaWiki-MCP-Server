@@ -15,6 +15,7 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
+import { assertStructuredError } from '../helpers/structuredResult.js';
 
 describe( 'parse-wikitext', () => {
 	beforeEach( () => {
@@ -118,9 +119,9 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toBe(
-			'upstream_failure: Failed to preview wikitext: Network down'
+		assertStructuredError( result, 'upstream_failure' );
+		expect( ( result.structuredContent as { message: string } ).message ).toBe(
+			'Failed to preview wikitext: Network down'
 		);
 	} );
 

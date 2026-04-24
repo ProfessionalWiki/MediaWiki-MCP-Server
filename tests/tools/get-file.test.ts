@@ -12,6 +12,7 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
+import { assertStructuredError } from '../helpers/structuredResult.js';
 
 describe( 'get-file', () => {
 	beforeEach( () => { vi.clearAllMocks(); } );
@@ -66,8 +67,8 @@ describe( 'get-file', () => {
 		const { handleGetFileTool } = await import( '../../src/tools/get-file.js' );
 		const result = await handleGetFileTool( 'Missing.png' );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toContain( 'not found' );
+		assertStructuredError( result, 'not_found' );
+		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'not found' );
 	} );
 
 	it( 'returns error on API failure', async () => {
@@ -79,7 +80,7 @@ describe( 'get-file', () => {
 		const { handleGetFileTool } = await import( '../../src/tools/get-file.js' );
 		const result = await handleGetFileTool( 'Example.png' );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toContain( 'API error' );
+		assertStructuredError( result, 'upstream_failure' );
+		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'API error' );
 	} );
 } );

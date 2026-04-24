@@ -12,6 +12,7 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
+import { assertStructuredError } from '../helpers/structuredResult.js';
 
 const RC_PROP = 'user|userid|comment|flags|timestamp|title|ids|sizes|tags|loginfo';
 
@@ -136,9 +137,9 @@ describe( 'get-recent-changes — handler validation', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( { user: 'Alice', excludeUser: 'Bob' } );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain(
-			'invalid_input: user and excludeUser are mutually exclusive'
+		assertStructuredError( result, 'invalid_input' );
+		expect( ( result.structuredContent as { message: string } ).message ).toContain(
+			'user and excludeUser are mutually exclusive'
 		);
 		expect( mock.request ).not.toHaveBeenCalled();
 	} );
@@ -156,8 +157,8 @@ describe( 'get-recent-changes — error handling', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( { since: 'garbage' } );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain(
+		assertStructuredError( result, 'upstream_failure' );
+		expect( ( result.structuredContent as { message: string } ).message ).toContain(
 			'Failed to retrieve recent changes: badtimestamp'
 		);
 	} );

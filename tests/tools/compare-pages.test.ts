@@ -13,6 +13,7 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 
 import { getMwn } from '../../src/common/mwn.js';
 import { handleComparePagesTool } from '../../src/tools/compare-pages.js';
+import { assertStructuredError } from '../helpers/structuredResult.js';
 
 const PAIRED_CHANGE_HTML = [
 	'<table class="diff">',
@@ -153,9 +154,9 @@ describe( 'compare-pages', () => {
 
 	it( 'returns validation error when no from* is given', async () => {
 		const result = await handleComparePagesTool( { toRevision: 57 } );
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'invalid_input: Must supply exactly one of fromRevision, fromTitle, fromText'
+		assertStructuredError( result, 'invalid_input' );
+		expect( ( result.structuredContent as { message: string } ).message ).toBe(
+			'Must supply exactly one of fromRevision, fromTitle, fromText'
 		);
 	} );
 
@@ -163,9 +164,9 @@ describe( 'compare-pages', () => {
 		const result = await handleComparePagesTool( {
 			fromRevision: 42, fromTitle: 'Foo', toRevision: 57
 		} );
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'invalid_input: Only one of fromRevision, fromTitle, fromText may be supplied'
+		assertStructuredError( result, 'invalid_input' );
+		expect( ( result.structuredContent as { message: string } ).message ).toBe(
+			'Only one of fromRevision, fromTitle, fromText may be supplied'
 		);
 	} );
 
@@ -173,9 +174,9 @@ describe( 'compare-pages', () => {
 		const result = await handleComparePagesTool( {
 			fromText: 'a', toText: 'b'
 		} );
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'invalid_input: Cannot compare supplied text against supplied text'
+		assertStructuredError( result, 'invalid_input' );
+		expect( ( result.structuredContent as { message: string } ).message ).toBe(
+			'Cannot compare supplied text against supplied text'
 		);
 	} );
 
@@ -187,8 +188,8 @@ describe( 'compare-pages', () => {
 			fromRevision: 99999, toRevision: 57
 		} );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe( 'not_found: Revision 99999 not found' );
+		assertStructuredError( result, 'not_found' );
+		expect( ( result.structuredContent as { message: string } ).message ).toBe( 'Revision 99999 not found' );
 	} );
 
 	it( 'maps missingtitle errors to a friendly message', async () => {
@@ -199,8 +200,8 @@ describe( 'compare-pages', () => {
 			fromTitle: 'Nope', toTitle: 'Foo'
 		} );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe( 'not_found: Page "Nope" not found' );
+		assertStructuredError( result, 'not_found' );
+		expect( ( result.structuredContent as { message: string } ).message ).toBe( 'Page "Nope" not found' );
 	} );
 
 	it( 'returns a generic error message for other API failures', async () => {
@@ -211,9 +212,9 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 57
 		} );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'upstream_failure: Failed to compare pages: Connection refused'
+		assertStructuredError( result, 'upstream_failure' );
+		expect( ( result.structuredContent as { message: string } ).message ).toBe(
+			'Failed to compare pages: Connection refused'
 		);
 	} );
 
@@ -221,9 +222,9 @@ describe( 'compare-pages', () => {
 		const result = await handleComparePagesTool( {
 			fromRevision: 42, toRevision: 57, toTitle: 'Foo'
 		} );
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'invalid_input: Only one of toRevision, toTitle, toText may be supplied'
+		assertStructuredError( result, 'invalid_input' );
+		expect( ( result.structuredContent as { message: string } ).message ).toBe(
+			'Only one of toRevision, toTitle, toText may be supplied'
 		);
 	} );
 
@@ -273,9 +274,9 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 57
 		} );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'upstream_failure: Failed to compare pages: no compare result returned'
+		assertStructuredError( result, 'upstream_failure' );
+		expect( ( result.structuredContent as { message: string } ).message ).toBe(
+			'Failed to compare pages: no compare result returned'
 		);
 	} );
 
@@ -287,8 +288,8 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 99999
 		} );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe( 'not_found: Revision 99999 not found' );
+		assertStructuredError( result, 'not_found' );
+		expect( ( result.structuredContent as { message: string } ).message ).toBe( 'Revision 99999 not found' );
 	} );
 
 	it( 'parses the correct title when missingtitle message quotes it', async () => {
@@ -299,8 +300,8 @@ describe( 'compare-pages', () => {
 			fromTitle: 'Foo', toTitle: 'Bar'
 		} );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe( 'not_found: Page "Bar" not found' );
+		assertStructuredError( result, 'not_found' );
+		expect( ( result.structuredContent as { message: string } ).message ).toBe( 'Page "Bar" not found' );
 	} );
 
 	it( 'truncates oversized diff body with a content-truncated marker', async () => {

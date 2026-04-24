@@ -12,6 +12,7 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
+import { assertStructuredError } from '../helpers/structuredResult.js';
 
 describe( 'search-page', () => {
 	beforeEach( () => { vi.clearAllMocks(); } );
@@ -66,8 +67,8 @@ describe( 'search-page', () => {
 		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
 		const result = await handleSearchPageTool( 'test', undefined );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toContain( 'API error' );
+		assertStructuredError( result, 'upstream_failure' );
+		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'API error' );
 	} );
 
 	it( 'appends a capped marker when response.continue is present', async () => {

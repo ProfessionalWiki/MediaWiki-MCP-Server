@@ -13,6 +13,7 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 
 import { getMwn } from '../../src/common/mwn.js';
 import { wikiService } from '../../src/common/wikiService.js';
+import { assertStructuredError } from '../helpers/structuredResult.js';
 
 describe( 'create-page', () => {
 	beforeEach( () => { vi.clearAllMocks(); } );
@@ -65,8 +66,8 @@ describe( 'create-page', () => {
 		const { handleCreatePageTool } = await import( '../../src/tools/create-page.js' );
 		const result = await handleCreatePageTool( 'Hello', 'Existing Page', undefined, 'wikitext' );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toContain( 'Page exists' );
+		assertStructuredError( result, 'upstream_failure' );
+		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'Page exists' );
 	} );
 
 	it( 'forwards configured tags to mwn.create()', async () => {

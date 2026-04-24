@@ -1,6 +1,7 @@
 /* eslint-disable n/no-missing-import */
 import type { CallToolResult, TextContent } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
+import type { ErrorEnvelope } from './schemas.js';
 
 export type ErrorCategory =
 	| 'not_found'
@@ -90,9 +91,17 @@ export function classifyError( err: unknown ): { category: ErrorCategory; code?:
 	return { category: 'upstream_failure' };
 }
 
-export function errorResult( category: ErrorCategory, message: string ): CallToolResult {
+export function errorResult(
+	category: ErrorCategory,
+	message: string,
+	code?: string
+): CallToolResult {
+	const envelope: ErrorEnvelope = code !== undefined ?
+		{ category, message, code } :
+		{ category, message };
 	return {
-		content: [ { type: 'text', text: `${ category }: ${ message }` } as TextContent ],
+		structuredContent: envelope as Record<string, unknown>,
+		content: [ { type: 'text', text: JSON.stringify( envelope ) } as TextContent ],
 		isError: true
 	};
 }

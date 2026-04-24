@@ -12,6 +12,7 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
+import { assertStructuredError } from '../helpers/structuredResult.js';
 
 describe( 'get-revision', () => {
 	beforeEach( () => { vi.clearAllMocks(); } );
@@ -109,8 +110,8 @@ describe( 'get-revision', () => {
 		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
 		const result = await handleGetRevisionTool( 99999, 'source', false );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toContain( 'not found' );
+		assertStructuredError( result, 'not_found' );
+		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'not found' );
 	} );
 
 	it( 'returns error on failure', async () => {
@@ -122,7 +123,7 @@ describe( 'get-revision', () => {
 		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
 		const result = await handleGetRevisionTool( 42, 'source', false );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toContain( 'API error' );
+		assertStructuredError( result, 'upstream_failure' );
+		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'API error' );
 	} );
 } );

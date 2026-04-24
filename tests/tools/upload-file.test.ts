@@ -28,6 +28,7 @@ vi.mock( '../../src/common/uploadGuard.js', async () => {
 import { getMwn } from '../../src/common/mwn.js';
 import { wikiService } from '../../src/common/wikiService.js';
 import { assertAllowedPath, UploadValidationError } from '../../src/common/uploadGuard.js';
+import { assertStructuredError } from '../helpers/structuredResult.js';
 
 describe( 'upload-file', () => {
 	beforeEach( () => {
@@ -47,9 +48,9 @@ describe( 'upload-file', () => {
 		const { handleUploadFileTool } = await import( '../../src/tools/upload-file.js' );
 		const result = await handleUploadFileTool( '/etc/passwd', 'File:Shadow', 'body' );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toMatch(
-			/^invalid_input: Failed to upload file:.*not allowed/
+		assertStructuredError( result, 'invalid_input' );
+		expect( ( result.structuredContent as { message: string } ).message ).toMatch(
+			/Failed to upload file:.*not allowed/
 		);
 		expect( mock.upload ).not.toHaveBeenCalled();
 	} );
@@ -64,9 +65,9 @@ describe( 'upload-file', () => {
 		const { handleUploadFileTool } = await import( '../../src/tools/upload-file.js' );
 		const result = await handleUploadFileTool( '/home/user/uploads/x.jpg', 'File:X', 'body' );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toMatch(
-			/^upstream_failure: Failed to upload file: Connection refused/
+		assertStructuredError( result, 'upstream_failure' );
+		expect( ( result.structuredContent as { message: string } ).message ).toMatch(
+			/Failed to upload file: Connection refused/
 		);
 		expect( mock.upload ).not.toHaveBeenCalled();
 	} );
