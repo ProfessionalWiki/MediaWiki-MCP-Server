@@ -1,5 +1,5 @@
 # MediaWiki MCP Server
-[![NPM Version](https://img.shields.io/npm/v/%40professional-wiki%2Fmediawiki-mcp-server?color=red)](https://www.npmjs.com/package/@professional-wiki/mediawiki-mcp-server) [![smithery badge](https://smithery.ai/badge/@ProfessionalWiki/mediawiki-mcp-server)](https://smithery.ai/server/@ProfessionalWiki/mediawiki-mcp-server) [![MIT licensed](https://img.shields.io/npm/l/%40professional-wiki%2Fmediawiki-mcp-server)](./LICENSE)
+[![NPM Version](https://img.shields.io/npm/v/%40professional-wiki%2Fmediawiki-mcp-server?color=red)](https://www.npmjs.com/package/@professional-wiki/mediawiki-mcp-server) [![MIT licensed](https://img.shields.io/npm/l/%40professional-wiki%2Fmediawiki-mcp-server)](./LICENSE)
 
 An MCP (Model Context Protocol) server that enables Large Language Model (LLM) clients to interact with any MediaWiki wiki.
 
@@ -159,15 +159,6 @@ When no header is present, the server falls back to `config.json` credentials or
 If the OAuth extension isn't available, create a bot password at `Special:BotPasswords` and set `username` and `password` in `config.json` instead of `token`.
 
 ## Installation
-
-<details><summary><b>Install via Smithery</b></summary>
-
-To install MediaWiki MCP Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@ProfessionalWiki/mediawiki-mcp-server):
-
-```bash
-npx -y @smithery/cli install @ProfessionalWiki/mediawiki-mcp-server --client claude
-```
-</details>
 
 <details>
 <summary><b>Install in Claude Desktop</b></summary>
