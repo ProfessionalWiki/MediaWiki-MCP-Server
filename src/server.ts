@@ -14,6 +14,12 @@ const packageInfo = createRequire( import.meta.url )( '../package.json' ) as { v
 const SERVER_NAME: string = 'mediawiki-mcp-server';
 const SERVER_VERSION: string = packageInfo.version;
 
+const SERVER_INSTRUCTIONS: string = `Tools and resources for working with one or more MediaWiki wikis. Each configured wiki appears as an \`mcp://wikis/{wikiKey}\` resource. Tool calls target the currently selected wiki; pass an \`mcp://wikis/{wikiKey}\` URI to \`set-wiki\` to switch, and the selection persists until changed.
+
+Writes, deletes, and uploads use the caller's \`Authorization: Bearer\` token when present, falling back to credentials configured on the active wiki.
+
+Tool errors fall into seven categories: \`not_found\`, \`permission_denied\`, \`invalid_input\`, \`conflict\`, \`authentication\`, \`rate_limited\`, and \`upstream_failure\`. Reads that exceed a per-call cap return a truncation marker describing what was returned and how to fetch the rest.`;
+
 export const createServer = (): McpServer => {
 	const server = new McpServer(
 		{
@@ -28,7 +34,8 @@ export const createServer = (): McpServer => {
 				tools: {
 					listChanged: true
 				}
-			}
+			},
+			instructions: SERVER_INSTRUCTIONS
 		}
 	);
 
