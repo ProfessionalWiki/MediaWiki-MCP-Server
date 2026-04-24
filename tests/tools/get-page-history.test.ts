@@ -54,7 +54,7 @@ describe( 'get-page-history', () => {
 
 		const data = assertStructuredSuccess( result, PageHistorySchema );
 		expect( data.revisions ).toEqual( [ {
-			revid: 100,
+			revisionId: 100,
 			timestamp: '2026-01-01T00:00:00Z',
 			user: 'Admin',
 			userid: 1,
@@ -84,7 +84,7 @@ describe( 'get-page-history', () => {
 		expect( call.rvendid ).toBeUndefined();
 
 		const data = assertStructuredSuccess( result, PageHistorySchema );
-		expect( data.revisions.map( ( r ) => r.revid ) ).toEqual( [ 99 ] );
+		expect( data.revisions.map( ( r ) => r.revisionId ) ).toEqual( [ 99 ] );
 	} );
 
 	it( 'maps newerThan to rvstartid with rvdir=newer', async () => {
@@ -103,7 +103,7 @@ describe( 'get-page-history', () => {
 		);
 
 		const data = assertStructuredSuccess( result, PageHistorySchema );
-		expect( data.revisions.map( ( r ) => r.revid ) ).toEqual( [ 101 ] );
+		expect( data.revisions.map( ( r ) => r.revisionId ) ).toEqual( [ 101 ] );
 	} );
 
 	it( 'maps filter to rvtag', async () => {
@@ -178,8 +178,8 @@ describe( 'get-page-history', () => {
 		);
 		const data = assertStructuredSuccess( result, PageHistorySchema );
 		expect( data.revisions ).toHaveLength( 20 );
-		expect( data.revisions[ 0 ].revid ).toBe( 99 );
-		expect( data.revisions[ 19 ].revid ).toBe( 80 );
+		expect( data.revisions[ 0 ].revisionId ).toBe( 99 );
+		expect( data.revisions[ 19 ].revisionId ).toBe( 80 );
 	} );
 
 	it( 'caps result at 20 when boundary revision is not in the returned window', async () => {

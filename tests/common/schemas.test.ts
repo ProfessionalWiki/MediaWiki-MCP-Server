@@ -37,7 +37,7 @@ describe( 'PageMetadataSchema', () => {
 describe( 'RevisionSummarySchema', () => {
 	it( 'accepts a page-history row', () => {
 		RevisionSummarySchema.parse( {
-			revid: 17,
+			revisionId: 17,
 			timestamp: '2026-04-24T10:00:00Z',
 			user: 'Alice',
 			userid: 3,
@@ -49,7 +49,7 @@ describe( 'RevisionSummarySchema', () => {
 
 	it( 'accepts an optional tags array', () => {
 		RevisionSummarySchema.parse( {
-			revid: 18, timestamp: 't', user: 'u', userid: 1,
+			revisionId: 18, timestamp: 't', user: 'u', userid: 1,
 			comment: 'c', size: 0, minor: true, tags: [ 'rollback' ]
 		} );
 	} );

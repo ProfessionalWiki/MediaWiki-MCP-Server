@@ -30,8 +30,8 @@ const RecentChangeSchema = z.object( {
 	anon: z.boolean().optional(),
 	userhidden: z.boolean().optional(),
 	commenthidden: z.boolean().optional(),
-	revid: z.number().int().nonnegative().optional(),
-	oldRevid: z.number().int().nonnegative().optional(),
+	revisionId: z.number().int().nonnegative().optional(),
+	oldRevisionId: z.number().int().nonnegative().optional(),
 	newlen: z.number().int().nonnegative().optional(),
 	oldlen: z.number().int().nonnegative().optional(),
 	sizeDelta: z.number().int().optional(),
@@ -233,8 +233,8 @@ describe( 'get-recent-changes — payload shape', () => {
 			timestamp: '2026-01-01T12:34:56Z',
 			user: 'Alice',
 			userid: 42,
-			revid: 1234567,
-			oldRevid: 1234500,
+			revisionId: 1234567,
+			oldRevisionId: 1234500,
 			newlen: 1523,
 			oldlen: 1500,
 			sizeDelta: 23,
@@ -268,8 +268,8 @@ describe( 'get-recent-changes — payload shape', () => {
 		const data = assertStructuredSuccess( result, RecentChangesSchema );
 		expect( data.changes[ 0 ] ).toMatchObject( {
 			type: 'new',
-			revid: 500,
-			oldRevid: 0,
+			revisionId: 500,
+			oldRevisionId: 0,
 			sizeDelta: 240,
 			isNew: true
 		} );
@@ -300,7 +300,7 @@ describe( 'get-recent-changes — payload shape', () => {
 			logaction: 'block',
 			logparams: { duration: 'infinity', flags: [ 'nocreate' ] }
 		} );
-		expect( data.changes[ 0 ].revid ).toBeUndefined();
+		expect( data.changes[ 0 ].revisionId ).toBeUndefined();
 	} );
 
 	it( 'preserves anon flag on anonymous edits', async () => {

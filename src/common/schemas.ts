@@ -12,7 +12,7 @@ export const PageMetadataSchema = z.object( {
 export type PageMetadata = z.infer<typeof PageMetadataSchema>;
 
 export const RevisionSummarySchema = z.object( {
-	revid: z.number().int().nonnegative(),
+	revisionId: z.number().int().nonnegative(),
 	timestamp: z.string(),
 	user: z.string().optional(),
 	userid: z.number().int().nonnegative().optional(),

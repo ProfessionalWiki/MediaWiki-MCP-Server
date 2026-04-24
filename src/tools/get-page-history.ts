@@ -116,7 +116,7 @@ export async function handleGetPageHistoryTool(
 
 		return structuredResult( {
 			revisions: filteredRevisions.map( ( r ) => ( {
-				revid: r.revid!,
+				revisionId: r.revid!,
 				timestamp: r.timestamp!,
 				user: r.user,
 				userid: r.userid,
