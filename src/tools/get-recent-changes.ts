@@ -61,6 +61,113 @@ type RecentChangesArgs = {
 	continue?: string;
 };
 
+interface RecentChange {
+	type: 'edit' | 'new' | 'log' | 'categorize' | 'external';
+	title: string;
+	timestamp: string;
+	user?: string;
+	userid?: number;
+	anon?: boolean;
+	userhidden?: boolean;
+	commenthidden?: boolean;
+	revid?: number;
+	old_revid?: number;
+	newlen?: number;
+	oldlen?: number;
+	comment?: string;
+	minor?: boolean;
+	bot?: boolean;
+	new?: boolean;
+	redirect?: boolean;
+	patrolled?: boolean;
+	unpatrolled?: boolean;
+	tags?: string[];
+	logtype?: string;
+	logaction?: string;
+	logparams?: Record<string, unknown>;
+}
+
+function formatUser( change: RecentChange ): string {
+	if ( change.userhidden ) {
+		return 'User: (hidden)';
+	}
+	if ( change.anon ) {
+		return `User: ${ change.user } (anonymous)`;
+	}
+	return `User: ${ change.user } (ID: ${ change.userid })`;
+}
+
+function formatFlags( change: RecentChange ): string | undefined {
+	const flags: string[] = [];
+	if ( change.minor ) {
+		flags.push( 'minor' );
+	}
+	if ( change.bot ) {
+		flags.push( 'bot' );
+	}
+	if ( change.new ) {
+		flags.push( 'new' );
+	}
+	if ( change.anon ) {
+		flags.push( 'anon' );
+	}
+	return flags.length > 0 ? `Flags: ${ flags.join( ', ' ) }` : undefined;
+}
+
+function formatLogParams( params: Record<string, unknown> ): string {
+	return Object.entries( params )
+		.map( ( [ key, value ] ) => `${ key }=${ Array.isArray( value ) ? value.join( '|' ) : String( value ) }` )
+		.join( ', ' );
+}
+
+function formatChange( change: RecentChange ): TextContent {
+	const lines: string[] = [
+		`Type: ${ change.type }`,
+		`Title: ${ change.title }`,
+		`Timestamp: ${ change.timestamp }`,
+		formatUser( change )
+	];
+
+	if ( change.type !== 'log' && change.revid !== undefined ) {
+		const fromSuffix = change.old_revid && change.old_revid !== 0 ?
+			` (from ${ change.old_revid })` :
+			'';
+		lines.push( `Revision: ${ change.revid }${ fromSuffix }` );
+	}
+
+	if ( change.type !== 'log' && change.newlen !== undefined ) {
+		const delta = change.newlen - ( change.oldlen ?? 0 );
+		const sign = delta >= 0 ? '+' : '';
+		lines.push( `Size: ${ change.newlen } bytes (${ sign }${ delta })` );
+	}
+
+	if ( !change.commenthidden && change.comment ) {
+		lines.push( `Comment: ${ change.comment }` );
+	}
+
+	if ( change.type === 'log' && change.logtype && change.logaction ) {
+		const paramsStr = change.logparams && Object.keys( change.logparams ).length > 0 ?
+			` (${ formatLogParams( change.logparams ) })` :
+			'';
+		lines.push( `Log: ${ change.logtype }/${ change.logaction }${ paramsStr }` );
+	}
+
+	const flagsLine = formatFlags( change );
+	if ( flagsLine ) {
+		lines.push( flagsLine );
+	}
+
+	if ( change.tags && change.tags.length > 0 ) {
+		lines.push( `Tags: ${ change.tags.join( ', ' ) }` );
+	}
+
+	if ( change.unpatrolled === true ) {
+		lines.push( 'Unpatrolled: yes' );
+	}
+
+	return { type: 'text', text: lines.join( '\n' ) };
+}
+
 export function getRecentChangesTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'get-recent-changes',
@@ -152,13 +259,9 @@ export async function handleGetRecentChangesTool(
 		}
 
 		const response = await mwn.request( params );
-		const changes = ( response.query?.recentchanges ?? [] ) as unknown[];
+		const changes = ( response.query?.recentchanges ?? [] ) as RecentChange[];
 
-		// Minimal placeholder formatter — Task 2 replaces this.
-		const content: TextContent[] = changes.map( ( _c ): TextContent => ( {
-			type: 'text',
-			text: 'change'
-		} ) );
+		const content: TextContent[] = changes.map( formatChange );
 
 		const truncation: TruncationInfo | null = null; // Task 3 wires this.
 
