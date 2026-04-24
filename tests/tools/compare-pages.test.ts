@@ -303,6 +303,61 @@ describe( 'compare-pages', () => {
 		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe( 'Page "Bar" not found' );
 	} );
 
+	it( 'truncates oversized diff body with a content-truncated marker', async () => {
+		// Build a diff body large enough that inlineDiffToText yields > 50000 bytes
+		const bigOld = 'a'.repeat( 30000 );
+		const bigNew = 'b'.repeat( 30000 );
+		const bigDiffHtml = [
+			'<table class="diff">',
+			'<tr><td colspan="2" class="diff-lineno">Line 1:</td><td colspan="2" class="diff-lineno">Line 1:</td></tr>',
+			`<tr><td class="diff-marker">-</td><td class="diff-deletedline"><div>${ bigOld }</div></td>`,
+			`<td class="diff-marker">+</td><td class="diff-addedline"><div>${ bigNew }</div></td></tr>`,
+			'</table>'
+		].join( '' );
+		const request = vi.fn().mockResolvedValue( {
+			compare: {
+				fromrevid: 42, fromtitle: 'Foo', fromsize: 100, fromtimestamp: '2026-01-01T00:00:00Z',
+				torevid: 57, totitle: 'Foo', tosize: 100, totimestamp: '2026-01-02T00:00:00Z',
+				body: bigDiffHtml
+			}
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
+
+		const result = await handleComparePagesTool( {
+			fromRevision: 42, toRevision: 57
+		} );
+
+		expect( result.isError ).toBeUndefined();
+		expect( result.content ).toHaveLength( 3 );
+		expect( ( result.content[ 1 ] as any ).text ).toHaveLength( 50000 );
+		const marker = ( result.content[ 2 ] as any ).text as string;
+		expect( marker ).toMatch( /^Content truncated at 50000 of \d+ bytes\./ );
+		expect( marker ).toContain( 'compare a narrower revision range or set includeDiff=false' );
+		expect( marker ).not.toContain( 'Available sections' );
+	} );
+
+	it( 'cheap mode (includeDiff=false) emits no content-truncated marker even for oversized changes', async () => {
+		const request = vi.fn().mockResolvedValue( {
+			compare: {
+				fromrevid: 42, fromtitle: 'Foo', fromsize: 100,
+				torevid: 57, totitle: 'Foo', tosize: 100000,
+				diffsize: 99999
+			}
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
+
+		const result = await handleComparePagesTool( {
+			fromRevision: 42, toRevision: 57, includeDiff: false
+		} );
+
+		expect( result.isError ).toBeUndefined();
+		expect( result.content ).toHaveLength( 1 );
+		const hasMarker = result.content.some(
+			( c: any ) => c.text?.startsWith( 'Content truncated at' )
+		);
+		expect( hasMarker ).toBe( false );
+	} );
+
 	it( 'cheap mode uses diffsize to detect same-byte-count changes', async () => {
 		const request = vi.fn().mockResolvedValue( {
 			compare: {

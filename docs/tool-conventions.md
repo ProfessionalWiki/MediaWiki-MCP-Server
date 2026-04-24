@@ -101,12 +101,15 @@ Parameter descriptions must:
 
 #### Result caps and truncation signaling
 
-Tools that return variable-size result sets have a per-call cap. When the cap is hit, the tool appends a trailing text block to `content` describing the truncation. Two shapes:
+Tools that return variable-size result sets or content bodies have a per-call cap. When the cap is hit, the tool appends a trailing text block to `content` describing the truncation. Three shapes:
 
 - **With continuation** (the caller can fetch more): `"More results available. Returned N <items>. To fetch the next segment, call <tool-name> again with <param>=<value>."`
 - **Without continuation** (the only remedy is a narrower query): `"Result capped at N <items>. Additional <items> may exist — <narrow-hint>."`
+- **Content truncated** (the response body exceeded the byte budget): `"Content truncated at N of M bytes. [Available sections: 0 (Lead), 1 (<heading>), ....] <remedy>"` where `<remedy>` is a full sentence of the form `"To <purpose>, <action>."` (e.g. `"To read a specific section, call get-page again with section=N."`), matching the connector-phrase pattern used by the `more-available` shape.
 
 Descriptions for these tools state the cap explicitly. If continuation is supported, descriptions reference the continuation parameter by name so the LLM can pick the right parameter without inspecting the schema.
+
+The byte budget for content bodies is centrally defined as `CONTENT_MAX_BYTES` in `src/common/truncation.ts`; tools do not invent their own limits. Section-aware tools (`get-page`, `get-pages`) include a section list in the marker so the caller can navigate without a follow-up "list sections" call.
 
 This convention doesn't apply to tools that reject oversize input (e.g. `get-pages`' 50-title cap): those return an error, not a truncation marker.
 

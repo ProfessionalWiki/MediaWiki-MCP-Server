@@ -4,6 +4,10 @@ import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
+import {
+	truncationMarker,
+	truncateByBytes
+} from '../common/truncation.js';
 
 const DEFAULT_TITLE = 'API';
 
@@ -33,7 +37,7 @@ function bulletSection( header: string, lines: string[] ): TextContent | null {
 export function parseWikitextTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'parse-wikitext',
-		'Renders wikitext through the live wiki without saving. Returns HTML, parse warnings, categories, wikilinks, templates, external URLs, and display title. Suited to dry-running a planned edit before create-page or update-page, or previewing standalone wikitext (template combinations, sanitizer checks) with no target page.',
+		'Renders wikitext through the live wiki without saving. Returns HTML, parse warnings, categories, wikilinks, templates, external URLs, and display title. Suited to dry-running a planned edit before create-page or update-page, or previewing standalone wikitext (template combinations, sanitizer checks) with no target page. HTML output is truncated at 50000 bytes with a trailing marker; a smaller wikitext fragment in a follow-up call returns the rest.',
 		{
 			wikitext: z.string().min( 1 ).describe( 'Wikitext to render' ),
 			title: z.string().optional().describe(
@@ -84,10 +88,21 @@ export async function handleParseWikitextTool(
 		}
 
 		const html: string = parse.text ?? '';
+		const truncated = truncateByBytes( html );
 		results.push( {
 			type: 'text',
-			text: `HTML:\n${ html }`
+			text: `HTML:\n${ truncated.text }`
 		} );
+		if ( truncated.truncated ) {
+			results.push( truncationMarker( {
+				reason: 'content-truncated',
+				returnedBytes: truncated.returnedBytes,
+				totalBytes: truncated.totalBytes,
+				itemNoun: 'HTML',
+				toolName: 'parse-wikitext',
+				remedyHint: 'To avoid truncation, render a smaller wikitext fragment in a follow-up call.'
+			} ) );
+		}
 
 		const effectiveTitle = title ?? DEFAULT_TITLE;
 		const displayTitle: string | undefined = parse.displaytitle;
