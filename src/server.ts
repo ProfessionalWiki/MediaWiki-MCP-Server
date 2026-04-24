@@ -9,10 +9,13 @@ import { registerAllResources } from './resources/index.js';
 import { reconcileToolsForActiveWiki } from './tools/reconcile.js';
 
 // https://github.com/nodejs/node/issues/51347#issuecomment-2111337854
-const packageInfo = createRequire( import.meta.url )( '../package.json' ) as { version: string };
+const serverInfo = createRequire( import.meta.url )( '../server.json' ) as {
+	title: string;
+	description: string;
+	version: string;
+};
 
 const SERVER_NAME: string = 'mediawiki-mcp-server';
-const SERVER_VERSION: string = packageInfo.version;
 
 const SERVER_INSTRUCTIONS: string = `Tools and resources for working with one or more MediaWiki wikis. Each configured wiki appears as an \`mcp://wikis/{wikiKey}\` resource. Tool calls target the currently selected wiki; pass an \`mcp://wikis/{wikiKey}\` URI to \`set-wiki\` to switch, and the selection persists until changed.
 
@@ -24,7 +27,9 @@ export const createServer = (): McpServer => {
 	const server = new McpServer(
 		{
 			name: SERVER_NAME,
-			version: SERVER_VERSION
+			title: serverInfo.title,
+			version: serverInfo.version,
+			description: serverInfo.description
 		},
 		{
 			capabilities: {
@@ -55,4 +60,4 @@ export const createServer = (): McpServer => {
 	return server;
 };
 
-export const USER_AGENT: string = `${ SERVER_NAME }/${ SERVER_VERSION }`;
+export const USER_AGENT: string = `${ SERVER_NAME }/${ serverInfo.version }`;

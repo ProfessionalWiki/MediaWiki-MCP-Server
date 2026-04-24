@@ -25,7 +25,8 @@
 	},
 	"type": "module",
 	"files": [
-		"dist"
+		"dist",
+		"server.json"
 	],
 	"main": "dist/index.js",
 	"bin": {
