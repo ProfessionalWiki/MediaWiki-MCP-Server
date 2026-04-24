@@ -1,7 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import express, { type Express, type Request } from 'express';
 import request from 'supertest';
-import { extractBearerToken, resolveMcpHostValidation } from '../../src/streamableHttp.js';
+import {
+	createSessionRequestHandler,
+	extractBearerToken,
+	hashBearer,
+	resolveMcpHostValidation,
+	type SessionRegistry,
+	verifySessionBearer
+} from '../../src/streamableHttp.js';
 
 function req( authorization: string | undefined ): Request {
 	return { headers: { authorization } } as unknown as Request;
@@ -35,6 +42,47 @@ describe( 'extractBearerToken', () => {
 	it( 'returns undefined if the first comma-joined value is not Bearer', () => {
 		expect( extractBearerToken( req( ', Bearer abc' ) ) ).toBeUndefined();
 		expect( extractBearerToken( req( 'Basic xyz, Bearer abc' ) ) ).toBeUndefined();
+	} );
+} );
+
+describe( 'hashBearer', () => {
+	it( 'returns a 64-character hex string', () => {
+		expect( hashBearer( 'abc123' ) ).toMatch( /^[0-9a-f]{64}$/ );
+	} );
+	it( 'is deterministic for the same token', () => {
+		expect( hashBearer( 'abc123' ) ).toBe( hashBearer( 'abc123' ) );
+	} );
+	it( 'produces different hashes for different tokens', () => {
+		expect( hashBearer( 'abc123' ) ).not.toBe( hashBearer( 'xyz789' ) );
+	} );
+	it( 'produces a distinct hash for undefined vs a present token', () => {
+		expect( hashBearer( undefined ) ).not.toBe( hashBearer( '' ) );
+		expect( hashBearer( undefined ) ).not.toBe( hashBearer( 'abc' ) );
+	} );
+	it( 'is deterministic for undefined', () => {
+		expect( hashBearer( undefined ) ).toBe( hashBearer( undefined ) );
+	} );
+} );
+
+describe( 'verifySessionBearer', () => {
+	it( 'returns true when the presented token matches the hashed original', () => {
+		expect( verifySessionBearer( hashBearer( 'abc123' ), 'abc123' ) ).toBe( true );
+	} );
+	it( 'returns false when the presented token differs from the hashed original', () => {
+		expect( verifySessionBearer( hashBearer( 'abc123' ), 'xyz789' ) ).toBe( false );
+	} );
+	it( 'returns false when the hash was of a token and the request has none', () => {
+		expect( verifySessionBearer( hashBearer( 'abc123' ), undefined ) ).toBe( false );
+	} );
+	it( 'returns false when the hash was of no token and the request has one', () => {
+		expect( verifySessionBearer( hashBearer( undefined ), 'abc123' ) ).toBe( false );
+	} );
+	it( 'returns true when both original and presented are absent', () => {
+		expect( verifySessionBearer( hashBearer( undefined ), undefined ) ).toBe( true );
+	} );
+	it( 'returns false for a malformed stored hash without throwing', () => {
+		expect( () => verifySessionBearer( 'not-a-hash', 'abc123' ) ).not.toThrow();
+		expect( verifySessionBearer( 'not-a-hash', 'abc123' ) ).toBe( false );
 	} );
 } );
 
@@ -103,5 +151,106 @@ describe( 'host validation (scoped to /mcp)', () => {
 			.set( 'Host', 'localhost:8080' );
 		expect( res.status ).toBe( 200 );
 		expect( res.body ).toEqual( { status: 'ok' } );
+	} );
+} );
+
+describe( 'session-bearer binding (GET/DELETE handler)', () => {
+	function buildApp( sessions: SessionRegistry ): { app: Express; handleRequest: ReturnType<typeof vi.fn> } {
+		const app = express();
+		app.use( express.json() );
+		const handleRequest = vi.fn( async ( _req: unknown, res: { status: ( n: number ) => { end: () => void } } ) => {
+			res.status( 204 ).end();
+		} );
+		for ( const key of Object.keys( sessions ) ) {
+			( sessions[ key ].transport as unknown as { handleRequest: typeof handleRequest } ).handleRequest = handleRequest;
+		}
+		app.get( '/mcp', createSessionRequestHandler( sessions ) );
+		app.delete( '/mcp', createSessionRequestHandler( sessions ) );
+		return { app, handleRequest };
+	}
+
+	function fakeSession( bearerHash: string ): SessionRegistry {
+		return {
+			'sid-1': {
+				transport: {} as unknown as SessionRegistry[string][ 'transport' ],
+				bearerHash
+			}
+		};
+	}
+
+	it( 'returns 400 when mcp-session-id header is missing', async () => {
+		const { app } = buildApp( {} );
+		const res = await request( app ).get( '/mcp' );
+		expect( res.status ).toBe( 400 );
+	} );
+
+	it( 'returns 400 when the session id is not known', async () => {
+		const { app } = buildApp( fakeSession( hashBearer( 'abc' ) ) );
+		const res = await request( app ).get( '/mcp' ).set( 'mcp-session-id', 'sid-unknown' );
+		expect( res.status ).toBe( 400 );
+	} );
+
+	it( 'forwards to transport.handleRequest when bearer matches the bound session', async () => {
+		const sessions = fakeSession( hashBearer( 'abc' ) );
+		const { app, handleRequest } = buildApp( sessions );
+		const res = await request( app )
+			.get( '/mcp' )
+			.set( 'mcp-session-id', 'sid-1' )
+			.set( 'Authorization', 'Bearer abc' );
+		expect( res.status ).toBe( 204 );
+		expect( handleRequest ).toHaveBeenCalledTimes( 1 );
+	} );
+
+	it( 'returns 401 with a JSON-RPC error when the bearer differs from the bound session', async () => {
+		const sessions = fakeSession( hashBearer( 'abc' ) );
+		const { app, handleRequest } = buildApp( sessions );
+		const res = await request( app )
+			.get( '/mcp' )
+			.set( 'mcp-session-id', 'sid-1' )
+			.set( 'Authorization', 'Bearer different' );
+		expect( res.status ).toBe( 401 );
+		expect( res.body?.error?.message ).toMatch( /session/i );
+		expect( handleRequest ).not.toHaveBeenCalled();
+	} );
+
+	it( 'returns 401 when the session was bound with a bearer but the request has none', async () => {
+		const sessions = fakeSession( hashBearer( 'abc' ) );
+		const { app, handleRequest } = buildApp( sessions );
+		const res = await request( app ).get( '/mcp' ).set( 'mcp-session-id', 'sid-1' );
+		expect( res.status ).toBe( 401 );
+		expect( handleRequest ).not.toHaveBeenCalled();
+	} );
+
+	it( 'returns 401 when the session was bound without a bearer but the request now supplies one', async () => {
+		const sessions = fakeSession( hashBearer( undefined ) );
+		const { app, handleRequest } = buildApp( sessions );
+		const res = await request( app )
+			.get( '/mcp' )
+			.set( 'mcp-session-id', 'sid-1' )
+			.set( 'Authorization', 'Bearer abc' );
+		expect( res.status ).toBe( 401 );
+		expect( handleRequest ).not.toHaveBeenCalled();
+	} );
+
+	it( 'forwards a DELETE when bearer matches the bound session', async () => {
+		const sessions = fakeSession( hashBearer( 'abc' ) );
+		const { app, handleRequest } = buildApp( sessions );
+		const res = await request( app )
+			.delete( '/mcp' )
+			.set( 'mcp-session-id', 'sid-1' )
+			.set( 'Authorization', 'Bearer abc' );
+		expect( res.status ).toBe( 204 );
+		expect( handleRequest ).toHaveBeenCalledTimes( 1 );
+	} );
+
+	it( 'rejects a DELETE with a mismatched bearer', async () => {
+		const sessions = fakeSession( hashBearer( 'abc' ) );
+		const { app, handleRequest } = buildApp( sessions );
+		const res = await request( app )
+			.delete( '/mcp' )
+			.set( 'mcp-session-id', 'sid-1' )
+			.set( 'Authorization', 'Bearer nope' );
+		expect( res.status ).toBe( 401 );
+		expect( handleRequest ).not.toHaveBeenCalled();
 	} );
 } );
