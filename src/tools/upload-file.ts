@@ -43,7 +43,7 @@ export async function handleUploadFileTool(
 		data = await mwn.upload( filepath, title, text, getApiUploadParams( comment ) );
 	} catch ( error ) {
 		const { category } = classifyError( error );
-		return errorResult( category, `Upload failed: ${ ( error as Error ).message }` );
+		return errorResult( category, `Failed to upload file: ${ ( error as Error ).message }` );
 	}
 
 	return {

@@ -39,7 +39,7 @@ async function handleSetWikiTool(
 		const { wikiKey } = parseWikiResourceUri( uri );
 
 		if ( !wikiService.get( wikiKey ) ) {
-			return errorResult( 'invalid_input', `mcp://wikis/${ wikiKey } not found in MCP resources.` );
+			return errorResult( 'invalid_input', `mcp://wikis/${ wikiKey } not found in MCP resources` );
 		}
 
 		wikiService.setCurrent( wikiKey );

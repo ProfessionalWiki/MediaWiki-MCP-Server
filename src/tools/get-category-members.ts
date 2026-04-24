@@ -99,6 +99,6 @@ export async function handleGetCategoryMembersTool(
 		return { content: appendTruncationMarker( content, truncation ) };
 	} catch ( error ) {
 		const { category } = classifyError( error );
-		return errorResult( category, `Get category members failed: ${ ( error as Error ).message }` );
+		return errorResult( category, `Failed to retrieve category members: ${ ( error as Error ).message }` );
 	}
 }

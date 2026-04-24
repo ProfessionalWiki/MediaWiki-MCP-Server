@@ -50,7 +50,7 @@ export async function handleUndeletePageTool(
 		);
 	} catch ( error ) {
 		const { category } = classifyError( error );
-		return errorResult( category, `Undelete failed: ${ ( error as Error ).message }` );
+		return errorResult( category, `Failed to undelete page: ${ ( error as Error ).message }` );
 	}
 
 	return {

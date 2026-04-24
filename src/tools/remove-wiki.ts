@@ -33,7 +33,7 @@ async function handleRemoveWikiTool( server: McpServer, uri: string ): Promise<C
 
 		const wikiToRemove = wikiService.get( wikiKey );
 		if ( !wikiToRemove ) {
-			return errorResult( 'invalid_input', `mcp://wikis/${ wikiKey } not found in MCP resources.` );
+			return errorResult( 'invalid_input', `mcp://wikis/${ wikiKey } not found in MCP resources` );
 		}
 
 		if ( wikiService.getCurrent().key === wikiKey ) {

@@ -50,7 +50,7 @@ export async function handleDeletePageTool(
 		);
 	} catch ( error ) {
 		const { category } = classifyError( error );
-		return errorResult( category, `Delete failed: ${ ( error as Error ).message }` );
+		return errorResult( category, `Failed to delete page: ${ ( error as Error ).message }` );
 	}
 
 	return {

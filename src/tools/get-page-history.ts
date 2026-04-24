@@ -40,7 +40,7 @@ export async function handleGetPageHistoryTool(
 	filter?: string
 ): Promise<CallToolResult> {
 	if ( olderThan && newerThan ) {
-		return errorResult( 'invalid_input', 'Cannot use both olderThan and newerThan at the same time' );
+		return errorResult( 'invalid_input', 'olderThan and newerThan are mutually exclusive' );
 	}
 
 	try {
