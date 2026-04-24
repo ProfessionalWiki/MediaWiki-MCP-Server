@@ -86,11 +86,15 @@ export async function handleParseWikitextTool(
 		const effectiveTitle = title ?? DEFAULT_TITLE;
 		const displayTitle: string | undefined = parse.displaytitle;
 
-		const warnings: string[] = Array.isArray( parse.parsewarnings ) ? parse.parsewarnings : [];
-		const categories: CategoryItem[] = Array.isArray( parse.categories ) ? parse.categories : [];
+		const warnings: string[] = Array.isArray( parse.parsewarnings ) ?
+			parse.parsewarnings : [];
+		const categories: CategoryItem[] = Array.isArray( parse.categories ) ?
+			parse.categories : [];
 		const links: LinkItem[] = Array.isArray( parse.links ) ? parse.links : [];
-		const templates: LinkItem[] = Array.isArray( parse.templates ) ? parse.templates : [];
-		const externalLinks: string[] = Array.isArray( parse.externallinks ) ? parse.externallinks : [];
+		const templates: LinkItem[] = Array.isArray( parse.templates ) ?
+			parse.templates : [];
+		const externalLinks: string[] = Array.isArray( parse.externallinks ) ?
+			parse.externallinks : [];
 
 		const payload: Record<string, unknown> = { html: truncated.text };
 		if ( typeof displayTitle === 'string' && displayTitle !== effectiveTitle ) {
