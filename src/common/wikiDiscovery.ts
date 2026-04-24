@@ -1,4 +1,5 @@
 import { makeApiRequest, fetchPageHtml } from './utils.js';
+import { assertPublicDestination } from './ssrfGuard.js';
 
 const COMMON_SCRIPT_PATHS = [ '/w', '' ];
 
@@ -140,6 +141,11 @@ function parseWikiUrl( wikiUrl: string ): string {
 }
 
 export async function discoverWiki( wikiUrl: string ): Promise<WikiInfo | null> {
+	await assertPublicDestination( wikiUrl );
 	const wikiServer = parseWikiUrl( wikiUrl );
-	return getWikiInfo( wikiServer, wikiUrl );
+	const info = await getWikiInfo( wikiServer, wikiUrl );
+	if ( info !== null ) {
+		await assertPublicDestination( info.server );
+	}
+	return info;
 }

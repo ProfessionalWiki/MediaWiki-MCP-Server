@@ -1,6 +1,9 @@
 import fetch, { Response } from 'node-fetch';
 import { USER_AGENT } from '../server.js';
 import { wikiService } from './wikiService.js';
+import { assertPublicDestination, buildPinnedAgent } from './ssrfGuard.js';
+
+const MAX_REDIRECTS = 5;
 
 async function fetchCore(
 	baseUrl: string,
@@ -31,19 +34,43 @@ async function fetchCore(
 		Object.assign( requestHeaders, options.headers );
 	}
 
-	const fetchOptions: { headers: Record<string, string>; method?: string } = {
-		headers: requestHeaders,
-		method: options?.method || 'GET'
-	};
+	let currentUrl = url;
+	let response: Response | undefined;
+	for ( let hop = 0; hop <= MAX_REDIRECTS; hop++ ) {
+		const addresses = await assertPublicDestination( currentUrl );
+		const agent = buildPinnedAgent( currentUrl, addresses );
+		response = await fetch( currentUrl, {
+			headers: requestHeaders,
+			method: options?.method || 'GET',
+			redirect: 'manual',
+			agent
+		} );
 
-	const response = await fetch( url, fetchOptions );
-	if ( !response.ok ) {
-		const errorBody = await response.text().catch( () => 'Could not read error response body' );
+		if ( response.status < 300 || response.status >= 400 ) {
+			break;
+		}
+
+		const location = response.headers.get( 'location' );
+		if ( !location ) {
+			break;
+		}
+
+		if ( hop === MAX_REDIRECTS ) {
+			throw new Error( `Too many redirects (>${ MAX_REDIRECTS }) starting from ${ url }` );
+		}
+
+		currentUrl = new URL( location, currentUrl ).toString();
+	}
+
+	// response is always assigned inside the loop (loop runs at least once).
+	const finalResponse = response as Response;
+	if ( !finalResponse.ok ) {
+		const errorBody = await finalResponse.text().catch( () => 'Could not read error response body' );
 		throw new Error(
-			`HTTP error! status: ${ response.status } for URL: ${ response.url }. Response: ${ errorBody }`
+			`HTTP error! status: ${ finalResponse.status } for URL: ${ finalResponse.url }. Response: ${ errorBody }`
 		);
 	}
-	return response;
+	return finalResponse;
 }
 
 export async function makeApiRequest<T>(

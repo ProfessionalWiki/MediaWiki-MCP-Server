@@ -24,8 +24,23 @@ export function addWikiTool( server: McpServer ): RegisteredTool {
 	);
 }
 
-async function handleAddWikiTool( server: McpServer, wikiUrl: string ): Promise<CallToolResult> {
-	const wikiInfo = await discoverWiki( wikiUrl );
+export async function handleAddWikiTool(
+	server: McpServer, wikiUrl: string
+): Promise<CallToolResult> {
+	let wikiInfo;
+	try {
+		wikiInfo = await discoverWiki( wikiUrl );
+	} catch ( error ) {
+		return {
+			content: [
+				{
+					type: 'text',
+					text: `Failed to add wiki: ${ ( error as Error ).message }`
+				} as TextContent
+			],
+			isError: true
+		};
+	}
 
 	if ( wikiInfo === null ) {
 		return {

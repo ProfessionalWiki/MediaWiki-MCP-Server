@@ -58,6 +58,7 @@
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.25.2",
 		"express": "^5.1.0",
+		"ipaddr.js": "1.9.1",
 		"mwn": "^3.0.1",
 		"node-fetch": "^3.3.2",
 		"types-mediawiki-api": "^2.0.0"
