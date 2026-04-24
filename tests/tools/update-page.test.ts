@@ -180,5 +180,52 @@ describe( 'update-page', () => {
 			expect( result.isError ).toBe( true );
 			expect( result.content[ 0 ].text ).toBe( 'Section 99 does not exist' );
 		} );
+
+		it( 'forwards section=\'new\' with sectionTitle as sectiontitle', async () => {
+			const mock = mockEdit();
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			await handleUpdatePageTool( {
+				title: 'My Page', source: 'body', section: 'new', sectionTitle: 'History'
+			} );
+
+			const params = mock.request.mock.calls[ 0 ][ 0 ];
+			expect( params ).toMatchObject( {
+				section: 'new',
+				sectiontitle: 'History',
+				text: 'body'
+			} );
+		} );
+
+		it( 'rejects section=\'new\' without sectionTitle', async () => {
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			const result = await handleUpdatePageTool( {
+				title: 'My Page', source: 'body', section: 'new'
+			} );
+
+			expect( result.isError ).toBe( true );
+			expect( result.content[ 0 ].text ).toContain( 'sectionTitle is required when section=\'new\'' );
+		} );
+
+		it( 'rejects sectionTitle when section is a number', async () => {
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			const result = await handleUpdatePageTool( {
+				title: 'My Page', source: 'body', section: 2, sectionTitle: 'History'
+			} );
+
+			expect( result.isError ).toBe( true );
+			expect( result.content[ 0 ].text ).toContain( 'sectionTitle is only valid when section=\'new\'' );
+		} );
+
+		it( 'rejects sectionTitle when section is undefined', async () => {
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			const result = await handleUpdatePageTool( {
+				title: 'My Page', source: 'body', sectionTitle: 'History'
+			} );
+
+			expect( result.isError ).toBe( true );
+			expect( result.content[ 0 ].text ).toContain( 'sectionTitle is only valid when section=\'new\'' );
+		} );
 	} );
 } );

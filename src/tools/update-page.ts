@@ -12,7 +12,8 @@ interface UpdatePageArgs {
 	source: string;
 	latestId?: number;
 	comment?: string;
-	section?: number;
+	section?: number | 'new';
+	sectionTitle?: string;
 }
 
 interface ApiEditResponse {
@@ -33,7 +34,12 @@ export function updatePageTool( server: McpServer ): RegisteredTool {
 			source: z.string().describe( 'Replacement content in the existing page\'s content model. Interpreted as that section\'s content only when section is set.' ),
 			latestId: z.number().int().positive().optional().describe( 'Base revision ID for edit-conflict detection; obtain from get-page with metadata=true. If omitted, the update is applied without conflict detection.' ),
 			comment: z.string().optional().describe( 'Summary of the edit' ),
-			section: z.number().int().nonnegative().optional().describe( 'Section number to edit (0 = lead; 1..N = existing heading sections). When set, source is interpreted as that section\'s content only.' )
+			// eslint-disable-next-line es-x/no-set-prototype-union -- z.union, not Set.prototype.union
+			section: z.union( [
+				z.number().int().nonnegative(),
+				z.literal( 'new' )
+			] ).optional().describe( 'Section number to edit (0 = lead; 1..N = existing heading sections) or \'new\' to append a new heading section. When set, source is interpreted as that section\'s content only.' ),
+			sectionTitle: z.string().optional().describe( 'Heading for a new section; required when section=\'new\', rejected otherwise.' )
 		},
 		{
 			title: 'Update page',
@@ -56,7 +62,14 @@ function errorResult( text: string ): CallToolResult {
 export async function handleUpdatePageTool(
 	args: UpdatePageArgs
 ): Promise<CallToolResult> {
-	const { title, source, latestId, comment, section } = args;
+	const { title, source, latestId, comment, section, sectionTitle } = args;
+
+	if ( section === 'new' && sectionTitle === undefined ) {
+		return errorResult( 'sectionTitle is required when section=\'new\'' );
+	}
+	if ( sectionTitle !== undefined && section !== 'new' ) {
+		return errorResult( 'sectionTitle is only valid when section=\'new\'' );
+	}
 
 	try {
 		const mwn = await getMwn();
@@ -82,6 +95,9 @@ export async function handleUpdatePageTool(
 
 		if ( section !== undefined ) {
 			params.section = String( section );
+		}
+		if ( sectionTitle !== undefined ) {
+			params.sectiontitle = sectionTitle;
 		}
 
 		const response = await mwn.request( params );
@@ -115,7 +131,8 @@ export async function handleUpdatePageTool(
 	} catch ( error ) {
 		const msg = ( error as Error ).message;
 		if ( /nosuchsection/i.test( msg ) ) {
-			return errorResult( `Section ${ section } does not exist` );
+			const label = section === undefined ? 'unknown' : String( section );
+			return errorResult( `Section ${ label } does not exist` );
 		}
 		return errorResult( `Failed to update page: ${ msg }` );
 	}
