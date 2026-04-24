@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
+import { SearchResultSchema, TruncationSchema } from '../../src/common/schemas.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
 vi.mock( '../../src/common/wikiService.js', () => ( {
@@ -12,10 +14,20 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
-import { assertStructuredError } from '../helpers/structuredResult.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess
+} from '../helpers/structuredResult.js';
+
+const SearchResultsSchema = z.object( {
+	results: z.array( SearchResultSchema ),
+	truncation: TruncationSchema.optional()
+} );
 
 describe( 'search-page', () => {
-	beforeEach( () => { vi.clearAllMocks(); } );
+	beforeEach( () => {
+		vi.clearAllMocks();
+	} );
 
 	it( 'returns full-text search results with snippets', async () => {
 		const mock = createMockMwn( {
@@ -27,7 +39,8 @@ describe( 'search-page', () => {
 						pageid: 1,
 						size: 1234,
 						snippet: 'matching <span class="searchmatch">text</span>',
-						timestamp: '2026-01-01T00:00:00Z'
+						timestamp: '2026-01-01T00:00:00Z',
+						wordcount: 80
 					} ]
 				}
 			} )
@@ -37,14 +50,20 @@ describe( 'search-page', () => {
 		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
 		const result = await handleSearchPageTool( 'test query', 10 );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content[ 0 ].text ).toContain( 'Title: Test Page' );
-		expect( result.content[ 0 ].text ).toContain( 'Snippet:' );
-		expect( result.content[ 0 ].text ).not.toContain( 'Thumbnail' );
-		expect( result.content[ 0 ].text ).not.toContain( 'Description' );
+		const data = assertStructuredSuccess( result, SearchResultsSchema );
+		expect( data.results ).toEqual( [ {
+			title: 'Test Page',
+			pageId: 1,
+			snippet: 'matching <span class="searchmatch">text</span>',
+			size: 1234,
+			wordCount: 80,
+			timestamp: '2026-01-01T00:00:00Z',
+			url: 'https://test.wiki/wiki/Test_Page'
+		} ] );
+		expect( data.truncation ).toBeUndefined();
 	} );
 
-	it( 'returns message when no results found', async () => {
+	it( 'returns an empty array when no results found', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { search: [] }
@@ -55,7 +74,8 @@ describe( 'search-page', () => {
 		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
 		const result = await handleSearchPageTool( 'nonexistent', undefined );
 
-		expect( result.content[ 0 ].text ).toContain( 'No pages found' );
+		const data = assertStructuredSuccess( result, SearchResultsSchema );
+		expect( data.results ).toEqual( [] );
 	} );
 
 	it( 'returns error on failure', async () => {
@@ -71,7 +91,7 @@ describe( 'search-page', () => {
 		expect( ( result.structuredContent as { message: string } ).message ).toContain( 'API error' );
 	} );
 
-	it( 'appends a capped marker when response.continue is present', async () => {
+	it( 'attaches capped-no-continuation truncation when response.continue is present', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: {
@@ -88,14 +108,16 @@ describe( 'search-page', () => {
 		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
 		const result = await handleSearchPageTool( 'test', 10 );
 
-		expect( result.isError ).toBeUndefined();
-		const last = result.content[ result.content.length - 1 ] as { text: string };
-		expect( last.text ).toBe(
-			'Result capped at 10 matches. Additional matches may exist — narrow the query or raise limit (max 100).'
-		);
+		const data = assertStructuredSuccess( result, SearchResultsSchema );
+		expect( data.truncation ).toMatchObject( {
+			reason: 'capped-no-continuation',
+			returnedCount: 1,
+			limit: 10,
+			itemNoun: 'matches'
+		} );
 	} );
 
-	it( 'does not append a marker when response.continue is absent', async () => {
+	it( 'omits truncation when response.continue is absent', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: {
@@ -111,13 +133,11 @@ describe( 'search-page', () => {
 		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
 		const result = await handleSearchPageTool( 'test', 10 );
 
-		for ( const block of result.content ) {
-			expect( ( block as { text: string } ).text ).not.toContain( 'Result capped' );
-			expect( ( block as { text: string } ).text ).not.toContain( 'More results available' );
-		}
+		const data = assertStructuredSuccess( result, SearchResultsSchema );
+		expect( data.truncation ).toBeUndefined();
 	} );
 
-	it( 'uses the effective limit in the marker when no limit was provided', async () => {
+	it( 'uses the effective default limit in truncation when limit is not provided', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: {
@@ -134,7 +154,7 @@ describe( 'search-page', () => {
 		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
 		const result = await handleSearchPageTool( 'test', undefined );
 
-		const last = result.content[ result.content.length - 1 ] as { text: string };
-		expect( last.text ).toContain( 'Result capped at 10 matches' );
+		const data = assertStructuredSuccess( result, SearchResultsSchema );
+		expect( data.truncation ).toMatchObject( { limit: 10 } );
 	} );
 } );

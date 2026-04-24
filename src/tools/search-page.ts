@@ -1,29 +1,39 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import type { ApiSearchResult } from 'mwn';
 import { getPageUrl } from '../common/utils.js';
-import { appendTruncationMarker, type TruncationInfo } from '../common/truncation.js';
+import type { TruncationInfo } from '../common/truncation.js';
+import { SearchResultSchema, TruncationSchema } from '../common/schemas.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
+import { structuredResult } from '../common/structuredResult.js';
+
+const outputSchema = {
+	results: z.array( SearchResultSchema ),
+	truncation: TruncationSchema.optional()
+};
 
 export function searchPageTool( server: McpServer ): RegisteredTool {
-	return server.tool(
+	return server.registerTool(
 		'search-page',
-		'Searches wiki page titles and page content (full-text) for the provided terms. Returns matching pages with a snippet, size, and timestamp. Accepts up to 100 matches per call (default 10); additional matches beyond the cap are flagged in the response — narrow the query to surface more. For title-prefix lookup (e.g. autocomplete), use search-page-by-prefix.',
 		{
-			query: z.string().describe( 'Search terms' ),
-			limit: z.number().int().min( 1 ).max( 100 ).optional().describe( 'Maximum number of search results to return' )
+			description: 'Searches wiki page titles and page content (full-text) for the provided terms. Returns matching pages with a snippet, size, and timestamp. Accepts up to 100 matches per call (default 10); additional matches beyond the cap are flagged in the response — narrow the query to surface more. For title-prefix lookup (e.g. autocomplete), use search-page-by-prefix.',
+			inputSchema: {
+				query: z.string().describe( 'Search terms' ),
+				limit: z.number().int().min( 1 ).max( 100 ).optional().describe( 'Maximum number of search results to return' )
+			},
+			outputSchema,
+			annotations: {
+				title: 'Search page',
+				readOnlyHint: true,
+				destructiveHint: false,
+				idempotentHint: true,
+				openWorldHint: true
+			} as ToolAnnotations
 		},
-		{
-			title: 'Search page',
-			readOnlyHint: true,
-			destructiveHint: false,
-			idempotentHint: true,
-			openWorldHint: true
-		} as ToolAnnotations,
 		async ( { query, limit } ) => handleSearchPageTool( query, limit )
 	);
 }
@@ -39,7 +49,7 @@ export async function handleSearchPageTool(
 			list: 'search',
 			srsearch: query,
 			srwhat: 'text',
-			srprop: 'snippet|size|timestamp',
+			srprop: 'snippet|size|timestamp|wordcount',
 			formatversion: '2'
 		};
 
@@ -50,26 +60,6 @@ export async function handleSearchPageTool(
 		const response = await mwn.request( params );
 		const searchResults: ApiSearchResult[] = response.query?.search ?? [];
 
-		if ( searchResults.length === 0 ) {
-			return {
-				content: [
-					{ type: 'text', text: `No pages found for ${ query }` } as TextContent
-				]
-			};
-		}
-
-		const content: TextContent[] = searchResults.map( ( result ): TextContent => ( {
-			type: 'text',
-			text: [
-				`Title: ${ result.title }`,
-				`Page ID: ${ result.pageid }`,
-				`Page URL: ${ getPageUrl( result.title ) }`,
-				`Snippet: ${ result.snippet }`,
-				`Size: ${ result.size }`,
-				`Timestamp: ${ result.timestamp }`
-			].join( '\n' )
-		} ) );
-
 		const truncation: TruncationInfo | null = response.continue ? {
 			reason: 'capped-no-continuation',
 			returnedCount: searchResults.length,
@@ -78,9 +68,20 @@ export async function handleSearchPageTool(
 			narrowHint: 'narrow the query or raise limit (max 100)'
 		} : null;
 
-		return { content: appendTruncationMarker( content, truncation ) };
+		return structuredResult( {
+			results: searchResults.map( ( r ) => ( {
+				title: r.title,
+				pageId: r.pageid,
+				snippet: r.snippet,
+				size: r.size,
+				wordCount: ( r as ApiSearchResult & { wordcount?: number } ).wordcount,
+				timestamp: r.timestamp,
+				url: getPageUrl( r.title )
+			} ) ),
+			...( truncation !== null ? { truncation } : {} )
+		} );
 	} catch ( error ) {
-		const { category } = classifyError( error );
-		return errorResult( category, `Failed to retrieve search data: ${ ( error as Error ).message }` );
+		const { category, code } = classifyError( error );
+		return errorResult( category, `Failed to retrieve search data: ${ ( error as Error ).message }`, code );
 	}
 }
