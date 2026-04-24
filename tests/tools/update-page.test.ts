@@ -178,7 +178,7 @@ describe( 'update-page', () => {
 			const result = await handleUpdatePageTool( { title: 'My Page', source: 'x', section: 99 } );
 
 			expect( result.isError ).toBe( true );
-			expect( result.content[ 0 ].text ).toBe( 'Section 99 does not exist' );
+			expect( result.content[ 0 ].text ).toBe( 'not_found: Section 99 does not exist' );
 		} );
 
 		it( 'forwards section=\'new\' with sectionTitle as sectiontitle', async () => {
