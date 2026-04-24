@@ -87,3 +87,32 @@ Accepts a string or an array of strings:
   }
 }
 ```
+
+## Per-request bearer token (HTTP transport)
+
+When using the Streamable HTTP transport (`MCP_TRANSPORT=http`), the server accepts a standard OAuth 2.1 `Authorization: Bearer` header on each request, as described in the [MCP authorization specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization):
+
+```
+Authorization: Bearer <oauth2-access-token>
+```
+
+Any MCP client that supports HTTP transport authentication can be configured to send this header. The token must be a MediaWiki OAuth2 access token obtained from `Special:OAuthConsumerRegistration/propose/oauth2` on the target wiki, with [Extension:OAuth](https://www.mediawiki.org/wiki/Extension:OAuth) installed.
+
+**Precedence**: request header → `config.json` `token` → `config.json` `username`/`password` → anonymous. When no `Authorization` header is present, the server falls back to the static credentials in `config.json`, preserving existing behaviour.
+
+Each request builds an independent MediaWiki session using the supplied token. Token rotation and revocation take effect immediately on the next request.
+
+Example configuration with Claude Code:
+
+```
+claude mcp add --transport http my-wiki https://wiki.example.org/mcp \
+  --header "Authorization: Bearer eyJhbGciOi..."
+```
+
+> **Note on the MCP authorization model.** The spec envisions the MCP server as a distinct OAuth resource server with its own audience, advertising `/.well-known/oauth-protected-resource` and obtaining a separate upstream token when calling MediaWiki. This server pragmatically uses MediaWiki's OAuth realm directly — the bearer token is a MediaWiki access token, and the MCP server forwards it without re-issuing. This is simpler to deploy against existing wikis but means clients must obtain a MediaWiki-audience token rather than going through an MCP-spec-compliant discovery flow.
+
+### Reverse proxy requirements
+
+**Trust boundary.** The server trusts any `Authorization: Bearer` header it receives without performing origin checks. Run it behind a reverse proxy that terminates client connections and forwards only intended traffic, or bind it to a trusted interface (e.g. `127.0.0.1`) — never expose the HTTP port directly on an untrusted network.
+
+If the MCP server runs behind a reverse proxy (Caddy, nginx, Traefik), the proxy must forward the `Authorization` header to the MCP server intact. Configurations that strip or consume the header (e.g. `header_up -Authorization`, `proxy_set_header Authorization ""`, or a proxy-level basic auth handler on the MCP route) will cause the server to see no token and fall back to config/anonymous.

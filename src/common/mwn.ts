@@ -2,6 +2,8 @@ import { USER_AGENT } from '../server.js';
 import { wikiService } from './wikiService.js';
 import type { WikiConfig } from './config.js';
 import { Mwn, MwnOptions } from 'mwn';
+import { getRuntimeToken } from './requestContext.js';
+import { redactAuthorizationHeader, wrapMwnErrors } from './mwnErrorSanitizer.js';
 
 // Cache the Promise, not the resolved instance, so concurrent first-calls
 // for the same wiki share a single login / getSiteInfo round-trip.
@@ -21,6 +23,11 @@ export async function getMwn( wikiKey?: string ): Promise<Mwn> {
 		( { key, config } = wikiService.getCurrent() );
 	}
 
+	const runtimeToken = getRuntimeToken();
+	if ( runtimeToken ) {
+		return createMwnInstance( config, runtimeToken );
+	}
+
 	let pending = mwnInstances.get( key );
 	if ( !pending ) {
 		pending = createMwnInstance( config );
@@ -34,28 +41,37 @@ export async function getMwn( wikiKey?: string ): Promise<Mwn> {
 	return pending;
 }
 
-async function createMwnInstance( config: Readonly<WikiConfig> ): Promise<Mwn> {
+async function createMwnInstance(
+	config: Readonly<WikiConfig>,
+	runtimeToken?: string
+): Promise<Mwn> {
 	const { server, scriptpath, token, username, password } = config;
+	const effectiveToken: string | undefined = runtimeToken ?? token ?? undefined;
 
 	const options: MwnOptions = {
 		apiUrl: `${ server }${ scriptpath }/api.php`,
 		userAgent: USER_AGENT
 	};
 
-	if ( token ) {
-		options.OAuth2AccessToken = token;
-		return Mwn.init( options );
+	let instance: Mwn;
+	try {
+		if ( effectiveToken ) {
+			options.OAuth2AccessToken = effectiveToken;
+			instance = await Mwn.init( options );
+		} else if ( username && password ) {
+			options.username = username;
+			options.password = password;
+			instance = await Mwn.init( options );
+		} else {
+			instance = new Mwn( options );
+			await instance.getSiteInfo();
+		}
+	} catch ( error: unknown ) {
+		redactAuthorizationHeader( error, effectiveToken );
+		throw error;
 	}
 
-	if ( username && password ) {
-		options.username = username;
-		options.password = password;
-		return Mwn.init( options );
-	}
-
-	const instance = new Mwn( options );
-	await instance.getSiteInfo();
-	return instance;
+	return wrapMwnErrors( instance, effectiveToken );
 }
 
 export function removeMwnInstance( wikiKey: string ): void {

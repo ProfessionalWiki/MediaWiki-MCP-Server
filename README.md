@@ -139,6 +139,19 @@ Tools marked 🔐 require authentication. They are also hidden from `tools/list`
 
 > OAuth2 requires the [OAuth extension](https://www.mediawiki.org/wiki/Special:MyLanguage/Extension:OAuth) on the wiki.
 
+### Per-request bearer token (HTTP transport)
+
+When using the HTTP transport, the server accepts a standard OAuth 2.1 `Authorization: Bearer <token>` header on each request (per the [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization)). Any MCP client that supports HTTP transport authentication can be configured to send it, allowing each client to act as its own wiki user rather than sharing the `config.json` identity.
+
+Example with Claude Code:
+
+```bash
+claude mcp add --transport http my-wiki https://wiki.example.org/mcp \
+  --header "Authorization: Bearer <your-access-token>"
+```
+
+When no header is present, the server falls back to `config.json` credentials or anonymous access. See [docs/configuration.md](docs/configuration.md#per-request-bearer-token-http-transport) for details, precedence, trust-boundary guidance, and reverse-proxy requirements.
+
 ### Bot password (fallback)
 
 If the OAuth extension isn't available, create a bot password at `Special:BotPasswords` and set `username` and `password` in `config.json` instead of `token`.
