@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { wikiService } from '../common/wikiService.js';
+import { wikiService, DuplicateWikiKeyError } from '../common/wikiService.js';
 import { discoverWiki } from '../common/wikiDiscovery.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 
@@ -72,6 +72,9 @@ export async function handleAddWikiTool(
 			]
 		};
 	} catch ( error ) {
+		if ( error instanceof DuplicateWikiKeyError ) {
+			return errorResult( 'conflict', error.message );
+		}
 		const { category } = classifyError( error );
 		return errorResult( category, `Failed to add wiki: ${ ( error as Error ).message }` );
 	}

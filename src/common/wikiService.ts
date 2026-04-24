@@ -8,6 +8,13 @@ type DeepReadonly<T> = {
 	readonly [P in keyof T]: T[P] extends object ? DeepReadonly<T[P]> : T[P];
 };
 
+export class DuplicateWikiKeyError extends Error {
+	public constructor( key: string ) {
+		super( `Wiki "${ key }" already exists in configuration` );
+		this.name = 'DuplicateWikiKeyError';
+	}
+}
+
 const config = loadConfigFromFile();
 
 let currentWikiKey: string = config.defaultWiki;
@@ -32,7 +39,7 @@ function add( key: string, wikiConfig: WikiConfig ): void {
 	}
 
 	if ( config.wikis[ key ] ) {
-		throw new Error( `Wiki "${ key }" already exists in configuration` );
+		throw new DuplicateWikiKeyError( key );
 	}
 
 	config.wikis[ key ] = wikiConfig;
