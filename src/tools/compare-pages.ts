@@ -5,6 +5,10 @@ import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontext
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import { inlineDiffToText } from '../common/diffFormat.js';
+import {
+	truncationMarker,
+	truncateByBytes
+} from '../common/truncation.js';
 
 interface ComparePagesArgs {
 	fromRevision?: number;
@@ -34,7 +38,7 @@ type Side = 'from' | 'to';
 export function comparePagesTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'compare-pages',
-		'Returns the changes between two versions of a wiki page as a compact text diff. Each side accepts a revision ID, page title (latest revision), or supplied wikitext; text-vs-text is rejected. Cheaper than fetching both sources and diffing locally, because only the changes are returned. If a title or revision ID does not exist, an error is returned. Set includeDiff=false for a cheap change-detection response that skips diff rendering and returns just the change flag, revision metadata, and size delta.',
+		'Returns the changes between two versions of a wiki page as a compact text diff. Each side accepts a revision ID, page title (latest revision), or supplied wikitext; text-vs-text is rejected. Cheaper than fetching both sources and diffing locally, because only the changes are returned. If a title or revision ID does not exist, an error is returned. Set includeDiff=false for a cheap change-detection response that skips diff rendering and returns just the change flag, revision metadata, and size delta. Diff output is truncated at 50000 bytes with a trailing marker; a narrower revision range or includeDiff=false avoids truncation.',
 		{
 			fromRevision: z.number().int().positive().optional().describe( 'Revision ID for the "from" side' ),
 			fromTitle: z.string().optional().describe( 'Wiki page title for the "from" side (latest revision is used)' ),
@@ -207,7 +211,18 @@ export async function handleComparePagesTool(
 		];
 
 		if ( includeDiff && changed && diffText ) {
-			results.push( { type: 'text', text: diffText } );
+			const truncated = truncateByBytes( diffText );
+			results.push( { type: 'text', text: truncated.text } );
+			if ( truncated.truncated ) {
+				results.push( truncationMarker( {
+					reason: 'content-truncated',
+					returnedBytes: truncated.returnedBytes,
+					totalBytes: truncated.totalBytes,
+					itemNoun: 'diff',
+					toolName: 'compare-pages',
+					remedyHint: 'To avoid truncation, compare a narrower revision range or set includeDiff=false for a metadata-only response.'
+				} ) );
+			}
 		}
 
 		return { content: results };

@@ -3,8 +3,13 @@ import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
+import type { Mwn } from 'mwn';
 import { getMwn } from '../common/mwn.js';
 import { getPageUrl } from '../common/utils.js';
+import {
+	truncationMarker,
+	truncateByBytes
+} from '../common/truncation.js';
 
 const MAX_TITLES = 50;
 
@@ -16,7 +21,7 @@ export enum BatchContentFormat {
 export function getPagesTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'get-pages',
-		`Returns multiple wiki pages in one call (wikitext source or metadata only). Suited to reading a cluster of related pages, diffing a page family, or syncing pages to local storage. Accepts up to ${ MAX_TITLES } titles; missing pages are reported inline (not as errors). For a single page or HTML output, use get-page.`,
+		`Returns multiple wiki pages in one call (wikitext source or metadata only). Suited to reading a cluster of related pages, diffing a page family, or syncing pages to local storage. Accepts up to ${ MAX_TITLES } titles; missing pages are reported inline (not as errors). Each page's content is truncated at 50000 bytes with a trailing marker listing available sections; get-page with section=N fetches a specific section. For a single page or HTML output, use get-page.`,
 		{
 			titles: z.array( z.string() ).describe( `Array of wiki page titles (1..${ MAX_TITLES })` ),
 			content: z.nativeEnum( BatchContentFormat ).optional().default( BatchContentFormat.source ).describe( 'Type of content to return; "none" returns metadata only' ),
@@ -77,6 +82,21 @@ function buildMetadataLines(
 		`HTML URL: ${ getPageUrl( page.title ) }`
 	);
 	return lines.join( '\n' );
+}
+
+interface PageSectionsApi {
+	line?: string;
+}
+
+async function fetchSectionsList( mwn: Mwn, title: string ): Promise<string[]> {
+	const response = await mwn.request( {
+		action: 'parse',
+		page: title,
+		prop: 'sections',
+		formatversion: '2'
+	} );
+	const apiSections: PageSectionsApi[] = response?.parse?.sections ?? [];
+	return [ '', ...apiSections.map( ( s ) => s.line ?? '' ) ];
 }
 
 function resolveChain(
@@ -194,6 +214,14 @@ export async function handleGetPagesTool(
 		const missing: string[] = [];
 		const missingSeen = new Set<string>();
 
+		interface PendingMarker {
+			position: number;
+			title: string;
+			returnedBytes: number;
+			totalBytes: number;
+		}
+		const pendingMarkers: PendingMarker[] = [];
+
 		for ( const requested of titles ) {
 			let resolvedTitle: string;
 			let viaRedirect: boolean;
@@ -231,11 +259,40 @@ export async function handleGetPagesTool(
 				} );
 			}
 			if ( needsSource && rev?.content !== undefined ) {
+				const truncated = truncateByBytes( rev.content );
 				results.push( {
 					type: 'text',
-					text: metadata ? `Source:\n${ rev.content }` : rev.content
+					text: metadata ? `Source:\n${ truncated.text }` : truncated.text
 				} );
+				if ( truncated.truncated ) {
+					// Reserve a slot; the marker's section list is filled in after
+					// a single parallel pass fetches outlines for every truncated page.
+					results.push( { type: 'text', text: '' } );
+					pendingMarkers.push( {
+						position: results.length - 1,
+						title: page.title,
+						returnedBytes: truncated.returnedBytes,
+						totalBytes: truncated.totalBytes
+					} );
+				}
 			}
+		}
+
+		if ( pendingMarkers.length > 0 ) {
+			const sectionLists = await Promise.all(
+				pendingMarkers.map( ( p ) => fetchSectionsList( mwn, p.title ) )
+			);
+			pendingMarkers.forEach( ( p, i ) => {
+				results[ p.position ] = truncationMarker( {
+					reason: 'content-truncated',
+					returnedBytes: p.returnedBytes,
+					totalBytes: p.totalBytes,
+					itemNoun: 'wikitext',
+					toolName: 'get-pages',
+					sections: sectionLists[ i ],
+					remedyHint: 'To read a specific section, call get-page again with section=N.'
+				} );
+			} );
 		}
 
 		if ( missing.length > 0 ) {

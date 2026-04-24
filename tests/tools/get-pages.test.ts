@@ -373,4 +373,110 @@ describe( 'get-pages', () => {
 			expect( ( result.content[ 0 ] as any ).text ).toContain( 'read error' );
 		} );
 	} );
+
+	describe( 'byte truncation', () => {
+		it( 'truncates oversized content per page, with the marker inside the per-page block', async () => {
+			const big = 'x'.repeat( 50001 );
+			const small = 'tiny body';
+			const massQuery = vi.fn().mockResolvedValue( massQueryResponse( {
+				pages: [
+					massQueryPage( 'Big', 1, 10, big ),
+					massQueryPage( 'Small', 2, 20, small )
+				]
+			} ) );
+			const request = vi.fn()
+				.mockResolvedValueOnce( { parse: { sections: [ { line: 'Overview' } ] } } );
+			vi.mocked( getMwn ).mockResolvedValue(
+				createMockMwn( { massQuery, request } ) as any
+			);
+
+			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
+			const result = await handleGetPagesTool( [ 'Big', 'Small' ], 'source', false );
+
+			expect( result.isError ).toBeUndefined();
+			// 2 pages: Big produces [header, source, truncation marker], Small produces [header, source]
+			const texts = result.content.map( ( c: any ) => c.text );
+			const bigHeaderIdx = texts.indexOf( '--- Big ---' );
+			const smallHeaderIdx = texts.indexOf( '--- Small ---' );
+			expect( bigHeaderIdx ).toBeGreaterThanOrEqual( 0 );
+			expect( smallHeaderIdx ).toBeGreaterThan( bigHeaderIdx );
+
+			// Marker appears between the two per-page blocks — i.e. inside Big's block
+			const markerIdx = texts.findIndex( ( t: string ) => t?.startsWith( 'Content truncated at' ) );
+			expect( markerIdx ).toBeGreaterThan( bigHeaderIdx );
+			expect( markerIdx ).toBeLessThan( smallHeaderIdx );
+
+			const markerText = texts[ markerIdx ];
+			expect( markerText ).toContain( 'Content truncated at 50000 of 50001 bytes' );
+			expect( markerText ).toContain( 'Available sections: 0 (Lead), 1 (Overview)' );
+			// Section outline fetched only for the truncated page
+			expect( request ).toHaveBeenCalledTimes( 1 );
+			expect( request ).toHaveBeenCalledWith( expect.objectContaining( {
+				page: 'Big',
+				prop: 'sections'
+			} ) );
+		} );
+
+		it( 'fetches section outlines for multiple truncated pages in parallel, not serially', async () => {
+			const big1 = 'a'.repeat( 60000 );
+			const big2 = 'b'.repeat( 70000 );
+			const massQuery = vi.fn().mockResolvedValue( massQueryResponse( {
+				pages: [
+					massQueryPage( 'BigA', 1, 10, big1 ),
+					massQueryPage( 'BigB', 2, 20, big2 )
+				]
+			} ) );
+			// Delay each parse call so a serial implementation would take roughly
+			// 2x a parallel one. We also assert that the second fetch starts
+			// before the first resolves, which is the actual concurrency signal.
+			let inFlight = 0;
+			let maxInFlight = 0;
+			const request = vi.fn().mockImplementation( () => {
+				inFlight += 1;
+				maxInFlight = Math.max( maxInFlight, inFlight );
+				return new Promise( ( resolve ) => {
+					setTimeout( () => {
+						inFlight -= 1;
+						resolve( { parse: { sections: [ { line: 'H' } ] } } );
+					}, 10 );
+				} );
+			} );
+			vi.mocked( getMwn ).mockResolvedValue(
+				createMockMwn( { massQuery, request } ) as any
+			);
+
+			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
+			const result = await handleGetPagesTool( [ 'BigA', 'BigB' ], 'source', false );
+
+			expect( result.isError ).toBeUndefined();
+			expect( request ).toHaveBeenCalledTimes( 2 );
+			expect( maxInFlight ).toBe( 2 );
+			// Both markers present with the expected section list
+			const markers = result.content.filter(
+				( c: any ) => c.text?.startsWith( 'Content truncated at' )
+			);
+			expect( markers ).toHaveLength( 2 );
+		} );
+
+		it( 'does not emit a marker for content at exactly 50000 bytes', async () => {
+			const exact = 'y'.repeat( 50000 );
+			const massQuery = vi.fn().mockResolvedValue( massQueryResponse( {
+				pages: [ massQueryPage( 'Exact', 1, 10, exact ) ]
+			} ) );
+			const request = vi.fn();
+			vi.mocked( getMwn ).mockResolvedValue(
+				createMockMwn( { massQuery, request } ) as any
+			);
+
+			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
+			const result = await handleGetPagesTool( [ 'Exact' ], 'source', false );
+
+			expect( result.isError ).toBeUndefined();
+			const hasMarker = result.content.some(
+				( c: any ) => c.text?.startsWith( 'Content truncated at' )
+			);
+			expect( hasMarker ).toBe( false );
+			expect( request ).not.toHaveBeenCalled();
+		} );
+	} );
 } );

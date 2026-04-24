@@ -275,6 +275,47 @@ describe( 'parse-wikitext', () => {
 		expect( result.content[ 0 ].text ).toBe( 'HTML:\n<p>x</p>' );
 	} );
 
+	it( 'truncates HTML over 50000 bytes with a marker between HTML and subsequent metadata blocks', async () => {
+		const bigHtml = '<p>' + 'x'.repeat( 60000 ) + '</p>';
+		const mock = createMockMwn( {
+			request: vi.fn().mockResolvedValue( {
+				parse: {
+					text: bigHtml,
+					parsewarnings: [],
+					categories: [ { sortkey: '', category: 'Foo' } ]
+				}
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
+		const result = await handleParseWikitextTool( 'x', undefined, true );
+
+		expect( result.content ).toHaveLength( 3 );
+		expect( result.content[ 0 ].text!.startsWith( 'HTML:\n' ) ).toBe( true );
+		expect( result.content[ 0 ].text ).toHaveLength( 'HTML:\n'.length + 50000 );
+		expect( result.content[ 1 ].text ).toContain( 'Content truncated at 50000 of 60007 bytes' );
+		expect( result.content[ 1 ].text ).toContain( 'render a smaller wikitext fragment' );
+		expect( result.content[ 1 ].text ).not.toContain( 'Available sections' );
+		expect( result.content[ 2 ].text!.startsWith( 'Categories:' ) ).toBe( true );
+	} );
+
+	it( 'does not emit a marker for HTML at exactly 50000 bytes', async () => {
+		const exact = 'y'.repeat( 50000 );
+		const mock = createMockMwn( {
+			request: vi.fn().mockResolvedValue( {
+				parse: { text: exact, parsewarnings: [] }
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
+		const result = await handleParseWikitextTool( 'x', undefined, true );
+
+		expect( result.content ).toHaveLength( 1 );
+		expect( result.content[ 0 ].text ).toBe( `HTML:\n${ exact }` );
+	} );
+
 	it( 'emits sections in order: warnings, HTML, displaytitle, categories, links, templates, externallinks', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
