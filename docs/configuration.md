@@ -123,9 +123,7 @@ Any MCP client that supports HTTP transport authentication can be configured to 
 
 **Precedence**: request header → `config.json` `token` → `config.json` `username`/`password` → anonymous. When no `Authorization` header is present, the server falls back to the static credentials in `config.json`, preserving existing behaviour.
 
-Each request builds an independent MediaWiki session using the supplied token. Token rotation and revocation take effect immediately on the next request.
-
-**Session-to-bearer binding.** On the Streamable HTTP transport, the server binds each MCP session ID to the bearer token present on the `initialize` request (a SHA-256 hash of the token is stored; the token itself is not). Subsequent requests reusing that session ID must carry the same bearer, or the server replies with a 401 JSON-RPC error. Switching tokens mid-session requires starting a fresh session (omit `mcp-session-id` and re-send `initialize`). Sessions that initialize with no `Authorization` header remain unbound and must continue to send no header.
+Each request builds an independent MediaWiki session using the supplied token. Token rotation and revocation take effect on the next MCP session started with the new token.
 
 Example configuration with Claude Code:
 
