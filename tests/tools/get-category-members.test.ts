@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
+import { CategoryMemberSchema, TruncationSchema } from '../../src/common/schemas.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
 vi.mock( '../../src/common/wikiService.js', () => ( {
@@ -12,10 +14,20 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
-import { assertStructuredError } from '../helpers/structuredResult.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess
+} from '../helpers/structuredResult.js';
+
+const CategoryMembersSchema = z.object( {
+	members: z.array( CategoryMemberSchema ),
+	truncation: TruncationSchema.optional()
+} );
 
 describe( 'get-category-members', () => {
-	beforeEach( () => { vi.clearAllMocks(); } );
+	beforeEach( () => {
+		vi.clearAllMocks();
+	} );
 
 	it( 'prefixes a bare category name with "Category:" for cmtitle', async () => {
 		const mock = createMockMwn( {
@@ -70,7 +82,7 @@ describe( 'get-category-members', () => {
 		} );
 	} );
 
-	it( 'returns each member as a text block', async () => {
+	it( 'returns each member as a structured entry', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { categorymembers: [
@@ -84,13 +96,15 @@ describe( 'get-category-members', () => {
 		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
 		const result = await handleGetCategoryMembersTool( 'Foo' );
 
-		expect( result.content ).toHaveLength( 2 );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Page ID: 1' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Title: Alpha' );
-		expect( ( result.content[ 1 ] as { text: string } ).text ).toContain( 'Namespace: 6' );
+		const data = assertStructuredSuccess( result, CategoryMembersSchema );
+		expect( data.members ).toEqual( [
+			{ title: 'Alpha', pageId: 1, namespace: 0 },
+			{ title: 'File:Bar.png', pageId: 2, namespace: 6 }
+		] );
+		expect( data.truncation ).toBeUndefined();
 	} );
 
-	it( 'appends a more-available marker with a double-quoted continueFrom cursor', async () => {
+	it( 'attaches a more-available truncation with the continueFrom cursor', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { categorymembers: [ { pageid: 1, ns: 0, title: 'A' } ] },
@@ -102,13 +116,17 @@ describe( 'get-category-members', () => {
 		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
 		const result = await handleGetCategoryMembersTool( 'Foo' );
 
-		const last = result.content[ result.content.length - 1 ] as { text: string };
-		expect( last.text ).toBe(
-			'More results available. Returned 1 members. To fetch the next segment, call get-category-members again with continueFrom="page|DOE|456".'
-		);
+		const data = assertStructuredSuccess( result, CategoryMembersSchema );
+		expect( data.truncation ).toEqual( {
+			reason: 'more-available',
+			returnedCount: 1,
+			itemNoun: 'members',
+			toolName: 'get-category-members',
+			continueWith: { param: 'continueFrom', value: 'page|DOE|456' }
+		} );
 	} );
 
-	it( 'does not append a marker when response.continue is absent', async () => {
+	it( 'omits truncation when response.continue is absent', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { categorymembers: [ { pageid: 1, ns: 0, title: 'A' } ] }
@@ -119,9 +137,8 @@ describe( 'get-category-members', () => {
 		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
 		const result = await handleGetCategoryMembersTool( 'Foo' );
 
-		for ( const block of result.content ) {
-			expect( ( block as { text: string } ).text ).not.toContain( 'More results available' );
-		}
+		const data = assertStructuredSuccess( result, CategoryMembersSchema );
+		expect( data.truncation ).toBeUndefined();
 	} );
 
 	it( 'surfaces errors as isError results', async () => {
