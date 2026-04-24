@@ -1,15 +1,20 @@
 #!/usr/bin/env node
 
 import { randomUUID } from 'node:crypto';
-import { Request, Response } from 'express';
+import express, { type RequestHandler, type Request, type Response } from 'express';
 /* eslint-disable n/no-missing-import */
-import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
+import {
+	hostHeaderValidation,
+	localhostHostValidation
+} from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { createServer } from './server.js';
 import { resolveHttpConfig } from './common/httpConfig.js';
 import { runtimeTokenStore } from './common/requestContext.js';
+
+const LOCALHOST_HOSTS = [ '127.0.0.1', 'localhost', '::1' ];
 
 export function extractBearerToken( req: Request ): string | undefined {
 	const raw = req.headers.authorization;
@@ -24,8 +29,34 @@ export function extractBearerToken( req: Request ): string | undefined {
 	return token || undefined;
 }
 
+export function resolveMcpHostValidation(
+	host: string,
+	allowedHosts: string[] | undefined
+): RequestHandler | undefined {
+	if ( allowedHosts ) {
+		return hostHeaderValidation( allowedHosts );
+	}
+	if ( LOCALHOST_HOSTS.includes( host ) ) {
+		return localhostHostValidation();
+	}
+	if ( host === '0.0.0.0' || host === '::' ) {
+		console.warn(
+			`Warning: Server is binding to ${ host } without DNS rebinding protection. ` +
+			'Set MCP_ALLOWED_HOSTS to restrict allowed Host-header values, ' +
+			'or use authentication to protect your server.'
+		);
+	}
+	return undefined;
+}
+
 const { host, port, allowedHosts } = resolveHttpConfig();
-const app = createMcpExpressApp( { host, allowedHosts } );
+const app = express();
+app.use( express.json() );
+
+const hostValidation = resolveMcpHostValidation( host, allowedHosts );
+if ( hostValidation ) {
+	app.use( '/mcp', hostValidation );
+}
 
 const transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
 
