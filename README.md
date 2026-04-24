@@ -18,6 +18,7 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | `get-page` | Fetch a wiki page. | - |
 | `get-page-history` | List recent revisions of a wiki page. | - |
 | `get-pages` | Fetch multiple wiki pages in one call (up to 50). | - |
+| `get-recent-changes` | List recent change events across the wiki, filterable by timestamp, namespace, user, tag, type, and hide flags (up to 50 per call, paginated via `continue`). | - |
 | `get-revision` | Fetch a specific revision of a page. | - |
 | `parse-wikitext` | Render wikitext to HTML without saving. Returns parse warnings, wikilinks, templates, and external URLs. | - |
 | `remove-wiki` | Remove a wiki resource. Disabled when `allowWikiManagement` is `false`. | - |
