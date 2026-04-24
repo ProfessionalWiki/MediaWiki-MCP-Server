@@ -228,4 +228,60 @@ describe( 'update-page', () => {
 			expect( result.content[ 0 ].text ).toContain( 'sectionTitle is only valid when section=\'new\'' );
 		} );
 	} );
+
+	describe( 'append/prepend mode', () => {
+		it( 'mode=append sends appendtext=source and omits text', async () => {
+			const mock = mockEdit();
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			await handleUpdatePageTool( {
+				title: 'My Page', source: '\n* New entry', mode: 'append'
+			} );
+
+			const params = mock.request.mock.calls[ 0 ][ 0 ];
+			expect( params ).toMatchObject( { appendtext: '\n* New entry' } );
+			expect( params ).not.toHaveProperty( 'text' );
+			expect( params ).not.toHaveProperty( 'prependtext' );
+		} );
+
+		it( 'mode=prepend sends prependtext=source and omits text', async () => {
+			const mock = mockEdit();
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			await handleUpdatePageTool( {
+				title: 'My Page', source: 'intro\n', mode: 'prepend'
+			} );
+
+			const params = mock.request.mock.calls[ 0 ][ 0 ];
+			expect( params ).toMatchObject( { prependtext: 'intro\n' } );
+			expect( params ).not.toHaveProperty( 'text' );
+			expect( params ).not.toHaveProperty( 'appendtext' );
+		} );
+
+		it( 'mode=append composes with section=2', async () => {
+			const mock = mockEdit();
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			await handleUpdatePageTool( {
+				title: 'My Page', source: '\n* row', section: 2, mode: 'append'
+			} );
+
+			const params = mock.request.mock.calls[ 0 ][ 0 ];
+			expect( params ).toMatchObject( { section: '2', appendtext: '\n* row' } );
+			expect( params ).not.toHaveProperty( 'text' );
+		} );
+
+		it( 'rejects mode combined with section=\'new\'', async () => {
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			const result = await handleUpdatePageTool( {
+				title: 'My Page', source: 'body', section: 'new', sectionTitle: 'History', mode: 'append'
+			} );
+
+			expect( result.isError ).toBe( true );
+			expect( result.content[ 0 ].text ).toContain( 'mode is not compatible with section=\'new\'' );
+		} );
+	} );
 } );

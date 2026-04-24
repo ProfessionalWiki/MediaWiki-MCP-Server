@@ -13,6 +13,7 @@ interface UpdatePageArgs {
 	latestId?: number;
 	comment?: string;
 	section?: number | 'new';
+	mode?: 'append' | 'prepend';
 	sectionTitle?: string;
 }
 
@@ -39,6 +40,7 @@ export function updatePageTool( server: McpServer ): RegisteredTool {
 				z.number().int().nonnegative(),
 				z.literal( 'new' )
 			] ).optional().describe( 'Section number to edit (0 = lead; 1..N = existing heading sections) or \'new\' to append a new heading section. When set, source is interpreted as that section\'s content only.' ),
+			mode: z.enum( [ 'append', 'prepend' ] ).optional().describe( 'Treat source as a delta appended to the end (\'append\') or prepended to the start (\'prepend\') of the existing content, rather than replacing it. Each mode=append/prepend call is its own revision.' ),
 			sectionTitle: z.string().optional().describe( 'Heading for a new section; required when section=\'new\', rejected otherwise.' )
 		},
 		{
@@ -62,8 +64,11 @@ function errorResult( text: string ): CallToolResult {
 export async function handleUpdatePageTool(
 	args: UpdatePageArgs
 ): Promise<CallToolResult> {
-	const { title, source, latestId, comment, section, sectionTitle } = args;
+	const { title, source, latestId, comment, section, mode, sectionTitle } = args;
 
+	if ( section === 'new' && mode !== undefined ) {
+		return errorResult( 'mode is not compatible with section=\'new\'' );
+	}
 	if ( section === 'new' && sectionTitle === undefined ) {
 		return errorResult( 'sectionTitle is required when section=\'new\'' );
 	}
@@ -78,12 +83,18 @@ export async function handleUpdatePageTool(
 		const params: Record<string, string | number | boolean | string[]> = {
 			action: 'edit',
 			title,
-			text: source,
 			summary: formatEditComment( 'update-page', comment ),
 			nocreate: true,
 			token,
 			formatversion: '2'
 		};
+		if ( mode === 'append' ) {
+			params.appendtext = source;
+		} else if ( mode === 'prepend' ) {
+			params.prependtext = source;
+		} else {
+			params.text = source;
+		}
 		if ( latestId !== undefined ) {
 			params.baserevid = latestId;
 		}
