@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 /* eslint-disable n/no-missing-import */
 import type { TextContent } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
@@ -6,7 +6,7 @@ import {
 	truncationMarker,
 	appendTruncationMarker,
 	truncateByBytes,
-	CONTENT_MAX_BYTES,
+	DEFAULT_CONTENT_MAX_BYTES,
 	type TruncationInfo
 } from '../../src/common/truncation.js';
 
@@ -96,9 +96,41 @@ describe( 'truncationMarker', () => {
 	} );
 } );
 
-describe( 'CONTENT_MAX_BYTES', () => {
+describe( 'DEFAULT_CONTENT_MAX_BYTES', () => {
 	it( 'is exported and equals 50000', () => {
-		expect( CONTENT_MAX_BYTES ).toBe( 50000 );
+		expect( DEFAULT_CONTENT_MAX_BYTES ).toBe( 50000 );
+	} );
+} );
+
+describe( 'MCP_CONTENT_MAX_BYTES env var', () => {
+	afterEach( () => {
+		vi.unstubAllEnvs();
+	} );
+
+	it( 'overrides the default when set to a positive integer', () => {
+		vi.stubEnv( 'MCP_CONTENT_MAX_BYTES', '100' );
+		const result = truncateByBytes( 'x'.repeat( 500 ) );
+		expect( result.truncated ).toBe( true );
+		expect( result.returnedBytes ).toBe( 100 );
+		expect( result.totalBytes ).toBe( 500 );
+	} );
+
+	it( 'falls back to the default when set to a non-numeric value', () => {
+		vi.stubEnv( 'MCP_CONTENT_MAX_BYTES', 'nope' );
+		const result = truncateByBytes( 'x'.repeat( DEFAULT_CONTENT_MAX_BYTES + 1 ) );
+		expect( result.returnedBytes ).toBe( DEFAULT_CONTENT_MAX_BYTES );
+	} );
+
+	it( 'falls back to the default when set to zero or negative', () => {
+		vi.stubEnv( 'MCP_CONTENT_MAX_BYTES', '0' );
+		const result = truncateByBytes( 'x'.repeat( DEFAULT_CONTENT_MAX_BYTES + 1 ) );
+		expect( result.returnedBytes ).toBe( DEFAULT_CONTENT_MAX_BYTES );
+	} );
+
+	it( 'falls back to the default when set to an empty string', () => {
+		vi.stubEnv( 'MCP_CONTENT_MAX_BYTES', '' );
+		const result = truncateByBytes( 'x'.repeat( DEFAULT_CONTENT_MAX_BYTES + 1 ) );
+		expect( result.returnedBytes ).toBe( DEFAULT_CONTENT_MAX_BYTES );
 	} );
 } );
 
@@ -127,12 +159,12 @@ describe( 'truncateByBytes', () => {
 		expect( result.text.length ).toBe( 100 );
 	} );
 
-	it( 'defaults to CONTENT_MAX_BYTES when no limit is passed', () => {
-		const input = 'x'.repeat( CONTENT_MAX_BYTES + 1 );
+	it( 'defaults to DEFAULT_CONTENT_MAX_BYTES when no limit is passed', () => {
+		const input = 'x'.repeat( DEFAULT_CONTENT_MAX_BYTES + 1 );
 		const result = truncateByBytes( input );
 		expect( result.truncated ).toBe( true );
-		expect( result.returnedBytes ).toBe( CONTENT_MAX_BYTES );
-		expect( result.totalBytes ).toBe( CONTENT_MAX_BYTES + 1 );
+		expect( result.returnedBytes ).toBe( DEFAULT_CONTENT_MAX_BYTES );
+		expect( result.totalBytes ).toBe( DEFAULT_CONTENT_MAX_BYTES + 1 );
 	} );
 
 	it( 'handles a multi-byte UTF-8 character straddling the byte boundary', () => {
