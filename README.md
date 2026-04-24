@@ -283,6 +283,16 @@ See the [Gemini CLI extensions documentation](https://github.com/google-gemini/g
 
 Running the server as a remote HTTP endpoint for other users has its own configuration requirements — see [docs/deployment.md](docs/deployment.md).
 
+## Security
+
+Defaults are safe for single-user use. Before exposing the HTTP transport to others, lock down three things:
+
+- **Trust the proxy, not the header.** The server forwards any `Authorization: Bearer` header straight to MediaWiki — authentication is the reverse proxy's job. Terminate TLS there, and don't expose the MCP port directly on an untrusted network. See [docs/configuration.md — reverse proxy requirements](docs/configuration.md#reverse-proxy-requirements).
+- **Pair `MCP_BIND` with `MCP_ALLOWED_HOSTS`.** The HTTP transport binds to `127.0.0.1` by default. When you open it up with `MCP_BIND=0.0.0.0`, always set `MCP_ALLOWED_HOSTS` to the hostnames your proxy forwards — that's what blocks DNS-rebinding attacks.
+- **Uploads are opt-in.** `upload-file` is disabled until you list allowed directories in `uploadDirs` or `MCP_UPLOAD_DIRS`. See [docs/configuration.md — upload directories](docs/configuration.md#upload-directories).
+
+Report a vulnerability via GitHub's [security advisory form](https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/security/advisories/new) — full policy in [SECURITY.md](SECURITY.md).
+
 ## Contributing
 
 Contributions are welcome — pull requests and issues (bugs, feature requests, suggestions) both work.
