@@ -7,13 +7,14 @@ import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { ApiUploadResponse } from 'mwn';
 import { getMwn } from '../common/mwn.js';
 import { wikiService } from '../common/wikiService.js';
+import { assertAllowedPath, UploadValidationError } from '../common/uploadGuard.js';
 import { formatEditComment } from '../common/utils.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 
 export function uploadFileTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'upload-file',
-		'Uploads a file from the local disk into the wiki\'s File namespace and returns the resulting file title and URL. Fails if a file with the target title already exists (the wiki does not silently overwrite existing files). To upload directly from a remote web address instead of a local path, use upload-file-from-url.',
+		'Uploads a file from the local disk into the wiki\'s File namespace and returns the resulting file title and URL. The operator restricts which directories are readable; filepath must be an absolute path inside a configured upload directory, or the call fails before contacting the wiki. Fails if a file with the target title already exists (the wiki does not silently overwrite existing files). To upload directly from a remote web address instead of a local path, use upload-file-from-url.',
 		{
 			filepath: z.string().describe( 'File path on the local disk' ),
 			title: z.string().describe( 'File title (with or without the "File:" prefix)' ),
@@ -37,10 +38,21 @@ export async function handleUploadFileTool(
 	filepath: string, title: string, text: string, comment?: string
 ): Promise< CallToolResult > {
 
+	let resolvedPath: string;
+	try {
+		resolvedPath = await assertAllowedPath( filepath, wikiService.getUploadDirs() );
+	} catch ( error ) {
+		if ( error instanceof UploadValidationError ) {
+			return errorResult( 'invalid_input', `Failed to upload file: ${ error.message }` );
+		}
+		const { category } = classifyError( error );
+		return errorResult( category, `Failed to upload file: ${ ( error as Error ).message }` );
+	}
+
 	let data: ApiUploadResponse;
 	try {
 		const mwn = await getMwn();
-		data = await mwn.upload( filepath, title, text, getApiUploadParams( comment ) );
+		data = await mwn.upload( resolvedPath, title, text, getApiUploadParams( comment ) );
 	} catch ( error ) {
 		const { category } = classifyError( error );
 		return errorResult( category, `Failed to upload file: ${ ( error as Error ).message }` );

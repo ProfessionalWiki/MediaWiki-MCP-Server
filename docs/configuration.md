@@ -88,6 +88,29 @@ Accepts a string or an array of strings:
 }
 ```
 
+## Upload directories
+
+The `upload-file` tool reads local files from the server's filesystem. Uploads are **disabled by default**: the operator must explicitly allowlist one or more directories. Every `upload-file` call returns an error until at least one directory is configured.
+
+Enable uploads by setting one or both of:
+
+- **`MCP_UPLOAD_DIRS` env var** — colon-separated list of absolute paths. Example: `MCP_UPLOAD_DIRS=/home/user/uploads:/var/lib/wiki-uploads`.
+- **`uploadDirs` in `config.json`** — array of absolute paths at the top level:
+
+```json
+{
+  "defaultWiki": "my.wiki.org",
+  "uploadDirs": ["/home/user/uploads", "/var/lib/wiki-uploads"],
+  "wikis": { "my.wiki.org": { "...": "..." } }
+}
+```
+
+Entries from both sources are merged. Each entry is canonicalised with `fs.realpathSync` at startup — if an entry doesn't exist or isn't an absolute path, the server fails to start with a specific error.
+
+At upload time, the supplied `filepath` must be absolute, must exist, and its symlink-resolved form must sit inside one of the configured directories. Symlinks are followed *before* the allowlist check, so a symlink pointing outside the allowlist is rejected. `..` traversal is also rejected. The resolved (canonical) path — not the caller-supplied one — is what gets uploaded.
+
+> Dynamic client-supplied allow-listing via the MCP Roots protocol is a planned follow-up; today the allowlist is static at startup.
+
 ## Per-request bearer token (HTTP transport)
 
 When using the Streamable HTTP transport (`MCP_TRANSPORT=http`), the server accepts a standard OAuth 2.1 `Authorization: Bearer` header on each request, as described in the [MCP authorization specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization):
