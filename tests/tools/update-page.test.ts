@@ -143,4 +143,42 @@ describe( 'update-page', () => {
 			expect( mock.request.mock.calls[ 0 ][ 0 ] ).not.toHaveProperty( 'tags' );
 		} );
 	} );
+
+	describe( 'section editing', () => {
+		it( 'forwards section=2 as section=\'2\' with text=source', async () => {
+			const mock = mockEdit();
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			const result = await handleUpdatePageTool( {
+				title: 'My Page', source: 'new section body', section: 2
+			} );
+
+			expect( result.isError ).toBeUndefined();
+			const params = mock.request.mock.calls[ 0 ][ 0 ];
+			expect( params ).toMatchObject( { section: '2', text: 'new section body' } );
+		} );
+
+		it( 'forwards section=0 (lead) as section=\'0\'', async () => {
+			const mock = mockEdit();
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			await handleUpdatePageTool( { title: 'My Page', source: 'lead', section: 0 } );
+
+			expect( mock.request.mock.calls[ 0 ][ 0 ] ).toMatchObject( { section: '0' } );
+		} );
+
+		it( 'maps nosuchsection error to a friendly message', async () => {
+			const mock = mockEdit();
+			mock.request = vi.fn().mockRejectedValue( new Error( 'nosuchsection: There is no section 99.' ) );
+			vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
+			const result = await handleUpdatePageTool( { title: 'My Page', source: 'x', section: 99 } );
+
+			expect( result.isError ).toBe( true );
+			expect( result.content[ 0 ].text ).toBe( 'Section 99 does not exist' );
+		} );
+	} );
 } );

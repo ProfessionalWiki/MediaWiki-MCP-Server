@@ -12,6 +12,7 @@ interface UpdatePageArgs {
 	source: string;
 	latestId?: number;
 	comment?: string;
+	section?: number;
 }
 
 interface ApiEditResponse {
@@ -29,9 +30,10 @@ export function updatePageTool( server: McpServer ): RegisteredTool {
 		'Replaces the existing content of a wiki page and returns the new revision ID. Fails if the page does not exist; for new pages, use create-page. Pass latestId (obtained from get-page with metadata=true) to enable edit-conflict detection: if the page has been edited since that revision, the update is rejected rather than silently clobbering concurrent changes.',
 		{
 			title: z.string().describe( 'Wiki page title' ),
-			source: z.string().describe( 'Replacement page content in the existing page\'s content model' ),
+			source: z.string().describe( 'Replacement content in the existing page\'s content model. Interpreted as that section\'s content only when section is set.' ),
 			latestId: z.number().int().positive().optional().describe( 'Base revision ID for edit-conflict detection; obtain from get-page with metadata=true. If omitted, the update is applied without conflict detection.' ),
-			comment: z.string().optional().describe( 'Summary of the edit' )
+			comment: z.string().optional().describe( 'Summary of the edit' ),
+			section: z.number().int().nonnegative().optional().describe( 'Section number to edit (0 = lead; 1..N = existing heading sections). When set, source is interpreted as that section\'s content only.' )
 		},
 		{
 			title: 'Update page',
@@ -54,7 +56,7 @@ function errorResult( text: string ): CallToolResult {
 export async function handleUpdatePageTool(
 	args: UpdatePageArgs
 ): Promise<CallToolResult> {
-	const { title, source, latestId, comment } = args;
+	const { title, source, latestId, comment, section } = args;
 
 	try {
 		const mwn = await getMwn();
@@ -76,6 +78,10 @@ export async function handleUpdatePageTool(
 		const { config } = wikiService.getCurrent();
 		if ( config.tags !== null && config.tags !== undefined ) {
 			params.tags = config.tags;
+		}
+
+		if ( section !== undefined ) {
+			params.section = String( section );
 		}
 
 		const response = await mwn.request( params );
@@ -107,6 +113,10 @@ export async function handleUpdatePageTool(
 			]
 		};
 	} catch ( error ) {
-		return errorResult( `Failed to update page: ${ ( error as Error ).message }` );
+		const msg = ( error as Error ).message;
+		if ( /nosuchsection/i.test( msg ) ) {
+			return errorResult( `Section ${ section } does not exist` );
+		}
+		return errorResult( `Failed to update page: ${ msg }` );
 	}
 }
