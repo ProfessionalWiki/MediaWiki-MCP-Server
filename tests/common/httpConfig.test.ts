@@ -62,6 +62,16 @@ describe( 'resolveHttpConfig', () => {
 			expect( resolveHttpConfig().port ).toBe( 3000 );
 		} );
 
+		it( 'accepts PORT at the 65535 upper boundary', () => {
+			vi.stubEnv( 'PORT', '65535' );
+			expect( resolveHttpConfig().port ).toBe( 65535 );
+		} );
+
+		it( 'defaults to 3000 when PORT is 65536 (one above the upper boundary)', () => {
+			vi.stubEnv( 'PORT', '65536' );
+			expect( resolveHttpConfig().port ).toBe( 3000 );
+		} );
+
 		it( 'defaults to 3000 when PORT exceeds 65535', () => {
 			vi.stubEnv( 'PORT', '99999' );
 			expect( resolveHttpConfig().port ).toBe( 3000 );
