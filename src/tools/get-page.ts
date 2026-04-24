@@ -185,11 +185,12 @@ export async function handleGetPageTool(
 				payload.html = truncated.text;
 
 				if ( payload.title === undefined ) {
-					payload.title = parseResult.parse?.title ?? title;
+					const resolvedTitle: string = parseResult.parse?.title ?? title;
+					payload.title = resolvedTitle;
 					if ( parseResult.parse?.pageid !== undefined ) {
 						payload.pageId = parseResult.parse.pageid;
 					}
-					payload.url = getPageUrl( payload.title );
+					payload.url = getPageUrl( resolvedTitle );
 				}
 
 				if ( truncated.truncated ) {
