@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
+import { PageMetadataSchema } from '../../src/common/schemas.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
 vi.mock( '../../src/common/wikiService.js', () => ( {
@@ -13,7 +14,10 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 
 import { getMwn } from '../../src/common/mwn.js';
 import { wikiService } from '../../src/common/wikiService.js';
-import { assertStructuredError } from '../helpers/structuredResult.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess
+} from '../helpers/structuredResult.js';
 
 describe( 'create-page', () => {
 	beforeEach( () => { vi.clearAllMocks(); } );
@@ -31,8 +35,15 @@ describe( 'create-page', () => {
 		const { handleCreatePageTool } = await import( '../../src/tools/create-page.js' );
 		const result = await handleCreatePageTool( 'Hello', 'New Page', 'test', 'wikitext' );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content[ 0 ].text ).toContain( 'Page created successfully' );
+		const data = assertStructuredSuccess( result, PageMetadataSchema );
+		expect( data ).toEqual( {
+			pageId: 10,
+			title: 'New Page',
+			latestRevisionId: 1,
+			latestRevisionTimestamp: '2026-01-01T00:00:00Z',
+			contentModel: 'wikitext',
+			url: 'https://test.wiki/wiki/New_Page'
+		} );
 		expect( mock.create ).toHaveBeenCalledWith(
 			'New Page', 'Hello',
 			expect.stringContaining( 'test' ),
