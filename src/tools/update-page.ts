@@ -29,7 +29,7 @@ interface ApiEditResponse {
 export function updatePageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'update-page',
-		'Replaces the existing content of a wiki page and returns the new revision ID. Fails if the page does not exist; for new pages, use create-page. Pass latestId (obtained from get-page with metadata=true) to enable edit-conflict detection: if the page has been edited since that revision, the update is rejected rather than silently clobbering concurrent changes.',
+		'Replaces the existing content of a wiki page and returns the new revision ID. Fails if the page does not exist; for new pages, use create-page. Pass latestId (obtained from get-page with metadata=true) to enable edit-conflict detection: if the page has been edited since that revision, the update is rejected rather than silently clobbering concurrent changes. For large pages, section=N updates a single section (paired with get-page section=N for reads), section=\'new\' appends a new heading section (sectionTitle required), and mode=append/prepend sends only the new text instead of the full page source. Each call is a separate revision; a failed chunk in a chain leaves a partially-updated page — re-fetching latestId between chained calls preserves conflict detection.',
 		{
 			title: z.string().describe( 'Wiki page title' ),
 			source: z.string().describe( 'Replacement content in the existing page\'s content model. Interpreted as that section\'s content only when section is set.' ),
