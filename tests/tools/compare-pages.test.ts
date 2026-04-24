@@ -155,7 +155,7 @@ describe( 'compare-pages', () => {
 		const result = await handleComparePagesTool( { toRevision: 57 } );
 		expect( result.isError ).toBe( true );
 		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'Must supply exactly one of fromRevision, fromTitle, fromText'
+			'invalid_input: Must supply exactly one of fromRevision, fromTitle, fromText'
 		);
 	} );
 
@@ -165,7 +165,7 @@ describe( 'compare-pages', () => {
 		} );
 		expect( result.isError ).toBe( true );
 		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'Only one of fromRevision, fromTitle, fromText may be supplied'
+			'invalid_input: Only one of fromRevision, fromTitle, fromText may be supplied'
 		);
 	} );
 
@@ -175,7 +175,7 @@ describe( 'compare-pages', () => {
 		} );
 		expect( result.isError ).toBe( true );
 		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'Cannot compare supplied text against supplied text'
+			'invalid_input: Cannot compare supplied text against supplied text'
 		);
 	} );
 
@@ -188,7 +188,7 @@ describe( 'compare-pages', () => {
 		} );
 
 		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe( 'Revision 99999 not found' );
+		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe( 'not_found: Revision 99999 not found' );
 	} );
 
 	it( 'maps missingtitle errors to a friendly message', async () => {
@@ -200,7 +200,7 @@ describe( 'compare-pages', () => {
 		} );
 
 		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe( 'Page "Nope" not found' );
+		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe( 'not_found: Page "Nope" not found' );
 	} );
 
 	it( 'returns a generic error message for other API failures', async () => {
@@ -213,7 +213,7 @@ describe( 'compare-pages', () => {
 
 		expect( result.isError ).toBe( true );
 		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'Failed to compare pages: Connection refused'
+			'upstream_failure: Failed to compare pages: Connection refused'
 		);
 	} );
 
@@ -223,7 +223,7 @@ describe( 'compare-pages', () => {
 		} );
 		expect( result.isError ).toBe( true );
 		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'Only one of toRevision, toTitle, toText may be supplied'
+			'invalid_input: Only one of toRevision, toTitle, toText may be supplied'
 		);
 	} );
 
@@ -275,7 +275,7 @@ describe( 'compare-pages', () => {
 
 		expect( result.isError ).toBe( true );
 		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'Failed to compare pages: no compare result returned'
+			'upstream_failure: Failed to compare pages: no compare result returned'
 		);
 	} );
 
@@ -288,7 +288,7 @@ describe( 'compare-pages', () => {
 		} );
 
 		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe( 'Revision 99999 not found' );
+		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe( 'not_found: Revision 99999 not found' );
 	} );
 
 	it( 'parses the correct title when missingtitle message quotes it', async () => {
@@ -300,7 +300,7 @@ describe( 'compare-pages', () => {
 		} );
 
 		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe( 'Page "Bar" not found' );
+		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe( 'not_found: Page "Bar" not found' );
 	} );
 
 	it( 'truncates oversized diff body with a content-truncated marker', async () => {
