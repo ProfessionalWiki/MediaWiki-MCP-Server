@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
+import { TruncationSchema } from '../../src/common/schemas.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
 vi.mock( '../../src/common/wikiService.js', () => ( {
@@ -12,10 +14,24 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
-import { assertStructuredError } from '../helpers/structuredResult.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess
+} from '../helpers/structuredResult.js';
+
+const PrefixResultsSchema = z.object( {
+	results: z.array( z.object( {
+		title: z.string(),
+		pageId: z.number().int().nonnegative(),
+		namespace: z.number().int().nonnegative()
+	} ) ),
+	truncation: TruncationSchema.optional()
+} );
 
 describe( 'search-page-by-prefix', () => {
-	beforeEach( () => { vi.clearAllMocks(); } );
+	beforeEach( () => {
+		vi.clearAllMocks();
+	} );
 
 	it( 'calls action=query&list=allpages with apprefix and aplimit', async () => {
 		const mock = createMockMwn( {
@@ -38,7 +54,7 @@ describe( 'search-page-by-prefix', () => {
 		} );
 	} );
 
-	it( 'returns matching titles as text blocks', async () => {
+	it( 'returns matching titles as structured results', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { allpages: [
@@ -52,12 +68,15 @@ describe( 'search-page-by-prefix', () => {
 		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
 		const result = await handleSearchPageByPrefixTool( 'Alph', undefined, undefined );
 
-		expect( result.content ).toHaveLength( 2 );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe( 'Alpha' );
-		expect( ( result.content[ 1 ] as { text: string } ).text ).toBe( 'Alphabet' );
+		const data = assertStructuredSuccess( result, PrefixResultsSchema );
+		expect( data.results ).toEqual( [
+			{ title: 'Alpha', pageId: 1, namespace: 0 },
+			{ title: 'Alphabet', pageId: 2, namespace: 0 }
+		] );
+		expect( data.truncation ).toBeUndefined();
 	} );
 
-	it( 'returns empty-state message when no matches', async () => {
+	it( 'returns an empty results array when no matches', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { allpages: [] }
@@ -68,10 +87,12 @@ describe( 'search-page-by-prefix', () => {
 		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
 		const result = await handleSearchPageByPrefixTool( 'Zzz', undefined, undefined );
 
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'No pages found with the prefix' );
+		const data = assertStructuredSuccess( result, PrefixResultsSchema );
+		expect( data.results ).toEqual( [] );
+		expect( data.truncation ).toBeUndefined();
 	} );
 
-	it( 'appends a capped marker when response.continue is present', async () => {
+	it( 'attaches a capped-no-continuation truncation when response.continue is present', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { allpages: [ { pageid: 1, ns: 0, title: 'A' } ] },
@@ -83,13 +104,16 @@ describe( 'search-page-by-prefix', () => {
 		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
 		const result = await handleSearchPageByPrefixTool( 'A', 10, undefined );
 
-		const last = result.content[ result.content.length - 1 ] as { text: string };
-		expect( last.text ).toBe(
-			'Result capped at 10 titles. Additional titles may exist — narrow the prefix or raise limit (max 500).'
-		);
+		const data = assertStructuredSuccess( result, PrefixResultsSchema );
+		expect( data.truncation ).toMatchObject( {
+			reason: 'capped-no-continuation',
+			returnedCount: 1,
+			limit: 10,
+			itemNoun: 'titles'
+		} );
 	} );
 
-	it( 'does not append a marker when response.continue is absent', async () => {
+	it( 'omits truncation when response.continue is absent', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { allpages: [ { pageid: 1, ns: 0, title: 'A' } ] }
@@ -100,9 +124,8 @@ describe( 'search-page-by-prefix', () => {
 		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
 		const result = await handleSearchPageByPrefixTool( 'A', undefined, undefined );
 
-		for ( const block of result.content ) {
-			expect( ( block as { text: string } ).text ).not.toContain( 'Result capped' );
-		}
+		const data = assertStructuredSuccess( result, PrefixResultsSchema );
+		expect( data.truncation ).toBeUndefined();
 	} );
 
 	it( 'surfaces errors as isError results', async () => {
