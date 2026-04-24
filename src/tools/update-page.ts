@@ -2,11 +2,26 @@ import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
-import type { ApiEditPageParams } from 'types-mediawiki-api';
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import { wikiService } from '../common/wikiService.js';
 import { getPageUrl, formatEditComment } from '../common/utils.js';
+
+interface UpdatePageArgs {
+	title: string;
+	source: string;
+	latestId?: number;
+	comment?: string;
+}
+
+interface ApiEditResponse {
+	result?: string;
+	pageid?: number;
+	title?: string;
+	newrevid?: number;
+	newtimestamp?: string;
+	contentmodel?: string;
+}
 
 export function updatePageTool( server: McpServer ): RegisteredTool {
 	return server.tool(
@@ -25,62 +40,73 @@ export function updatePageTool( server: McpServer ): RegisteredTool {
 			idempotentHint: true,
 			openWorldHint: true
 		} as ToolAnnotations,
-		async (
-			{ title, source, latestId, comment }
-		) => handleUpdatePageTool( title, source, latestId, comment )
+		async ( args ) => handleUpdatePageTool( args as UpdatePageArgs )
 	);
 }
 
+function errorResult( text: string ): CallToolResult {
+	return {
+		content: [ { type: 'text', text } as TextContent ],
+		isError: true
+	};
+}
+
 export async function handleUpdatePageTool(
-	title: string,
-	source: string,
-	latestId?: number,
-	comment?: string
+	args: UpdatePageArgs
 ): Promise<CallToolResult> {
+	const { title, source, latestId, comment } = args;
+
 	try {
 		const mwn = await getMwn();
-		// nocreate: fail if the page does not exist, so a mis-typed
-		// title doesn't silently create a new page.
-		const options: ApiEditPageParams = { nocreate: true };
+		const token = await mwn.getCsrfToken();
+
+		const params: Record<string, string | number | boolean | string[]> = {
+			action: 'edit',
+			title,
+			text: source,
+			summary: formatEditComment( 'update-page', comment ),
+			nocreate: true,
+			token,
+			formatversion: '2'
+		};
 		if ( latestId !== undefined ) {
-			options.baserevid = latestId;
+			params.baserevid = latestId;
 		}
+
 		const { config } = wikiService.getCurrent();
 		if ( config.tags !== null && config.tags !== undefined ) {
-			options.tags = config.tags;
+			params.tags = config.tags;
 		}
-		const result = await mwn.save(
-			title, source,
-			formatEditComment( 'update-page', comment ),
-			options
-		);
 
+		const response = await mwn.request( params );
+		const edit = response?.edit as ApiEditResponse | undefined;
+
+		if ( !edit || edit.result !== 'Success' ) {
+			return errorResult( `Failed to update page: ${ JSON.stringify( edit ?? response ) }` );
+		}
+
+		const resolvedTitle = edit.title ?? title;
 		return {
 			content: [
 				{
 					type: 'text',
-					text: `Page updated successfully: ${ getPageUrl( result.title ) }`
+					text: `Page updated successfully: ${ getPageUrl( resolvedTitle ) }`
 				},
 				{
 					type: 'text',
 					text: [
 						'Page object:',
-						`Page ID: ${ result.pageid }`,
-						`Title: ${ result.title }`,
-						`Latest revision ID: ${ result.newrevid }`,
-						`Latest revision timestamp: ${ result.newtimestamp }`,
-						`Content model: ${ result.contentmodel }`,
-						`HTML URL: ${ getPageUrl( result.title ) }`
+						`Page ID: ${ edit.pageid }`,
+						`Title: ${ resolvedTitle }`,
+						`Latest revision ID: ${ edit.newrevid }`,
+						`Latest revision timestamp: ${ edit.newtimestamp }`,
+						`Content model: ${ edit.contentmodel }`,
+						`HTML URL: ${ getPageUrl( resolvedTitle ) }`
 					].join( '\n' )
 				}
 			]
 		};
 	} catch ( error ) {
-		return {
-			content: [
-				{ type: 'text', text: `Failed to update page: ${ ( error as Error ).message }` } as TextContent
-			],
-			isError: true
-		};
+		return errorResult( `Failed to update page: ${ ( error as Error ).message }` );
 	}
 }
