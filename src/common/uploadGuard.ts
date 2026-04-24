@@ -14,9 +14,9 @@ export async function assertAllowedPath(
 ): Promise<string> {
 	if ( allowedDirs.length === 0 ) {
 		throw new UploadValidationError(
-			'this server has no upload directory configured. ' +
-			'Set MCP_UPLOAD_DIRS=/path1:/path2 or add "uploadDirs": ["/path1"] to ' +
-			'config.json to enable uploads.'
+			'uploads are disabled on this server (no upload directories configured). ' +
+			'Ask the operator to set MCP_UPLOAD_DIRS or "uploadDirs" in config.json; ' +
+			'this is not something the model can fix by retrying.'
 		);
 	}
 	if ( !isAbsolute( filepath ) ) {
@@ -30,7 +30,9 @@ export async function assertAllowedPath(
 		resolved = await realpath( filepath );
 	} catch ( err ) {
 		if ( ( err as NodeJS.ErrnoException ).code === 'ENOENT' ) {
-			throw new UploadValidationError( `file not found: ${ filepath }` );
+			throw new UploadValidationError(
+				`file not found at "${ filepath }". Verify the path exists and is inside an allowed upload directory.`
+			);
 		}
 		throw err;
 	}
@@ -41,6 +43,8 @@ export async function assertAllowedPath(
 		}
 	}
 	throw new UploadValidationError(
-		`"${ resolved }" is not allowed by the configured upload directories.`
+		`path "${ resolved }" is outside the allowed upload directories. ` +
+		`Allowed roots: ${ allowedDirs.join( ', ' ) }. ` +
+		'If the caller-supplied path differed, a symlink resolved outside the allowlist.'
 	);
 }

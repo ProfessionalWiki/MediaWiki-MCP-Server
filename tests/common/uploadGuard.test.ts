@@ -46,14 +46,14 @@ describe( 'uploadGuard.assertAllowedPath', () => {
 		vi.mocked( realpath ).mockResolvedValueOnce( '/etc/passwd' );
 		await expect(
 			assertAllowedPath( '/home/user/uploads/link.jpg', [ '/home/user/uploads' ] )
-		).rejects.toThrow( /not allowed/i );
+		).rejects.toThrow( /outside the allowed upload directories/ );
 	} );
 
 	it( 'rejects a `..` traversal whose realpath escapes the allowlist', async () => {
 		vi.mocked( realpath ).mockResolvedValueOnce( '/home/user/secret.key' );
 		await expect(
 			assertAllowedPath( '/home/user/uploads/../secret.key', [ '/home/user/uploads' ] )
-		).rejects.toThrow( /not allowed/i );
+		).rejects.toThrow( /outside the allowed upload directories/ );
 	} );
 
 	it( 'does not match a sibling directory with a similar prefix', async () => {
@@ -63,7 +63,7 @@ describe( 'uploadGuard.assertAllowedPath', () => {
 				'/home/user/uploads-secret/stuff.key',
 				[ '/home/user/uploads' ]
 			)
-		).rejects.toThrow( /not allowed/i );
+		).rejects.toThrow( /outside the allowed upload directories/ );
 	} );
 
 	it( 'accepts when the resolved path equals the allowlist entry exactly', async () => {

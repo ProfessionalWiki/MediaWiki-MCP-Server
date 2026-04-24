@@ -14,7 +14,7 @@ import { classifyError, errorResult } from '../common/errorMapping.js';
 export function uploadFileTool( server: McpServer ): RegisteredTool {
 	return server.tool(
 		'upload-file',
-		'Uploads a file from the local disk into the wiki\'s File namespace and returns the resulting file title and URL. Fails if a file with the target title already exists (the wiki does not silently overwrite existing files). To upload directly from a remote web address instead of a local path, use upload-file-from-url.',
+		'Uploads a file from the local disk into the wiki\'s File namespace and returns the resulting file title and URL. The operator restricts which directories are readable; filepath must be an absolute path inside a configured upload directory, or the call fails before contacting the wiki. Fails if a file with the target title already exists (the wiki does not silently overwrite existing files). To upload directly from a remote web address instead of a local path, use upload-file-from-url.',
 		{
 			filepath: z.string().describe( 'File path on the local disk' ),
 			title: z.string().describe( 'File title (with or without the "File:" prefix)' ),

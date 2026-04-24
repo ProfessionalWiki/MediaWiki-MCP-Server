@@ -274,7 +274,7 @@ function resolveUploadDirs( rawFromConfig: unknown ): readonly string[] {
 			canonical = fs.realpathSync( raw );
 		} catch ( err ) {
 			throw new Error(
-				`Config error: realpath failed for uploadDirs entry "${ raw }": ${ ( err as Error ).message }`
+				`Config error: upload directory "${ raw }" cannot be resolved (${ ( err as Error ).message }). Ensure the directory exists before starting the server.`
 			);
 		}
 		if ( !canonicalised.includes( canonical ) ) {

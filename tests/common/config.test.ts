@@ -336,7 +336,7 @@ describe( 'loadConfigFromFile', () => {
 				uploadDirs: [ '/does/not/exist' ]
 			} );
 			const { loadConfigFromFile } = await import( '../../src/common/config.js' );
-			expect( () => loadConfigFromFile() ).toThrow( /realpath/ );
+			expect( () => loadConfigFromFile() ).toThrow( /cannot be resolved/ );
 		} );
 	} );
 
