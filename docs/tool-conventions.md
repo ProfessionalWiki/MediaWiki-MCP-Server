@@ -192,7 +192,7 @@ Seven categories cover every error a tool emits. The specific message carries de
 | `conflict` | Edit conflict (`latestId` mismatch), `create-page` on existing title, or `upload-file` without overwrite. | Re-read latest state; reconcile; retry. |
 | `authentication` | Credentials missing, invalid, or expired. | Re-authenticate; do not retry as anonymous. |
 | `rate_limited` | The wiki throttled this caller. | Back off and retry. |
-| `upstream_failure` | Unrecognised MediaWiki error, network failure, read-only mode, or any non-`Error` throw. | Retry with caution; surface if persistent. |
+| `upstream_failure` | Unrecognised MediaWiki error, network failure, read-only mode, or any unrecognised throw shape. | Retry with caution; surface if persistent. |
 
 Unrecognised MW error codes map to `upstream_failure` with the raw message passed through, so information isn't lost at the cost of a coarser category.
 
@@ -201,7 +201,7 @@ Worked examples:
 ```
 not_found: Page "Example" not found
 invalid_input: Must supply exactly one of fromRevision, fromTitle, fromText
-upstream_failure: readonly — wiki is currently in read-only mode
+upstream_failure: Failed to create page: The wiki is currently in read-only mode.
 ```
 
 ### This codebase
