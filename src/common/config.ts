@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
+import { logger } from './logger.js';
 
 export interface WikiConfig {
 	/**
@@ -148,8 +149,8 @@ function resolveSecretField(
 			return substituted;
 		}
 		if ( raw !== '' ) {
-			process.stderr.write(
-				`warning: wikis.${ wikiKey }.${ fieldName } contains a plaintext credential. Prefer \${VAR} or an {exec: …} object. See README.\n`
+			logger.warning(
+				`wikis.${ wikiKey }.${ fieldName } contains a plaintext credential. Prefer \${VAR} or an {exec: …} object. See README.`
 			);
 		}
 		return raw;

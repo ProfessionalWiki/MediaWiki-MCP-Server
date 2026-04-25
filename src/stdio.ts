@@ -13,6 +13,9 @@ async function main(): Promise<void> {
 }
 
 main().catch( ( error ) => {
+	// Bootstrap fail-safe: see the equivalent block in src/index.ts. Logger
+	// module not used here intentionally so a logger import failure can't
+	// suppress this path.
 	console.error( 'Server error:', error );
 	throw error;
 } );

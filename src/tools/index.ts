@@ -3,6 +3,7 @@ import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server
 /* eslint-enable n/no-missing-import */
 
 import { wikiService } from '../common/wikiService.js';
+import { logger } from '../common/logger.js';
 
 import { getPageTool } from './get-page.js';
 import { getPagesTool } from './get-pages.js';
@@ -68,14 +69,14 @@ export function registerAllTools(
 			}
 			registered.set( name, tool );
 		} catch ( error ) {
-			console.error( `Error registering tool: ${ ( error as Error ).message }` );
+			logger.error( 'Error registering tool', { error: ( error as Error ).message } );
 		}
 	}
 
 	try {
 		registered.set( 'set-wiki', setWikiTool( server, onActiveWikiChanged ) );
 	} catch ( error ) {
-		console.error( `Error registering tool: ${ ( error as Error ).message }` );
+		logger.error( 'Error registering tool', { error: ( error as Error ).message } );
 	}
 
 	return registered;
