@@ -7,23 +7,16 @@ import {
 import { structuredResult } from '../../src/common/structuredResult.js';
 import { errorResult } from '../../src/common/errorMapping.js';
 
-const TestSchema = z.object( { value: z.number() } );
-
 describe( 'assertStructuredSuccess', () => {
-	it( 'passes and returns typed data on a valid payload', () => {
+	it( 'returns the rendered text on a valid payload', () => {
 		const result = structuredResult( { value: 42 } );
-		const data = assertStructuredSuccess( result, TestSchema );
-		expect( data.value ).toBe( 42 );
-	} );
-
-	it( 'throws when structuredContent violates the schema', () => {
-		const result = structuredResult( { value: 'not a number' } );
-		expect( () => assertStructuredSuccess( result, TestSchema ) ).toThrow();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Value: 42' );
 	} );
 
 	it( 'throws when isError is true', () => {
 		const result = errorResult( 'invalid_input', 'bad' );
-		expect( () => assertStructuredSuccess( result, TestSchema ) ).toThrow();
+		expect( () => assertStructuredSuccess( result, z.string() ) ).toThrow();
 	} );
 } );
 

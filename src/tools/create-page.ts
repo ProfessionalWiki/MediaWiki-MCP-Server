@@ -9,9 +9,6 @@ import { wikiService } from '../common/wikiService.js';
 import { getPageUrl, formatEditComment } from '../common/utils.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
-import { PageMetadataSchema } from '../common/schemas.js';
-
-const outputSchema = PageMetadataSchema.shape;
 
 export function createPageTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
@@ -24,7 +21,6 @@ export function createPageTool( server: McpServer ): RegisteredTool {
 				comment: z.string().optional().describe( 'Reason for creating the page' ),
 				contentModel: z.string().optional().describe( 'Content model of the new page. If omitted, MediaWiki picks the default for the title\'s namespace.' )
 			},
-			outputSchema,
 			annotations: {
 				title: 'Create page',
 				readOnlyHint: false,

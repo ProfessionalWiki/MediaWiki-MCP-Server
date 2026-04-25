@@ -11,12 +11,6 @@ import { structuredResult } from '../common/structuredResult.js';
 
 export type OnActiveWikiChanged = ( activeWiki: Readonly<WikiConfig> ) => void;
 
-const outputSchema = {
-	wikiKey: z.string(),
-	sitename: z.string(),
-	server: z.string()
-};
-
 export function setWikiTool(
 	server: McpServer,
 	onActiveWikiChanged: OnActiveWikiChanged
@@ -28,7 +22,6 @@ export function setWikiTool(
 			inputSchema: {
 				uri: z.string().describe( 'MCP resource URI of the wiki to use (e.g. mcp://wikis/en.wikipedia.org)' )
 			},
-			outputSchema,
 			annotations: {
 				title: 'Set wiki',
 				readOnlyHint: false,

@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
-import { RevisionSummarySchema, TruncationSchema } from '../../src/common/schemas.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
 vi.mock( '../../src/common/wikiService.js', () => ( {
@@ -18,11 +17,6 @@ import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
-
-const PageHistorySchema = z.object( {
-	revisions: z.array( RevisionSummarySchema ),
-	truncation: TruncationSchema.optional()
-} );
 
 describe( 'get-page-history', () => {
 	beforeEach( () => {
@@ -52,16 +46,14 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page' );
 
-		const data = assertStructuredSuccess( result, PageHistorySchema );
-		expect( data.revisions ).toEqual( [ {
-			revisionId: 100,
-			timestamp: '2026-01-01T00:00:00Z',
-			user: 'Admin',
-			userid: 1,
-			comment: 'edit',
-			size: 500,
-			minor: false
-		} ] );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Revision ID: 100' );
+		expect( text ).toContain( 'Timestamp: 2026-01-01T00:00:00Z' );
+		expect( text ).toContain( 'User: Admin' );
+		expect( text ).toContain( 'Userid: 1' );
+		expect( text ).toContain( 'Comment: edit' );
+		expect( text ).toContain( 'Size: 500' );
+		expect( text ).toContain( 'Minor: false' );
 	} );
 
 	it( 'maps olderThan to rvstartid (default rvdir=older) and skips boundary revision', async () => {
@@ -83,8 +75,9 @@ describe( 'get-page-history', () => {
 		expect( call.rvdir ).toBeUndefined();
 		expect( call.rvendid ).toBeUndefined();
 
-		const data = assertStructuredSuccess( result, PageHistorySchema );
-		expect( data.revisions.map( ( r ) => r.revisionId ) ).toEqual( [ 99 ] );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Revision ID: 99' );
+		expect( text ).not.toContain( 'Revision ID: 100' );
 	} );
 
 	it( 'maps newerThan to rvstartid with rvdir=newer', async () => {
@@ -102,8 +95,9 @@ describe( 'get-page-history', () => {
 			expect.objectContaining( { rvstartid: 50, rvdir: 'newer' } )
 		);
 
-		const data = assertStructuredSuccess( result, PageHistorySchema );
-		expect( data.revisions.map( ( r ) => r.revisionId ) ).toEqual( [ 101 ] );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Revision ID: 101' );
+		expect( text ).not.toContain( 'Revision ID: 50' );
 	} );
 
 	it( 'maps filter to rvtag', async () => {
@@ -148,9 +142,9 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page' );
 
-		const data = assertStructuredSuccess( result, PageHistorySchema );
-		expect( data.revisions ).toEqual( [] );
-		expect( data.truncation ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Revisions: (none)' );
+		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
 	it( 'returns full segment of 20 revisions when boundary filters one out', async () => {
@@ -176,10 +170,12 @@ describe( 'get-page-history', () => {
 		expect( mock.request ).toHaveBeenCalledWith(
 			expect.objectContaining( { rvlimit: 21, rvstartid: 100 } )
 		);
-		const data = assertStructuredSuccess( result, PageHistorySchema );
-		expect( data.revisions ).toHaveLength( 20 );
-		expect( data.revisions[ 0 ].revisionId ).toBe( 99 );
-		expect( data.revisions[ 19 ].revisionId ).toBe( 80 );
+		const text = assertStructuredSuccess( result, z.string() );
+		const revIds = ( text.match( /Revision ID: \d+/g ) ?? [] );
+		expect( revIds ).toHaveLength( 20 );
+		expect( text ).toContain( 'Revision ID: 99' );
+		expect( text ).toContain( 'Revision ID: 80' );
+		expect( text ).not.toContain( 'Revision ID: 100' );
 	} );
 
 	it( 'caps result at 20 when boundary revision is not in the returned window', async () => {
@@ -202,8 +198,9 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page', 999 );
 
-		const data = assertStructuredSuccess( result, PageHistorySchema );
-		expect( data.revisions ).toHaveLength( 20 );
+		const text = assertStructuredSuccess( result, z.string() );
+		const revIds = ( text.match( /Revision ID: \d+/g ) ?? [] );
+		expect( revIds ).toHaveLength( 20 );
 	} );
 
 	it( 'uses rvlimit 20 when no boundary is provided', async () => {
@@ -253,14 +250,15 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page' );
 
-		const data = assertStructuredSuccess( result, PageHistorySchema );
-		expect( data.truncation ).toEqual( {
-			reason: 'more-available',
-			returnedCount: 2,
-			itemNoun: 'revisions',
-			toolName: 'get-page-history',
-			continueWith: { param: 'olderThan', value: 99 }
-		} );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Truncation:' );
+		expect( text ).toContain( '  Reason: more-available' );
+		expect( text ).toContain( '  Returned count: 2' );
+		expect( text ).toContain( '  Item noun: revisions' );
+		expect( text ).toContain( '  Tool name: get-page-history' );
+		expect( text ).toContain( '  Continue with:' );
+		expect( text ).toContain( '    Param: olderThan' );
+		expect( text ).toContain( '    Value: 99' );
 	} );
 
 	it( 'attaches a more-available truncation with newerThan when walking forward', async () => {
@@ -278,14 +276,15 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page', undefined, 49 );
 
-		const data = assertStructuredSuccess( result, PageHistorySchema );
-		expect( data.truncation ).toEqual( {
-			reason: 'more-available',
-			returnedCount: 2,
-			itemNoun: 'revisions',
-			toolName: 'get-page-history',
-			continueWith: { param: 'newerThan', value: 60 }
-		} );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Truncation:' );
+		expect( text ).toContain( '  Reason: more-available' );
+		expect( text ).toContain( '  Returned count: 2' );
+		expect( text ).toContain( '  Item noun: revisions' );
+		expect( text ).toContain( '  Tool name: get-page-history' );
+		expect( text ).toContain( '  Continue with:' );
+		expect( text ).toContain( '    Param: newerThan' );
+		expect( text ).toContain( '    Value: 60' );
 
 		const call = mock.request.mock.calls[ 0 ][ 0 ];
 		expect( call.rvdir ).toBe( 'newer' );
@@ -304,7 +303,7 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page' );
 
-		const data = assertStructuredSuccess( result, PageHistorySchema );
-		expect( data.truncation ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).not.toContain( 'Truncation:' );
 	} );
 } );

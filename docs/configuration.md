@@ -88,25 +88,6 @@ Accepts a string or an array of strings:
 }
 ```
 
-## Structured tool output (`MCP_STRUCTURED_OUTPUT`)
-
-Every tool emits a typed payload. The on-the-wire channel that carries it is selected by `MCP_STRUCTURED_OUTPUT`. The payload itself is the same in either mode — only where it sits in `CallToolResult` differs.
-
-| Mode | Env var | `content[]` | `structuredContent` | `outputSchema` advertised? |
-|---|---|---|---|---|
-| Content (default) | unset, `false`, `0` | one `text` block containing `JSON.stringify(payload)` | absent | no |
-| Structured (opt-in) | `true`, `1` | `[]` (empty) | typed payload | yes |
-
-Default (content mode) works for every MCP client. The typed payload is JSON-serialised into `content[0].text`, which clients consume the same way they always have.
-
-Opt-in structured mode advertises an `outputSchema` per tool and surfaces the payload directly as `structuredContent`. The benefits are typed validation on the client side (the SDK rejects responses that don't match the declared schema, catching server bugs at the protocol boundary) and structured-data UI hydration in clients that render `structuredContent` separately (e.g. ChatGPT Apps SDK widgets). It is not a token-cost optimisation — both modes transmit the same payload once.
-
-**Safe to opt in** (reads `structuredContent`): Claude Desktop, Claude Code, MCP Inspector, VS Code Copilot, ChatGPT Apps SDK, Goose, anything built on `@modelcontextprotocol/sdk` ≥ 2025-06-18.
-
-**Do not opt in** (reads only `content[]`, would see empty responses): Cursor, Cline, the Claude API `mcp_servers` connector. These clients require the default mode.
-
-Errors always ride as JSON in `content[0].text` with `isError: true`, in both modes. The envelope shape is `{category, message, code?}` — see [tool-conventions.md](tool-conventions.md#error-handling).
-
 ## Upload directories
 
 The `upload-file` tool reads local files from the server's filesystem. Uploads are **disabled by default**: the operator must explicitly allowlist one or more directories. Every `upload-file` call returns an error until at least one directory is configured.

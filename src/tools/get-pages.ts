@@ -10,7 +10,6 @@ import {
 	truncateByBytes,
 	type TruncationInfo
 } from '../common/truncation.js';
-import { TruncationSchema } from '../common/schemas.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 
@@ -21,24 +20,18 @@ export enum BatchContentFormat {
 	none = 'none'
 }
 
-const PageEntrySchema = z.object( {
-	requestedTitle: z.string(),
-	pageId: z.number().int().nonnegative().optional(),
-	title: z.string().optional(),
-	redirectedFrom: z.string().optional(),
-	latestRevisionId: z.number().int().nonnegative().optional(),
-	latestRevisionTimestamp: z.string().optional(),
-	contentModel: z.string().optional(),
-	url: z.string().optional(),
-	source: z.string().optional(),
-	truncation: TruncationSchema.optional()
-} );
-type PageEntry = z.infer<typeof PageEntrySchema>;
-
-const outputSchema = {
-	pages: z.array( PageEntrySchema ),
-	missing: z.array( z.string() ).optional()
-};
+interface PageEntry {
+	requestedTitle: string;
+	pageId?: number;
+	title?: string;
+	redirectedFrom?: string;
+	latestRevisionId?: number;
+	latestRevisionTimestamp?: string;
+	contentModel?: string;
+	url?: string;
+	source?: string;
+	truncation?: TruncationInfo;
+}
 
 export function getPagesTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
@@ -51,7 +44,6 @@ export function getPagesTool( server: McpServer ): RegisteredTool {
 				metadata: z.boolean().optional().default( false ).describe( 'Whether to include metadata (page ID, revision info) in the response' ),
 				followRedirects: z.boolean().optional().default( true ).describe( 'Follow wiki redirects. When true (default), redirect targets are returned with a "Redirected from:" line in the metadata. Set false to fetch redirect pseudo-pages as-is (sync-fidelity).' )
 			},
-			outputSchema,
 			annotations: {
 				title: 'Get pages',
 				readOnlyHint: true,

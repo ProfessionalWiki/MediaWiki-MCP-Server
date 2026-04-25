@@ -6,7 +6,6 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 import { getMwn } from '../common/mwn.js';
 import { inlineDiffToText } from '../common/diffFormat.js';
 import { truncateByBytes } from '../common/truncation.js';
-import { TruncationSchema } from '../common/schemas.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 
@@ -35,23 +34,6 @@ interface CompareResponse {
 
 type Side = 'from' | 'to';
 
-const SideSchema = z.object( {
-	title: z.string().optional(),
-	revisionId: z.number().int().nonnegative().optional(),
-	timestamp: z.string().optional(),
-	size: z.number().int().nonnegative().optional(),
-	isSuppliedText: z.boolean()
-} );
-
-const outputSchema = {
-	changed: z.boolean(),
-	from: SideSchema,
-	to: SideSchema,
-	sizeDelta: z.number().int().optional(),
-	diff: z.string().optional(),
-	truncation: TruncationSchema.optional()
-};
-
 export function comparePagesTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
 		'compare-pages',
@@ -66,7 +48,6 @@ export function comparePagesTool( server: McpServer ): RegisteredTool {
 				toText: z.string().optional().describe( 'Supplied wikitext for the "to" side' ),
 				includeDiff: z.boolean().optional().describe( 'Include the diff body (default true). Set false for a cheap change-detection response.' )
 			},
-			outputSchema,
 			annotations: {
 				title: 'Compare pages',
 				readOnlyHint: true,

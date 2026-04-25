@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
+import { formatPayload } from '../../src/common/formatPayload.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
 vi.mock( '../../src/common/wikiService.js', () => ( {
@@ -17,17 +18,6 @@ import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
-
-const GetFileOutputSchema = z.object( {
-	title: z.string(),
-	descriptionUrl: z.string(),
-	timestamp: z.string(),
-	user: z.string(),
-	size: z.number().int().nonnegative(),
-	mime: z.string(),
-	url: z.string(),
-	thumbnailUrl: z.string().optional()
-} );
 
 describe( 'get-file', () => {
 	beforeEach( () => { vi.clearAllMocks(); } );
@@ -58,8 +48,8 @@ describe( 'get-file', () => {
 		const { handleGetFileTool } = await import( '../../src/tools/get-file.js' );
 		const result = await handleGetFileTool( 'Example.png' );
 
-		const data = assertStructuredSuccess( result, GetFileOutputSchema );
-		expect( data ).toEqual( {
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toBe( formatPayload( {
 			title: 'File:Example.png',
 			descriptionUrl: 'https://test.wiki/wiki/File:Example.png',
 			timestamp: '2026-01-01T00:00:00Z',
@@ -68,7 +58,7 @@ describe( 'get-file', () => {
 			mime: 'image/png',
 			url: 'https://test.wiki/images/example.png',
 			thumbnailUrl: 'https://test.wiki/images/thumb/example.png/200px-example.png'
-		} );
+		} ) );
 	} );
 
 	it( 'handles missing files', async () => {

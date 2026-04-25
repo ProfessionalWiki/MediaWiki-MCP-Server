@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
-import { TruncationSchema } from '../../src/common/schemas.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
 vi.mock( '../../src/common/wikiService.js', () => ( {
@@ -20,37 +19,6 @@ import {
 } from '../helpers/structuredResult.js';
 
 const RC_PROP = 'user|userid|comment|flags|timestamp|title|ids|sizes|tags|loginfo';
-
-const RecentChangeSchema = z.object( {
-	type: z.enum( [ 'edit', 'new', 'log', 'categorize', 'external' ] ),
-	title: z.string(),
-	timestamp: z.string(),
-	user: z.string().optional(),
-	userid: z.number().int().nonnegative().optional(),
-	anon: z.boolean().optional(),
-	userhidden: z.boolean().optional(),
-	commenthidden: z.boolean().optional(),
-	revisionId: z.number().int().nonnegative().optional(),
-	oldRevisionId: z.number().int().nonnegative().optional(),
-	newlen: z.number().int().nonnegative().optional(),
-	oldlen: z.number().int().nonnegative().optional(),
-	sizeDelta: z.number().int().optional(),
-	comment: z.string().optional(),
-	minor: z.boolean().optional(),
-	bot: z.boolean().optional(),
-	isNew: z.boolean().optional(),
-	redirect: z.boolean().optional(),
-	unpatrolled: z.boolean().optional(),
-	tags: z.array( z.string() ).optional(),
-	logtype: z.string().optional(),
-	logaction: z.string().optional(),
-	logparams: z.record( z.string(), z.unknown() ).optional()
-} );
-
-const RecentChangesSchema = z.object( {
-	changes: z.array( RecentChangeSchema ),
-	truncation: TruncationSchema.optional()
-} );
 
 function mockRequest( response: unknown ) {
 	const mock = createMockMwn( {
@@ -225,24 +193,24 @@ describe( 'get-recent-changes — payload shape', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		const data = assertStructuredSuccess( result, RecentChangesSchema );
-		expect( data.changes ).toHaveLength( 1 );
-		expect( data.changes[ 0 ] ).toMatchObject( {
-			type: 'edit',
-			title: 'Help:Foo',
-			timestamp: '2026-01-01T12:34:56Z',
-			user: 'Alice',
-			userid: 42,
-			revisionId: 1234567,
-			oldRevisionId: 1234500,
-			newlen: 1523,
-			oldlen: 1500,
-			sizeDelta: 23,
-			comment: 'typo fix',
-			minor: true,
-			bot: true,
-			tags: [ 'mobile-edit' ]
-		} );
+		const text = assertStructuredSuccess( result, z.string() );
+		const titles = ( text.match( /Title: /g ) ?? [] );
+		expect( titles ).toHaveLength( 1 );
+		expect( text ).toContain( 'Type: edit' );
+		expect( text ).toContain( 'Title: Help:Foo' );
+		expect( text ).toContain( 'Timestamp: 2026-01-01T12:34:56Z' );
+		expect( text ).toContain( 'User: Alice' );
+		expect( text ).toContain( 'Userid: 42' );
+		expect( text ).toContain( 'Revision ID: 1234567' );
+		expect( text ).toContain( 'Old revision ID: 1234500' );
+		expect( text ).toContain( 'Newlen: 1523' );
+		expect( text ).toContain( 'Oldlen: 1500' );
+		expect( text ).toContain( 'Size delta: 23' );
+		expect( text ).toContain( 'Comment: typo fix' );
+		expect( text ).toContain( 'Minor: true' );
+		expect( text ).toContain( 'Bot: true' );
+		expect( text ).toContain( 'Tags:\n  - mobile-edit' );
+		// Above asserts the array is rendered indented under the entry.
 	} );
 
 	it( 'renders a new-page row with isNew=true and a positive sizeDelta', async () => {
@@ -265,14 +233,12 @@ describe( 'get-recent-changes — payload shape', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		const data = assertStructuredSuccess( result, RecentChangesSchema );
-		expect( data.changes[ 0 ] ).toMatchObject( {
-			type: 'new',
-			revisionId: 500,
-			oldRevisionId: 0,
-			sizeDelta: 240,
-			isNew: true
-		} );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Type: new' );
+		expect( text ).toContain( 'Revision ID: 500' );
+		expect( text ).toContain( 'Old revision ID: 0' );
+		expect( text ).toContain( 'Size delta: 240' );
+		expect( text ).toContain( 'Is new: true' );
 	} );
 
 	it( 'renders a log row with logtype, logaction and logparams preserved', async () => {
@@ -293,14 +259,15 @@ describe( 'get-recent-changes — payload shape', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( { types: [ 'log' ] } );
 
-		const data = assertStructuredSuccess( result, RecentChangesSchema );
-		expect( data.changes[ 0 ] ).toMatchObject( {
-			type: 'log',
-			logtype: 'block',
-			logaction: 'block',
-			logparams: { duration: 'infinity', flags: [ 'nocreate' ] }
-		} );
-		expect( data.changes[ 0 ].revisionId ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Type: log' );
+		expect( text ).toContain( 'Logtype: block' );
+		expect( text ).toContain( 'Logaction: block' );
+		expect( text ).toContain( 'Logparams:' );
+		expect( text ).toContain( '    Duration: infinity' );
+		expect( text ).toContain( '    Flags:' );
+		expect( text ).toContain( '    - nocreate' );
+		expect( text ).not.toContain( 'Revision ID:' );
 	} );
 
 	it( 'preserves anon flag on anonymous edits', async () => {
@@ -322,10 +289,10 @@ describe( 'get-recent-changes — payload shape', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		const data = assertStructuredSuccess( result, RecentChangesSchema );
-		expect( data.changes[ 0 ].user ).toBe( '192.0.2.1' );
-		expect( data.changes[ 0 ].anon ).toBe( true );
-		expect( data.changes[ 0 ].userid ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'User: 192.0.2.1' );
+		expect( text ).toContain( 'Anon: true' );
+		expect( text ).not.toContain( 'Userid:' );
 	} );
 
 	it( 'drops comment when commenthidden is set and preserves userhidden', async () => {
@@ -347,10 +314,10 @@ describe( 'get-recent-changes — payload shape', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		const data = assertStructuredSuccess( result, RecentChangesSchema );
-		expect( data.changes[ 0 ].userhidden ).toBe( true );
-		expect( data.changes[ 0 ].commenthidden ).toBe( true );
-		expect( data.changes[ 0 ].comment ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Userhidden: true' );
+		expect( text ).toContain( 'Commenthidden: true' );
+		expect( text ).not.toContain( 'Comment:' );
 	} );
 
 	it( 'preserves unpatrolled when set on the row', async () => {
@@ -373,8 +340,8 @@ describe( 'get-recent-changes — payload shape', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( { showPatrolStatus: true } );
 
-		const data = assertStructuredSuccess( result, RecentChangesSchema );
-		expect( data.changes[ 0 ].unpatrolled ).toBe( true );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Unpatrolled: true' );
 	} );
 
 	it( 'omits unpatrolled when not set on the row', async () => {
@@ -396,8 +363,8 @@ describe( 'get-recent-changes — payload shape', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( { showPatrolStatus: true } );
 
-		const data = assertStructuredSuccess( result, RecentChangesSchema );
-		expect( data.changes[ 0 ].unpatrolled ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).not.toContain( 'Unpatrolled:' );
 	} );
 } );
 
@@ -426,14 +393,15 @@ describe( 'get-recent-changes — truncation and empty results', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		const data = assertStructuredSuccess( result, RecentChangesSchema );
-		expect( data.truncation ).toEqual( {
-			reason: 'more-available',
-			returnedCount: 2,
-			itemNoun: 'changes',
-			toolName: 'get-recent-changes',
-			continueWith: { param: 'continue', value: '20260101000000|1234' }
-		} );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Truncation:' );
+		expect( text ).toContain( '  Reason: more-available' );
+		expect( text ).toContain( '  Returned count: 2' );
+		expect( text ).toContain( '  Item noun: changes' );
+		expect( text ).toContain( '  Tool name: get-recent-changes' );
+		expect( text ).toContain( '  Continue with:' );
+		expect( text ).toContain( '    Param: continue' );
+		expect( text ).toContain( '    Value: 20260101000000|1234' );
 	} );
 
 	it( 'omits truncation when rccontinue is absent', async () => {
@@ -447,8 +415,8 @@ describe( 'get-recent-changes — truncation and empty results', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		const data = assertStructuredSuccess( result, RecentChangesSchema );
-		expect( data.truncation ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
 	it( 'returns an empty changes array when no matches', async () => {
@@ -456,8 +424,8 @@ describe( 'get-recent-changes — truncation and empty results', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		const data = assertStructuredSuccess( result, RecentChangesSchema );
-		expect( data.changes ).toEqual( [] );
-		expect( data.truncation ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Changes: (none)' );
+		expect( text ).not.toContain( 'Truncation:' );
 	} );
 } );

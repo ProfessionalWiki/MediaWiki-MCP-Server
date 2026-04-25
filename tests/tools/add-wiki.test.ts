@@ -20,18 +20,11 @@ import { z } from 'zod';
 import { discoverWiki } from '../../src/common/wikiDiscovery.js';
 import { wikiService, DuplicateWikiKeyError } from '../../src/common/wikiService.js';
 import { SsrfValidationError } from '../../src/common/ssrfGuard.js';
+import { formatPayload } from '../../src/common/formatPayload.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
-
-const AddWikiOutputSchema = z.object( {
-	wikiKey: z.string(),
-	sitename: z.string(),
-	server: z.string(),
-	articlepath: z.string(),
-	scriptpath: z.string()
-} );
 
 describe( 'add-wiki', () => {
 	beforeEach( () => {
@@ -52,14 +45,14 @@ describe( 'add-wiki', () => {
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
 		const result = await handleAddWikiTool( server, 'https://example.org/' );
 
-		const data = assertStructuredSuccess( result, AddWikiOutputSchema );
-		expect( data ).toEqual( {
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toBe( formatPayload( {
 			wikiKey: 'example.org',
 			sitename: 'Example Wiki',
 			server: 'https://example.org',
 			articlepath: '/wiki',
 			scriptpath: '/w'
-		} );
+		} ) );
 	} );
 
 	it( 'categorises SSRF rejections as invalid_input', async () => {

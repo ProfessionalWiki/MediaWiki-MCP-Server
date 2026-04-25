@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
-import { PageMetadataSchema } from '../../src/common/schemas.js';
+import { formatPayload } from '../../src/common/formatPayload.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
 vi.mock( '../../src/common/wikiService.js', () => ( {
@@ -35,15 +36,15 @@ describe( 'create-page', () => {
 		const { handleCreatePageTool } = await import( '../../src/tools/create-page.js' );
 		const result = await handleCreatePageTool( 'Hello', 'New Page', 'test', 'wikitext' );
 
-		const data = assertStructuredSuccess( result, PageMetadataSchema );
-		expect( data ).toEqual( {
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toBe( formatPayload( {
 			pageId: 10,
 			title: 'New Page',
 			latestRevisionId: 1,
 			latestRevisionTimestamp: '2026-01-01T00:00:00Z',
 			contentModel: 'wikitext',
 			url: 'https://test.wiki/wiki/New_Page'
-		} );
+		} ) );
 		expect( mock.create ).toHaveBeenCalledWith(
 			'New Page', 'Hello',
 			expect.stringContaining( 'test' ),

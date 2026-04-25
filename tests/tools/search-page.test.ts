@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
-import { SearchResultSchema, TruncationSchema } from '../../src/common/schemas.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
 vi.mock( '../../src/common/wikiService.js', () => ( {
@@ -18,11 +17,6 @@ import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
-
-const SearchResultsSchema = z.object( {
-	results: z.array( SearchResultSchema ),
-	truncation: TruncationSchema.optional()
-} );
 
 describe( 'search-page', () => {
 	beforeEach( () => {
@@ -50,17 +44,15 @@ describe( 'search-page', () => {
 		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
 		const result = await handleSearchPageTool( 'test query', 10 );
 
-		const data = assertStructuredSuccess( result, SearchResultsSchema );
-		expect( data.results ).toEqual( [ {
-			title: 'Test Page',
-			pageId: 1,
-			snippet: 'matching <span class="searchmatch">text</span>',
-			size: 1234,
-			wordCount: 80,
-			timestamp: '2026-01-01T00:00:00Z',
-			url: 'https://test.wiki/wiki/Test_Page'
-		} ] );
-		expect( data.truncation ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( '- Title: Test Page' );
+		expect( text ).toContain( '  Page ID: 1' );
+		expect( text ).toContain( '  Snippet: matching <span class="searchmatch">text</span>' );
+		expect( text ).toContain( '  Size: 1234' );
+		expect( text ).toContain( '  Word count: 80' );
+		expect( text ).toContain( '  Timestamp: 2026-01-01T00:00:00Z' );
+		expect( text ).toContain( '  URL: https://test.wiki/wiki/Test_Page' );
+		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
 	it( 'returns an empty array when no results found', async () => {
@@ -74,8 +66,8 @@ describe( 'search-page', () => {
 		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
 		const result = await handleSearchPageTool( 'nonexistent', undefined );
 
-		const data = assertStructuredSuccess( result, SearchResultsSchema );
-		expect( data.results ).toEqual( [] );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Results: (none)' );
 	} );
 
 	it( 'returns error on failure', async () => {
@@ -108,13 +100,12 @@ describe( 'search-page', () => {
 		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
 		const result = await handleSearchPageTool( 'test', 10 );
 
-		const data = assertStructuredSuccess( result, SearchResultsSchema );
-		expect( data.truncation ).toMatchObject( {
-			reason: 'capped-no-continuation',
-			returnedCount: 1,
-			limit: 10,
-			itemNoun: 'matches'
-		} );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Truncation:' );
+		expect( text ).toContain( '  Reason: capped-no-continuation' );
+		expect( text ).toContain( '  Returned count: 1' );
+		expect( text ).toContain( '  Limit: 10' );
+		expect( text ).toContain( '  Item noun: matches' );
 	} );
 
 	it( 'omits truncation when response.continue is absent', async () => {
@@ -133,8 +124,8 @@ describe( 'search-page', () => {
 		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
 		const result = await handleSearchPageTool( 'test', 10 );
 
-		const data = assertStructuredSuccess( result, SearchResultsSchema );
-		expect( data.truncation ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
 	it( 'uses the effective default limit in truncation when limit is not provided', async () => {
@@ -154,7 +145,8 @@ describe( 'search-page', () => {
 		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
 		const result = await handleSearchPageTool( 'test', undefined );
 
-		const data = assertStructuredSuccess( result, SearchResultsSchema );
-		expect( data.truncation ).toMatchObject( { limit: 10 } );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Truncation:' );
+		expect( text ).toContain( '  Limit: 10' );
 	} );
 } );

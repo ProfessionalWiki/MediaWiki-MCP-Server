@@ -9,14 +9,6 @@ import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 import { SsrfValidationError } from '../common/ssrfGuard.js';
 
-const outputSchema = {
-	wikiKey: z.string(),
-	sitename: z.string(),
-	server: z.string(),
-	articlepath: z.string(),
-	scriptpath: z.string()
-};
-
 export function addWikiTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
 		'add-wiki',
@@ -25,7 +17,6 @@ export function addWikiTool( server: McpServer ): RegisteredTool {
 			inputSchema: {
 				wikiUrl: z.string().url().describe( 'Any URL from the target wiki (e.g. https://en.wikipedia.org/wiki/Main_Page)' )
 			},
-			outputSchema,
 			annotations: {
 				title: 'Add wiki',
 				readOnlyHint: false,

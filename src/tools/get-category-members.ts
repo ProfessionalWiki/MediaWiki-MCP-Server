@@ -5,7 +5,6 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import type { TruncationInfo } from '../common/truncation.js';
-import { CategoryMemberSchema, TruncationSchema } from '../common/schemas.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 
@@ -26,11 +25,6 @@ function normalizeCategoryTitle( input: string ): string {
 	return /^category:/i.test( input ) ? input : `Category:${ input }`;
 }
 
-const outputSchema = {
-	members: z.array( CategoryMemberSchema ),
-	truncation: TruncationSchema.optional()
-};
-
 export function getCategoryMembersTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
 		'get-category-members',
@@ -43,7 +37,6 @@ export function getCategoryMembersTool( server: McpServer ): RegisteredTool {
 				limit: z.number().int().min( 1 ).max( 500 ).optional().describe( 'Maximum members to return (1..500)' ),
 				continueFrom: z.string().optional().describe( 'Opaque continuation token from the previous response; omit on first call' )
 			},
-			outputSchema,
 			annotations: {
 				title: 'Get category members',
 				readOnlyHint: true,

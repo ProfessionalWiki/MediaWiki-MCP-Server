@@ -11,23 +11,8 @@ import {
 	truncateByBytes,
 	type TruncationInfo
 } from '../common/truncation.js';
-import { TruncationSchema } from '../common/schemas.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
-
-const outputSchema = {
-	pageId: z.number().int().nonnegative().optional(),
-	title: z.string().optional(),
-	latestRevisionId: z.number().int().nonnegative().optional(),
-	latestRevisionTimestamp: z.string().optional(),
-	contentModel: z.string().optional(),
-	size: z.number().int().nonnegative().optional(),
-	url: z.string().optional(),
-	sections: z.array( z.string() ).optional(),
-	source: z.string().optional(),
-	html: z.string().optional(),
-	truncation: TruncationSchema.optional()
-};
 
 export function getPageTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
@@ -42,7 +27,6 @@ export function getPageTool( server: McpServer ): RegisteredTool {
 				),
 				section: z.number().int().nonnegative().optional().describe( 'Section number (0 = lead; 1..N = heading sections). Narrows content to one section.' )
 			},
-			outputSchema,
 			annotations: {
 				title: 'Get page',
 				readOnlyHint: true,

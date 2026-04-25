@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
-import { TruncationSchema } from '../../src/common/schemas.js';
+import { formatPayload } from '../../src/common/formatPayload.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( {
 	getMwn: vi.fn()
@@ -22,26 +22,6 @@ import {
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
 
-const ParseWikitextSchema = z.object( {
-	html: z.string(),
-	displayTitle: z.string().optional(),
-	parseWarnings: z.array( z.string() ).optional(),
-	categories: z.array( z.object( {
-		category: z.string(),
-		hidden: z.boolean().optional()
-	} ) ).optional(),
-	links: z.array( z.object( {
-		title: z.string(),
-		exists: z.boolean().optional()
-	} ) ).optional(),
-	templates: z.array( z.object( {
-		title: z.string(),
-		exists: z.boolean().optional()
-	} ) ).optional(),
-	externalLinks: z.array( z.string() ).optional(),
-	truncation: TruncationSchema.optional()
-} );
-
 describe( 'parse-wikitext', () => {
 	beforeEach( () => {
 		vi.clearAllMocks();
@@ -58,8 +38,8 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( "'''Hello'''", undefined, true );
 
-		const data = assertStructuredSuccess( result, ParseWikitextSchema );
-		expect( data.html ).toBe( '<p>Hello</p>' );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'HTML: <p>Hello</p>' );
 	} );
 
 	it( 'includes parse warnings when present', async () => {
@@ -76,8 +56,8 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'anything', undefined, true );
 
-		const data = assertStructuredSuccess( result, ParseWikitextSchema );
-		expect( data.parseWarnings ).toEqual( [ 'Unclosed tag', 'Bad template' ] );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Parse warnings:\n- Unclosed tag\n- Bad template' );
 	} );
 
 	it( "defaults title to 'API' when omitted", async () => {
@@ -165,11 +145,11 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		const data = assertStructuredSuccess( result, ParseWikitextSchema );
-		expect( data.categories ).toEqual( [
-			{ category: 'Foo', hidden: undefined },
-			{ category: 'Hidden', hidden: true }
-		] );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Categories:' );
+		expect( text ).toContain( '- Category: Foo' );
+		expect( text ).toContain( '- Category: Hidden' );
+		expect( text ).toContain( '  Hidden: true' );
 	} );
 
 	it( 'preserves links with exists flag (defaults missing exists to true)', async () => {
@@ -190,11 +170,12 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		const data = assertStructuredSuccess( result, ParseWikitextSchema );
-		expect( data.links ).toEqual( [
-			{ title: 'Foo', exists: true },
-			{ title: 'RedLink', exists: false }
-		] );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Links:' );
+		expect( text ).toContain( '- Title: Foo' );
+		expect( text ).toContain( '  Exists: true' );
+		expect( text ).toContain( '- Title: RedLink' );
+		expect( text ).toContain( '  Exists: false' );
 	} );
 
 	it( 'preserves templates with exists flag', async () => {
@@ -215,11 +196,12 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		const data = assertStructuredSuccess( result, ParseWikitextSchema );
-		expect( data.templates ).toEqual( [
-			{ title: 'Template:Infobox', exists: true },
-			{ title: 'Template:Broken', exists: false }
-		] );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Templates:' );
+		expect( text ).toContain( '- Title: Template:Infobox' );
+		expect( text ).toContain( '  Exists: true' );
+		expect( text ).toContain( '- Title: Template:Broken' );
+		expect( text ).toContain( '  Exists: false' );
 	} );
 
 	it( 'preserves external links as a simple array', async () => {
@@ -237,11 +219,8 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		const data = assertStructuredSuccess( result, ParseWikitextSchema );
-		expect( data.externalLinks ).toEqual( [
-			'https://example.org',
-			'https://example.com/page'
-		] );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'External links:\n- https://example.org\n- https://example.com/page' );
 	} );
 
 	it( 'includes displayTitle only when it differs from the input title', async () => {
@@ -259,8 +238,8 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', 'Custom Title', true );
 
-		const data = assertStructuredSuccess( result, ParseWikitextSchema );
-		expect( data.displayTitle ).toBe( '<i>Custom Display</i>' );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Display title: <i>Custom Display</i>' );
 	} );
 
 	it( 'omits displayTitle when it matches the input title', async () => {
@@ -278,8 +257,8 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		const data = assertStructuredSuccess( result, ParseWikitextSchema );
-		expect( data.displayTitle ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).not.toContain( 'Display title:' );
 	} );
 
 	it( 'omits empty sections entirely', async () => {
@@ -301,8 +280,8 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		const data = assertStructuredSuccess( result, ParseWikitextSchema );
-		expect( data ).toEqual( { html: '<p>x</p>' } );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toBe( formatPayload( { html: '<p>x</p>' } ) );
 	} );
 
 	it( 'attaches content-truncated truncation when HTML exceeds the byte cap', async () => {
@@ -321,16 +300,15 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		const data = assertStructuredSuccess( result, ParseWikitextSchema );
-		expect( data.html ).toHaveLength( 50000 );
-		expect( data.truncation ).toMatchObject( {
-			reason: 'content-truncated',
-			returnedBytes: 50000,
-			totalBytes: 60007,
-			itemNoun: 'HTML',
-			toolName: 'parse-wikitext'
-		} );
-		expect( data.categories ).toEqual( [ { category: 'Foo', hidden: undefined } ] );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toMatch( /HTML:\n\n<p>x+/ );
+		expect( text ).toContain( 'Truncation:' );
+		expect( text ).toContain( '  Reason: content-truncated' );
+		expect( text ).toContain( '  Returned bytes: 50000' );
+		expect( text ).toContain( '  Total bytes: 60007' );
+		expect( text ).toContain( '  Item noun: HTML' );
+		expect( text ).toContain( '  Tool name: parse-wikitext' );
+		expect( text ).toContain( 'Categories:\n- Category: Foo' );
 	} );
 
 	it( 'omits truncation when HTML is exactly at the byte cap', async () => {
@@ -345,8 +323,8 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		const data = assertStructuredSuccess( result, ParseWikitextSchema );
-		expect( data.html ).toBe( exact );
-		expect( data.truncation ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toMatch( /HTML:\n\ny{50000}/ );
+		expect( text ).not.toContain( 'Truncation:' );
 	} );
 } );

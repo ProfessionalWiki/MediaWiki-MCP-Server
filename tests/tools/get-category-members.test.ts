@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
-import { CategoryMemberSchema, TruncationSchema } from '../../src/common/schemas.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
 vi.mock( '../../src/common/wikiService.js', () => ( {
@@ -18,11 +17,6 @@ import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
-
-const CategoryMembersSchema = z.object( {
-	members: z.array( CategoryMemberSchema ),
-	truncation: TruncationSchema.optional()
-} );
 
 describe( 'get-category-members', () => {
 	beforeEach( () => {
@@ -97,13 +91,20 @@ describe( 'get-category-members', () => {
 		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
 		const result = await handleGetCategoryMembersTool( 'Foo' );
 
-		const data = assertStructuredSuccess( result, CategoryMembersSchema );
-		expect( data.members ).toEqual( [
-			{ title: 'Alpha', pageId: 1, namespace: 0, type: 'page' },
-			{ title: 'File:Bar.png', pageId: 2, namespace: 6, type: 'file' },
-			{ title: 'Category:Sub', pageId: 3, namespace: 14, type: 'subcat' }
-		] );
-		expect( data.truncation ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Title: Alpha' );
+		expect( text ).toContain( 'Page ID: 1' );
+		expect( text ).toContain( 'Namespace: 0' );
+		expect( text ).toContain( 'Type: page' );
+		expect( text ).toContain( 'Title: File:Bar.png' );
+		expect( text ).toContain( 'Page ID: 2' );
+		expect( text ).toContain( 'Namespace: 6' );
+		expect( text ).toContain( 'Type: file' );
+		expect( text ).toContain( 'Title: Category:Sub' );
+		expect( text ).toContain( 'Page ID: 3' );
+		expect( text ).toContain( 'Namespace: 14' );
+		expect( text ).toContain( 'Type: subcat' );
+		expect( text ).not.toContain( 'Truncation:' );
 
 		const call = mock.request.mock.calls[ 0 ][ 0 ];
 		expect( call.cmprop ).toBe( 'ids|title|type' );
@@ -122,11 +123,11 @@ describe( 'get-category-members', () => {
 		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
 		const result = await handleGetCategoryMembersTool( 'Foo' );
 
-		const data = assertStructuredSuccess( result, CategoryMembersSchema );
-		expect( data.members ).toEqual( [
-			{ title: 'Alpha', pageId: 1, namespace: 0 }
-		] );
-		expect( data.members[ 0 ].type ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Title: Alpha' );
+		expect( text ).toContain( 'Page ID: 1' );
+		expect( text ).toContain( 'Namespace: 0' );
+		expect( text ).not.toContain( 'Type:' );
 	} );
 
 	it( 'attaches a more-available truncation with the continueFrom cursor', async () => {
@@ -141,14 +142,15 @@ describe( 'get-category-members', () => {
 		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
 		const result = await handleGetCategoryMembersTool( 'Foo' );
 
-		const data = assertStructuredSuccess( result, CategoryMembersSchema );
-		expect( data.truncation ).toEqual( {
-			reason: 'more-available',
-			returnedCount: 1,
-			itemNoun: 'members',
-			toolName: 'get-category-members',
-			continueWith: { param: 'continueFrom', value: 'page|DOE|456' }
-		} );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Truncation:' );
+		expect( text ).toContain( '  Reason: more-available' );
+		expect( text ).toContain( '  Returned count: 1' );
+		expect( text ).toContain( '  Item noun: members' );
+		expect( text ).toContain( '  Tool name: get-category-members' );
+		expect( text ).toContain( '  Continue with:' );
+		expect( text ).toContain( '    Param: continueFrom' );
+		expect( text ).toContain( '    Value: page|DOE|456' );
 	} );
 
 	it( 'omits truncation when response.continue is absent', async () => {
@@ -162,8 +164,8 @@ describe( 'get-category-members', () => {
 		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
 		const result = await handleGetCategoryMembersTool( 'Foo' );
 
-		const data = assertStructuredSuccess( result, CategoryMembersSchema );
-		expect( data.truncation ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
 	it( 'surfaces errors as isError results', async () => {

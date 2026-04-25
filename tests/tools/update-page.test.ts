@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
-import { PageMetadataSchema } from '../../src/common/schemas.js';
+import { formatPayload } from '../../src/common/formatPayload.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
 vi.mock( '../../src/common/wikiService.js', () => ( {
@@ -56,15 +57,15 @@ describe( 'update-page', () => {
 				title: 'My Page', source: 'Updated content', latestId: 41, comment: 'edit summary'
 			} );
 
-			const data = assertStructuredSuccess( result, PageMetadataSchema );
-			expect( data ).toEqual( {
+			const text = assertStructuredSuccess( result, z.string() );
+			expect( text ).toBe( formatPayload( {
 				pageId: 5,
 				title: 'My Page',
 				latestRevisionId: 42,
 				latestRevisionTimestamp: '2026-01-02T00:00:00Z',
 				contentModel: 'wikitext',
 				url: 'https://test.wiki/wiki/My_Page'
-			} );
+			} ) );
 
 			const params = mock.request.mock.calls[ 0 ][ 0 ];
 			expect( params ).toMatchObject( {

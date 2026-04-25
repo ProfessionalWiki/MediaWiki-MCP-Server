@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
-import { TruncationSchema } from '../../src/common/schemas.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( {
 	getMwn: vi.fn()
@@ -21,24 +20,6 @@ import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
-
-const PageEntrySchema = z.object( {
-	requestedTitle: z.string(),
-	pageId: z.number().int().nonnegative().optional(),
-	title: z.string().optional(),
-	redirectedFrom: z.string().optional(),
-	latestRevisionId: z.number().int().nonnegative().optional(),
-	latestRevisionTimestamp: z.string().optional(),
-	contentModel: z.string().optional(),
-	url: z.string().optional(),
-	source: z.string().optional(),
-	truncation: TruncationSchema.optional()
-} );
-
-const GetPagesSchema = z.object( {
-	pages: z.array( PageEntrySchema ),
-	missing: z.array( z.string() ).optional()
-} );
 
 function massQueryPage( title: string, pageid: number, revid: number, content?: string ) {
 	return {
@@ -147,12 +128,15 @@ describe( 'get-pages', () => {
 				'titles'
 			);
 
-			const data = assertStructuredSuccess( result, GetPagesSchema );
-			expect( data.pages.map( ( p ) => p.requestedTitle ) ).toEqual( [
+			const text = assertStructuredSuccess( result, z.string() );
+			// Order preserved: input title order, regardless of API response order.
+			const requestedTitles = [ ...text.matchAll( /Requested title: (.+)/g ) ].map( ( m ) => m[ 1 ] );
+			expect( requestedTitles ).toEqual( [
 				'Module:Infobox', 'Module:Infobox/Person', 'Module:Infobox/Organization'
 			] );
-			expect( data.pages.map( ( p ) => p.source ) ).toEqual( [ 'A', 'B', 'C' ] );
-			expect( data.missing ).toBeUndefined();
+			const sources = [ ...text.matchAll( /Source: (.+)/g ) ].map( ( m ) => m[ 1 ] );
+			expect( sources ).toEqual( [ 'A', 'B', 'C' ] );
+			expect( text ).not.toContain( 'Missing:' );
 		} );
 
 		it( 'mixed found + missing: emits found pages + missing array, no isError', async () => {
@@ -170,9 +154,10 @@ describe( 'get-pages', () => {
 				[ 'Found1', 'NotReal', 'Found2' ], 'source', false, true
 			);
 
-			const data = assertStructuredSuccess( result, GetPagesSchema );
-			expect( data.pages.map( ( p ) => p.requestedTitle ) ).toEqual( [ 'Found1', 'Found2' ] );
-			expect( data.missing ).toEqual( [ 'NotReal' ] );
+			const text = assertStructuredSuccess( result, z.string() );
+			const requestedTitles = [ ...text.matchAll( /Requested title: (.+)/g ) ].map( ( m ) => m[ 1 ] );
+			expect( requestedTitles ).toEqual( [ 'Found1', 'Found2' ] );
+			expect( text ).toContain( 'Missing:\n- NotReal' );
 		} );
 
 		it( 'all missing: returns empty pages array + missing', async () => {
@@ -187,9 +172,9 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'A', 'B' ], 'source', false, true );
 
-			const data = assertStructuredSuccess( result, GetPagesSchema );
-			expect( data.pages ).toEqual( [] );
-			expect( data.missing ).toEqual( [ 'A', 'B' ] );
+			const text = assertStructuredSuccess( result, z.string() );
+			expect( text ).toContain( 'Pages: (none)' );
+			expect( text ).toContain( 'Missing:\n- A\n- B' );
 		} );
 
 		it( 'metadata=true includes revision metadata on each entry', async () => {
@@ -201,16 +186,14 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'Foo' ], 'source', true, true );
 
-			const data = assertStructuredSuccess( result, GetPagesSchema );
-			expect( data.pages[ 0 ] ).toMatchObject( {
-				requestedTitle: 'Foo',
-				pageId: 1,
-				title: 'Foo',
-				latestRevisionId: 101,
-				contentModel: 'wikitext',
-				source: 'body'
-			} );
-			expect( data.pages[ 0 ].redirectedFrom ).toBeUndefined();
+			const text = assertStructuredSuccess( result, z.string() );
+			expect( text ).toContain( 'Requested title: Foo' );
+			expect( text ).toContain( '  Page ID: 1' );
+			expect( text ).toContain( '  Title: Foo' );
+			expect( text ).toContain( '  Latest revision ID: 101' );
+			expect( text ).toContain( '  Content model: wikitext' );
+			expect( text ).toContain( '  Source: body' );
+			expect( text ).not.toContain( 'Redirected from:' );
 		} );
 
 		it( 'content=none + metadata=true returns metadata only, no source', async () => {
@@ -222,10 +205,11 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'Foo' ], 'none', true, true );
 
-			const data = assertStructuredSuccess( result, GetPagesSchema );
-			expect( data.pages ).toHaveLength( 1 );
-			expect( data.pages[ 0 ].pageId ).toBe( 1 );
-			expect( data.pages[ 0 ].source ).toBeUndefined();
+			const text = assertStructuredSuccess( result, z.string() );
+			const requestedTitles = [ ...text.matchAll( /Requested title: (.+)/g ) ].map( ( m ) => m[ 1 ] );
+			expect( requestedTitles ).toHaveLength( 1 );
+			expect( text ).toContain( '  Page ID: 1' );
+			expect( text ).not.toContain( 'Source:' );
 		} );
 
 		it( 'duplicate input titles emit page once', async () => {
@@ -237,8 +221,9 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'Foo', 'Foo' ], 'source', false, true );
 
-			const data = assertStructuredSuccess( result, GetPagesSchema );
-			expect( data.pages ).toHaveLength( 1 );
+			const text = assertStructuredSuccess( result, z.string() );
+			const requestedTitles = [ ...text.matchAll( /Requested title: (.+)/g ) ].map( ( m ) => m[ 1 ] );
+			expect( requestedTitles ).toHaveLength( 1 );
 		} );
 
 		it( 'mwn.massQuery throws → isError with wrapped message', async () => {
@@ -263,13 +248,11 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'Src' ], 'source', true, true );
 
-			const data = assertStructuredSuccess( result, GetPagesSchema );
-			expect( data.pages[ 0 ] ).toMatchObject( {
-				requestedTitle: 'Src',
-				title: 'Tgt',
-				redirectedFrom: 'Src',
-				source: 'target body'
-			} );
+			const text = assertStructuredSuccess( result, z.string() );
+			expect( text ).toContain( 'Requested title: Src' );
+			expect( text ).toContain( '  Title: Tgt' );
+			expect( text ).toContain( '  Redirected from: Src' );
+			expect( text ).toContain( '  Source: target body' );
 		} );
 
 		it( 'normalization only: no redirectedFrom', async () => {
@@ -282,10 +265,10 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'foo' ], 'source', true, true );
 
-			const data = assertStructuredSuccess( result, GetPagesSchema );
-			expect( data.pages[ 0 ].requestedTitle ).toBe( 'foo' );
-			expect( data.pages[ 0 ].title ).toBe( 'Foo' );
-			expect( data.pages[ 0 ].redirectedFrom ).toBeUndefined();
+			const text = assertStructuredSuccess( result, z.string() );
+			expect( text ).toContain( 'Requested title: foo' );
+			expect( text ).toContain( '  Title: Foo' );
+			expect( text ).not.toContain( 'Redirected from:' );
 		} );
 
 		it( 'normalized-then-redirect chain: redirectedFrom is the requested title', async () => {
@@ -299,12 +282,10 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'main page' ], 'source', true, true );
 
-			const data = assertStructuredSuccess( result, GetPagesSchema );
-			expect( data.pages[ 0 ] ).toMatchObject( {
-				requestedTitle: 'main page',
-				title: 'Target',
-				redirectedFrom: 'main page'
-			} );
+			const text = assertStructuredSuccess( result, z.string() );
+			expect( text ).toContain( 'Requested title: main page' );
+			expect( text ).toContain( '  Title: Target' );
+			expect( text ).toContain( '  Redirected from: main page' );
 		} );
 
 		it( 'redirect to missing target: requested title reported as missing', async () => {
@@ -317,9 +298,9 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'BrokenRedirect' ], 'source', false, true );
 
-			const data = assertStructuredSuccess( result, GetPagesSchema );
-			expect( data.pages ).toEqual( [] );
-			expect( data.missing ).toEqual( [ 'BrokenRedirect' ] );
+			const text = assertStructuredSuccess( result, z.string() );
+			expect( text ).toContain( 'Pages: (none)' );
+			expect( text ).toContain( 'Missing:\n- BrokenRedirect' );
 		} );
 
 		it( 'two requested titles redirect to same target: emit once', async () => {
@@ -337,9 +318,9 @@ describe( 'get-pages', () => {
 				[ 'Alias1', 'Alias2' ], 'source', true, true
 			);
 
-			const data = assertStructuredSuccess( result, GetPagesSchema );
-			expect( data.pages ).toHaveLength( 1 );
-			expect( data.pages[ 0 ].requestedTitle ).toBe( 'Alias1' );
+			const text = assertStructuredSuccess( result, z.string() );
+			const requestedTitles = [ ...text.matchAll( /Requested title: (.+)/g ) ].map( ( m ) => m[ 1 ] );
+			expect( requestedTitles ).toEqual( [ 'Alias1' ] );
 		} );
 	} );
 
@@ -361,13 +342,11 @@ describe( 'get-pages', () => {
 				expect.objectContaining( { redirects: false } )
 			);
 
-			const data = assertStructuredSuccess( result, GetPagesSchema );
-			expect( data.pages[ 0 ] ).toMatchObject( {
-				requestedTitle: 'Main Page',
-				title: 'Main Page',
-				source: '#REDIRECT [[Target]]'
-			} );
-			expect( data.pages[ 0 ].redirectedFrom ).toBeUndefined();
+			const text = assertStructuredSuccess( result, z.string() );
+			expect( text ).toContain( 'Requested title: Main Page' );
+			expect( text ).toContain( '  Title: Main Page' );
+			expect( text ).toContain( '  Source: #REDIRECT [[Target]]' );
+			expect( text ).not.toContain( 'Redirected from:' );
 		} );
 
 		it( 'mwn.read throws → isError with wrapped message', async () => {
@@ -402,21 +381,18 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'Big', 'Small' ], 'source', false );
 
-			const data = assertStructuredSuccess( result, GetPagesSchema );
-			const bigEntry = data.pages.find( ( p ) => p.requestedTitle === 'Big' )!;
-			const smallEntry = data.pages.find( ( p ) => p.requestedTitle === 'Small' )!;
-
-			expect( bigEntry.source ).toHaveLength( 50000 );
-			expect( bigEntry.truncation ).toMatchObject( {
-				reason: 'content-truncated',
-				returnedBytes: 50000,
-				totalBytes: 50001,
-				itemNoun: 'wikitext',
-				toolName: 'get-pages',
-				sections: [ '', 'Overview' ]
-			} );
-			expect( smallEntry.source ).toBe( small );
-			expect( smallEntry.truncation ).toBeUndefined();
+			const text = assertStructuredSuccess( result, z.string() );
+			expect( text ).toMatch( /Requested title: Big[\s\S]*?Source:\n\nx{50000}\n {2}Truncation:/ );
+			expect( text ).toContain( '    Reason: content-truncated' );
+			expect( text ).toContain( '    Returned bytes: 50000' );
+			expect( text ).toContain( '    Total bytes: 50001' );
+			expect( text ).toContain( '    Item noun: wikitext' );
+			expect( text ).toContain( '    Tool name: get-pages' );
+			expect( text ).toContain( '    Sections:\n    - (empty)\n    - Overview' );
+			expect( text ).toContain( `  Source: ${ small }` );
+			// Small entry has no truncation: block under it. We can verify only one Truncation block exists.
+			const truncationCount = ( text.match( /Truncation:/g ) ?? [] ).length;
+			expect( truncationCount ).toBe( 1 );
 
 			expect( request ).toHaveBeenCalledTimes( 1 );
 			expect( request ).toHaveBeenCalledWith( expect.objectContaining( {
@@ -453,10 +429,12 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'BigA', 'BigB' ], 'source', false );
 
-			const data = assertStructuredSuccess( result, GetPagesSchema );
+			const text = assertStructuredSuccess( result, z.string() );
 			expect( request ).toHaveBeenCalledTimes( 2 );
 			expect( maxInFlight ).toBe( 2 );
-			expect( data.pages.every( ( p ) => p.truncation !== undefined ) ).toBe( true );
+			// Both pages should have a truncation block.
+			const truncationCount = ( text.match( /Truncation:/g ) ?? [] ).length;
+			expect( truncationCount ).toBe( 2 );
 		} );
 
 		it( 'does not emit a truncation for content at exactly 50000 bytes', async () => {
@@ -472,8 +450,8 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'Exact' ], 'source', false );
 
-			const data = assertStructuredSuccess( result, GetPagesSchema );
-			expect( data.pages[ 0 ].truncation ).toBeUndefined();
+			const text = assertStructuredSuccess( result, z.string() );
+			expect( text ).not.toContain( 'Truncation:' );
 			expect( request ).not.toHaveBeenCalled();
 		} );
 	} );

@@ -26,16 +26,11 @@ vi.mock( '../../src/resources/index.js', () => ( {
 import { wikiService } from '../../src/common/wikiService.js';
 import { removeMwnInstance } from '../../src/common/mwn.js';
 import { removeLicenseCache } from '../../src/resources/index.js';
+import { formatPayload } from '../../src/common/formatPayload.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
-
-const RemoveWikiOutputSchema = z.object( {
-	wikiKey: z.string(),
-	sitename: z.string(),
-	removed: z.literal( true )
-} );
 
 describe( 'remove-wiki', () => {
 	beforeEach( () => {
@@ -56,12 +51,12 @@ describe( 'remove-wiki', () => {
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleRemoveWikiTool>[0];
 		const result = await handleRemoveWikiTool( server, 'mcp://wikis/example.org' );
 
-		const data = assertStructuredSuccess( result, RemoveWikiOutputSchema );
-		expect( data ).toEqual( {
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toBe( formatPayload( {
 			wikiKey: 'example.org',
 			sitename: 'Example',
 			removed: true
-		} );
+		} ) );
 		expect( vi.mocked( wikiService.remove ) ).toHaveBeenCalledWith( 'example.org' );
 		expect( vi.mocked( removeMwnInstance ) ).toHaveBeenCalledWith( 'example.org' );
 		expect( vi.mocked( removeLicenseCache ) ).toHaveBeenCalledWith( 'example.org' );

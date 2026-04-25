@@ -11,12 +11,6 @@ import { formatEditComment } from '../common/utils.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 
-const outputSchema = {
-	title: z.string(),
-	deleted: z.literal( true ),
-	logId: z.number().int().nonnegative().optional()
-};
-
 export function deletePageTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
 		'delete-page',
@@ -26,7 +20,6 @@ export function deletePageTool( server: McpServer ): RegisteredTool {
 				title: z.string().describe( 'Wiki page title' ),
 				comment: z.string().optional().describe( 'Reason for deleting the page' )
 			},
-			outputSchema,
 			annotations: {
 				title: 'Delete page',
 				readOnlyHint: false,

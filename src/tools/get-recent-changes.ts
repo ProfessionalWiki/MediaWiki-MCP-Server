@@ -5,7 +5,6 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import type { TruncationInfo } from '../common/truncation.js';
-import { TruncationSchema } from '../common/schemas.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 
@@ -93,44 +92,12 @@ interface RecentChange {
 	logparams?: Record<string, unknown>;
 }
 
-const RecentChangeSchema = z.object( {
-	type: z.enum( [ 'edit', 'new', 'log', 'categorize', 'external' ] ),
-	title: z.string(),
-	timestamp: z.string(),
-	user: z.string().optional(),
-	userid: z.number().int().nonnegative().optional(),
-	anon: z.boolean().optional(),
-	userhidden: z.boolean().optional(),
-	commenthidden: z.boolean().optional(),
-	revisionId: z.number().int().nonnegative().optional(),
-	oldRevisionId: z.number().int().nonnegative().optional(),
-	newlen: z.number().int().nonnegative().optional(),
-	oldlen: z.number().int().nonnegative().optional(),
-	sizeDelta: z.number().int().optional(),
-	comment: z.string().optional(),
-	minor: z.boolean().optional(),
-	bot: z.boolean().optional(),
-	isNew: z.boolean().optional(),
-	redirect: z.boolean().optional(),
-	unpatrolled: z.boolean().optional(),
-	tags: z.array( z.string() ).optional(),
-	logtype: z.string().optional(),
-	logaction: z.string().optional(),
-	logparams: z.record( z.string(), z.unknown() ).optional()
-} );
-
-const outputSchema = {
-	changes: z.array( RecentChangeSchema ),
-	truncation: TruncationSchema.optional()
-};
-
 export function getRecentChangesTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
 		'get-recent-changes',
 		{
 			description: 'Returns recent change events, newest first, in segments of 50. Defaults to edits and page creations; set types to include log actions, categorizations, or external changes. Each row includes title, timestamp, user, revision IDs, size change, flags (minor/bot/new/anon), tags, and change type. Filter by timestamp window, namespaces, user, change tag, or hide flags (hideBots/hideMinor/hideAnon/hideRedirects/hidePatrolled). Pass showPatrolStatus to include per-row patrol state (requires patrol rights). Paginate with the continue token from the truncation marker. For a single page\'s revision history, use get-page-history.',
 			inputSchema,
-			outputSchema,
 			annotations: {
 				title: 'Get recent changes',
 				readOnlyHint: true,

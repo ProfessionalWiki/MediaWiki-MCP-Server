@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 import { createMockMwnError } from '../helpers/mock-mwn-error.js';
+import { formatPayload } from '../../src/common/formatPayload.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
 vi.mock( '../../src/common/wikiService.js', () => ( {
@@ -24,12 +25,6 @@ import {
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
 
-const DeletePageOutputSchema = z.object( {
-	title: z.string(),
-	deleted: z.literal( true ),
-	logId: z.number().int().nonnegative().optional()
-} );
-
 describe( 'delete-page', () => {
 	beforeEach( () => {
 		vi.clearAllMocks();
@@ -48,12 +43,12 @@ describe( 'delete-page', () => {
 		const { handleDeletePageTool } = await import( '../../src/tools/delete-page.js' );
 		const result = await handleDeletePageTool( 'Old Page', 'spam' );
 
-		const data = assertStructuredSuccess( result, DeletePageOutputSchema );
-		expect( data ).toEqual( {
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toBe( formatPayload( {
 			title: 'Old Page',
 			deleted: true,
 			logId: 42
-		} );
+		} ) );
 		expect( mock.delete ).toHaveBeenCalledWith(
 			'Old Page',
 			expect.stringContaining( 'spam' ),
@@ -70,8 +65,8 @@ describe( 'delete-page', () => {
 		const { handleDeletePageTool } = await import( '../../src/tools/delete-page.js' );
 		const result = await handleDeletePageTool( 'Old Page' );
 
-		const data = assertStructuredSuccess( result, DeletePageOutputSchema );
-		expect( data.logId ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).not.toContain( 'Log ID:' );
 	} );
 
 	it( 'categorises missingtitle as not_found with code', async () => {

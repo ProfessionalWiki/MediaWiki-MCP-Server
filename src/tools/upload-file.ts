@@ -12,12 +12,6 @@ import { formatEditComment, getPageUrl } from '../common/utils.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 
-const outputSchema = {
-	filename: z.string(),
-	pageUrl: z.string(),
-	fileUrl: z.string().optional()
-};
-
 export function uploadFileTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
 		'upload-file',
@@ -29,7 +23,6 @@ export function uploadFileTool( server: McpServer ): RegisteredTool {
 				text: z.string().describe( 'Wikitext on the file page' ),
 				comment: z.string().optional().describe( 'Reason for uploading the file' )
 			},
-			outputSchema,
 			annotations: {
 				title: 'Upload file',
 				readOnlyHint: false,

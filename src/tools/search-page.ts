@@ -7,14 +7,8 @@ import { getMwn } from '../common/mwn.js';
 import type { ApiSearchResult } from 'mwn';
 import { getPageUrl } from '../common/utils.js';
 import type { TruncationInfo } from '../common/truncation.js';
-import { SearchResultSchema, TruncationSchema } from '../common/schemas.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
-
-const outputSchema = {
-	results: z.array( SearchResultSchema ),
-	truncation: TruncationSchema.optional()
-};
 
 export function searchPageTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
@@ -25,7 +19,6 @@ export function searchPageTool( server: McpServer ): RegisteredTool {
 				query: z.string().describe( 'Search terms' ),
 				limit: z.number().int().min( 1 ).max( 100 ).optional().describe( 'Maximum number of search results to return' )
 			},
-			outputSchema,
 			annotations: {
 				title: 'Search page',
 				readOnlyHint: true,

@@ -10,22 +10,6 @@ import { ContentFormat } from '../common/contentFormat.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 
-const outputSchema = {
-	revisionId: z.number().int().nonnegative().optional(),
-	pageId: z.number().int().nonnegative().optional(),
-	title: z.string().optional(),
-	url: z.string().optional(),
-	userid: z.number().int().nonnegative().optional(),
-	user: z.string().optional(),
-	timestamp: z.string().optional(),
-	comment: z.string().optional(),
-	size: z.number().int().nonnegative().optional(),
-	minor: z.boolean().optional(),
-	contentModel: z.string().optional(),
-	source: z.string().optional(),
-	html: z.string().optional()
-};
-
 export function getRevisionTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
 		'get-revision',
@@ -36,7 +20,6 @@ export function getRevisionTool( server: McpServer ): RegisteredTool {
 				content: z.nativeEnum( ContentFormat ).describe( 'Type of content to return' ).optional().default( ContentFormat.source ),
 				metadata: z.boolean().describe( 'Whether to include metadata (revision ID, page ID, page title, user ID, user name, timestamp, comment, size, minor, HTML URL) in the response' ).optional().default( false )
 			},
-			outputSchema,
 			annotations: {
 				title: 'Get revision',
 				readOnlyHint: true,

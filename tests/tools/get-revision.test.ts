@@ -18,22 +18,6 @@ import {
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
 
-const GetRevisionOutputSchema = z.object( {
-	revisionId: z.number().int().nonnegative().optional(),
-	pageId: z.number().int().nonnegative().optional(),
-	title: z.string().optional(),
-	url: z.string().optional(),
-	userid: z.number().int().nonnegative().optional(),
-	user: z.string().optional(),
-	timestamp: z.string().optional(),
-	comment: z.string().optional(),
-	size: z.number().int().nonnegative().optional(),
-	minor: z.boolean().optional(),
-	contentModel: z.string().optional(),
-	source: z.string().optional(),
-	html: z.string().optional()
-} );
-
 describe( 'get-revision', () => {
 	beforeEach( () => { vi.clearAllMocks(); } );
 
@@ -63,11 +47,11 @@ describe( 'get-revision', () => {
 		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
 		const result = await handleGetRevisionTool( 42, 'source', false );
 
-		const data = assertStructuredSuccess( result, GetRevisionOutputSchema );
-		expect( data.source ).toBe( 'Hello world' );
-		expect( data.revisionId ).toBe( 42 );
-		expect( data.title ).toBe( 'Test Page' );
-		expect( data.user ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Source: Hello world' );
+		expect( text ).toContain( 'Revision ID: 42' );
+		expect( text ).toContain( 'Title: Test Page' );
+		expect( text ).not.toContain( 'User:' );
 	} );
 
 	it( 'returns HTML content using action=parse', async () => {
@@ -81,9 +65,9 @@ describe( 'get-revision', () => {
 		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
 		const result = await handleGetRevisionTool( 42, 'html', false );
 
-		const data = assertStructuredSuccess( result, GetRevisionOutputSchema );
-		expect( data.html ).toBe( '<p>Hello</p>' );
-		expect( data.revisionId ).toBe( 42 );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'HTML: <p>Hello</p>' );
+		expect( text ).toContain( 'Revision ID: 42' );
 	} );
 
 	it( 'returns metadata with minor edit flag', async () => {
@@ -111,11 +95,11 @@ describe( 'get-revision', () => {
 		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
 		const result = await handleGetRevisionTool( 42, 'none', true );
 
-		const data = assertStructuredSuccess( result, GetRevisionOutputSchema );
-		expect( data.minor ).toBe( true );
-		expect( data.url ).toContain( 'Test_Page' );
-		expect( data.source ).toBeUndefined();
-		expect( data.html ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Minor: true' );
+		expect( text ).toMatch( /URL: .*Test_Page/ );
+		expect( text ).not.toContain( 'Source:' );
+		expect( text ).not.toContain( 'HTML:' );
 	} );
 
 	it( 'returns error when revision is not found', async () => {

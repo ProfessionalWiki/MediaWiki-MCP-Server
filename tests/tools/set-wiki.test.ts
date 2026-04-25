@@ -16,16 +16,11 @@ vi.mock( '../../src/common/wikiService.js', async () => {
 } );
 
 import { wikiService } from '../../src/common/wikiService.js';
+import { formatPayload } from '../../src/common/formatPayload.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
-
-const SetWikiOutputSchema = z.object( {
-	wikiKey: z.string(),
-	sitename: z.string(),
-	server: z.string()
-} );
 
 describe( 'set-wiki', () => {
 	beforeEach( () => {
@@ -49,12 +44,12 @@ describe( 'set-wiki', () => {
 		const { handleSetWikiTool } = await import( '../../src/tools/set-wiki.js' );
 		const result = await handleSetWikiTool( 'mcp://wikis/example.org', onActiveWikiChanged );
 
-		const data = assertStructuredSuccess( result, SetWikiOutputSchema );
-		expect( data ).toEqual( {
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toBe( formatPayload( {
 			wikiKey: 'example.org',
 			sitename: 'Example',
 			server: 'https://example.org'
-		} );
+		} ) );
 		expect( vi.mocked( wikiService.setCurrent ) ).toHaveBeenCalledWith( 'example.org' );
 		expect( onActiveWikiChanged ).toHaveBeenCalledTimes( 1 );
 	} );

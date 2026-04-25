@@ -11,12 +11,6 @@ import { formatEditComment } from '../common/utils.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 
-const outputSchema = {
-	title: z.string(),
-	restored: z.literal( true ),
-	revisionCount: z.number().int().nonnegative().optional()
-};
-
 export function undeletePageTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
 		'undelete-page',
@@ -26,7 +20,6 @@ export function undeletePageTool( server: McpServer ): RegisteredTool {
 				title: z.string().describe( 'Wiki page title' ),
 				comment: z.string().optional().describe( 'Reason for undeleting the page' )
 			},
-			outputSchema,
 			annotations: {
 				title: 'Undelete page',
 				readOnlyHint: false,

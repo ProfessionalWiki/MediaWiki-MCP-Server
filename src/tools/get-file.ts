@@ -8,17 +8,6 @@ import type { ApiPage, ImageInfo } from 'mwn';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 
-const outputSchema = {
-	title: z.string(),
-	descriptionUrl: z.string(),
-	timestamp: z.string(),
-	user: z.string(),
-	size: z.number().int().nonnegative(),
-	mime: z.string(),
-	url: z.string(),
-	thumbnailUrl: z.string().optional()
-};
-
 export function getFileTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
 		'get-file',
@@ -27,7 +16,6 @@ export function getFileTool( server: McpServer ): RegisteredTool {
 			inputSchema: {
 				title: z.string().describe( 'File title (with or without the "File:" prefix)' )
 			},
-			outputSchema,
 			annotations: {
 				title: 'Get file',
 				readOnlyHint: true,

@@ -6,16 +6,10 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 import { getMwn } from '../common/mwn.js';
 import type { ApiPage, ApiRevision } from 'mwn';
 import type { TruncationInfo } from '../common/truncation.js';
-import { RevisionSummarySchema, TruncationSchema } from '../common/schemas.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 
 const PAGE_HISTORY_LIMIT = 20;
-
-const outputSchema = {
-	revisions: z.array( RevisionSummarySchema ),
-	truncation: TruncationSchema.optional()
-};
 
 export function getPageHistoryTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
@@ -28,7 +22,6 @@ export function getPageHistoryTool( server: McpServer ): RegisteredTool {
 				newerThan: z.number().int().positive().optional().describe( 'Revision ID — return revisions newer than this (exclusive). Mutually exclusive with olderThan.' ),
 				filter: z.string().optional().describe( 'Change tag — return only revisions carrying this tag' )
 			},
-			outputSchema,
 			annotations: {
 				title: 'Get page history',
 				readOnlyHint: true,

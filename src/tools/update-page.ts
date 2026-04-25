@@ -8,7 +8,6 @@ import { wikiService } from '../common/wikiService.js';
 import { getPageUrl, formatEditComment } from '../common/utils.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
-import { PageMetadataSchema } from '../common/schemas.js';
 
 interface UpdatePageArgs {
 	title: string;
@@ -29,8 +28,6 @@ interface ApiEditResponse {
 	contentmodel?: string;
 }
 
-const outputSchema = PageMetadataSchema.shape;
-
 export function updatePageTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
 		'update-page',
@@ -49,7 +46,6 @@ export function updatePageTool( server: McpServer ): RegisteredTool {
 				mode: z.enum( [ 'append', 'prepend' ] ).optional().describe( 'Adds source to the existing content instead of replacing it: \'append\' to the end, \'prepend\' to the start.' ),
 				sectionTitle: z.string().optional().describe( 'Heading for a new section; required when section=\'new\', rejected otherwise.' )
 			},
-			outputSchema,
 			annotations: {
 				title: 'Update page',
 				readOnlyHint: false,

@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
-import { TruncationSchema } from '../../src/common/schemas.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
 vi.mock( '../../src/common/wikiService.js', () => ( {
@@ -18,15 +17,6 @@ import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
-
-const PrefixResultsSchema = z.object( {
-	results: z.array( z.object( {
-		title: z.string(),
-		pageId: z.number().int().nonnegative(),
-		namespace: z.number().int().nonnegative()
-	} ) ),
-	truncation: TruncationSchema.optional()
-} );
 
 describe( 'search-page-by-prefix', () => {
 	beforeEach( () => {
@@ -68,12 +58,12 @@ describe( 'search-page-by-prefix', () => {
 		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
 		const result = await handleSearchPageByPrefixTool( 'Alph', undefined, undefined );
 
-		const data = assertStructuredSuccess( result, PrefixResultsSchema );
-		expect( data.results ).toEqual( [
-			{ title: 'Alpha', pageId: 1, namespace: 0 },
-			{ title: 'Alphabet', pageId: 2, namespace: 0 }
-		] );
-		expect( data.truncation ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( '- Title: Alpha' );
+		expect( text ).toContain( '  Page ID: 1' );
+		expect( text ).toContain( '- Title: Alphabet' );
+		expect( text ).toContain( '  Page ID: 2' );
+		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
 	it( 'returns an empty results array when no matches', async () => {
@@ -87,9 +77,9 @@ describe( 'search-page-by-prefix', () => {
 		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
 		const result = await handleSearchPageByPrefixTool( 'Zzz', undefined, undefined );
 
-		const data = assertStructuredSuccess( result, PrefixResultsSchema );
-		expect( data.results ).toEqual( [] );
-		expect( data.truncation ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Results: (none)' );
+		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
 	it( 'attaches a capped-no-continuation truncation when response.continue is present', async () => {
@@ -104,13 +94,12 @@ describe( 'search-page-by-prefix', () => {
 		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
 		const result = await handleSearchPageByPrefixTool( 'A', 10, undefined );
 
-		const data = assertStructuredSuccess( result, PrefixResultsSchema );
-		expect( data.truncation ).toMatchObject( {
-			reason: 'capped-no-continuation',
-			returnedCount: 1,
-			limit: 10,
-			itemNoun: 'titles'
-		} );
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toContain( 'Truncation:' );
+		expect( text ).toContain( '  Reason: capped-no-continuation' );
+		expect( text ).toContain( '  Returned count: 1' );
+		expect( text ).toContain( '  Limit: 10' );
+		expect( text ).toContain( '  Item noun: titles' );
 	} );
 
 	it( 'omits truncation when response.continue is absent', async () => {
@@ -124,8 +113,8 @@ describe( 'search-page-by-prefix', () => {
 		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
 		const result = await handleSearchPageByPrefixTool( 'A', undefined, undefined );
 
-		const data = assertStructuredSuccess( result, PrefixResultsSchema );
-		expect( data.truncation ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
 	it( 'surfaces errors as isError results', async () => {

@@ -5,7 +5,6 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import { truncateByBytes } from '../common/truncation.js';
-import { TruncationSchema } from '../common/schemas.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 
@@ -13,26 +12,6 @@ const DEFAULT_TITLE = 'API';
 
 type CategoryItem = { category: string; hidden?: boolean };
 type LinkItem = { title: string; exists?: boolean };
-
-const outputSchema = {
-	html: z.string(),
-	displayTitle: z.string().optional(),
-	parseWarnings: z.array( z.string() ).optional(),
-	categories: z.array( z.object( {
-		category: z.string(),
-		hidden: z.boolean().optional()
-	} ) ).optional(),
-	links: z.array( z.object( {
-		title: z.string(),
-		exists: z.boolean().optional()
-	} ) ).optional(),
-	templates: z.array( z.object( {
-		title: z.string(),
-		exists: z.boolean().optional()
-	} ) ).optional(),
-	externalLinks: z.array( z.string() ).optional(),
-	truncation: TruncationSchema.optional()
-};
 
 export function parseWikitextTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
@@ -48,7 +27,6 @@ export function parseWikitextTool( server: McpServer ): RegisteredTool {
 					'Apply pre-save transform (expand ~~~~ signatures, {{subst:}}, normalize whitespace). Matches editor "Show preview" behavior.'
 				)
 			},
-			outputSchema,
 			annotations: {
 				title: 'Preview wikitext',
 				readOnlyHint: true,

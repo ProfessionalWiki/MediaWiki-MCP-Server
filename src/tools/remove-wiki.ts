@@ -10,12 +10,6 @@ import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../common/wik
 import { errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 
-const outputSchema = {
-	wikiKey: z.string(),
-	sitename: z.string(),
-	removed: z.literal( true )
-};
-
 export function removeWikiTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
 		'remove-wiki',
@@ -24,7 +18,6 @@ export function removeWikiTool( server: McpServer ): RegisteredTool {
 			inputSchema: {
 				uri: z.string().describe( 'MCP resource URI of the wiki to remove (e.g. mcp://wikis/en.wikipedia.org)' )
 			},
-			outputSchema,
 			annotations: {
 				title: 'Remove wiki',
 				readOnlyHint: false,

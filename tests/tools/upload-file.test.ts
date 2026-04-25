@@ -29,16 +29,11 @@ vi.mock( '../../src/common/uploadGuard.js', async () => {
 import { getMwn } from '../../src/common/mwn.js';
 import { wikiService } from '../../src/common/wikiService.js';
 import { assertAllowedPath, UploadValidationError } from '../../src/common/uploadGuard.js';
+import { formatPayload } from '../../src/common/formatPayload.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
-
-const UploadFileOutputSchema = z.object( {
-	filename: z.string(),
-	pageUrl: z.string(),
-	fileUrl: z.string().optional()
-} );
 
 describe( 'upload-file', () => {
 	beforeEach( () => {
@@ -103,12 +98,12 @@ describe( 'upload-file', () => {
 			'A cat.'
 		);
 
-		const data = assertStructuredSuccess( result, UploadFileOutputSchema );
-		expect( data ).toEqual( {
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toBe( formatPayload( {
 			filename: 'Cat.jpg',
 			pageUrl: 'https://test.wiki/wiki/File:Cat.jpg',
 			fileUrl: 'https://test.wiki/images/Cat.jpg'
-		} );
+		} ) );
 		expect( mock.upload ).toHaveBeenCalledWith(
 			'/var/lib/uploads/cat.jpg',
 			'File:Cat.jpg',

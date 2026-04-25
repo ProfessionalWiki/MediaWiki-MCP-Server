@@ -5,7 +5,6 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import type { TruncationInfo } from '../common/truncation.js';
-import { TruncationSchema } from '../common/schemas.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 
@@ -14,15 +13,6 @@ interface AllPagesEntry {
 	ns: number;
 	title: string;
 }
-
-const outputSchema = {
-	results: z.array( z.object( {
-		title: z.string(),
-		pageId: z.number().int().nonnegative(),
-		namespace: z.number().int().nonnegative()
-	} ) ),
-	truncation: TruncationSchema.optional()
-};
 
 export function searchPageByPrefixTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
@@ -34,7 +24,6 @@ export function searchPageByPrefixTool( server: McpServer ): RegisteredTool {
 				limit: z.number().int().min( 1 ).max( 500 ).optional().describe( 'Maximum number of results to return' ),
 				namespace: z.number().int().nonnegative().optional().describe( 'Namespace ID to restrict the search to' )
 			},
-			outputSchema,
 			annotations: {
 				title: 'Search page by prefix',
 				readOnlyHint: true,

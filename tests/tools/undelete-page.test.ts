@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 import { createMockMwnError } from '../helpers/mock-mwn-error.js';
+import { formatPayload } from '../../src/common/formatPayload.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
 vi.mock( '../../src/common/wikiService.js', () => ( {
@@ -24,12 +25,6 @@ import {
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
 
-const UndeletePageOutputSchema = z.object( {
-	title: z.string(),
-	restored: z.literal( true ),
-	revisionCount: z.number().int().nonnegative().optional()
-} );
-
 describe( 'undelete-page', () => {
 	beforeEach( () => {
 		vi.clearAllMocks();
@@ -48,12 +43,12 @@ describe( 'undelete-page', () => {
 		const { handleUndeletePageTool } = await import( '../../src/tools/undelete-page.js' );
 		const result = await handleUndeletePageTool( 'Restored Page', 'oops' );
 
-		const data = assertStructuredSuccess( result, UndeletePageOutputSchema );
-		expect( data ).toEqual( {
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).toBe( formatPayload( {
 			title: 'Restored Page',
 			restored: true,
 			revisionCount: 12
-		} );
+		} ) );
 		expect( mock.undelete ).toHaveBeenCalledWith(
 			'Restored Page',
 			expect.stringContaining( 'oops' ),
@@ -70,8 +65,8 @@ describe( 'undelete-page', () => {
 		const { handleUndeletePageTool } = await import( '../../src/tools/undelete-page.js' );
 		const result = await handleUndeletePageTool( 'Restored Page' );
 
-		const data = assertStructuredSuccess( result, UndeletePageOutputSchema );
-		expect( data.revisionCount ).toBeUndefined();
+		const text = assertStructuredSuccess( result, z.string() );
+		expect( text ).not.toContain( 'Revision count:' );
 	} );
 
 	it( 'categorises permissiondenied as permission_denied with code', async () => {
