@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
@@ -12,6 +13,10 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess
+} from '../helpers/structuredResult.js';
 
 describe( 'get-revision', () => {
 	beforeEach( () => { vi.clearAllMocks(); } );
@@ -42,8 +47,11 @@ describe( 'get-revision', () => {
 		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
 		const result = await handleGetRevisionTool( 42, 'source', false );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content[ 0 ].text ).toBe( 'Hello world' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Source: Hello world' );
+		expect( text ).toContain( 'Revision ID: 42' );
+		expect( text ).toContain( 'Title: Test Page' );
+		expect( text ).not.toContain( 'User:' );
 	} );
 
 	it( 'returns HTML content using action=parse', async () => {
@@ -57,8 +65,9 @@ describe( 'get-revision', () => {
 		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
 		const result = await handleGetRevisionTool( 42, 'html', false );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content[ 0 ].text ).toBe( '<p>Hello</p>' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'HTML: <p>Hello</p>' );
+		expect( text ).toContain( 'Revision ID: 42' );
 	} );
 
 	it( 'returns metadata with minor edit flag', async () => {
@@ -86,10 +95,11 @@ describe( 'get-revision', () => {
 		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
 		const result = await handleGetRevisionTool( 42, 'none', true );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content[ 0 ].text ).toContain( 'Minor: true' );
-		expect( result.content[ 0 ].text ).toContain( 'HTML URL:' );
-		expect( result.content[ 0 ].text ).not.toContain( 'Delta' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Minor: true' );
+		expect( text ).toMatch( /URL: .*Test_Page/ );
+		expect( text ).not.toContain( 'Source:' );
+		expect( text ).not.toContain( 'HTML:' );
 	} );
 
 	it( 'returns error when revision is not found', async () => {
@@ -109,8 +119,8 @@ describe( 'get-revision', () => {
 		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
 		const result = await handleGetRevisionTool( 99999, 'source', false );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toContain( 'not found' );
+		const envelope = assertStructuredError( result, 'not_found' );
+		expect( envelope.message ).toContain( 'not found' );
 	} );
 
 	it( 'returns error on failure', async () => {
@@ -122,7 +132,7 @@ describe( 'get-revision', () => {
 		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
 		const result = await handleGetRevisionTool( 42, 'source', false );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toContain( 'API error' );
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toContain( 'API error' );
 	} );
 } );

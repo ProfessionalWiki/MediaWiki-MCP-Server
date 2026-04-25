@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
@@ -12,9 +13,15 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess
+} from '../helpers/structuredResult.js';
 
 describe( 'get-category-members', () => {
-	beforeEach( () => { vi.clearAllMocks(); } );
+	beforeEach( () => {
+		vi.clearAllMocks();
+	} );
 
 	it( 'prefixes a bare category name with "Category:" for cmtitle', async () => {
 		const mock = createMockMwn( {
@@ -69,12 +76,13 @@ describe( 'get-category-members', () => {
 		} );
 	} );
 
-	it( 'returns each member as a text block', async () => {
+	it( 'returns each member as a structured entry with type surfaced', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { categorymembers: [
-					{ pageid: 1, ns: 0, title: 'Alpha' },
-					{ pageid: 2, ns: 6, title: 'File:Bar.png' }
+					{ pageid: 1, ns: 0, title: 'Alpha', type: 'page' },
+					{ pageid: 2, ns: 6, title: 'File:Bar.png', type: 'file' },
+					{ pageid: 3, ns: 14, title: 'Category:Sub', type: 'subcat' }
 				] }
 			} )
 		} );
@@ -83,13 +91,46 @@ describe( 'get-category-members', () => {
 		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
 		const result = await handleGetCategoryMembersTool( 'Foo' );
 
-		expect( result.content ).toHaveLength( 2 );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Page ID: 1' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Title: Alpha' );
-		expect( ( result.content[ 1 ] as { text: string } ).text ).toContain( 'Namespace: 6' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Title: Alpha' );
+		expect( text ).toContain( 'Page ID: 1' );
+		expect( text ).toContain( 'Namespace: 0' );
+		expect( text ).toContain( 'Type: page' );
+		expect( text ).toContain( 'Title: File:Bar.png' );
+		expect( text ).toContain( 'Page ID: 2' );
+		expect( text ).toContain( 'Namespace: 6' );
+		expect( text ).toContain( 'Type: file' );
+		expect( text ).toContain( 'Title: Category:Sub' );
+		expect( text ).toContain( 'Page ID: 3' );
+		expect( text ).toContain( 'Namespace: 14' );
+		expect( text ).toContain( 'Type: subcat' );
+		expect( text ).not.toContain( 'Truncation:' );
+
+		const call = mock.request.mock.calls[ 0 ][ 0 ];
+		expect( call.cmprop ).toBe( 'ids|title|type' );
 	} );
 
-	it( 'appends a more-available marker with a double-quoted continueFrom cursor', async () => {
+	it( 'omits type from entries when MediaWiki omits it', async () => {
+		const mock = createMockMwn( {
+			request: vi.fn().mockResolvedValue( {
+				query: { categorymembers: [
+					{ pageid: 1, ns: 0, title: 'Alpha' }
+				] }
+			} )
+		} );
+		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+
+		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
+		const result = await handleGetCategoryMembersTool( 'Foo' );
+
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Title: Alpha' );
+		expect( text ).toContain( 'Page ID: 1' );
+		expect( text ).toContain( 'Namespace: 0' );
+		expect( text ).not.toContain( 'Type:' );
+	} );
+
+	it( 'attaches a more-available truncation with the continueFrom cursor', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { categorymembers: [ { pageid: 1, ns: 0, title: 'A' } ] },
@@ -101,13 +142,18 @@ describe( 'get-category-members', () => {
 		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
 		const result = await handleGetCategoryMembersTool( 'Foo' );
 
-		const last = result.content[ result.content.length - 1 ] as { text: string };
-		expect( last.text ).toBe(
-			'More results available. Returned 1 members. To fetch the next segment, call get-category-members again with continueFrom="page|DOE|456".'
-		);
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Truncation:' );
+		expect( text ).toContain( '  Reason: more-available' );
+		expect( text ).toContain( '  Returned count: 1' );
+		expect( text ).toContain( '  Item noun: members' );
+		expect( text ).toContain( '  Tool name: get-category-members' );
+		expect( text ).toContain( '  Continue with:' );
+		expect( text ).toContain( '    Param: continueFrom' );
+		expect( text ).toContain( '    Value: page|DOE|456' );
 	} );
 
-	it( 'does not append a marker when response.continue is absent', async () => {
+	it( 'omits truncation when response.continue is absent', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { categorymembers: [ { pageid: 1, ns: 0, title: 'A' } ] }
@@ -118,9 +164,8 @@ describe( 'get-category-members', () => {
 		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
 		const result = await handleGetCategoryMembersTool( 'Foo' );
 
-		for ( const block of result.content ) {
-			expect( ( block as { text: string } ).text ).not.toContain( 'More results available' );
-		}
+		const text = assertStructuredSuccess( result );
+		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
 	it( 'surfaces errors as isError results', async () => {
@@ -132,7 +177,7 @@ describe( 'get-category-members', () => {
 		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
 		const result = await handleGetCategoryMembersTool( 'Foo' );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'API error' );
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toContain( 'API error' );
 	} );
 } );

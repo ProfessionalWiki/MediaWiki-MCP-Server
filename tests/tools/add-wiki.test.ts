@@ -16,13 +16,43 @@ vi.mock( '../../src/common/wikiService.js', async () => {
 	};
 } );
 
+import { z } from 'zod';
 import { discoverWiki } from '../../src/common/wikiDiscovery.js';
 import { wikiService, DuplicateWikiKeyError } from '../../src/common/wikiService.js';
 import { SsrfValidationError } from '../../src/common/ssrfGuard.js';
+import { formatPayload } from '../../src/common/formatPayload.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess
+} from '../helpers/structuredResult.js';
 
 describe( 'add-wiki', () => {
 	beforeEach( () => {
 		vi.clearAllMocks();
+	} );
+
+	it( 'returns a structured payload on success', async () => {
+		vi.mocked( discoverWiki ).mockResolvedValue( {
+			servername: 'example.org',
+			sitename: 'Example Wiki',
+			server: 'https://example.org',
+			articlepath: '/wiki',
+			scriptpath: '/w'
+		} );
+		vi.mocked( wikiService.add ).mockImplementation( () => {} );
+
+		const { handleAddWikiTool } = await import( '../../src/tools/add-wiki.js' );
+		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
+		const result = await handleAddWikiTool( server, 'https://example.org/' );
+
+		const text = assertStructuredSuccess( result );
+		expect( text ).toBe( formatPayload( {
+			wikiKey: 'example.org',
+			sitename: 'Example Wiki',
+			server: 'https://example.org',
+			articlepath: '/wiki',
+			scriptpath: '/w'
+		} ) );
 	} );
 
 	it( 'categorises SSRF rejections as invalid_input', async () => {
@@ -36,9 +66,9 @@ describe( 'add-wiki', () => {
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
 		const result = await handleAddWikiTool( server, 'http://169.254.169.254/' );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toMatch(
-			/^invalid_input: Failed to add wiki:.*169\.254\.169\.254/
+		const envelope = assertStructuredError( result, 'invalid_input' );
+		expect( envelope.message ).toMatch(
+			/Failed to add wiki:.*169\.254\.169\.254/
 		);
 	} );
 
@@ -58,9 +88,9 @@ describe( 'add-wiki', () => {
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
 		const result = await handleAddWikiTool( server, 'https://example.org/' );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'conflict: Wiki "example.org" already exists in configuration'
+		const envelope = assertStructuredError( result, 'conflict' );
+		expect( envelope.message ).toBe(
+			'Wiki "example.org" already exists in configuration'
 		);
 	} );
 
@@ -73,9 +103,9 @@ describe( 'add-wiki', () => {
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
 		const result = await handleAddWikiTool( server, 'https://example.org/' );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toMatch(
-			/^upstream_failure: Failed to add wiki: Connection refused/
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toMatch(
+			/Failed to add wiki: Connection refused/
 		);
 	} );
 } );

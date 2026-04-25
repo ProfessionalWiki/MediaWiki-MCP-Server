@@ -1,33 +1,36 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import type { ApiUploadParams } from 'types-mediawiki-api';
 /* eslint-enable n/no-missing-import */
 import type { ApiUploadResponse } from 'mwn';
 import { getMwn } from '../common/mwn.js';
 import { wikiService } from '../common/wikiService.js';
 import { assertAllowedPath, UploadValidationError } from '../common/uploadGuard.js';
-import { formatEditComment } from '../common/utils.js';
+import { formatEditComment, getPageUrl } from '../common/utils.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
+import { structuredResult } from '../common/structuredResult.js';
 
 export function uploadFileTool( server: McpServer ): RegisteredTool {
-	return server.tool(
+	return server.registerTool(
 		'upload-file',
-		'Uploads a file from the local disk into the wiki\'s File namespace and returns the resulting file title and URL. The operator restricts which directories are readable; filepath must be an absolute path inside a configured upload directory, or the call fails before contacting the wiki. Fails if a file with the target title already exists (the wiki does not silently overwrite existing files). To upload directly from a remote web address instead of a local path, use upload-file-from-url.',
 		{
-			filepath: z.string().describe( 'File path on the local disk' ),
-			title: z.string().describe( 'File title (with or without the "File:" prefix)' ),
-			text: z.string().describe( 'Wikitext on the file page' ),
-			comment: z.string().optional().describe( 'Reason for uploading the file' )
+			description: 'Uploads a file from the local disk into the wiki\'s File namespace and returns the resulting file title and URL. The operator restricts which directories are readable; filepath must be an absolute path inside a configured upload directory, or the call fails before contacting the wiki. Fails if a file with the target title already exists (the wiki does not silently overwrite existing files). To upload directly from a remote web address instead of a local path, use upload-file-from-url.',
+			inputSchema: {
+				filepath: z.string().describe( 'File path on the local disk' ),
+				title: z.string().describe( 'File title (with or without the "File:" prefix)' ),
+				text: z.string().describe( 'Wikitext on the file page' ),
+				comment: z.string().optional().describe( 'Reason for uploading the file' )
+			},
+			annotations: {
+				title: 'Upload file',
+				readOnlyHint: false,
+				destructiveHint: false,
+				idempotentHint: true,
+				openWorldHint: true
+			} as ToolAnnotations
 		},
-		{
-			title: 'Upload file',
-			readOnlyHint: false,
-			destructiveHint: false,
-			idempotentHint: true,
-			openWorldHint: true
-		} as ToolAnnotations,
 		async (
 			{ filepath, title, text, comment }
 		) => handleUploadFileTool( filepath, title, text, comment )
@@ -45,8 +48,8 @@ export async function handleUploadFileTool(
 		if ( error instanceof UploadValidationError ) {
 			return errorResult( 'invalid_input', `Failed to upload file: ${ error.message }` );
 		}
-		const { category } = classifyError( error );
-		return errorResult( category, `Failed to upload file: ${ ( error as Error ).message }` );
+		const { category, code } = classifyError( error );
+		return errorResult( category, `Failed to upload file: ${ ( error as Error ).message }`, code );
 	}
 
 	let data: ApiUploadResponse;
@@ -54,13 +57,19 @@ export async function handleUploadFileTool(
 		const mwn = await getMwn();
 		data = await mwn.upload( resolvedPath, title, text, getApiUploadParams( comment ) );
 	} catch ( error ) {
-		const { category } = classifyError( error );
-		return errorResult( category, `Failed to upload file: ${ ( error as Error ).message }` );
+		const { category, code } = classifyError( error );
+		return errorResult( category, `Failed to upload file: ${ ( error as Error ).message }`, code );
 	}
 
-	return {
-		content: uploadFileToolResult( data )
-	};
+	const imageinfo = ( data as ApiUploadResponse & {
+		imageinfo?: { descriptionurl?: string; url?: string };
+	} ).imageinfo;
+	const filename = data.filename ?? title.replace( /^File:/, '' );
+	return structuredResult( {
+		filename,
+		pageUrl: imageinfo?.descriptionurl ?? getPageUrl( `File:${ filename }` ),
+		...( imageinfo?.url !== undefined ? { fileUrl: imageinfo.url } : {} )
+	} );
 }
 
 function getApiUploadParams( comment?: string ): ApiUploadParams {
@@ -72,20 +81,4 @@ function getApiUploadParams( comment?: string ): ApiUploadParams {
 		params.tags = config.tags;
 	}
 	return params;
-}
-
-function uploadFileToolResult( data: ApiUploadResponse ): TextContent[] {
-	const result: TextContent[] = [
-		{
-			type: 'text',
-			text: 'File uploaded successfully'
-		}
-	];
-
-	result.push( {
-		type: 'text',
-		text: `Upload details: ${ JSON.stringify( data, null, 2 ) }`
-	} );
-
-	return result;
 }

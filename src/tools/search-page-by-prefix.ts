@@ -1,11 +1,12 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
-import { appendTruncationMarker, type TruncationInfo } from '../common/truncation.js';
+import type { TruncationInfo } from '../common/truncation.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
+import { structuredResult } from '../common/structuredResult.js';
 
 interface AllPagesEntry {
 	pageid: number;
@@ -14,21 +15,23 @@ interface AllPagesEntry {
 }
 
 export function searchPageByPrefixTool( server: McpServer ): RegisteredTool {
-	return server.tool(
+	return server.registerTool(
 		'search-page-by-prefix',
-		'Returns wiki page titles beginning with a given prefix (suited to autocomplete and title lookup). Only titles are returned — no snippets, sizes, or IDs. Accepts up to 500 titles per call (default 10); additional matches beyond the cap are flagged in the response. For full-text content search, use search-page.',
 		{
-			prefix: z.string().describe( 'Wiki page title prefix' ),
-			limit: z.number().int().min( 1 ).max( 500 ).optional().describe( 'Maximum number of results to return' ),
-			namespace: z.number().int().nonnegative().optional().describe( 'Namespace ID to restrict the search to' )
+			description: 'Returns wiki page titles beginning with a given prefix (suited to autocomplete and title lookup). Only titles are returned — no snippets, sizes, or IDs. Accepts up to 500 titles per call (default 10); additional matches beyond the cap are flagged in the response. For full-text content search, use search-page.',
+			inputSchema: {
+				prefix: z.string().describe( 'Wiki page title prefix' ),
+				limit: z.number().int().min( 1 ).max( 500 ).optional().describe( 'Maximum number of results to return' ),
+				namespace: z.number().int().nonnegative().optional().describe( 'Namespace ID to restrict the search to' )
+			},
+			annotations: {
+				title: 'Search page by prefix',
+				readOnlyHint: true,
+				destructiveHint: false,
+				idempotentHint: true,
+				openWorldHint: true
+			} as ToolAnnotations
 		},
-		{
-			title: 'Search page by prefix',
-			readOnlyHint: true,
-			destructiveHint: false,
-			idempotentHint: true,
-			openWorldHint: true
-		} as ToolAnnotations,
 		async (
 			{ prefix, limit, namespace }
 		) => handleSearchPageByPrefixTool( prefix, limit, namespace )
@@ -57,19 +60,6 @@ export async function handleSearchPageByPrefixTool(
 		const response = await mwn.request( params );
 		const pages: AllPagesEntry[] = response.query?.allpages ?? [];
 
-		if ( pages.length === 0 ) {
-			return {
-				content: [
-					{ type: 'text', text: `No pages found with the prefix "${ prefix }"` } as TextContent
-				]
-			};
-		}
-
-		const content: TextContent[] = pages.map( ( page ): TextContent => ( {
-			type: 'text',
-			text: page.title
-		} ) );
-
 		const truncation: TruncationInfo | null = response.continue ? {
 			reason: 'capped-no-continuation',
 			returnedCount: pages.length,
@@ -78,9 +68,16 @@ export async function handleSearchPageByPrefixTool(
 			narrowHint: 'narrow the prefix or raise limit (max 500)'
 		} : null;
 
-		return { content: appendTruncationMarker( content, truncation ) };
+		return structuredResult( {
+			results: pages.map( ( p ) => ( {
+				title: p.title,
+				pageId: p.pageid,
+				namespace: p.ns
+			} ) ),
+			...( truncation !== null ? { truncation } : {} )
+		} );
 	} catch ( error ) {
-		const { category } = classifyError( error );
-		return errorResult( category, `Failed to retrieve search data: ${ ( error as Error ).message }` );
+		const { category, code } = classifyError( error );
+		return errorResult( category, `Failed to retrieve search data: ${ ( error as Error ).message }`, code );
 	}
 }

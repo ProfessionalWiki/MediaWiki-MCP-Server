@@ -1,100 +1,8 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-/* eslint-disable n/no-missing-import */
-import type { TextContent } from '@modelcontextprotocol/sdk/types.js';
-/* eslint-enable n/no-missing-import */
 import {
-	truncationMarker,
-	appendTruncationMarker,
 	truncateByBytes,
-	DEFAULT_CONTENT_MAX_BYTES,
-	type TruncationInfo
+	DEFAULT_CONTENT_MAX_BYTES
 } from '../../src/common/truncation.js';
-
-describe( 'truncationMarker', () => {
-	it( 'renders more-available with a numeric cursor value unquoted', () => {
-		const info: TruncationInfo = {
-			reason: 'more-available',
-			returnedCount: 20,
-			itemNoun: 'revisions',
-			toolName: 'get-page-history',
-			continueWith: { param: 'olderThan', value: 42 }
-		};
-		expect( truncationMarker( info ) ).toEqual( {
-			type: 'text',
-			text: 'More results available. Returned 20 revisions. To fetch the next segment, call get-page-history again with olderThan=42.'
-		} );
-	} );
-
-	it( 'renders more-available with a string cursor value double-quoted', () => {
-		const info: TruncationInfo = {
-			reason: 'more-available',
-			returnedCount: 500,
-			itemNoun: 'members',
-			toolName: 'get-category-members',
-			continueWith: { param: 'continueFrom', value: 'page|DOE|123' }
-		};
-		expect( truncationMarker( info ).text ).toBe(
-			'More results available. Returned 500 members. To fetch the next segment, call get-category-members again with continueFrom="page|DOE|123".'
-		);
-	} );
-
-	it( 'renders content-truncated without a section list', () => {
-		const info: TruncationInfo = {
-			reason: 'content-truncated',
-			returnedBytes: 50000,
-			totalBytes: 120000,
-			itemNoun: 'HTML',
-			toolName: 'parse-wikitext',
-			remedyHint: 'To avoid truncation, render a smaller wikitext fragment in a follow-up call.'
-		};
-		expect( truncationMarker( info ).text ).toBe(
-			'Content truncated at 50000 of 120000 bytes. To avoid truncation, render a smaller wikitext fragment in a follow-up call.'
-		);
-	} );
-
-	it( 'renders content-truncated with a section list (section 0 labeled Lead)', () => {
-		const info: TruncationInfo = {
-			reason: 'content-truncated',
-			returnedBytes: 50000,
-			totalBytes: 200000,
-			itemNoun: 'wikitext',
-			toolName: 'get-page',
-			sections: [ '', 'History', 'Background' ],
-			remedyHint: 'To read a specific section, call get-page again with section=N.'
-		};
-		expect( truncationMarker( info ).text ).toBe(
-			'Content truncated at 50000 of 200000 bytes. Available sections: 0 (Lead), 1 (History), 2 (Background). To read a specific section, call get-page again with section=N.'
-		);
-	} );
-
-	it( 'renders content-truncated with an empty section list by omitting the sections clause', () => {
-		const info: TruncationInfo = {
-			reason: 'content-truncated',
-			returnedBytes: 50000,
-			totalBytes: 120000,
-			itemNoun: 'wikitext',
-			toolName: 'get-page',
-			sections: [],
-			remedyHint: 'To read a specific section, call get-page again with section=N.'
-		};
-		expect( truncationMarker( info ).text ).toBe(
-			'Content truncated at 50000 of 120000 bytes. To read a specific section, call get-page again with section=N.'
-		);
-	} );
-
-	it( 'renders capped-no-continuation with em dash before narrow hint', () => {
-		const info: TruncationInfo = {
-			reason: 'capped-no-continuation',
-			returnedCount: 100,
-			limit: 100,
-			itemNoun: 'matches',
-			narrowHint: 'narrow the query or raise limit (max 100)'
-		};
-		expect( truncationMarker( info ).text ).toBe(
-			'Result capped at 100 matches. Additional matches may exist — narrow the query or raise limit (max 100).'
-		);
-	} );
-} );
 
 describe( 'DEFAULT_CONTENT_MAX_BYTES', () => {
 	it( 'is exported and equals 50000', () => {
@@ -181,30 +89,5 @@ describe( 'truncateByBytes', () => {
 		expect( result.returnedBytes ).toBeLessThanOrEqual( 100 + 2 );
 		// The returned text must decode cleanly as a string (no thrown decode error)
 		expect( typeof result.text ).toBe( 'string' );
-	} );
-} );
-
-describe( 'appendTruncationMarker', () => {
-	it( 'returns input content unchanged when info is null', () => {
-		const content: TextContent[] = [
-			{ type: 'text', text: 'one' },
-			{ type: 'text', text: 'two' }
-		];
-		expect( appendTruncationMarker( content, null ) ).toEqual( content );
-	} );
-
-	it( 'appends exactly one marker block when info is non-null', () => {
-		const content: TextContent[] = [ { type: 'text', text: 'one' } ];
-		const info: TruncationInfo = {
-			reason: 'capped-no-continuation',
-			returnedCount: 10,
-			limit: 10,
-			itemNoun: 'titles',
-			narrowHint: 'narrow the prefix'
-		};
-		const result = appendTruncationMarker( content, info );
-		expect( result ).toHaveLength( 2 );
-		expect( result[ 0 ] ).toEqual( { type: 'text', text: 'one' } );
-		expect( result[ 1 ].text ).toContain( 'Result capped at 10 titles' );
 	} );
 } );

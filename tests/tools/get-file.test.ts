@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
+import { formatPayload } from '../../src/common/formatPayload.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
 vi.mock( '../../src/common/wikiService.js', () => ( {
@@ -12,6 +14,10 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess
+} from '../helpers/structuredResult.js';
 
 describe( 'get-file', () => {
 	beforeEach( () => { vi.clearAllMocks(); } );
@@ -42,12 +48,17 @@ describe( 'get-file', () => {
 		const { handleGetFileTool } = await import( '../../src/tools/get-file.js' );
 		const result = await handleGetFileTool( 'Example.png' );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content[ 0 ].text ).toContain( 'File title: File:Example.png' );
-		expect( result.content[ 0 ].text ).toContain( 'https://test.wiki/images/example.png' );
-		expect( result.content[ 0 ].text ).toContain( 'Timestamp: 2026-01-01T00:00:00Z' );
-		expect( result.content[ 0 ].text ).toContain( 'User: Admin' );
-		expect( result.content[ 0 ].text ).toContain( 'Thumbnail URL:' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toBe( formatPayload( {
+			title: 'File:Example.png',
+			descriptionUrl: 'https://test.wiki/wiki/File:Example.png',
+			timestamp: '2026-01-01T00:00:00Z',
+			user: 'Admin',
+			size: 12345,
+			mime: 'image/png',
+			url: 'https://test.wiki/images/example.png',
+			thumbnailUrl: 'https://test.wiki/images/thumb/example.png/200px-example.png'
+		} ) );
 	} );
 
 	it( 'handles missing files', async () => {
@@ -66,8 +77,8 @@ describe( 'get-file', () => {
 		const { handleGetFileTool } = await import( '../../src/tools/get-file.js' );
 		const result = await handleGetFileTool( 'Missing.png' );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toContain( 'not found' );
+		const envelope = assertStructuredError( result, 'not_found' );
+		expect( envelope.message ).toContain( 'not found' );
 	} );
 
 	it( 'returns error on API failure', async () => {
@@ -79,7 +90,7 @@ describe( 'get-file', () => {
 		const { handleGetFileTool } = await import( '../../src/tools/get-file.js' );
 		const result = await handleGetFileTool( 'Example.png' );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toContain( 'API error' );
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toContain( 'API error' );
 	} );
 } );

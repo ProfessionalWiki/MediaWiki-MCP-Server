@@ -1,11 +1,12 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult, TextContent, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
-import { appendTruncationMarker, type TruncationInfo } from '../common/truncation.js';
+import type { TruncationInfo } from '../common/truncation.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
+import { structuredResult } from '../common/structuredResult.js';
 
 const RC_LIMIT = 50;
 const RC_PROP = 'user|userid|comment|flags|timestamp|title|ids|sizes|tags|loginfo';
@@ -91,99 +92,20 @@ interface RecentChange {
 	logparams?: Record<string, unknown>;
 }
 
-function formatUser( change: RecentChange ): string {
-	if ( change.userhidden ) {
-		return 'User: (hidden)';
-	}
-	if ( change.anon ) {
-		return `User: ${ change.user } (anonymous)`;
-	}
-	return `User: ${ change.user } (ID: ${ change.userid })`;
-}
-
-function formatFlags( change: RecentChange ): string | undefined {
-	const flags: string[] = [];
-	if ( change.minor ) {
-		flags.push( 'minor' );
-	}
-	if ( change.bot ) {
-		flags.push( 'bot' );
-	}
-	if ( change.new ) {
-		flags.push( 'new' );
-	}
-	if ( change.anon ) {
-		flags.push( 'anon' );
-	}
-	return flags.length > 0 ? `Flags: ${ flags.join( ', ' ) }` : undefined;
-}
-
-function formatLogParams( params: Record<string, unknown> ): string {
-	return Object.entries( params )
-		.map( ( [ key, value ] ) => `${ key }=${ Array.isArray( value ) ? value.join( '|' ) : String( value ) }` )
-		.join( ', ' );
-}
-
-function formatChange( change: RecentChange ): TextContent {
-	const lines: string[] = [
-		`Type: ${ change.type }`,
-		`Title: ${ change.title }`,
-		`Timestamp: ${ change.timestamp }`,
-		formatUser( change )
-	];
-
-	if ( change.type !== 'log' && change.revid !== undefined ) {
-		const fromSuffix = change.old_revid && change.old_revid !== 0 ?
-			` (from ${ change.old_revid })` :
-			'';
-		lines.push( `Revision: ${ change.revid }${ fromSuffix }` );
-	}
-
-	if ( change.type !== 'log' && change.newlen !== undefined ) {
-		const delta = change.newlen - ( change.oldlen ?? 0 );
-		const sign = delta >= 0 ? '+' : '';
-		lines.push( `Size: ${ change.newlen } bytes (${ sign }${ delta })` );
-	}
-
-	if ( !change.commenthidden && change.comment ) {
-		lines.push( `Comment: ${ change.comment }` );
-	}
-
-	if ( change.type === 'log' && change.logtype && change.logaction ) {
-		const paramsStr = change.logparams && Object.keys( change.logparams ).length > 0 ?
-			` (${ formatLogParams( change.logparams ) })` :
-			'';
-		lines.push( `Log: ${ change.logtype }/${ change.logaction }${ paramsStr }` );
-	}
-
-	const flagsLine = formatFlags( change );
-	if ( flagsLine ) {
-		lines.push( flagsLine );
-	}
-
-	if ( change.tags && change.tags.length > 0 ) {
-		lines.push( `Tags: ${ change.tags.join( ', ' ) }` );
-	}
-
-	if ( change.unpatrolled === true ) {
-		lines.push( 'Unpatrolled: yes' );
-	}
-
-	return { type: 'text', text: lines.join( '\n' ) };
-}
-
 export function getRecentChangesTool( server: McpServer ): RegisteredTool {
-	return server.tool(
+	return server.registerTool(
 		'get-recent-changes',
-		'Returns recent change events, newest first, in segments of 50. Defaults to edits and page creations; set types to include log actions, categorizations, or external changes. Each row includes title, timestamp, user, revision IDs, size change, flags (minor/bot/new/anon), tags, and change type. Filter by timestamp window, namespaces, user, change tag, or hide flags (hideBots/hideMinor/hideAnon/hideRedirects/hidePatrolled). Pass showPatrolStatus to include per-row patrol state (requires patrol rights). Paginate with the continue token from the truncation marker. For a single page\'s revision history, use get-page-history.',
-		inputSchema,
 		{
-			title: 'Get recent changes',
-			readOnlyHint: true,
-			destructiveHint: false,
-			idempotentHint: true,
-			openWorldHint: true
-		} as ToolAnnotations,
+			description: 'Returns recent change events, newest first, in segments of 50. Defaults to edits and page creations; set types to include log actions, categorizations, or external changes. Each row includes title, timestamp, user, revision IDs, size change, flags (minor/bot/new/anon), tags, and change type. Filter by timestamp window, namespaces, user, change tag, or hide flags (hideBots/hideMinor/hideAnon/hideRedirects/hidePatrolled). Pass showPatrolStatus to include per-row patrol state (requires patrol rights). Paginate with the continue token from the truncation marker. For a single page\'s revision history, use get-page-history.',
+			inputSchema,
+			annotations: {
+				title: 'Get recent changes',
+				readOnlyHint: true,
+				destructiveHint: false,
+				idempotentHint: true,
+				openWorldHint: true
+			} as ToolAnnotations
+		},
 		async ( args ) => handleGetRecentChangesTool( args as RecentChangesArgs )
 	);
 }
@@ -261,17 +183,6 @@ export async function handleGetRecentChangesTool(
 		const response = await mwn.request( params );
 		const changes = ( response.query?.recentchanges ?? [] ) as RecentChange[];
 
-		if ( changes.length === 0 ) {
-			return {
-				content: [ {
-					type: 'text',
-					text: 'No recent changes matched the filters'
-				} as TextContent ]
-			};
-		}
-
-		const content: TextContent[] = changes.map( formatChange );
-
 		const nextCursor: string | undefined = response.continue?.rccontinue;
 		const truncation: TruncationInfo | null = nextCursor ? {
 			reason: 'more-available',
@@ -281,9 +192,41 @@ export async function handleGetRecentChangesTool(
 			continueWith: { param: 'continue', value: nextCursor }
 		} : null;
 
-		return { content: appendTruncationMarker( content, truncation ) };
+		return structuredResult( {
+			changes: changes.map( ( c ) => {
+				const sizeDelta = ( c.newlen !== undefined && c.oldlen !== undefined ) ?
+					c.newlen - c.oldlen :
+					undefined;
+				return {
+					type: c.type,
+					title: c.title,
+					timestamp: c.timestamp,
+					user: c.user,
+					userid: c.userid,
+					anon: c.anon,
+					userhidden: c.userhidden,
+					commenthidden: c.commenthidden,
+					revisionId: c.revid,
+					oldRevisionId: c.old_revid,
+					newlen: c.newlen,
+					oldlen: c.oldlen,
+					sizeDelta,
+					comment: c.commenthidden ? undefined : c.comment,
+					minor: c.minor,
+					bot: c.bot,
+					isNew: c.new,
+					redirect: c.redirect,
+					unpatrolled: c.unpatrolled,
+					tags: c.tags,
+					logtype: c.logtype,
+					logaction: c.logaction,
+					logparams: c.logparams
+				};
+			} ),
+			...( truncation !== null ? { truncation } : {} )
+		} );
 	} catch ( error ) {
-		const { category } = classifyError( error );
-		return errorResult( category, `Failed to retrieve recent changes: ${ ( error as Error ).message }` );
+		const { category, code } = classifyError( error );
+		return errorResult( category, `Failed to retrieve recent changes: ${ ( error as Error ).message }`, code );
 	}
 }

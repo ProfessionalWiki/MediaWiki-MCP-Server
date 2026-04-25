@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( {
@@ -28,6 +29,11 @@ vi.mock( '../../src/common/uploadGuard.js', async () => {
 import { getMwn } from '../../src/common/mwn.js';
 import { wikiService } from '../../src/common/wikiService.js';
 import { assertAllowedPath, UploadValidationError } from '../../src/common/uploadGuard.js';
+import { formatPayload } from '../../src/common/formatPayload.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess
+} from '../helpers/structuredResult.js';
 
 describe( 'upload-file', () => {
 	beforeEach( () => {
@@ -47,9 +53,9 @@ describe( 'upload-file', () => {
 		const { handleUploadFileTool } = await import( '../../src/tools/upload-file.js' );
 		const result = await handleUploadFileTool( '/etc/passwd', 'File:Shadow', 'body' );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toMatch(
-			/^invalid_input: Failed to upload file:.*not allowed/
+		const envelope = assertStructuredError( result, 'invalid_input' );
+		expect( envelope.message ).toMatch(
+			/Failed to upload file:.*not allowed/
 		);
 		expect( mock.upload ).not.toHaveBeenCalled();
 	} );
@@ -64,17 +70,24 @@ describe( 'upload-file', () => {
 		const { handleUploadFileTool } = await import( '../../src/tools/upload-file.js' );
 		const result = await handleUploadFileTool( '/home/user/uploads/x.jpg', 'File:X', 'body' );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toMatch(
-			/^upstream_failure: Failed to upload file: Connection refused/
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toMatch(
+			/Failed to upload file: Connection refused/
 		);
 		expect( mock.upload ).not.toHaveBeenCalled();
 	} );
 
-	it( 'passes the realpath-resolved filepath to mwn.upload on success', async () => {
+	it( 'returns a structured payload on success', async () => {
 		vi.mocked( assertAllowedPath ).mockResolvedValue( '/var/lib/uploads/cat.jpg' );
 		const mock = createMockMwn( {
-			upload: vi.fn().mockResolvedValue( { result: 'Success', filename: 'Cat.jpg' } )
+			upload: vi.fn().mockResolvedValue( {
+				result: 'Success',
+				filename: 'Cat.jpg',
+				imageinfo: {
+					descriptionurl: 'https://test.wiki/wiki/File:Cat.jpg',
+					url: 'https://test.wiki/images/Cat.jpg'
+				}
+			} )
 		} );
 		vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
@@ -85,7 +98,12 @@ describe( 'upload-file', () => {
 			'A cat.'
 		);
 
-		expect( result.isError ).toBeUndefined();
+		const text = assertStructuredSuccess( result );
+		expect( text ).toBe( formatPayload( {
+			filename: 'Cat.jpg',
+			pageUrl: 'https://test.wiki/wiki/File:Cat.jpg',
+			fileUrl: 'https://test.wiki/images/Cat.jpg'
+		} ) );
 		expect( mock.upload ).toHaveBeenCalledWith(
 			'/var/lib/uploads/cat.jpg',
 			'File:Cat.jpg',

@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
+import { formatPayload } from '../../src/common/formatPayload.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( {
 	getMwn: vi.fn()
@@ -15,13 +17,17 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess
+} from '../helpers/structuredResult.js';
 
 describe( 'parse-wikitext', () => {
 	beforeEach( () => {
 		vi.clearAllMocks();
 	} );
 
-	it( 'returns HTML block for parsed wikitext', async () => {
+	it( 'returns HTML for parsed wikitext', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				parse: { text: '<p>Hello</p>', parsewarnings: [] }
@@ -32,11 +38,11 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( "'''Hello'''", undefined, true );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content[ 0 ].text ).toBe( 'HTML:\n<p>Hello</p>' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'HTML: <p>Hello</p>' );
 	} );
 
-	it( 'places parse warnings as the first block', async () => {
+	it( 'includes parse warnings when present', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				parse: {
@@ -50,11 +56,8 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'anything', undefined, true );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content[ 0 ].text ).toBe(
-			'Parse warnings:\n- Unclosed tag\n- Bad template'
-		);
-		expect( result.content[ 1 ].text ).toBe( 'HTML:\n<p>Body</p>' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Parse warnings:\n- Unclosed tag\n- Bad template' );
 	} );
 
 	it( "defaults title to 'API' when omitted", async () => {
@@ -118,13 +121,13 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toBe(
-			'upstream_failure: Failed to preview wikitext: Network down'
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toBe(
+			'Failed to preview wikitext: Network down'
 		);
 	} );
 
-	it( 'formats categories with (hidden) suffix', async () => {
+	it( 'preserves categories with hidden flag', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				parse: {
@@ -142,13 +145,14 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		const categoriesBlock = result.content.find( ( c ) => c.text?.startsWith( 'Categories:' ) );
-		expect( categoriesBlock?.text ).toBe(
-			'Categories:\n- Category:Foo\n- Category:Hidden (hidden)'
-		);
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Categories:' );
+		expect( text ).toContain( '- Category: Foo' );
+		expect( text ).toContain( '- Category: Hidden' );
+		expect( text ).toContain( '  Hidden: true' );
 	} );
 
-	it( 'formats links with (missing) suffix for red links', async () => {
+	it( 'preserves links with exists flag (defaults missing exists to true)', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				parse: {
@@ -166,11 +170,15 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		const linksBlock = result.content.find( ( c ) => c.text?.startsWith( 'Links:' ) );
-		expect( linksBlock?.text ).toBe( 'Links:\n- Foo\n- RedLink (missing)' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Links:' );
+		expect( text ).toContain( '- Title: Foo' );
+		expect( text ).toContain( '  Exists: true' );
+		expect( text ).toContain( '- Title: RedLink' );
+		expect( text ).toContain( '  Exists: false' );
 	} );
 
-	it( 'formats templates with (missing) suffix', async () => {
+	it( 'preserves templates with exists flag', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				parse: {
@@ -188,13 +196,15 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		const templatesBlock = result.content.find( ( c ) => c.text?.startsWith( 'Templates:' ) );
-		expect( templatesBlock?.text ).toBe(
-			'Templates:\n- Template:Infobox\n- Template:Broken (missing)'
-		);
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Templates:' );
+		expect( text ).toContain( '- Title: Template:Infobox' );
+		expect( text ).toContain( '  Exists: true' );
+		expect( text ).toContain( '- Title: Template:Broken' );
+		expect( text ).toContain( '  Exists: false' );
 	} );
 
-	it( 'formats external links as simple bullet list', async () => {
+	it( 'preserves external links as a simple array', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				parse: {
@@ -209,13 +219,11 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		const externalsBlock = result.content.find( ( c ) => c.text?.startsWith( 'External links:' ) );
-		expect( externalsBlock?.text ).toBe(
-			'External links:\n- https://example.org\n- https://example.com/page'
-		);
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'External links:\n- https://example.org\n- https://example.com/page' );
 	} );
 
-	it( 'includes display title only when it differs from the input title', async () => {
+	it( 'includes displayTitle only when it differs from the input title', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				parse: {
@@ -230,11 +238,11 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', 'Custom Title', true );
 
-		const dtBlock = result.content.find( ( c ) => c.text?.startsWith( 'Display title:' ) );
-		expect( dtBlock?.text ).toBe( 'Display title: <i>Custom Display</i>' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Display title: <i>Custom Display</i>' );
 	} );
 
-	it( 'skips display title when it matches the input title', async () => {
+	it( 'omits displayTitle when it matches the input title', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				parse: {
@@ -249,10 +257,11 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		expect( result.content.some( ( c ) => c.text?.startsWith( 'Display title:' ) ) ).toBe( false );
+		const text = assertStructuredSuccess( result );
+		expect( text ).not.toContain( 'Display title:' );
 	} );
 
-	it( 'skips empty sections entirely', async () => {
+	it( 'omits empty sections entirely', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				parse: {
@@ -271,11 +280,11 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		expect( result.content.length ).toBe( 1 );
-		expect( result.content[ 0 ].text ).toBe( 'HTML:\n<p>x</p>' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toBe( formatPayload( { html: '<p>x</p>' } ) );
 	} );
 
-	it( 'truncates HTML over 50000 bytes with a marker between HTML and subsequent metadata blocks', async () => {
+	it( 'attaches content-truncated truncation when HTML exceeds the byte cap', async () => {
 		const bigHtml = '<p>' + 'x'.repeat( 60000 ) + '</p>';
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
@@ -291,16 +300,18 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		expect( result.content ).toHaveLength( 3 );
-		expect( result.content[ 0 ].text!.startsWith( 'HTML:\n' ) ).toBe( true );
-		expect( result.content[ 0 ].text ).toHaveLength( 'HTML:\n'.length + 50000 );
-		expect( result.content[ 1 ].text ).toContain( 'Content truncated at 50000 of 60007 bytes' );
-		expect( result.content[ 1 ].text ).toContain( 'render a smaller wikitext fragment' );
-		expect( result.content[ 1 ].text ).not.toContain( 'Available sections' );
-		expect( result.content[ 2 ].text!.startsWith( 'Categories:' ) ).toBe( true );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toMatch( /HTML:\n\n<p>x+/ );
+		expect( text ).toContain( 'Truncation:' );
+		expect( text ).toContain( '  Reason: content-truncated' );
+		expect( text ).toContain( '  Returned bytes: 50000' );
+		expect( text ).toContain( '  Total bytes: 60007' );
+		expect( text ).toContain( '  Item noun: HTML' );
+		expect( text ).toContain( '  Tool name: parse-wikitext' );
+		expect( text ).toContain( 'Categories:\n- Category: Foo' );
 	} );
 
-	it( 'does not emit a marker for HTML at exactly 50000 bytes', async () => {
+	it( 'omits truncation when HTML is exactly at the byte cap', async () => {
 		const exact = 'y'.repeat( 50000 );
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
@@ -312,38 +323,8 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		expect( result.content ).toHaveLength( 1 );
-		expect( result.content[ 0 ].text ).toBe( `HTML:\n${ exact }` );
-	} );
-
-	it( 'emits sections in order: warnings, HTML, displaytitle, categories, links, templates, externallinks', async () => {
-		const mock = createMockMwn( {
-			request: vi.fn().mockResolvedValue( {
-				parse: {
-					text: '<p>x</p>',
-					parsewarnings: [ 'warn' ],
-					categories: [ { sortkey: '', category: 'Foo' } ],
-					links: [ { ns: 0, title: 'L', exists: true } ],
-					templates: [ { ns: 10, title: 'Template:T', exists: true } ],
-					externallinks: [ 'https://example.org' ],
-					displaytitle: '<i>Different</i>'
-				}
-			} )
-		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
-
-		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
-		const result = await handleParseWikitextTool( 'x', 'Plain', true );
-
-		const prefixes = result.content.map( ( c ) => c.text!.split( ':' )[ 0 ] + ':' );
-		expect( prefixes ).toEqual( [
-			'Parse warnings:',
-			'HTML:',
-			'Display title:',
-			'Categories:',
-			'Links:',
-			'Templates:',
-			'External links:'
-		] );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toMatch( /HTML:\n\ny{50000}/ );
+		expect( text ).not.toContain( 'Truncation:' );
 	} );
 } );

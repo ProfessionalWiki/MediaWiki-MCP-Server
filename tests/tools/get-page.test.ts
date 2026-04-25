@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( {
@@ -15,6 +16,10 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess
+} from '../helpers/structuredResult.js';
 
 describe( 'get-page', () => {
 	beforeEach( () => {
@@ -39,8 +44,10 @@ describe( 'get-page', () => {
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Test Page', 'source', false );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content[ 0 ].text ).toBe( 'Hello world' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Source: Hello world' );
+		expect( text ).not.toContain( 'Page ID:' );
+		expect( text ).not.toContain( 'Title:' );
 		expect( mock.read ).toHaveBeenCalledWith( 'Test Page', expect.any( Object ) );
 	} );
 
@@ -55,8 +62,8 @@ describe( 'get-page', () => {
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Test Page', 'html', false );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content[ 0 ].text ).toBe( '<p>Hello</p>' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'HTML: <p>Hello</p>' );
 	} );
 
 	it( 'returns metadata without content for ContentFormat.none', async () => {
@@ -69,17 +76,21 @@ describe( 'get-page', () => {
 					timestamp: '2026-01-01T00:00:00Z',
 					contentmodel: 'wikitext'
 				} ]
-			} )
+			} ),
+			request: vi.fn().mockResolvedValue( { parse: { sections: [] } } )
 		} );
 		vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Test Page', 'none', true );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content[ 0 ].text ).toContain( 'Page ID: 1' );
-		expect( result.content[ 0 ].text ).toContain( 'Title: Test Page' );
-		expect( result.content[ 0 ].text ).not.toContain( 'License' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Page ID: 1' );
+		expect( text ).toContain( 'Title: Test Page' );
+		expect( text ).toContain( 'Latest revision ID: 42' );
+		expect( text ).toContain( 'Content model: wikitext' );
+		expect( text ).not.toContain( 'Source:' );
+		expect( text ).not.toContain( 'HTML:' );
 	} );
 
 	it( 'returns error when page is missing', async () => {
@@ -95,8 +106,8 @@ describe( 'get-page', () => {
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Missing Page', 'source', false );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toContain( 'not found' );
+		const envelope = assertStructuredError( result, 'not_found' );
+		expect( envelope.message ).toContain( 'not found' );
 	} );
 
 	it( 'returns both metadata and source when both requested', async () => {
@@ -110,17 +121,17 @@ describe( 'get-page', () => {
 					contentmodel: 'wikitext',
 					content: 'Hello world'
 				} ]
-			} )
+			} ),
+			request: vi.fn().mockResolvedValue( { parse: { sections: [] } } )
 		} );
 		vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Test Page', 'source', true );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content.length ).toBe( 2 );
-		expect( result.content[ 0 ].text ).toContain( 'Page ID: 1' );
-		expect( result.content[ 1 ].text ).toBe( 'Source:\nHello world' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Page ID: 1' );
+		expect( text ).toContain( 'Source: Hello world' );
 	} );
 
 	it( 'returns error on mwn failure', async () => {
@@ -132,8 +143,8 @@ describe( 'get-page', () => {
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Test Page', 'source', false );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toContain( 'API error' );
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toContain( 'API error' );
 	} );
 
 	it( 'forwards section as rvsection for source content', async () => {
@@ -153,8 +164,8 @@ describe( 'get-page', () => {
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Test Page', 'source', false, 2 );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content[ 0 ].text ).toBe( 'Section body' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Source: Section body' );
 		expect( read ).toHaveBeenCalledWith( 'Test Page', expect.objectContaining( {
 			rvsection: 2
 		} ) );
@@ -170,8 +181,8 @@ describe( 'get-page', () => {
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Test Page', 'html', false, 1 );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content[ 0 ].text ).toBe( '<p>Section HTML</p>' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'HTML: <p>Section HTML</p>' );
 		expect( request ).toHaveBeenCalledWith( expect.objectContaining( {
 			action: 'parse',
 			page: 'Test Page',
@@ -183,15 +194,11 @@ describe( 'get-page', () => {
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Test Page', 'none', true, 2 );
 
-		expect( result.isError ).toBe( true );
-		expect( result.content[ 0 ].text ).toContain( 'section is not compatible with content="none"' );
+		const envelope = assertStructuredError( result, 'invalid_input' );
+		expect( envelope.message ).toContain( 'section is not compatible with content="none"' );
 	} );
 
-	it( 'reports the full-page Size in metadata even when section is set (size is revision-level, not section-level)', async () => {
-		// When rvsection=N is combined with rvprop=...|size, MediaWiki returns
-		// the section-scoped content but the whole-revision size. That is the
-		// correct semantic for a "Size:" metadata field ("how big is this page")
-		// and this test pins it against regression.
+	it( 'reports the full-page size in metadata even when section is set', async () => {
 		const read = vi.fn().mockResolvedValue( {
 			pageid: 1,
 			title: 'Test Page',
@@ -211,14 +218,14 @@ describe( 'get-page', () => {
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Test Page', 'source', true, 1 );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content[ 0 ].text ).toContain( 'Size: 98765' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Size: 98765' );
 		expect( read ).toHaveBeenCalledWith( 'Test Page', expect.objectContaining( {
 			rvsection: 1
 		} ) );
 	} );
 
-	it( 'omits Size from metadata when the revision has no size field', async () => {
+	it( 'omits size from metadata when the revision has no size field', async () => {
 		const mock = createMockMwn( {
 			read: vi.fn().mockResolvedValue( {
 				pageid: 1,
@@ -236,11 +243,11 @@ describe( 'get-page', () => {
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'No Size', 'none', true );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content[ 0 ].text ).not.toContain( 'Size:' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).not.toContain( 'Size:' );
 	} );
 
-	it( 'metadata=true includes Size and Sections block (section 0 labeled Lead)', async () => {
+	it( 'metadata=true includes size and sections array (lead slot is empty string)', async () => {
 		const mock = createMockMwn( {
 			read: vi.fn().mockResolvedValue( {
 				pageid: 1,
@@ -266,12 +273,12 @@ describe( 'get-page', () => {
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Test Page', 'none', true );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content[ 0 ].text ).toContain( 'Size: 12345' );
-		expect( result.content[ 0 ].text ).toContain( 'Sections:\n- 0: Lead\n- 1: History\n- 2: Background' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Size: 12345' );
+		expect( text ).toContain( 'Sections:\n- (empty)\n- History\n- Background' );
 	} );
 
-	it( 'truncates source content over 50000 bytes with a content-truncated marker', async () => {
+	it( 'attaches content-truncated truncation when source exceeds the byte cap', async () => {
 		const big = 'x'.repeat( 50001 );
 		const mock = createMockMwn( {
 			read: vi.fn().mockResolvedValue( {
@@ -293,15 +300,19 @@ describe( 'get-page', () => {
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Big', 'source', false );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content ).toHaveLength( 2 );
-		expect( result.content[ 0 ].text ).toHaveLength( 50000 );
-		expect( result.content[ 1 ].text ).toContain( 'Content truncated at 50000 of 50001 bytes' );
-		expect( result.content[ 1 ].text ).toContain( 'Available sections: 0 (Lead), 1 (History)' );
-		expect( result.content[ 1 ].text ).toContain( 'call get-page again with section=N' );
+		const text = assertStructuredSuccess( result );
+		// Source body is ~50000 chars, rendered as long-string block after Source: label.
+		expect( text ).toMatch( /Source:\n\nx{50000}/ );
+		expect( text ).toContain( 'Truncation:' );
+		expect( text ).toContain( '  Reason: content-truncated' );
+		expect( text ).toContain( '  Returned bytes: 50000' );
+		expect( text ).toContain( '  Total bytes: 50001' );
+		expect( text ).toContain( '  Item noun: wikitext' );
+		expect( text ).toContain( '  Tool name: get-page' );
+		expect( text ).toContain( '  Sections:\n  - (empty)\n  - History' );
 	} );
 
-	it( 'does not truncate source content at exactly 50000 bytes', async () => {
+	it( 'omits truncation when source is exactly at the byte cap', async () => {
 		const exact = 'y'.repeat( 50000 );
 		const mock = createMockMwn( {
 			read: vi.fn().mockResolvedValue( {
@@ -320,12 +331,12 @@ describe( 'get-page', () => {
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Exact', 'source', false );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content ).toHaveLength( 1 );
-		expect( result.content[ 0 ].text ).toHaveLength( 50000 );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toMatch( /Source:\n\ny{50000}/ );
+		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
-	it( 'truncates HTML content over 50000 bytes with a content-truncated marker', async () => {
+	it( 'attaches content-truncated truncation when HTML exceeds the byte cap', async () => {
 		const bigHtml = '<p>' + 'x'.repeat( 60000 ) + '</p>';
 		const request = vi.fn()
 			.mockResolvedValueOnce( { parse: { text: bigHtml } } )
@@ -336,14 +347,18 @@ describe( 'get-page', () => {
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Huge', 'html', false );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content ).toHaveLength( 2 );
-		expect( result.content[ 0 ].text ).toHaveLength( 50000 );
-		expect( result.content[ 1 ].text ).toContain( 'Content truncated at 50000 of ' );
-		expect( result.content[ 1 ].text ).toContain( 'Available sections: 0 (Lead), 1 (Heading)' );
+		const text = assertStructuredSuccess( result );
+		// Truncated HTML is rendered as long-string block.
+		expect( text ).toMatch( /HTML:\n\n<p>x+/ );
+		expect( text ).toContain( 'Truncation:' );
+		expect( text ).toContain( '  Reason: content-truncated' );
+		expect( text ).toContain( '  Returned bytes: 50000' );
+		expect( text ).toContain( '  Item noun: HTML' );
+		expect( text ).toContain( '  Tool name: get-page' );
+		expect( text ).toContain( '  Sections:\n  - (empty)\n  - Heading' );
 	} );
 
-	it( 'html+metadata does not duplicate metadata or read call', async () => {
+	it( 'html+metadata calls read once and returns both metadata and html', async () => {
 		const mock = createMockMwn( {
 			read: vi.fn().mockResolvedValue( {
 				pageid: 1,
@@ -354,19 +369,18 @@ describe( 'get-page', () => {
 					contentmodel: 'wikitext'
 				} ]
 			} ),
-			request: vi.fn().mockResolvedValue( {
-				parse: { text: '<p>Hello</p>' }
-			} )
+			request: vi.fn()
+				.mockResolvedValueOnce( { parse: { sections: [] } } )
+				.mockResolvedValueOnce( { parse: { text: '<p>Hello</p>' } } )
 		} );
 		vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
 		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
 		const result = await handleGetPageTool( 'Test Page', 'html', true );
 
-		expect( result.isError ).toBeUndefined();
+		const text = assertStructuredSuccess( result );
 		expect( mock.read ).toHaveBeenCalledTimes( 1 );
-		expect( result.content.length ).toBe( 2 );
-		expect( result.content[ 0 ].text ).toContain( 'Page ID: 1' );
-		expect( result.content[ 1 ].text ).toBe( 'HTML:\n<p>Hello</p>' );
+		expect( text ).toContain( 'Page ID: 1' );
+		expect( text ).toContain( 'HTML: <p>Hello</p>' );
 	} );
 } );

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
@@ -13,6 +14,10 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 
 import { getMwn } from '../../src/common/mwn.js';
 import { handleComparePagesTool } from '../../src/tools/compare-pages.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess
+} from '../helpers/structuredResult.js';
 
 const PAIRED_CHANGE_HTML = [
 	'<table class="diff">',
@@ -47,13 +52,22 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 57
 		} );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content ).toHaveLength( 2 );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Changed: true' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'From: Foo @ rev 42 (2026-01-01T00:00:00Z, 100 bytes)' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'To:   Foo @ rev 57 (2026-01-02T00:00:00Z, 105 bytes)' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Size delta: +5' );
-		expect( ( result.content[ 1 ] as { text: string } ).text ).toBe( '@@ Line 1 @@\n- old\n+ new' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Changed: true' );
+		expect( text ).toContain( 'From:' );
+		expect( text ).toContain( '  Title: Foo' );
+		expect( text ).toContain( '  Revision ID: 42' );
+		expect( text ).toContain( '  Timestamp: 2026-01-01T00:00:00Z' );
+		expect( text ).toContain( '  Size: 100' );
+		expect( text ).toContain( 'To:' );
+		expect( text ).toContain( '  Revision ID: 57' );
+		expect( text ).toContain( '  Timestamp: 2026-01-02T00:00:00Z' );
+		expect( text ).toContain( '  Size: 105' );
+		expect( text ).toContain( 'Size delta: 5' );
+		expect( text ).toContain( '@@ Line 1 @@\n- old\n+ new' );
+		// isSuppliedText is only emitted when true, so a revid-vs-revid compare
+		// should never show that line.
+		expect( text ).not.toContain( 'Is supplied text:' );
 
 		const call = request.mock.calls[ 0 ][ 0 ];
 		expect( call.action ).toBe( 'compare' );
@@ -62,7 +76,7 @@ describe( 'compare-pages', () => {
 		expect( call.prop ).toContain( 'diff' );
 	} );
 
-	it( 'cheap mode omits diff from prop and returns one block', async () => {
+	it( 'cheap mode omits diff from prop and payload', async () => {
 		const request = vi.fn().mockResolvedValue( {
 			compare: {
 				fromrevid: 42, fromtitle: 'Foo', fromsize: 100,
@@ -75,11 +89,11 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 57, includeDiff: false
 		} );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content ).toHaveLength( 1 );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Changed: true' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Size delta: +5' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).not.toContain( '2026-' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Changed: true' );
+		expect( text ).toContain( 'Size delta: 5' );
+		expect( text ).not.toContain( 'Diff:' );
+		expect( text ).not.toContain( '  Timestamp:' );
 
 		const call = request.mock.calls[ 0 ][ 0 ];
 		expect( call.prop.split( '|' ) ).not.toContain( 'diff' );
@@ -100,13 +114,13 @@ describe( 'compare-pages', () => {
 			fromTitle: 'Foo', toRevision: 42
 		} );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content ).toHaveLength( 1 );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Changed: false' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Size delta: 0' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Changed: false' );
+		expect( text ).toContain( 'Size delta: 0' );
+		expect( text ).not.toContain( 'Diff:' );
 	} );
 
-	it( 'renders supplied text side as "(supplied text, N bytes)"', async () => {
+	it( 'sets isSuppliedText on the supplied-text side', async () => {
 		const request = vi.fn().mockResolvedValue( {
 			compare: {
 				fromsize: 50,
@@ -120,9 +134,15 @@ describe( 'compare-pages', () => {
 			fromText: 'my draft', toTitle: 'Foo'
 		} );
 
-		expect( result.isError ).toBeUndefined();
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'From: Foo (supplied text, 50 bytes)' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'To:   Foo @ rev 57' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'From:' );
+		expect( text ).toContain( '  Size: 50' );
+		expect( text ).toContain( '  Is supplied text: true' );
+		expect( text ).toContain( 'To:' );
+		expect( text ).toContain( '  Title: Foo' );
+		expect( text ).toContain( '  Revision ID: 57' );
+		// Title side does not get the isSuppliedText label.
+		expect( text.match( /Is supplied text:/g ) ?? [] ).toHaveLength( 1 );
 
 		const call = request.mock.calls[ 0 ][ 0 ];
 		expect( call.fromslots ).toBe( 'main' );
@@ -131,8 +151,6 @@ describe( 'compare-pages', () => {
 	} );
 
 	it( 'computes byte size locally when MediaWiki omits it for supplied text', async () => {
-		// MediaWiki's action=compare omits fromsize/tosize for supplied-text
-		// sides. The tool must fall back to the client-side byte length.
 		const request = vi.fn().mockResolvedValue( {
 			compare: {
 				torevid: 57, totitle: 'Foo', tosize: 100,
@@ -145,17 +163,17 @@ describe( 'compare-pages', () => {
 			fromText: 'hello world', toTitle: 'Foo'
 		} );
 
-		expect( result.isError ).toBeUndefined();
+		const text = assertStructuredSuccess( result );
 		// 'hello world' is 11 bytes in UTF-8.
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'From: Foo (supplied text, 11 bytes)' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Size delta: +89' );
+		expect( text ).toContain( '  Size: 11' );
+		expect( text ).toContain( 'Size delta: 89' );
 	} );
 
 	it( 'returns validation error when no from* is given', async () => {
 		const result = await handleComparePagesTool( { toRevision: 57 } );
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'invalid_input: Must supply exactly one of fromRevision, fromTitle, fromText'
+		const envelope = assertStructuredError( result, 'invalid_input' );
+		expect( envelope.message ).toBe(
+			'Must supply exactly one of fromRevision, fromTitle, fromText'
 		);
 	} );
 
@@ -163,9 +181,9 @@ describe( 'compare-pages', () => {
 		const result = await handleComparePagesTool( {
 			fromRevision: 42, fromTitle: 'Foo', toRevision: 57
 		} );
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'invalid_input: Only one of fromRevision, fromTitle, fromText may be supplied'
+		const envelope = assertStructuredError( result, 'invalid_input' );
+		expect( envelope.message ).toBe(
+			'Only one of fromRevision, fromTitle, fromText may be supplied'
 		);
 	} );
 
@@ -173,13 +191,13 @@ describe( 'compare-pages', () => {
 		const result = await handleComparePagesTool( {
 			fromText: 'a', toText: 'b'
 		} );
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'invalid_input: Cannot compare supplied text against supplied text'
+		const envelope = assertStructuredError( result, 'invalid_input' );
+		expect( envelope.message ).toBe(
+			'Cannot compare supplied text against supplied text'
 		);
 	} );
 
-	it( 'maps nosuchrevid errors to a friendly message', async () => {
+	it( 'maps nosuchrevid errors to a friendly message with code', async () => {
 		const request = vi.fn().mockRejectedValue( new Error( 'nosuchrevid: There is no revision with ID 99999.' ) );
 		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
 
@@ -187,11 +205,11 @@ describe( 'compare-pages', () => {
 			fromRevision: 99999, toRevision: 57
 		} );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe( 'not_found: Revision 99999 not found' );
+		const envelope = assertStructuredError( result, 'not_found', 'nosuchrevid' );
+		expect( envelope.message ).toBe( 'Revision 99999 not found' );
 	} );
 
-	it( 'maps missingtitle errors to a friendly message', async () => {
+	it( 'maps missingtitle errors to a friendly message with code', async () => {
 		const request = vi.fn().mockRejectedValue( new Error( 'missingtitle: The page you specified doesn\'t exist.' ) );
 		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
 
@@ -199,8 +217,8 @@ describe( 'compare-pages', () => {
 			fromTitle: 'Nope', toTitle: 'Foo'
 		} );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe( 'not_found: Page "Nope" not found' );
+		const envelope = assertStructuredError( result, 'not_found', 'missingtitle' );
+		expect( envelope.message ).toBe( 'Page "Nope" not found' );
 	} );
 
 	it( 'returns a generic error message for other API failures', async () => {
@@ -211,9 +229,9 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 57
 		} );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'upstream_failure: Failed to compare pages: Connection refused'
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toBe(
+			'Failed to compare pages: Connection refused'
 		);
 	} );
 
@@ -221,9 +239,9 @@ describe( 'compare-pages', () => {
 		const result = await handleComparePagesTool( {
 			fromRevision: 42, toRevision: 57, toTitle: 'Foo'
 		} );
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'invalid_input: Only one of toRevision, toTitle, toText may be supplied'
+		const envelope = assertStructuredError( result, 'invalid_input' );
+		expect( envelope.message ).toBe(
+			'Only one of toRevision, toTitle, toText may be supplied'
 		);
 	} );
 
@@ -240,13 +258,12 @@ describe( 'compare-pages', () => {
 			fromTitle: 'Foo', toRevision: 42, includeDiff: false
 		} );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content ).toHaveLength( 1 );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Changed: false' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Size delta: 0' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Changed: false' );
+		expect( text ).toContain( 'Size delta: 0' );
 	} );
 
-	it( 'full mode returns only the header when body is empty', async () => {
+	it( 'full mode omits diff field when body is empty', async () => {
 		const request = vi.fn().mockResolvedValue( {
 			compare: {
 				fromrevid: 42, fromtitle: 'Foo', fromsize: 100,
@@ -260,9 +277,9 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 42
 		} );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content ).toHaveLength( 1 );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Changed: false' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Changed: false' );
+		expect( text ).not.toContain( 'Diff:' );
 	} );
 
 	it( 'returns error when API response has no compare field', async () => {
@@ -273,9 +290,9 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 57
 		} );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe(
-			'upstream_failure: Failed to compare pages: no compare result returned'
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toBe(
+			'Failed to compare pages: no compare result returned'
 		);
 	} );
 
@@ -287,8 +304,8 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 99999
 		} );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe( 'not_found: Revision 99999 not found' );
+		const envelope = assertStructuredError( result, 'not_found', 'nosuchrevid' );
+		expect( envelope.message ).toBe( 'Revision 99999 not found' );
 	} );
 
 	it( 'parses the correct title when missingtitle message quotes it', async () => {
@@ -299,12 +316,11 @@ describe( 'compare-pages', () => {
 			fromTitle: 'Foo', toTitle: 'Bar'
 		} );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe( 'not_found: Page "Bar" not found' );
+		const envelope = assertStructuredError( result, 'not_found', 'missingtitle' );
+		expect( envelope.message ).toBe( 'Page "Bar" not found' );
 	} );
 
-	it( 'truncates oversized diff body with a content-truncated marker', async () => {
-		// Build a diff body large enough that inlineDiffToText yields > 50000 bytes
+	it( 'truncates oversized diff with a content-truncated truncation field', async () => {
 		const bigOld = 'a'.repeat( 30000 );
 		const bigNew = 'b'.repeat( 30000 );
 		const bigDiffHtml = [
@@ -327,16 +343,15 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 57
 		} );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content ).toHaveLength( 3 );
-		expect( ( result.content[ 1 ] as any ).text ).toHaveLength( 50000 );
-		const marker = ( result.content[ 2 ] as any ).text as string;
-		expect( marker ).toMatch( /^Content truncated at 50000 of \d+ bytes\./ );
-		expect( marker ).toContain( 'compare a narrower revision range or set includeDiff=false' );
-		expect( marker ).not.toContain( 'Available sections' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Truncation:' );
+		expect( text ).toContain( '  Reason: content-truncated' );
+		expect( text ).toContain( '  Returned bytes: 50000' );
+		expect( text ).toContain( '  Item noun: diff' );
+		expect( text ).toContain( '  Tool name: compare-pages' );
 	} );
 
-	it( 'cheap mode (includeDiff=false) emits no content-truncated marker even for oversized changes', async () => {
+	it( 'cheap mode (includeDiff=false) never attaches a content-truncated truncation', async () => {
 		const request = vi.fn().mockResolvedValue( {
 			compare: {
 				fromrevid: 42, fromtitle: 'Foo', fromsize: 100,
@@ -350,12 +365,8 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 57, includeDiff: false
 		} );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content ).toHaveLength( 1 );
-		const hasMarker = result.content.some(
-			( c: any ) => c.text?.startsWith( 'Content truncated at' )
-		);
-		expect( hasMarker ).toBe( false );
+		const text = assertStructuredSuccess( result );
+		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
 	it( 'cheap mode uses diffsize to detect same-byte-count changes', async () => {
@@ -372,9 +383,8 @@ describe( 'compare-pages', () => {
 			fromText: 'hallo world!', toTitle: 'Foo', includeDiff: false
 		} );
 
-		expect( result.isError ).toBeUndefined();
-		expect( result.content ).toHaveLength( 1 );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Changed: true' );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'Size delta: 0' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Changed: true' );
+		expect( text ).toContain( 'Size delta: 0' );
 	} );
 } );

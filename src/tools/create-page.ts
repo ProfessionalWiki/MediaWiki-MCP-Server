@@ -8,24 +8,27 @@ import { getMwn } from '../common/mwn.js';
 import { wikiService } from '../common/wikiService.js';
 import { getPageUrl, formatEditComment } from '../common/utils.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
+import { structuredResult } from '../common/structuredResult.js';
 
 export function createPageTool( server: McpServer ): RegisteredTool {
-	return server.tool(
+	return server.registerTool(
 		'create-page',
-		'Creates a new wiki page with the provided content and returns the new page\'s title, page ID, and first revision ID. Fails if a page with the given title already exists; for existing pages, use update-page. The optional contentModel parameter selects a non-default content format (e.g. javascript, css); when omitted, MediaWiki picks the default for the title\'s namespace. For building up a large page across multiple calls, pair create-page with chained update-page(mode=\'append\') calls, each adding a chunk.',
 		{
-			source: z.string().describe( 'Page content in the format specified by the contentModel parameter' ),
-			title: z.string().describe( 'Wiki page title' ),
-			comment: z.string().optional().describe( 'Reason for creating the page' ),
-			contentModel: z.string().optional().describe( 'Content model of the new page. If omitted, MediaWiki picks the default for the title\'s namespace.' )
+			description: 'Creates a new wiki page with the provided content and returns the new page\'s title, page ID, and first revision ID. Fails if a page with the given title already exists; for existing pages, use update-page. The optional contentModel parameter selects a non-default content format (e.g. javascript, css); when omitted, MediaWiki picks the default for the title\'s namespace. For building up a large page across multiple calls, pair create-page with chained update-page(mode=\'append\') calls, each adding a chunk.',
+			inputSchema: {
+				source: z.string().describe( 'Page content in the format specified by the contentModel parameter' ),
+				title: z.string().describe( 'Wiki page title' ),
+				comment: z.string().optional().describe( 'Reason for creating the page' ),
+				contentModel: z.string().optional().describe( 'Content model of the new page. If omitted, MediaWiki picks the default for the title\'s namespace.' )
+			},
+			annotations: {
+				title: 'Create page',
+				readOnlyHint: false,
+				destructiveHint: false,
+				idempotentHint: true,
+				openWorldHint: true
+			} as ToolAnnotations
 		},
-		{
-			title: 'Create page',
-			readOnlyHint: false,
-			destructiveHint: false,
-			idempotentHint: true,
-			openWorldHint: true
-		} as ToolAnnotations,
 		async (
 			{ source, title, comment, contentModel }
 		) => handleCreatePageTool( source, title, comment, contentModel )
@@ -54,28 +57,16 @@ export async function handleCreatePageTool(
 			options
 		);
 
-		return {
-			content: [
-				{
-					type: 'text',
-					text: `Page created successfully: ${ getPageUrl( result.title ) }`
-				},
-				{
-					type: 'text',
-					text: [
-						'Page object:',
-						`Page ID: ${ result.pageid }`,
-						`Title: ${ result.title }`,
-						`Latest revision ID: ${ result.newrevid }`,
-						`Latest revision timestamp: ${ result.newtimestamp }`,
-						`Content model: ${ result.contentmodel }`,
-						`HTML URL: ${ getPageUrl( result.title ) }`
-					].join( '\n' )
-				}
-			]
-		};
+		return structuredResult( {
+			pageId: result.pageid,
+			title: result.title,
+			latestRevisionId: result.newrevid,
+			latestRevisionTimestamp: result.newtimestamp,
+			contentModel: result.contentmodel,
+			url: getPageUrl( result.title )
+		} );
 	} catch ( error ) {
-		const { category } = classifyError( error );
-		return errorResult( category, `Failed to create page: ${ ( error as Error ).message }` );
+		const { category, code } = classifyError( error );
+		return errorResult( category, `Failed to create page: ${ ( error as Error ).message }`, code );
 	}
 }

@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
+import { formatPayload } from '../../src/common/formatPayload.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
 vi.mock( '../../src/common/wikiService.js', () => ( {
@@ -13,6 +15,10 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 
 import { getMwn } from '../../src/common/mwn.js';
 import { wikiService } from '../../src/common/wikiService.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess
+} from '../helpers/structuredResult.js';
 
 function successResponse( overrides: Record<string, unknown> = {} ) {
 	return {
@@ -51,8 +57,15 @@ describe( 'update-page', () => {
 				title: 'My Page', source: 'Updated content', latestId: 41, comment: 'edit summary'
 			} );
 
-			expect( result.isError ).toBeUndefined();
-			expect( result.content[ 0 ].text ).toContain( 'Page updated successfully' );
+			const text = assertStructuredSuccess( result );
+			expect( text ).toBe( formatPayload( {
+				pageId: 5,
+				title: 'My Page',
+				latestRevisionId: 42,
+				latestRevisionTimestamp: '2026-01-02T00:00:00Z',
+				contentModel: 'wikitext',
+				url: 'https://test.wiki/wiki/My_Page'
+			} ) );
 
 			const params = mock.request.mock.calls[ 0 ][ 0 ];
 			expect( params ).toMatchObject( {
@@ -84,8 +97,8 @@ describe( 'update-page', () => {
 			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
 			const result = await handleUpdatePageTool( { title: 'My Page', source: 'content' } );
 
-			expect( result.isError ).toBe( true );
-			expect( result.content[ 0 ].text ).toContain( 'Failed to update page' );
+			const envelope = assertStructuredError( result, 'upstream_failure' );
+			expect( envelope.message ).toContain( 'Failed to update page' );
 		} );
 
 		it( 'returns error when mwn.request throws', async () => {
@@ -96,8 +109,8 @@ describe( 'update-page', () => {
 			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
 			const result = await handleUpdatePageTool( { title: 'My Page', source: 'content', latestId: 41 } );
 
-			expect( result.isError ).toBe( true );
-			expect( result.content[ 0 ].text ).toContain( 'Edit conflict' );
+			const envelope = assertStructuredError( result, 'upstream_failure' );
+			expect( envelope.message ).toContain( 'Edit conflict' );
 		} );
 
 		it( 'surfaces the missingtitle error from mwn when page does not exist', async () => {
@@ -108,8 +121,8 @@ describe( 'update-page', () => {
 			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
 			const result = await handleUpdatePageTool( { title: 'Does Not Exist', source: 'content', latestId: 1 } );
 
-			expect( result.isError ).toBe( true );
-			expect( result.content[ 0 ].text ).toContain( "doesn't exist" );
+			const envelope = assertStructuredError( result, 'upstream_failure' );
+			expect( envelope.message ).toContain( "doesn't exist" );
 		} );
 	} );
 
@@ -177,8 +190,8 @@ describe( 'update-page', () => {
 			const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
 			const result = await handleUpdatePageTool( { title: 'My Page', source: 'x', section: 99 } );
 
-			expect( result.isError ).toBe( true );
-			expect( result.content[ 0 ].text ).toBe( 'not_found: Section 99 does not exist' );
+			const envelope = assertStructuredError( result, 'not_found' );
+			expect( envelope.message ).toBe( 'Section 99 does not exist' );
 		} );
 
 		it( 'forwards section=\'new\' with sectionTitle as sectiontitle', async () => {
@@ -204,8 +217,8 @@ describe( 'update-page', () => {
 				title: 'My Page', source: 'body', section: 'new'
 			} );
 
-			expect( result.isError ).toBe( true );
-			expect( result.content[ 0 ].text ).toContain( 'sectionTitle is required when section=\'new\'' );
+			const envelope = assertStructuredError( result, 'invalid_input' );
+			expect( envelope.message ).toContain( 'sectionTitle is required when section=\'new\'' );
 		} );
 
 		it( 'rejects sectionTitle when section is a number', async () => {
@@ -214,8 +227,8 @@ describe( 'update-page', () => {
 				title: 'My Page', source: 'body', section: 2, sectionTitle: 'History'
 			} );
 
-			expect( result.isError ).toBe( true );
-			expect( result.content[ 0 ].text ).toContain( 'sectionTitle is only valid when section=\'new\'' );
+			const envelope = assertStructuredError( result, 'invalid_input' );
+			expect( envelope.message ).toContain( 'sectionTitle is only valid when section=\'new\'' );
 		} );
 
 		it( 'rejects sectionTitle when section is undefined', async () => {
@@ -224,8 +237,8 @@ describe( 'update-page', () => {
 				title: 'My Page', source: 'body', sectionTitle: 'History'
 			} );
 
-			expect( result.isError ).toBe( true );
-			expect( result.content[ 0 ].text ).toContain( 'sectionTitle is only valid when section=\'new\'' );
+			const envelope = assertStructuredError( result, 'invalid_input' );
+			expect( envelope.message ).toContain( 'sectionTitle is only valid when section=\'new\'' );
 		} );
 	} );
 
@@ -280,8 +293,8 @@ describe( 'update-page', () => {
 				title: 'My Page', source: 'body', section: 'new', sectionTitle: 'History', mode: 'append'
 			} );
 
-			expect( result.isError ).toBe( true );
-			expect( result.content[ 0 ].text ).toContain( 'mode is not compatible with section=\'new\'' );
+			const envelope = assertStructuredError( result, 'invalid_input' );
+			expect( envelope.message ).toContain( 'mode is not compatible with section=\'new\'' );
 		} );
 	} );
 } );

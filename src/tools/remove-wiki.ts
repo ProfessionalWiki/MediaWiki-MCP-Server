@@ -8,26 +8,32 @@ import { removeMwnInstance } from '../common/mwn.js';
 import { removeLicenseCache } from '../resources/index.js';
 import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../common/wikiResource.js';
 import { errorResult } from '../common/errorMapping.js';
+import { structuredResult } from '../common/structuredResult.js';
 
 export function removeWikiTool( server: McpServer ): RegisteredTool {
-	return server.tool(
+	return server.registerTool(
 		'remove-wiki',
-		'Removes a wiki from the MCP resources. Clears any cached credentials and license metadata for the wiki. Fails if the specified wiki is currently active; call set-wiki to switch to a different wiki first.',
 		{
-			uri: z.string().describe( 'MCP resource URI of the wiki to remove (e.g. mcp://wikis/en.wikipedia.org)' )
+			description: 'Removes a wiki from the MCP resources. Clears any cached credentials and license metadata for the wiki. Fails if the specified wiki is currently active; call set-wiki to switch to a different wiki first.',
+			inputSchema: {
+				uri: z.string().describe( 'MCP resource URI of the wiki to remove (e.g. mcp://wikis/en.wikipedia.org)' )
+			},
+			annotations: {
+				title: 'Remove wiki',
+				readOnlyHint: false,
+				destructiveHint: true,
+				idempotentHint: true,
+				openWorldHint: false
+			} as ToolAnnotations
 		},
-		{
-			title: 'Remove wiki',
-			readOnlyHint: false,
-			destructiveHint: true,
-			idempotentHint: true,
-			openWorldHint: false
-		} as ToolAnnotations,
 		( { uri } ) => handleRemoveWikiTool( server, uri )
 	);
 }
 
-async function handleRemoveWikiTool( server: McpServer, uri: string ): Promise<CallToolResult> {
+export async function handleRemoveWikiTool(
+	server: McpServer,
+	uri: string
+): Promise<CallToolResult> {
 	try {
 		const { wikiKey } = parseWikiResourceUri( uri );
 
@@ -48,12 +54,11 @@ async function handleRemoveWikiTool( server: McpServer, uri: string ): Promise<C
 		removeMwnInstance( wikiKey );
 		removeLicenseCache( wikiKey );
 
-		return {
-			content: [ {
-				type: 'text',
-				text: `${ wikiToRemove.sitename } (mcp://wikis/${ wikiKey }) has been removed from MCP resources.`
-			} ]
-		};
+		return structuredResult( {
+			wikiKey,
+			sitename: wikiToRemove.sitename,
+			removed: true as const
+		} );
 	} catch ( error ) {
 		if ( error instanceof InvalidWikiResourceUriError ) {
 			return errorResult( 'invalid_input', error.message );

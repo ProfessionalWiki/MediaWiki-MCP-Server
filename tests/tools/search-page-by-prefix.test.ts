@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 
 vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
@@ -12,9 +13,15 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 } ) );
 
 import { getMwn } from '../../src/common/mwn.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess
+} from '../helpers/structuredResult.js';
 
 describe( 'search-page-by-prefix', () => {
-	beforeEach( () => { vi.clearAllMocks(); } );
+	beforeEach( () => {
+		vi.clearAllMocks();
+	} );
 
 	it( 'calls action=query&list=allpages with apprefix and aplimit', async () => {
 		const mock = createMockMwn( {
@@ -37,7 +44,7 @@ describe( 'search-page-by-prefix', () => {
 		} );
 	} );
 
-	it( 'returns matching titles as text blocks', async () => {
+	it( 'returns matching titles as structured results', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { allpages: [
@@ -51,12 +58,15 @@ describe( 'search-page-by-prefix', () => {
 		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
 		const result = await handleSearchPageByPrefixTool( 'Alph', undefined, undefined );
 
-		expect( result.content ).toHaveLength( 2 );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toBe( 'Alpha' );
-		expect( ( result.content[ 1 ] as { text: string } ).text ).toBe( 'Alphabet' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( '- Title: Alpha' );
+		expect( text ).toContain( '  Page ID: 1' );
+		expect( text ).toContain( '- Title: Alphabet' );
+		expect( text ).toContain( '  Page ID: 2' );
+		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
-	it( 'returns empty-state message when no matches', async () => {
+	it( 'returns an empty results array when no matches', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { allpages: [] }
@@ -67,10 +77,12 @@ describe( 'search-page-by-prefix', () => {
 		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
 		const result = await handleSearchPageByPrefixTool( 'Zzz', undefined, undefined );
 
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'No pages found with the prefix' );
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Results: (none)' );
+		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
-	it( 'appends a capped marker when response.continue is present', async () => {
+	it( 'attaches a capped-no-continuation truncation when response.continue is present', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { allpages: [ { pageid: 1, ns: 0, title: 'A' } ] },
@@ -82,13 +94,15 @@ describe( 'search-page-by-prefix', () => {
 		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
 		const result = await handleSearchPageByPrefixTool( 'A', 10, undefined );
 
-		const last = result.content[ result.content.length - 1 ] as { text: string };
-		expect( last.text ).toBe(
-			'Result capped at 10 titles. Additional titles may exist — narrow the prefix or raise limit (max 500).'
-		);
+		const text = assertStructuredSuccess( result );
+		expect( text ).toContain( 'Truncation:' );
+		expect( text ).toContain( '  Reason: capped-no-continuation' );
+		expect( text ).toContain( '  Returned count: 1' );
+		expect( text ).toContain( '  Limit: 10' );
+		expect( text ).toContain( '  Item noun: titles' );
 	} );
 
-	it( 'does not append a marker when response.continue is absent', async () => {
+	it( 'omits truncation when response.continue is absent', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { allpages: [ { pageid: 1, ns: 0, title: 'A' } ] }
@@ -99,9 +113,8 @@ describe( 'search-page-by-prefix', () => {
 		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
 		const result = await handleSearchPageByPrefixTool( 'A', undefined, undefined );
 
-		for ( const block of result.content ) {
-			expect( ( block as { text: string } ).text ).not.toContain( 'Result capped' );
-		}
+		const text = assertStructuredSuccess( result );
+		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
 	it( 'surfaces errors as isError results', async () => {
@@ -113,7 +126,7 @@ describe( 'search-page-by-prefix', () => {
 		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
 		const result = await handleSearchPageByPrefixTool( 'A', undefined, undefined );
 
-		expect( result.isError ).toBe( true );
-		expect( ( result.content[ 0 ] as { text: string } ).text ).toContain( 'API error' );
+		const envelope = assertStructuredError( result, 'upstream_failure' );
+		expect( envelope.message ).toContain( 'API error' );
 	} );
 } );
