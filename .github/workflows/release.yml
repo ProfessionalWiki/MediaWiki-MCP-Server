@@ -50,11 +50,20 @@ jobs:
             git push origin HEAD:master
           fi
 
+      - name: Extract release notes from CHANGELOG
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          node scripts/extract-changelog-section.cjs "$VERSION" > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::Empty CHANGELOG section for $VERSION"
+            exit 1
+          fi
+
       - name: Create Release
         uses: softprops/action-gh-release@v3
         with:
           files: '*.mcpb'
-          generate_release_notes: true
+          body_path: release-notes.md
 
       - name: Install MCP Publisher
         run: |
