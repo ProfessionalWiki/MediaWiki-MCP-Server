@@ -1,5 +1,6 @@
 import { makeApiRequest, fetchPageHtml } from './utils.js';
 import { assertPublicDestination } from './ssrfGuard.js';
+import { logger } from './logger.js';
 
 const COMMON_SCRIPT_PATHS = [ '/w', '' ];
 
@@ -43,7 +44,10 @@ async function fetchWikiInfoFromApi(
 	try {
 		data = await makeApiRequest<MediaWikiActionApiResponse>( baseUrl, params );
 	} catch ( error ) {
-		console.error( `Error fetching wiki info from ${ baseUrl }:`, error );
+		logger.error( 'Error fetching wiki info', {
+			baseUrl,
+			error: ( error as Error ).message
+		} );
 		return null;
 	}
 
@@ -90,7 +94,9 @@ function extractScriptPathFromSearchForm( htmlContent: string, wikiServer: strin
 				return path.slice( 0, indexPathIndex );
 			}
 		} catch ( error ) {
-			console.error( `Error extracting script path from search form: ${ ( error as Error ).message }` );
+			logger.warning( 'Error extracting script path from search form', {
+				error: ( error as Error ).message
+			} );
 		}
 	}
 	return null;

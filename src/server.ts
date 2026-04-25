@@ -4,6 +4,7 @@ import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server
 import { createRequire } from 'node:module';
 import { wikiService } from './common/wikiService.js';
 import type { WikiConfig } from './common/config.js';
+import { registerServer, unregisterServer } from './common/logger.js';
 import { registerAllTools } from './tools/index.js';
 import { registerAllResources } from './resources/index.js';
 import { reconcileToolsForActiveWiki } from './tools/reconcile.js';
@@ -38,11 +39,25 @@ export const createServer = (): McpServer => {
 				},
 				tools: {
 					listChanged: true
-				}
+				},
+				logging: {}
 			},
 			instructions: SERVER_INSTRUCTIONS
 		}
 	);
+
+	registerServer( server );
+	// The SDK transport only fires onclose on DELETE / explicit transport.close()
+	// / process termination — not on a raw HTTP disconnect. So this registry
+	// drains on the same lifecycle as the existing sessions map in
+	// streamableHttp.ts; long-lived stale sessions persist until DELETE arrives
+	// or the process ends. Acceptable because sendLoggingMessage to a closed
+	// transport rejects, and swallowNotificationError absorbs that quietly.
+	const previousOnClose = server.server.onclose;
+	server.server.onclose = (): void => {
+		unregisterServer( server );
+		previousOnClose?.();
+	};
 
 	const tools = new Map<string, RegisteredTool>();
 	const reconcile = ( wiki: Readonly<WikiConfig> ): void => {

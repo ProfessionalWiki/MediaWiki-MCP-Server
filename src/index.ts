@@ -10,6 +10,9 @@ async function main(): Promise<void> {
 }
 
 main().catch( ( error ) => {
+	// Bootstrap fail-safe: the logger module may itself be unimportable here
+	// (transitive failure during boot). Stay on console.error so this last-
+	// resort path always works.
 	console.error( 'Fatal error in main():', error );
 	throw error;
 } );
