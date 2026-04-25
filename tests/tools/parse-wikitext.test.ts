@@ -38,7 +38,7 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( "'''Hello'''", undefined, true );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'HTML: <p>Hello</p>' );
 	} );
 
@@ -56,7 +56,7 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'anything', undefined, true );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Parse warnings:\n- Unclosed tag\n- Bad template' );
 	} );
 
@@ -145,7 +145,7 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Categories:' );
 		expect( text ).toContain( '- Category: Foo' );
 		expect( text ).toContain( '- Category: Hidden' );
@@ -170,7 +170,7 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Links:' );
 		expect( text ).toContain( '- Title: Foo' );
 		expect( text ).toContain( '  Exists: true' );
@@ -196,7 +196,7 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Templates:' );
 		expect( text ).toContain( '- Title: Template:Infobox' );
 		expect( text ).toContain( '  Exists: true' );
@@ -219,7 +219,7 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'External links:\n- https://example.org\n- https://example.com/page' );
 	} );
 
@@ -238,7 +238,7 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', 'Custom Title', true );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Display title: <i>Custom Display</i>' );
 	} );
 
@@ -257,7 +257,7 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).not.toContain( 'Display title:' );
 	} );
 
@@ -280,7 +280,7 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toBe( formatPayload( { html: '<p>x</p>' } ) );
 	} );
 
@@ -300,7 +300,7 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toMatch( /HTML:\n\n<p>x+/ );
 		expect( text ).toContain( 'Truncation:' );
 		expect( text ).toContain( '  Reason: content-truncated' );
@@ -323,7 +323,7 @@ describe( 'parse-wikitext', () => {
 		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
 		const result = await handleParseWikitextTool( 'x', undefined, true );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toMatch( /HTML:\n\ny{50000}/ );
 		expect( text ).not.toContain( 'Truncation:' );
 	} );

@@ -98,7 +98,7 @@ describe( 'upload-file', () => {
 			'A cat.'
 		);
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toBe( formatPayload( {
 			filename: 'Cat.jpg',
 			pageUrl: 'https://test.wiki/wiki/File:Cat.jpg',

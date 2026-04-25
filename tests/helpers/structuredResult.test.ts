@@ -10,13 +10,13 @@ import { errorResult } from '../../src/common/errorMapping.js';
 describe( 'assertStructuredSuccess', () => {
 	it( 'returns the rendered text on a valid payload', () => {
 		const result = structuredResult( { value: 42 } );
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Value: 42' );
 	} );
 
 	it( 'throws when isError is true', () => {
 		const result = errorResult( 'invalid_input', 'bad' );
-		expect( () => assertStructuredSuccess( result, z.string() ) ).toThrow();
+		expect( () => assertStructuredSuccess( result ) ).toThrow();
 	} );
 } );
 

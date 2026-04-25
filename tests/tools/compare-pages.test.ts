@@ -52,20 +52,22 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 57
 		} );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Changed: true' );
 		expect( text ).toContain( 'From:' );
 		expect( text ).toContain( '  Title: Foo' );
 		expect( text ).toContain( '  Revision ID: 42' );
 		expect( text ).toContain( '  Timestamp: 2026-01-01T00:00:00Z' );
 		expect( text ).toContain( '  Size: 100' );
-		expect( text ).toContain( '  Is supplied text: false' );
 		expect( text ).toContain( 'To:' );
 		expect( text ).toContain( '  Revision ID: 57' );
 		expect( text ).toContain( '  Timestamp: 2026-01-02T00:00:00Z' );
 		expect( text ).toContain( '  Size: 105' );
 		expect( text ).toContain( 'Size delta: 5' );
 		expect( text ).toContain( '@@ Line 1 @@\n- old\n+ new' );
+		// isSuppliedText is only emitted when true, so a revid-vs-revid compare
+		// should never show that line.
+		expect( text ).not.toContain( 'Is supplied text:' );
 
 		const call = request.mock.calls[ 0 ][ 0 ];
 		expect( call.action ).toBe( 'compare' );
@@ -87,7 +89,7 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 57, includeDiff: false
 		} );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Changed: true' );
 		expect( text ).toContain( 'Size delta: 5' );
 		expect( text ).not.toContain( 'Diff:' );
@@ -112,7 +114,7 @@ describe( 'compare-pages', () => {
 			fromTitle: 'Foo', toRevision: 42
 		} );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Changed: false' );
 		expect( text ).toContain( 'Size delta: 0' );
 		expect( text ).not.toContain( 'Diff:' );
@@ -132,14 +134,15 @@ describe( 'compare-pages', () => {
 			fromText: 'my draft', toTitle: 'Foo'
 		} );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'From:' );
 		expect( text ).toContain( '  Size: 50' );
 		expect( text ).toContain( '  Is supplied text: true' );
 		expect( text ).toContain( 'To:' );
 		expect( text ).toContain( '  Title: Foo' );
 		expect( text ).toContain( '  Revision ID: 57' );
-		expect( text ).toContain( '  Is supplied text: false' );
+		// Title side does not get the isSuppliedText label.
+		expect( text.match( /Is supplied text:/g ) ?? [] ).toHaveLength( 1 );
 
 		const call = request.mock.calls[ 0 ][ 0 ];
 		expect( call.fromslots ).toBe( 'main' );
@@ -160,7 +163,7 @@ describe( 'compare-pages', () => {
 			fromText: 'hello world', toTitle: 'Foo'
 		} );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		// 'hello world' is 11 bytes in UTF-8.
 		expect( text ).toContain( '  Size: 11' );
 		expect( text ).toContain( 'Size delta: 89' );
@@ -255,7 +258,7 @@ describe( 'compare-pages', () => {
 			fromTitle: 'Foo', toRevision: 42, includeDiff: false
 		} );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Changed: false' );
 		expect( text ).toContain( 'Size delta: 0' );
 	} );
@@ -274,7 +277,7 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 42
 		} );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Changed: false' );
 		expect( text ).not.toContain( 'Diff:' );
 	} );
@@ -340,7 +343,7 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 57
 		} );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Truncation:' );
 		expect( text ).toContain( '  Reason: content-truncated' );
 		expect( text ).toContain( '  Returned bytes: 50000' );
@@ -362,7 +365,7 @@ describe( 'compare-pages', () => {
 			fromRevision: 42, toRevision: 57, includeDiff: false
 		} );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
@@ -380,7 +383,7 @@ describe( 'compare-pages', () => {
 			fromText: 'hallo world!', toTitle: 'Foo', includeDiff: false
 		} );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Changed: true' );
 		expect( text ).toContain( 'Size delta: 0' );
 	} );

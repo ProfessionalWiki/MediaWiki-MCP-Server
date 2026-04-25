@@ -91,7 +91,7 @@ describe( 'get-category-members', () => {
 		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
 		const result = await handleGetCategoryMembersTool( 'Foo' );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Title: Alpha' );
 		expect( text ).toContain( 'Page ID: 1' );
 		expect( text ).toContain( 'Namespace: 0' );
@@ -123,7 +123,7 @@ describe( 'get-category-members', () => {
 		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
 		const result = await handleGetCategoryMembersTool( 'Foo' );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Title: Alpha' );
 		expect( text ).toContain( 'Page ID: 1' );
 		expect( text ).toContain( 'Namespace: 0' );
@@ -142,7 +142,7 @@ describe( 'get-category-members', () => {
 		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
 		const result = await handleGetCategoryMembersTool( 'Foo' );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Truncation:' );
 		expect( text ).toContain( '  Reason: more-available' );
 		expect( text ).toContain( '  Returned count: 1' );
@@ -164,7 +164,7 @@ describe( 'get-category-members', () => {
 		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
 		const result = await handleGetCategoryMembersTool( 'Foo' );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).not.toContain( 'Truncation:' );
 	} );
 

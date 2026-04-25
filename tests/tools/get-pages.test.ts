@@ -128,7 +128,7 @@ describe( 'get-pages', () => {
 				'titles'
 			);
 
-			const text = assertStructuredSuccess( result, z.string() );
+			const text = assertStructuredSuccess( result );
 			// Order preserved: input title order, regardless of API response order.
 			const requestedTitles = [ ...text.matchAll( /Requested title: (.+)/g ) ].map( ( m ) => m[ 1 ] );
 			expect( requestedTitles ).toEqual( [
@@ -154,7 +154,7 @@ describe( 'get-pages', () => {
 				[ 'Found1', 'NotReal', 'Found2' ], 'source', false, true
 			);
 
-			const text = assertStructuredSuccess( result, z.string() );
+			const text = assertStructuredSuccess( result );
 			const requestedTitles = [ ...text.matchAll( /Requested title: (.+)/g ) ].map( ( m ) => m[ 1 ] );
 			expect( requestedTitles ).toEqual( [ 'Found1', 'Found2' ] );
 			expect( text ).toContain( 'Missing:\n- NotReal' );
@@ -172,7 +172,7 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'A', 'B' ], 'source', false, true );
 
-			const text = assertStructuredSuccess( result, z.string() );
+			const text = assertStructuredSuccess( result );
 			expect( text ).toContain( 'Pages: (none)' );
 			expect( text ).toContain( 'Missing:\n- A\n- B' );
 		} );
@@ -186,7 +186,7 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'Foo' ], 'source', true, true );
 
-			const text = assertStructuredSuccess( result, z.string() );
+			const text = assertStructuredSuccess( result );
 			expect( text ).toContain( 'Requested title: Foo' );
 			expect( text ).toContain( '  Page ID: 1' );
 			expect( text ).toContain( '  Title: Foo' );
@@ -205,7 +205,7 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'Foo' ], 'none', true, true );
 
-			const text = assertStructuredSuccess( result, z.string() );
+			const text = assertStructuredSuccess( result );
 			const requestedTitles = [ ...text.matchAll( /Requested title: (.+)/g ) ].map( ( m ) => m[ 1 ] );
 			expect( requestedTitles ).toHaveLength( 1 );
 			expect( text ).toContain( '  Page ID: 1' );
@@ -221,7 +221,7 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'Foo', 'Foo' ], 'source', false, true );
 
-			const text = assertStructuredSuccess( result, z.string() );
+			const text = assertStructuredSuccess( result );
 			const requestedTitles = [ ...text.matchAll( /Requested title: (.+)/g ) ].map( ( m ) => m[ 1 ] );
 			expect( requestedTitles ).toHaveLength( 1 );
 		} );
@@ -248,7 +248,7 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'Src' ], 'source', true, true );
 
-			const text = assertStructuredSuccess( result, z.string() );
+			const text = assertStructuredSuccess( result );
 			expect( text ).toContain( 'Requested title: Src' );
 			expect( text ).toContain( '  Title: Tgt' );
 			expect( text ).toContain( '  Redirected from: Src' );
@@ -265,7 +265,7 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'foo' ], 'source', true, true );
 
-			const text = assertStructuredSuccess( result, z.string() );
+			const text = assertStructuredSuccess( result );
 			expect( text ).toContain( 'Requested title: foo' );
 			expect( text ).toContain( '  Title: Foo' );
 			expect( text ).not.toContain( 'Redirected from:' );
@@ -282,7 +282,7 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'main page' ], 'source', true, true );
 
-			const text = assertStructuredSuccess( result, z.string() );
+			const text = assertStructuredSuccess( result );
 			expect( text ).toContain( 'Requested title: main page' );
 			expect( text ).toContain( '  Title: Target' );
 			expect( text ).toContain( '  Redirected from: main page' );
@@ -298,7 +298,7 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'BrokenRedirect' ], 'source', false, true );
 
-			const text = assertStructuredSuccess( result, z.string() );
+			const text = assertStructuredSuccess( result );
 			expect( text ).toContain( 'Pages: (none)' );
 			expect( text ).toContain( 'Missing:\n- BrokenRedirect' );
 		} );
@@ -318,7 +318,7 @@ describe( 'get-pages', () => {
 				[ 'Alias1', 'Alias2' ], 'source', true, true
 			);
 
-			const text = assertStructuredSuccess( result, z.string() );
+			const text = assertStructuredSuccess( result );
 			const requestedTitles = [ ...text.matchAll( /Requested title: (.+)/g ) ].map( ( m ) => m[ 1 ] );
 			expect( requestedTitles ).toEqual( [ 'Alias1' ] );
 		} );
@@ -342,7 +342,7 @@ describe( 'get-pages', () => {
 				expect.objectContaining( { redirects: false } )
 			);
 
-			const text = assertStructuredSuccess( result, z.string() );
+			const text = assertStructuredSuccess( result );
 			expect( text ).toContain( 'Requested title: Main Page' );
 			expect( text ).toContain( '  Title: Main Page' );
 			expect( text ).toContain( '  Source: #REDIRECT [[Target]]' );
@@ -381,7 +381,7 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'Big', 'Small' ], 'source', false );
 
-			const text = assertStructuredSuccess( result, z.string() );
+			const text = assertStructuredSuccess( result );
 			expect( text ).toMatch( /Requested title: Big[\s\S]*?Source:\n\nx{50000}\n {2}Truncation:/ );
 			expect( text ).toContain( '    Reason: content-truncated' );
 			expect( text ).toContain( '    Returned bytes: 50000' );
@@ -429,7 +429,7 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'BigA', 'BigB' ], 'source', false );
 
-			const text = assertStructuredSuccess( result, z.string() );
+			const text = assertStructuredSuccess( result );
 			expect( request ).toHaveBeenCalledTimes( 2 );
 			expect( maxInFlight ).toBe( 2 );
 			// Both pages should have a truncation block.
@@ -450,7 +450,7 @@ describe( 'get-pages', () => {
 			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
 			const result = await handleGetPagesTool( [ 'Exact' ], 'source', false );
 
-			const text = assertStructuredSuccess( result, z.string() );
+			const text = assertStructuredSuccess( result );
 			expect( text ).not.toContain( 'Truncation:' );
 			expect( request ).not.toHaveBeenCalled();
 		} );

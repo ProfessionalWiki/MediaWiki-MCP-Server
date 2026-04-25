@@ -44,7 +44,7 @@ describe( 'set-wiki', () => {
 		const { handleSetWikiTool } = await import( '../../src/tools/set-wiki.js' );
 		const result = await handleSetWikiTool( 'mcp://wikis/example.org', onActiveWikiChanged );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toBe( formatPayload( {
 			wikiKey: 'example.org',
 			sitename: 'Example',

@@ -46,7 +46,7 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page' );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Revision ID: 100' );
 		expect( text ).toContain( 'Timestamp: 2026-01-01T00:00:00Z' );
 		expect( text ).toContain( 'User: Admin' );
@@ -75,7 +75,7 @@ describe( 'get-page-history', () => {
 		expect( call.rvdir ).toBeUndefined();
 		expect( call.rvendid ).toBeUndefined();
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Revision ID: 99' );
 		expect( text ).not.toContain( 'Revision ID: 100' );
 	} );
@@ -95,7 +95,7 @@ describe( 'get-page-history', () => {
 			expect.objectContaining( { rvstartid: 50, rvdir: 'newer' } )
 		);
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Revision ID: 101' );
 		expect( text ).not.toContain( 'Revision ID: 50' );
 	} );
@@ -142,7 +142,7 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page' );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Revisions: (none)' );
 		expect( text ).not.toContain( 'Truncation:' );
 	} );
@@ -170,7 +170,7 @@ describe( 'get-page-history', () => {
 		expect( mock.request ).toHaveBeenCalledWith(
 			expect.objectContaining( { rvlimit: 21, rvstartid: 100 } )
 		);
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		const revIds = ( text.match( /Revision ID: \d+/g ) ?? [] );
 		expect( revIds ).toHaveLength( 20 );
 		expect( text ).toContain( 'Revision ID: 99' );
@@ -198,7 +198,7 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page', 999 );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		const revIds = ( text.match( /Revision ID: \d+/g ) ?? [] );
 		expect( revIds ).toHaveLength( 20 );
 	} );
@@ -250,7 +250,7 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page' );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Truncation:' );
 		expect( text ).toContain( '  Reason: more-available' );
 		expect( text ).toContain( '  Returned count: 2' );
@@ -276,7 +276,7 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page', undefined, 49 );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Truncation:' );
 		expect( text ).toContain( '  Reason: more-available' );
 		expect( text ).toContain( '  Returned count: 2' );
@@ -303,7 +303,7 @@ describe( 'get-page-history', () => {
 		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
 		const result = await handleGetPageHistoryTool( 'Test Page' );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).not.toContain( 'Truncation:' );
 	} );
 } );

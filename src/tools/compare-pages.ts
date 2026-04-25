@@ -166,14 +166,14 @@ export async function handleComparePagesTool(
 				revisionId: compare.fromrevid,
 				timestamp: includeDiff ? compare.fromtimestamp : undefined,
 				size: fromSize,
-				isSuppliedText: args.fromText !== undefined
+				...( args.fromText !== undefined ? { isSuppliedText: true } : {} )
 			},
 			to: {
 				title: compare.totitle,
 				revisionId: compare.torevid,
 				timestamp: includeDiff ? compare.totimestamp : undefined,
 				size: toSize,
-				isSuppliedText: args.toText !== undefined
+				...( args.toText !== undefined ? { isSuppliedText: true } : {} )
 			},
 			...( sizeDelta !== undefined ? { sizeDelta } : {} )
 		};

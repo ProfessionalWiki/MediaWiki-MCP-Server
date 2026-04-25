@@ -45,7 +45,7 @@ describe( 'add-wiki', () => {
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
 		const result = await handleAddWikiTool( server, 'https://example.org/' );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toBe( formatPayload( {
 			wikiKey: 'example.org',
 			sitename: 'Example Wiki',

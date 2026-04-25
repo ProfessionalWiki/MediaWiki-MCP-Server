@@ -43,7 +43,7 @@ describe( 'undelete-page', () => {
 		const { handleUndeletePageTool } = await import( '../../src/tools/undelete-page.js' );
 		const result = await handleUndeletePageTool( 'Restored Page', 'oops' );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toBe( formatPayload( {
 			title: 'Restored Page',
 			restored: true,
@@ -65,7 +65,7 @@ describe( 'undelete-page', () => {
 		const { handleUndeletePageTool } = await import( '../../src/tools/undelete-page.js' );
 		const result = await handleUndeletePageTool( 'Restored Page' );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).not.toContain( 'Revision count:' );
 	} );
 

@@ -44,7 +44,7 @@ describe( 'search-page', () => {
 		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
 		const result = await handleSearchPageTool( 'test query', 10 );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( '- Title: Test Page' );
 		expect( text ).toContain( '  Page ID: 1' );
 		expect( text ).toContain( '  Snippet: matching <span class="searchmatch">text</span>' );
@@ -66,7 +66,7 @@ describe( 'search-page', () => {
 		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
 		const result = await handleSearchPageTool( 'nonexistent', undefined );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Results: (none)' );
 	} );
 
@@ -100,7 +100,7 @@ describe( 'search-page', () => {
 		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
 		const result = await handleSearchPageTool( 'test', 10 );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Truncation:' );
 		expect( text ).toContain( '  Reason: capped-no-continuation' );
 		expect( text ).toContain( '  Returned count: 1' );
@@ -124,7 +124,7 @@ describe( 'search-page', () => {
 		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
 		const result = await handleSearchPageTool( 'test', 10 );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
@@ -145,7 +145,7 @@ describe( 'search-page', () => {
 		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
 		const result = await handleSearchPageTool( 'test', undefined );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Truncation:' );
 		expect( text ).toContain( '  Limit: 10' );
 	} );

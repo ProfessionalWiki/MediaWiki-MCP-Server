@@ -57,7 +57,7 @@ describe( 'update-page', () => {
 				title: 'My Page', source: 'Updated content', latestId: 41, comment: 'edit summary'
 			} );
 
-			const text = assertStructuredSuccess( result, z.string() );
+			const text = assertStructuredSuccess( result );
 			expect( text ).toBe( formatPayload( {
 				pageId: 5,
 				title: 'My Page',

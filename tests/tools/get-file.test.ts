@@ -48,7 +48,7 @@ describe( 'get-file', () => {
 		const { handleGetFileTool } = await import( '../../src/tools/get-file.js' );
 		const result = await handleGetFileTool( 'Example.png' );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toBe( formatPayload( {
 			title: 'File:Example.png',
 			descriptionUrl: 'https://test.wiki/wiki/File:Example.png',

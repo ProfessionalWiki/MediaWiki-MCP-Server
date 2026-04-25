@@ -193,7 +193,7 @@ describe( 'get-recent-changes — payload shape', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		const titles = ( text.match( /Title: /g ) ?? [] );
 		expect( titles ).toHaveLength( 1 );
 		expect( text ).toContain( 'Type: edit' );
@@ -233,7 +233,7 @@ describe( 'get-recent-changes — payload shape', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Type: new' );
 		expect( text ).toContain( 'Revision ID: 500' );
 		expect( text ).toContain( 'Old revision ID: 0' );
@@ -259,7 +259,7 @@ describe( 'get-recent-changes — payload shape', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( { types: [ 'log' ] } );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Type: log' );
 		expect( text ).toContain( 'Logtype: block' );
 		expect( text ).toContain( 'Logaction: block' );
@@ -289,7 +289,7 @@ describe( 'get-recent-changes — payload shape', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'User: 192.0.2.1' );
 		expect( text ).toContain( 'Anon: true' );
 		expect( text ).not.toContain( 'Userid:' );
@@ -314,7 +314,7 @@ describe( 'get-recent-changes — payload shape', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Userhidden: true' );
 		expect( text ).toContain( 'Commenthidden: true' );
 		expect( text ).not.toContain( 'Comment:' );
@@ -340,7 +340,7 @@ describe( 'get-recent-changes — payload shape', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( { showPatrolStatus: true } );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Unpatrolled: true' );
 	} );
 
@@ -363,7 +363,7 @@ describe( 'get-recent-changes — payload shape', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( { showPatrolStatus: true } );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).not.toContain( 'Unpatrolled:' );
 	} );
 } );
@@ -393,7 +393,7 @@ describe( 'get-recent-changes — truncation and empty results', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Truncation:' );
 		expect( text ).toContain( '  Reason: more-available' );
 		expect( text ).toContain( '  Returned count: 2' );
@@ -415,7 +415,7 @@ describe( 'get-recent-changes — truncation and empty results', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
@@ -424,7 +424,7 @@ describe( 'get-recent-changes — truncation and empty results', () => {
 		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
 		const result = await handleGetRecentChangesTool( {} );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Changes: (none)' );
 		expect( text ).not.toContain( 'Truncation:' );
 	} );

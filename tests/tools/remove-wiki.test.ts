@@ -51,7 +51,7 @@ describe( 'remove-wiki', () => {
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleRemoveWikiTool>[0];
 		const result = await handleRemoveWikiTool( server, 'mcp://wikis/example.org' );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toBe( formatPayload( {
 			wikiKey: 'example.org',
 			sitename: 'Example',

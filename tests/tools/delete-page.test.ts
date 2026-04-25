@@ -43,7 +43,7 @@ describe( 'delete-page', () => {
 		const { handleDeletePageTool } = await import( '../../src/tools/delete-page.js' );
 		const result = await handleDeletePageTool( 'Old Page', 'spam' );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toBe( formatPayload( {
 			title: 'Old Page',
 			deleted: true,
@@ -65,7 +65,7 @@ describe( 'delete-page', () => {
 		const { handleDeletePageTool } = await import( '../../src/tools/delete-page.js' );
 		const result = await handleDeletePageTool( 'Old Page' );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).not.toContain( 'Log ID:' );
 	} );
 

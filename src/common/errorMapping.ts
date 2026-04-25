@@ -96,11 +96,10 @@ export function errorResult(
 	message: string,
 	code?: string
 ): CallToolResult {
-	// Error envelopes do not match any tool's success outputSchema, so we emit
-	// them only as a JSON-serialised text block (plus isError: true). Strict
-	// MCP clients validate structuredContent against the advertised outputSchema
-	// unconditionally — including on isError responses — so setting
-	// structuredContent here would fail validation for every tool.
+	// Error envelopes ride as JSON in content[0].text — same channel as the
+	// success-path prose — paired with isError: true. Clients distinguish
+	// success from error by the isError flag and parse the envelope from the
+	// text block when they want the typed shape.
 	const envelope: ErrorEnvelope = code !== undefined ?
 		{ category, message, code } :
 		{ category, message };

@@ -36,7 +36,7 @@ describe( 'create-page', () => {
 		const { handleCreatePageTool } = await import( '../../src/tools/create-page.js' );
 		const result = await handleCreatePageTool( 'Hello', 'New Page', 'test', 'wikitext' );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toBe( formatPayload( {
 			pageId: 10,
 			title: 'New Page',

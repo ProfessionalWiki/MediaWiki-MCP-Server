@@ -47,7 +47,7 @@ describe( 'get-revision', () => {
 		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
 		const result = await handleGetRevisionTool( 42, 'source', false );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Source: Hello world' );
 		expect( text ).toContain( 'Revision ID: 42' );
 		expect( text ).toContain( 'Title: Test Page' );
@@ -65,7 +65,7 @@ describe( 'get-revision', () => {
 		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
 		const result = await handleGetRevisionTool( 42, 'html', false );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'HTML: <p>Hello</p>' );
 		expect( text ).toContain( 'Revision ID: 42' );
 	} );
@@ -95,7 +95,7 @@ describe( 'get-revision', () => {
 		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
 		const result = await handleGetRevisionTool( 42, 'none', true );
 
-		const text = assertStructuredSuccess( result, z.string() );
+		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Minor: true' );
 		expect( text ).toMatch( /URL: .*Test_Page/ );
 		expect( text ).not.toContain( 'Source:' );
