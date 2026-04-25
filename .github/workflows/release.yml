@@ -18,7 +18,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org/'
 
       - name: Run preversion checks
@@ -32,8 +32,6 @@ jobs:
 
       - name: Publish to npm
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_MCP_WRITE }}
 
       - name: Update server.json (npm)
         run: node scripts/update-server-json-npm.cjs
