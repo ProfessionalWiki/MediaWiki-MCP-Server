@@ -26,6 +26,15 @@ See [docs/tool-conventions.md](docs/tool-conventions.md) for tool design stance,
 
 `handleXxxTool` functions must be exported from `src/tools/<name>.ts` so unit tests can import them.
 
+## Adding or changing tools
+
+A PR that adds, removes, or renames a tool — or that materially changes a tool's user-visible behaviour — must also update:
+
+- **`README.md`** — the tool table near the top (name, one-line description, OAuth grant required).
+- **`CHANGELOG.md`** — an entry under `## [Unreleased]` (Added / Changed / Removed / Breaking changes as appropriate, per [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)).
+
+Pure-internal refactors that don't change tool surface or behaviour don't need either.
+
 ## Testing
 
 Unit tests mock `getMwn` and `wikiService` **before** importing the handler under test. Use `createMockMwn()` from `tests/helpers/mock-mwn.ts`. See [docs/testing.md](docs/testing.md) for the full pattern, MCP Inspector CLI examples, and the bot-password setup required to exercise authenticated tools against a local wiki.
