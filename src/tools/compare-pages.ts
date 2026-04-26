@@ -38,7 +38,7 @@ export function comparePagesTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
 		'compare-pages',
 		{
-			description: 'Returns the changes between two versions of a wiki page as a compact text diff. Each side accepts a revision ID, page title (latest revision), or supplied wikitext; text-vs-text is rejected. Cheaper than fetching both sources and diffing locally, because only the changes are returned. If a title or revision ID does not exist, an error is returned. Set includeDiff=false for a cheap change-detection response that skips diff rendering and returns just the change flag, revision metadata, and size delta. Diff output is truncated at 50000 bytes with a trailing marker; a narrower revision range or includeDiff=false avoids truncation.',
+			description: 'Returns the changes between two versions of a wiki page as a compact text diff. Each side accepts a revision ID, page title (latest revision), or supplied wikitext; text-vs-text is rejected. Only the changes are returned over the wire. For the full text of both sides, fetch with get-page instead. If a title or revision ID does not exist, an error is returned. Set includeDiff=false for a cheap change-detection response that skips diff rendering and returns just the change flag, revision metadata, and size delta. Diff output is truncated at 50000 bytes with a trailing marker; a narrower revision range or includeDiff=false avoids truncation.',
 			inputSchema: {
 				fromRevision: z.number().int().positive().optional().describe( 'Revision ID for the "from" side' ),
 				fromTitle: z.string().optional().describe( 'Wiki page title for the "from" side (latest revision is used)' ),
