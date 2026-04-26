@@ -18,6 +18,7 @@ import { createPageTool } from './create-page.js';
 import { uploadFileTool } from './upload-file.js';
 import { uploadFileFromUrlTool } from './upload-file-from-url.js';
 import { updateFileTool } from './update-file.js';
+import { updateFileFromUrlTool } from './update-file-from-url.js';
 import { deletePageTool } from './delete-page.js';
 import { getRevisionTool } from './get-revision.js';
 import { undeletePageTool } from './undelete-page.js';
@@ -45,6 +46,7 @@ const toolRegistrars: [ string, ToolRegistrar ][] = [
 	[ 'upload-file', uploadFileTool ],
 	[ 'upload-file-from-url', uploadFileFromUrlTool ],
 	[ 'update-file', updateFileTool ],
+	[ 'update-file-from-url', updateFileFromUrlTool ],
 	[ 'delete-page', deletePageTool ],
 	[ 'get-revision', getRevisionTool ],
 	[ 'undelete-page', undeletePageTool ],
