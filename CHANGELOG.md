@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- `update-file` tool for uploading a new revision of an existing file from local disk. (#304)
+- `update-file-from-url` tool for uploading a new revision of an existing file from a URL. (#304)
+
 ## [0.7.0] - 2026-04-25
 
 ### Breaking changes
