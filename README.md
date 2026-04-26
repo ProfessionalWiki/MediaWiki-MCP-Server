@@ -26,6 +26,8 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | `search-page-by-prefix` | Search page titles by prefix. | - |
 | `set-wiki` | Set the active wiki for the current session. | - |
 | `undelete-page` 🔐 | Undelete a wiki page. | `Delete pages, revisions, and log entries` |
+| `update-file` 🔐 | Upload a new revision of an existing file from local disk. | `Upload, replace, and move files` |
+| `update-file-from-url` 🔐 | Upload a new revision of an existing file from a URL. | `Upload, replace, and move files` |
 | `update-page` 🔐 | Update an existing wiki page. | `Edit existing pages` |
 | `upload-file` 🔐 | Upload a file to the wiki from local disk. | `Upload new files` |
 | `upload-file-from-url` 🔐 | Upload a file to the wiki from a URL. | `Upload, replace, and move files` |
