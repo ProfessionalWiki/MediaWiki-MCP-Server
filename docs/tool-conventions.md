@@ -37,15 +37,18 @@ Third-person descriptive voice avoids point-of-view inconsistencies that degrade
 Every description answers at least:
 
 1. **What** the tool does.
-2. **What it returns.**
+2. **What it returns.** Name the shape (e.g. "a compact text diff", "rendered HTML or wikitext source") when the tool name doesn't already convey it.
 
 Depth scales from there based on how much there is to disambiguate. Longer descriptions are warranted when any of the following apply:
 
 - **Sibling overlap.** Another tool in the set does something similar. State when to use this vs. the other.
+- **No implicit trigger.** Every description should convey the situation in which this tool is the right choice. The trigger can be carried by canonical domain terminology in the opening (e.g. "wiki page"), by sibling routing ("For X, use Y"), or by an explicit clause ("Use when..."). When none of those is present and the tool name alone is too generic to disambiguate against tools in other servers, add the explicit clause.
 - **Non-obvious constraints.** Input combinations that are rejected, behaviour at boundaries, capped or truncated output.
 - **Usage hints.** Soft recommendations that help the model pick this tool for the right workflow.
 
 Apply proportional depth: don't pad simple tools with filler, don't keep tautological tools short. A one-sentence description is fine when there's nothing more to say; a paragraph is fine when there is.
+
+When trimming for context-window cost, cut hedging and incidental detail first; preserve trigger conditions, parameter semantics, and return shape.
 
 #### Don't duplicate the schema
 
@@ -60,6 +63,15 @@ Do not restate this in prose. Prose is for context the schema cannot express.
 #### Avoid tautology
 
 A description that restates the tool name adds zero information. `"Deletes a wiki page"` for `delete-page` is a bad description. A better description says what "delete" means in MediaWiki (deleted pages are recoverable via `undelete-page` until purge), what the tool returns, and what errors the caller might see.
+
+#### Avoid hedging
+
+Don't soften capability statements with "may", "might", "possibly", or "could". State the behaviour, including its conditional branches.
+
+- Do: `"Returns the page source. Errors with not_found when the title does not exist."`
+- Don't: `"May return the page source, possibly erroring if the page doesn't exist."`
+
+Hedging trains the model to treat the tool as unreliable. State conditions explicitly instead.
 
 #### Sibling disambiguation with inline routing hints
 
@@ -83,6 +95,10 @@ The rule targets general imperatives aimed at the model ("You MUST...", "You sho
 
 Imperative instructions to the model ("You should...", "You MUST...") in tool descriptions reduce robustness across different LLM implementations.
 
+#### Name observable side effects
+
+Annotation hints (`destructiveHint`, `idempotentHint`, `openWorldHint`) carry the boolean classification. The description carries the *specific* effect when it isn't obvious from the verb. `delete-page` is obvious; `upload-file-from-url` is not — the description should make clear that the file is fetched server-side, whether it overwrites, and whether the upload is logged. State only effects that are observable to the caller or visible on the wiki, not implementation incidentals.
+
 ### Parameter docs
 
 #### Parameter descriptions
@@ -91,6 +107,7 @@ Every parameter has a `.describe()` call. Parameter docs complement the schema; 
 
 Parameter descriptions must:
 
+- **State the parameter's role, not only its shape.** Describe what the parameter selects, filters, or controls, in the tool's own terms. `"Integer ID of a user"` is shape; `"Filters revisions to those authored by this account"` is role. The schema already conveys shape.
 - **State format when non-obvious.** `"Revision ID"` is fine for an integer parameter; `"MCP resource URI of the wiki (e.g. mcp://wikis/en.wikipedia.org)"` is better than `"Wiki URI"`.
 - **Call out cross-parameter constraints.** E.g. `"If olderThan is set, newerThan must not be."` when such a constraint exists.
 - **Reuse canonical phrases** from Part 2 for recurring concepts (page title, revision ID, wikitext, namespace, etc.).
