@@ -17,7 +17,7 @@ export function updateFileTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
 		'update-file',
 		{
-			description: 'Uploads a new revision of an existing file from the local disk, preserving prior revisions in the file history, and returns the file title and URL. Replaces the file content (bytes) only; for editing the wikitext on a file\'s description page, use update-page. The operator restricts which directories are readable; filepath must be an absolute path inside a configured upload directory, or the call fails before contacting the wiki. Fails if no file exists at the target title; for the initial upload, use upload-file. To upload a new revision from a remote web address instead of a local path, use update-file-from-url.',
+			description: 'Uploads a new revision of an existing file from the local disk, preserving prior revisions in the file history, and returns the file title and URL. The upload appears in the wiki\'s upload log. Replaces the file content (bytes) only; for editing the wikitext on a file\'s description page, use update-page. The operator restricts which directories are readable; filepath must be an absolute path inside a configured upload directory, or the call fails before contacting the wiki. Fails if no file exists at the target title; for the initial upload, use upload-file. To upload a new revision from a remote web address instead of a local path, use update-file-from-url.',
 			inputSchema: {
 				filepath: z.string().describe( 'File path on the local disk' ),
 				title: z.string().describe( 'File title (with or without the "File:" prefix)' ),

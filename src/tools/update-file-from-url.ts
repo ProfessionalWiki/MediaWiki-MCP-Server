@@ -16,7 +16,7 @@ export function updateFileFromUrlTool( server: McpServer ): RegisteredTool {
 	return server.registerTool(
 		'update-file-from-url',
 		{
-			description: 'Fetches a file from a remote web URL and uploads it as a new revision of an existing file, preserving prior revisions in the file history, and returns the file title and URL. Replaces the file content (bytes) only; for editing the wikitext on a file\'s description page, use update-page. Requires the wiki to have upload-by-URL enabled; if it is disabled, download the file locally and use update-file instead. Fails if no file exists at the target title; for the initial upload, use upload-file-from-url.',
+			description: 'Fetches a file from a remote web URL and uploads it as a new revision of an existing file, preserving prior revisions in the file history, and returns the file title and URL. The upload appears in the wiki\'s upload log. Replaces the file content (bytes) only; for editing the wikitext on a file\'s description page, use update-page. Requires the wiki to have upload-by-URL enabled; if it is disabled, download the file locally and use update-file instead. Fails if no file exists at the target title; for the initial upload, use upload-file-from-url.',
 			inputSchema: {
 				url: z.string().url().describe( 'URL of the file to upload' ),
 				title: z.string().describe( 'File title (with or without the "File:" prefix)' ),
