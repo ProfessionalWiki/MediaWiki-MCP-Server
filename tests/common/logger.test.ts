@@ -40,42 +40,59 @@ describe( 'logger', () => {
 		stderrSpy.mockRestore();
 	} );
 
-	function lastStderrLine(): string {
-		const calls = stderrSpy.mock.calls;
-		expect( calls.length ).toBeGreaterThan( 0 );
-		return String( calls[ calls.length - 1 ][ 0 ] );
-	}
+	describe( 'stderr output (JSON per line)', () => {
+		function lastJson(): Record<string, unknown> {
+			const calls = stderrSpy.mock.calls;
+			expect( calls.length ).toBeGreaterThan( 0 );
+			const raw = String( calls[ calls.length - 1 ][ 0 ] );
+			expect( raw.endsWith( '\n' ) ).toBe( true );
+			return JSON.parse( raw.slice( 0, -1 ) ) as Record<string, unknown>;
+		}
 
-	describe( 'stderr output', () => {
-		it( 'writes a plain message at info level without a level prefix', () => {
+		it( 'emits a JSON line with ts, level, and message at info', () => {
 			logger.info( 'listening on 127.0.0.1:3000' );
-			expect( lastStderrLine() ).toBe( 'listening on 127.0.0.1:3000\n' );
+			const obj = lastJson();
+			expect( obj.level ).toBe( 'info' );
+			expect( obj.message ).toBe( 'listening on 127.0.0.1:3000' );
+			expect( obj.ts ).toMatch( /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/ );
 		} );
 
-		it( 'prefixes non-info levels with the level name', () => {
+		it( 'records the level field for non-info levels', () => {
 			logger.warning( 'plaintext credential' );
-			expect( lastStderrLine() ).toBe( 'warning: plaintext credential\n' );
+			expect( lastJson().level ).toBe( 'warning' );
 		} );
 
-		it( 'appends serialized data when provided', () => {
+		it( 'merges data fields at the top level', () => {
 			logger.error( 'tool registration failed', { tool: 'get-page', error: 'boom' } );
-			expect( lastStderrLine() ).toBe(
-				'error: tool registration failed {"tool":"get-page","error":"boom"}\n'
-			);
+			const obj = lastJson();
+			expect( obj.message ).toBe( 'tool registration failed' );
+			expect( obj.tool ).toBe( 'get-page' );
+			expect( obj.error ).toBe( 'boom' );
 		} );
 
-		it.each<[LogLevel, string]>( [
-			[ 'debug', 'debug: x\n' ],
-			[ 'info', 'x\n' ],
-			[ 'notice', 'notice: x\n' ],
-			[ 'warning', 'warning: x\n' ],
-			[ 'error', 'error: x\n' ],
-			[ 'critical', 'critical: x\n' ],
-			[ 'alert', 'alert: x\n' ],
-			[ 'emergency', 'emergency: x\n' ]
-		] )( '%s emits the expected stderr prefix', ( level, expected ) => {
+		it( 'omits the message field when message is empty', () => {
+			logger.info( '', { event: 'tool_call', tool: 'get-page' } );
+			const obj = lastJson();
+			expect( 'message' in obj ).toBe( false );
+			expect( obj.event ).toBe( 'tool_call' );
+			expect( obj.tool ).toBe( 'get-page' );
+		} );
+
+		it( 'overrides reserved keys (ts, level, message) supplied via data', () => {
+			logger.info( 'real', { ts: 'fake', level: 'fake', message: 'fake', other: 'kept' } );
+			const obj = lastJson();
+			expect( obj.message ).toBe( 'real' );
+			expect( obj.level ).toBe( 'info' );
+			expect( obj.ts ).toMatch( /^\d{4}-\d{2}-\d{2}T/ );
+			expect( obj.other ).toBe( 'kept' );
+		} );
+
+		it.each<[LogLevel]>( [
+			[ 'debug' ], [ 'info' ], [ 'notice' ], [ 'warning' ],
+			[ 'error' ], [ 'critical' ], [ 'alert' ], [ 'emergency' ]
+		] )( '%s emits the matching level field', ( level ) => {
 			logger[ level ]( 'x' );
-			expect( lastStderrLine() ).toBe( expected );
+			expect( lastJson().level ).toBe( level );
 		} );
 	} );
 
