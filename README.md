@@ -74,7 +74,7 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | Name | Description | Default |
 |---|---|---|
 | `CONFIG` | Path to your configuration file | `config.json` |
-| `MCP_ALLOW_STATIC_FALLBACK` | When exactly `true`, allows the HTTP transport to start with static credentials configured in `config.json`. Without this, the server refuses to start, to prevent silent shared-identity fallback when an `Authorization` header is missing. | `unset` |
+| `MCP_ALLOW_STATIC_FALLBACK` | When exactly `true`, allows the HTTP transport to start with static credentials configured in `config.json`. Without this, the server refuses to start to prevent silent shared-identity fallback when an `Authorization` header is missing. | `unset` |
 | `MCP_CONTENT_MAX_BYTES` | Byte cap for content bodies (wikitext, rendered HTML, diffs) returned by `get-page`, `get-pages`, `parse-wikitext`, and `compare-pages`. Oversized bodies are truncated with a trailing marker. Tune to the target LLM client's tool-response budget. | `50000` |
 | `MCP_TRANSPORT` | Type of MCP server transport (`stdio` or `http`) | `stdio` |
 | `PORT` | Port used for StreamableHTTP transport | `3000` |
