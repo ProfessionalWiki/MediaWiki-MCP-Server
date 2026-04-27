@@ -109,6 +109,8 @@ Every tool invocation produces one line:
 
 `caller` is `sha256:` plus the first 12 hex chars of SHA-256 of the bearer token, or the literal string `anonymous`. Stable per token within a process; never the raw token.
 
+`session_id` is the first 12 hex chars of the MCP session ID. Omitted for stdio transport (which has no concept of sessions).
+
 `target` is omitted when no single identifier applies (e.g. `get-pages`, `compare-pages`, `set-wiki`, `parse-wikitext`, `get-recent-changes`).
 
 ### Startup banner
@@ -121,10 +123,14 @@ One line on server boot:
 
 `auth_shape` is one of `anonymous`, `static-credential`, `bearer-passthrough`. No tokens, usernames, or passwords appear in any field.
 
+`host`, `port`, `allowed_hosts`, and `allowed_origins` appear only on HTTP transport; for stdio they are omitted. `allowed_hosts` and `allowed_origins` are themselves omitted within HTTP mode when no allowlist is configured.
+
+`upload_dirs_configured` is a boolean indicating whether the `uploadDirs` config field or `MCP_UPLOAD_DIRS` env var is set; the actual paths are not logged.
+
 ### Health vs readiness
 
 - `GET /health` — liveness only. Returns `200 { "status": "ok" }` whenever the process is responsive. Use this for orchestrator restart decisions.
-- `GET /ready` — readiness. Probes the default wiki via `action=query&meta=siteinfo` (3-second timeout, 5-second cache). Returns `200 { "status": "ready", ... }` when reachable, `503 { "status": "not_ready", "reason": "...", ... }` otherwise. Use this for traffic-shedding decisions.
+- `GET /ready` — readiness. Probes the default wiki via `action=query&meta=siteinfo` (3-second timeout, 5-second cache). Returns `200 { "status": "ready", "wiki": "example.org", "checked_at": "..." }` when reachable, `503 { "status": "not_ready", "wiki": "example.org", "reason": "...", "checked_at": "..." }` otherwise. Use this for traffic-shedding decisions.
 
 ### Tailing logs
 
