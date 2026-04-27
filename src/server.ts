@@ -2,12 +2,10 @@
 import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 /* eslint-enable n/no-missing-import */
 import { createRequire } from 'node:module';
-import { wikiService } from './common/wikiService.js';
-import type { WikiConfig } from './common/config.js';
 import { registerServer, unregisterServer } from './common/logger.js';
 import { registerAllTools } from './tools/index.js';
 import { registerAllResources } from './resources/index.js';
-import { reconcileToolsForActiveWiki } from './tools/reconcile.js';
+import { reconcileTools } from './tools/reconcile.js';
 
 // https://github.com/nodejs/node/issues/51347#issuecomment-2111337854
 const serverInfo = createRequire( import.meta.url )( '../server.json' ) as {
@@ -60,9 +58,7 @@ export const createServer = (): McpServer => {
 	};
 
 	const tools = new Map<string, RegisteredTool>();
-	const reconcile = ( wiki: Readonly<WikiConfig> ): void => {
-		reconcileToolsForActiveWiki( tools, wiki );
-	};
+	const reconcile = (): void => reconcileTools( tools );
 
 	const registered = registerAllTools( server, reconcile );
 	for ( const [ name, tool ] of registered ) {
@@ -70,7 +66,7 @@ export const createServer = (): McpServer => {
 	}
 	registerAllResources( server );
 
-	reconcile( wikiService.getCurrent().config );
+	reconcile();
 
 	return server;
 };

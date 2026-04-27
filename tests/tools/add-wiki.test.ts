@@ -43,7 +43,8 @@ describe( 'add-wiki', () => {
 
 		const { handleAddWikiTool } = await import( '../../src/tools/add-wiki.js' );
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
-		const result = await handleAddWikiTool( server, 'https://example.org/' );
+		const reconcile = vi.fn();
+		const result = await handleAddWikiTool( server, reconcile, 'https://example.org/' );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toBe( formatPayload( {
@@ -53,6 +54,7 @@ describe( 'add-wiki', () => {
 			articlepath: '/wiki',
 			scriptpath: '/w'
 		} ) );
+		expect( reconcile ).toHaveBeenCalledTimes( 1 );
 	} );
 
 	it( 'categorises SSRF rejections as invalid_input', async () => {
@@ -64,12 +66,14 @@ describe( 'add-wiki', () => {
 
 		const { handleAddWikiTool } = await import( '../../src/tools/add-wiki.js' );
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
-		const result = await handleAddWikiTool( server, 'http://169.254.169.254/' );
+		const reconcile = vi.fn();
+		const result = await handleAddWikiTool( server, reconcile, 'http://169.254.169.254/' );
 
 		const envelope = assertStructuredError( result, 'invalid_input' );
 		expect( envelope.message ).toMatch(
 			/Failed to add wiki:.*169\.254\.169\.254/
 		);
+		expect( reconcile ).not.toHaveBeenCalled();
 	} );
 
 	it( 'categorises duplicate-wiki-key failures as conflict', async () => {
@@ -86,12 +90,14 @@ describe( 'add-wiki', () => {
 
 		const { handleAddWikiTool } = await import( '../../src/tools/add-wiki.js' );
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
-		const result = await handleAddWikiTool( server, 'https://example.org/' );
+		const reconcile = vi.fn();
+		const result = await handleAddWikiTool( server, reconcile, 'https://example.org/' );
 
 		const envelope = assertStructuredError( result, 'conflict' );
 		expect( envelope.message ).toBe(
 			'Wiki "example.org" already exists in configuration'
 		);
+		expect( reconcile ).not.toHaveBeenCalled();
 	} );
 
 	it( 'categorises unexpected discoverWiki errors as upstream_failure', async () => {
@@ -101,11 +107,48 @@ describe( 'add-wiki', () => {
 
 		const { handleAddWikiTool } = await import( '../../src/tools/add-wiki.js' );
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
-		const result = await handleAddWikiTool( server, 'https://example.org/' );
+		const reconcile = vi.fn();
+		const result = await handleAddWikiTool( server, reconcile, 'https://example.org/' );
 
 		const envelope = assertStructuredError( result, 'upstream_failure' );
 		expect( envelope.message ).toMatch(
 			/Failed to add wiki: Connection refused/
 		);
+		expect( reconcile ).not.toHaveBeenCalled();
+	} );
+
+	it( 'does not call reconcile on the DuplicateWikiKeyError path', async () => {
+		vi.mocked( discoverWiki ).mockResolvedValue( {
+			servername: 'example.org',
+			sitename: 'Example Wiki',
+			server: 'https://example.org',
+			articlepath: '/wiki',
+			scriptpath: '/w'
+		} );
+		vi.mocked( wikiService.add ).mockImplementation( () => {
+			throw new DuplicateWikiKeyError( 'example.org' );
+		} );
+
+		const { handleAddWikiTool } = await import( '../../src/tools/add-wiki.js' );
+		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
+		const reconcile = vi.fn();
+		const result = await handleAddWikiTool( server, reconcile, 'https://example.org/' );
+
+		assertStructuredError( result, 'conflict' );
+		expect( reconcile ).not.toHaveBeenCalled();
+	} );
+
+	it( 'does not call reconcile on the SsrfValidationError path', async () => {
+		vi.mocked( discoverWiki ).mockRejectedValue(
+			new SsrfValidationError( 'rejected' )
+		);
+
+		const { handleAddWikiTool } = await import( '../../src/tools/add-wiki.js' );
+		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
+		const reconcile = vi.fn();
+		const result = await handleAddWikiTool( server, reconcile, 'https://example.org/' );
+
+		assertStructuredError( result, 'invalid_input' );
+		expect( reconcile ).not.toHaveBeenCalled();
 	} );
 } );

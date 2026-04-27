@@ -8,8 +8,9 @@ import { discoverWiki } from '../common/wikiDiscovery.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 import { SsrfValidationError } from '../common/ssrfGuard.js';
+import type { Reconcile } from './reconcile.js';
 
-export function addWikiTool( server: McpServer ): RegisteredTool {
+export function addWikiTool( server: McpServer, reconcile: Reconcile ): RegisteredTool {
 	return server.registerTool(
 		'add-wiki',
 		{
@@ -25,12 +26,14 @@ export function addWikiTool( server: McpServer ): RegisteredTool {
 				openWorldHint: true
 			} as ToolAnnotations
 		},
-		( { wikiUrl } ) => handleAddWikiTool( server, wikiUrl )
+		( { wikiUrl } ) => handleAddWikiTool( server, reconcile, wikiUrl )
 	);
 }
 
 export async function handleAddWikiTool(
-	server: McpServer, wikiUrl: string
+	server: McpServer,
+	reconcile: Reconcile,
+	wikiUrl: string
 ): Promise<CallToolResult> {
 	let wikiInfo;
 	try {
@@ -62,6 +65,7 @@ export async function handleAddWikiTool(
 
 		wikiService.add( wikiInfo.servername, newConfig );
 		server.sendResourceListChanged();
+		reconcile();
 
 		return structuredResult( {
 			wikiKey: wikiInfo.servername,
