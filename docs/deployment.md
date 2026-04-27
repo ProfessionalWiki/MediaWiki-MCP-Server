@@ -95,49 +95,60 @@ The image sets `MCP_TRANSPORT=http`, `PORT=8080`, and `MCP_BIND=0.0.0.0` (needed
 
 ## Observability
 
-The server emits one JSON object per stderr line. Reserved keys: `ts` (ISO-8601 UTC), `level` (RFC 5424), `message` (omitted when empty), and — for non-message events — `event`.
+Every stderr line is a JSON object. Reserved keys: `ts` (ISO-8601 UTC), `level` (RFC 5424 severity), and either `message` (for prose) or `event` (for structured events).
 
 ### Tool calls
 
-Every tool invocation produces one line:
+Every tool invocation emits one line:
 
 ```json
 {"ts":"...","level":"info","event":"tool_call","tool":"get-page","wiki":"example.org","target":"Main Page","outcome":"success","duration_ms":142,"caller":"sha256:7f2a4c1d9e0b","session_id":"f4e1d2c3b4a5","upstream_status":200,"truncated":false}
 ```
 
-`outcome` is one of `success`, `not_found`, `permission_denied`, `invalid_input`, `conflict`, `authentication`, `rate_limited`, `upstream_failure`. `level` is `error` for `upstream_failure`, `warning` for the other six error categories, `info` for `success` — so a `level=error` filter catches actual server-side problems without firing on every "user typoed a page title".
+Fields you'll filter on:
 
-`caller` is `sha256:` plus the first 12 hex chars of SHA-256 of the bearer token, or the literal string `anonymous`. Stable per token within a process; never the raw token.
+- **`outcome`** — `success` or one of seven error categories: `not_found`, `permission_denied`, `invalid_input`, `conflict`, `authentication`, `rate_limited`, `upstream_failure`.
+- **`level`** — `info` for `success`, `error` for `upstream_failure`, `warning` for everything else. A `level=error` alert catches server-side failures without firing on client mistakes like a typo'd page title.
+- **`caller`** — `sha256:` plus the first 12 hex chars of SHA-256 of the bearer token, or the literal string `anonymous`. Stable per token within a process; never the raw token.
+- **`session_id`** — first 12 hex chars of the MCP session UUID. Omitted on stdio, which has no session concept.
+- **`target`** — a single identifier extracted from the tool's input (typically a page title, search query, or URL). Omitted for tools without one: `get-pages`, `compare-pages`, `set-wiki`, `parse-wikitext`, `get-recent-changes`.
 
-`session_id` is the first 12 hex chars of the MCP session ID. Omitted for stdio transport (which has no concept of sessions).
-
-`target` is omitted when no single identifier applies (e.g. `get-pages`, `compare-pages`, `set-wiki`, `parse-wikitext`, `get-recent-changes`).
+`tool_call` lines go to stderr only; they are never forwarded to the connected MCP client.
 
 ### Startup banner
 
-One line on server boot:
+One line on server boot — a snapshot of the effective configuration that's safe to paste into a support ticket:
 
 ```json
 {"ts":"...","level":"info","event":"startup","version":"0.7.0","transport":"http","host":"0.0.0.0","port":8080,"auth_shape":"bearer-passthrough","default_wiki":"example.org","wikis":["example.org"],"allow_wiki_management":false,"allowed_hosts":["wiki.example.org"],"allowed_origins":["https://wiki.example.org"],"upload_dirs_configured":false}
 ```
 
-`auth_shape` is one of `anonymous`, `static-credential`, `bearer-passthrough`. No tokens, usernames, or passwords appear in any field.
+- **`auth_shape`** — `anonymous`, `static-credential`, or `bearer-passthrough`.
+- **`host`, `port`, `allowed_hosts`, `allowed_origins`** — HTTP transport only. The two allowlists are also omitted when not configured.
+- **`upload_dirs_configured`** — `true` when `uploadDirs` (config) or `MCP_UPLOAD_DIRS` (env) is set. The actual paths are not logged.
 
-`host`, `port`, `allowed_hosts`, and `allowed_origins` appear only on HTTP transport; for stdio they are omitted. `allowed_hosts` and `allowed_origins` are themselves omitted within HTTP mode when no allowlist is configured.
-
-`upload_dirs_configured` is a boolean indicating whether the `uploadDirs` config field or `MCP_UPLOAD_DIRS` env var is set; the actual paths are not logged.
+Tokens, usernames, and passwords never appear.
 
 ### Health vs readiness
 
-- `GET /health` — liveness only. Returns `200 { "status": "ok" }` whenever the process is responsive. Use this for orchestrator restart decisions.
-- `GET /ready` — readiness. Probes the default wiki via `action=query&meta=siteinfo` (3-second timeout, 5-second cache). Returns `200 { "status": "ready", "wiki": "example.org", "checked_at": "..." }` when reachable, `503 { "status": "not_ready", "wiki": "example.org", "reason": "...", "checked_at": "..." }` otherwise. Use this for traffic-shedding decisions.
+- **`GET /health`** — liveness. Returns `200 { "status": "ok" }` whenever the process is responsive. Wire this into your orchestrator's restart policy.
+- **`GET /ready`** — readiness. Probes the default wiki via `action=query&meta=siteinfo` with a 3-second timeout and 5-second result cache. Wire this into traffic-shedding policy.
+
+`/ready` response shape:
+
+```json
+// 200 OK
+{ "status": "ready", "wiki": "example.org", "checked_at": "..." }
+
+// 503 Service Unavailable
+{ "status": "not_ready", "wiki": "example.org", "reason": "...", "checked_at": "..." }
+```
 
 ### Tailing logs
 
-JSON output is the only format the server emits. To read live:
+Pipe stderr through `jq` or `humanlog` for live reading:
 
 ```bash
 docker logs -f mediawiki-mcp-server | jq -R 'fromjson? // empty'
-# or
 docker logs -f mediawiki-mcp-server | humanlog
 ```
