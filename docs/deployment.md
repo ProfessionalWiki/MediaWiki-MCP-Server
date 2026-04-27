@@ -64,7 +64,7 @@ See [configuration.md — per-request bearer token](configuration.md#per-request
 
 Hosted-use notes:
 
-- **No static credentials in `config.json`.** The HTTP transport refuses to start when any wiki has `token`, `username`, or `password` set, because those would silently act as a fallback identity when a caller omits the `Authorization` header — defeating per-caller bearer passthrough. Set `MCP_ALLOW_STATIC_FALLBACK=true` only if you genuinely want a shared-identity deployment; the server will then start with a warning that names the affected wikis.
+- **No static credentials in `config.json`.** The HTTP transport refuses to start when any wiki has a `token` set, or both `username` and `password` set — those would silently act as a fallback identity when a caller omits the `Authorization` header, defeating per-caller bearer passthrough. Set `MCP_ALLOW_STATIC_FALLBACK=true` only if you genuinely want a shared-identity deployment; the server will then start with a warning that names the affected wikis.
 - **The server process sees every caller's token in flight.** Treat it as a secret-handling component: avoid verbose error logging, and don't pipe raw error objects into error-tracking services that capture arbitrary fields.
 - **Single wiki only for now.** A bearer is scoped to one MediaWiki OAuth2 realm, and `set-wiki` hasn't been audited for concurrent-caller safety. Multi-wiki bearer deployment is on the roadmap.
 - **Reverse proxy must forward `Authorization` intact** and strip it on untrusted inbound paths. The MCP server trusts any `Authorization: Bearer` header it sees — see [configuration.md — reverse proxy requirements](configuration.md#reverse-proxy-requirements).
