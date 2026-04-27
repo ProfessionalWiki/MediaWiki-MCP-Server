@@ -2,7 +2,10 @@
 import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 /* eslint-enable n/no-missing-import */
 import { createRequire } from 'node:module';
-import { registerServer, unregisterServer } from './common/logger.js';
+import { logger, registerServer, unregisterServer } from './common/logger.js';
+import { classifyAuthShape, type Transport } from './common/bearerGuard.js';
+import type { WikiConfig } from './common/config.js';
+import { wikiService } from './common/wikiService.js';
 import { registerAllTools } from './tools/index.js';
 import { registerAllResources } from './resources/index.js';
 import { reconcileTools } from './tools/reconcile.js';
@@ -22,7 +25,43 @@ Writes, deletes, and uploads use the caller's \`Authorization: Bearer\` token wh
 
 Tool errors fall into seven categories: \`not_found\`, \`permission_denied\`, \`invalid_input\`, \`conflict\`, \`authentication\`, \`rate_limited\`, and \`upstream_failure\`. Reads that exceed a per-call cap return a truncation marker describing what was returned and how to fetch the rest.`;
 
-export const createServer = (): McpServer => {
+export interface CreateServerOptions {
+	transport: Transport;
+	http?: {
+		host: string;
+		port: number;
+		allowedHosts?: readonly string[];
+		allowedOrigins?: readonly string[];
+	};
+}
+
+function emitStartupBanner( opts: CreateServerOptions ): void {
+	const wikis = wikiService.getAll() as Readonly<Record<string, WikiConfig>>;
+	const data: Record<string, unknown> = {
+		event: 'startup',
+		version: serverInfo.version,
+		transport: opts.transport,
+		auth_shape: classifyAuthShape( wikis, opts.transport ),
+		default_wiki: wikiService.getCurrent().key,
+		wikis: Object.keys( wikis ),
+		allow_wiki_management: wikiService.isWikiManagementAllowed(),
+		upload_dirs_configured: wikiService.getUploadDirs().length > 0
+	};
+	if ( opts.transport === 'http' && opts.http ) {
+		data.host = opts.http.host;
+		data.port = opts.http.port;
+		if ( opts.http.allowedHosts !== undefined ) {
+			data.allowed_hosts = opts.http.allowedHosts;
+		}
+		if ( opts.http.allowedOrigins !== undefined ) {
+			data.allowed_origins = opts.http.allowedOrigins;
+		}
+	}
+	logger.info( '', data );
+}
+
+export const createServer = ( opts: CreateServerOptions ): McpServer => {
+	emitStartupBanner( opts );
 	const server = new McpServer(
 		{
 			name: SERVER_NAME,

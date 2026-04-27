@@ -7,7 +7,7 @@ import { createServer } from './server.js';
 
 async function main(): Promise<void> {
 	const transport = new StdioServerTransport();
-	const server = createServer();
+	const server = createServer( { transport: 'stdio' } );
 
 	await server.connect( transport );
 }
