@@ -49,7 +49,8 @@ describe( 'remove-wiki', () => {
 
 		const { handleRemoveWikiTool } = await import( '../../src/tools/remove-wiki.js' );
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleRemoveWikiTool>[0];
-		const result = await handleRemoveWikiTool( server, 'mcp://wikis/example.org' );
+		const reconcile = vi.fn();
+		const result = await handleRemoveWikiTool( server, reconcile, 'mcp://wikis/example.org' );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toBe( formatPayload( {
@@ -60,14 +61,17 @@ describe( 'remove-wiki', () => {
 		expect( vi.mocked( wikiService.remove ) ).toHaveBeenCalledWith( 'example.org' );
 		expect( vi.mocked( removeMwnInstance ) ).toHaveBeenCalledWith( 'example.org' );
 		expect( vi.mocked( removeLicenseCache ) ).toHaveBeenCalledWith( 'example.org' );
+		expect( reconcile ).toHaveBeenCalledTimes( 1 );
 	} );
 
 	it( 'returns invalid_input for a malformed URI', async () => {
 		const { handleRemoveWikiTool } = await import( '../../src/tools/remove-wiki.js' );
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleRemoveWikiTool>[0];
-		const result = await handleRemoveWikiTool( server, 'not-a-valid-uri' );
+		const reconcile = vi.fn();
+		const result = await handleRemoveWikiTool( server, reconcile, 'not-a-valid-uri' );
 
 		assertStructuredError( result, 'invalid_input' );
+		expect( reconcile ).not.toHaveBeenCalled();
 	} );
 
 	it( 'returns invalid_input when the wiki is not registered', async () => {
@@ -75,12 +79,14 @@ describe( 'remove-wiki', () => {
 
 		const { handleRemoveWikiTool } = await import( '../../src/tools/remove-wiki.js' );
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleRemoveWikiTool>[0];
-		const result = await handleRemoveWikiTool( server, 'mcp://wikis/unknown.example.org' );
+		const reconcile = vi.fn();
+		const result = await handleRemoveWikiTool( server, reconcile, 'mcp://wikis/unknown.example.org' );
 
 		const envelope = assertStructuredError( result, 'invalid_input' );
 		expect( envelope.message ).toMatch(
 			/unknown\.example\.org.*not found/
 		);
+		expect( reconcile ).not.toHaveBeenCalled();
 	} );
 
 	it( 'returns conflict when removing the active wiki', async () => {
@@ -95,11 +101,43 @@ describe( 'remove-wiki', () => {
 
 		const { handleRemoveWikiTool } = await import( '../../src/tools/remove-wiki.js' );
 		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleRemoveWikiTool>[0];
-		const result = await handleRemoveWikiTool( server, 'mcp://wikis/example.org' );
+		const reconcile = vi.fn();
+		const result = await handleRemoveWikiTool( server, reconcile, 'mcp://wikis/example.org' );
 
 		const envelope = assertStructuredError( result, 'conflict' );
 		expect( envelope.message ).toMatch(
 			/currently active wiki/
 		);
+		expect( reconcile ).not.toHaveBeenCalled();
+	} );
+
+	it( 'does not call reconcile when removing the currently active wiki', async () => {
+		vi.mocked( wikiService.get ).mockReturnValue( {
+			sitename: 'Example',
+			server: 'https://example.org'
+		} as ReturnType<typeof wikiService.get> );
+		vi.mocked( wikiService.getCurrent ).mockReturnValue( {
+			key: 'example.org',
+			config: {} as ReturnType<typeof wikiService.getCurrent>[ 'config' ]
+		} );
+
+		const { handleRemoveWikiTool } = await import( '../../src/tools/remove-wiki.js' );
+		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleRemoveWikiTool>[0];
+		const reconcile = vi.fn();
+		const result = await handleRemoveWikiTool( server, reconcile, 'mcp://wikis/example.org' );
+
+		assertStructuredError( result, 'conflict' );
+		expect( reconcile ).not.toHaveBeenCalled();
+		expect( vi.mocked( wikiService.remove ) ).not.toHaveBeenCalled();
+	} );
+
+	it( 'does not call reconcile on InvalidWikiResourceUriError', async () => {
+		const { handleRemoveWikiTool } = await import( '../../src/tools/remove-wiki.js' );
+		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleRemoveWikiTool>[0];
+		const reconcile = vi.fn();
+		const result = await handleRemoveWikiTool( server, reconcile, 'not-a-mcp-uri' );
+
+		assertStructuredError( result, 'invalid_input' );
+		expect( reconcile ).not.toHaveBeenCalled();
 	} );
 } );

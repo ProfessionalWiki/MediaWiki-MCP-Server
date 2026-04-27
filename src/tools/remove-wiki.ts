@@ -9,8 +9,9 @@ import { removeLicenseCache } from '../resources/index.js';
 import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../common/wikiResource.js';
 import { errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
+import type { Reconcile } from './reconcile.js';
 
-export function removeWikiTool( server: McpServer ): RegisteredTool {
+export function removeWikiTool( server: McpServer, reconcile: Reconcile ): RegisteredTool {
 	return server.registerTool(
 		'remove-wiki',
 		{
@@ -26,12 +27,13 @@ export function removeWikiTool( server: McpServer ): RegisteredTool {
 				openWorldHint: false
 			} as ToolAnnotations
 		},
-		( { uri } ) => handleRemoveWikiTool( server, uri )
+		( { uri } ) => handleRemoveWikiTool( server, reconcile, uri )
 	);
 }
 
 export async function handleRemoveWikiTool(
 	server: McpServer,
+	reconcile: Reconcile,
 	uri: string
 ): Promise<CallToolResult> {
 	try {
@@ -53,6 +55,7 @@ export async function handleRemoveWikiTool(
 		server.sendResourceListChanged();
 		removeMwnInstance( wikiKey );
 		removeLicenseCache( wikiKey );
+		reconcile();
 
 		return structuredResult( {
 			wikiKey,

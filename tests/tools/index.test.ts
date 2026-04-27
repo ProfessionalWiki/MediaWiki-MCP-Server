@@ -144,6 +144,32 @@ describe( 'registerAllTools — wiki management gating', () => {
 		const content = result.content as Array<{ type: string; text: string }>;
 		expect( content[ 0 ].text ).toMatch( /Tool add-wiki disabled/ );
 	} );
+
+	it( 'shows set-wiki and remove-wiki when 2 wikis are configured and management is allowed', async () => {
+		vi.mocked( wikiService.isWikiManagementAllowed ).mockReturnValue( true );
+		const { client } = await connectClientAndServer();
+
+		const names = ( await client.listTools() ).tools.map( ( t ) => t.name );
+		expect( names ).toContain( 'set-wiki' );
+		expect( names ).toContain( 'remove-wiki' );
+		expect( names ).toContain( 'add-wiki' );
+	} );
+
+	it( 'hides set-wiki and remove-wiki when only 1 wiki is configured and management is allowed', async () => {
+		vi.mocked( wikiService.isWikiManagementAllowed ).mockReturnValue( true );
+		const originalByKey = wikiStore.byKey;
+		wikiStore.byKey = { a: wikiA };
+		try {
+			const { client } = await connectClientAndServer();
+
+			const names = ( await client.listTools() ).tools.map( ( t ) => t.name );
+			expect( names ).not.toContain( 'set-wiki' );
+			expect( names ).not.toContain( 'remove-wiki' );
+			expect( names ).toContain( 'add-wiki' );
+		} finally {
+			wikiStore.byKey = originalByKey;
+		}
+	} );
 } );
 
 describe( 'registerAllTools — per-wiki readOnly', () => {

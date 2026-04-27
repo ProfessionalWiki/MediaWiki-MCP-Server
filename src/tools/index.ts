@@ -30,16 +30,14 @@ import { comparePagesTool } from './compare-pages.js';
 
 type ToolRegistrar = ( server: McpServer ) => RegisteredTool;
 
-// set-wiki is registered separately in registerAllTools because its
-// signature takes a reconcile callback.
+// add-wiki, remove-wiki, and set-wiki are registered separately in
+// registerAllTools because each takes a reconcile callback.
 const toolRegistrars: [ string, ToolRegistrar ][] = [
 	[ 'get-page', getPageTool ],
 	[ 'get-pages', getPagesTool ],
 	[ 'get-page-history', getPageHistoryTool ],
 	[ 'get-recent-changes', getRecentChangesTool ],
 	[ 'search-page', searchPageTool ],
-	[ 'add-wiki', addWikiTool ],
-	[ 'remove-wiki', removeWikiTool ],
 	[ 'update-page', updatePageTool ],
 	[ 'get-file', getFileTool ],
 	[ 'create-page', createPageTool ],
@@ -68,6 +66,18 @@ export function registerAllTools(
 		} catch ( error ) {
 			logger.error( 'Error registering tool', { error: ( error as Error ).message } );
 		}
+	}
+
+	try {
+		registered.set( 'add-wiki', addWikiTool( server, reconcile ) );
+	} catch ( error ) {
+		logger.error( 'Error registering tool', { error: ( error as Error ).message } );
+	}
+
+	try {
+		registered.set( 'remove-wiki', removeWikiTool( server, reconcile ) );
+	} catch ( error ) {
+		logger.error( 'Error registering tool', { error: ( error as Error ).message } );
 	}
 
 	try {
