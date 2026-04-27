@@ -5,6 +5,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import type { ApiPage, ImageInfo } from 'mwn';
+import { instrumentToolCall } from './instrument.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 
@@ -24,7 +25,11 @@ export function getFileTool( server: McpServer ): RegisteredTool {
 				openWorldHint: true
 			} as ToolAnnotations
 		},
-		async ( { title } ) => handleGetFileTool( title )
+		instrumentToolCall(
+			'get-file',
+			async ( { title } ) => handleGetFileTool( title ),
+			( a ) => a.title
+		)
 	);
 }
 

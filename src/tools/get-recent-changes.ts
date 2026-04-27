@@ -5,6 +5,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import type { TruncationInfo } from '../common/truncation.js';
+import { instrumentToolCall } from './instrument.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 
@@ -106,7 +107,10 @@ export function getRecentChangesTool( server: McpServer ): RegisteredTool {
 				openWorldHint: true
 			} as ToolAnnotations
 		},
-		async ( args ) => handleGetRecentChangesTool( args as RecentChangesArgs )
+		instrumentToolCall(
+			'get-recent-changes',
+			async ( args ) => handleGetRecentChangesTool( args as RecentChangesArgs )
+		)
 	);
 }
 

@@ -5,6 +5,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import type { ApiPage, ApiRevision } from 'mwn';
+import { instrumentToolCall } from './instrument.js';
 import { getPageUrl } from '../common/utils.js';
 import { ContentFormat } from '../common/contentFormat.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
@@ -28,9 +29,13 @@ export function getRevisionTool( server: McpServer ): RegisteredTool {
 				openWorldHint: true
 			} as ToolAnnotations
 		},
-		async (
-			{ revisionId, content, metadata }
-		) => handleGetRevisionTool( revisionId, content, metadata )
+		instrumentToolCall(
+			'get-revision',
+			async ( { revisionId, content, metadata } ) => (
+				handleGetRevisionTool( revisionId, content, metadata )
+			),
+			( a ) => String( a.revisionId )
+		)
 	);
 }
 

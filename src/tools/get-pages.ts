@@ -6,6 +6,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 import type { Mwn } from 'mwn';
 import { getMwn } from '../common/mwn.js';
 import { getPageUrl } from '../common/utils.js';
+import { instrumentToolCall } from './instrument.js';
 import {
 	truncateByBytes,
 	type TruncationInfo
@@ -52,8 +53,11 @@ export function getPagesTool( server: McpServer ): RegisteredTool {
 				openWorldHint: true
 			} as ToolAnnotations
 		},
-		async ( { titles, content, metadata, followRedirects } ) => handleGetPagesTool(
-			titles, content, metadata, followRedirects
+		instrumentToolCall(
+			'get-pages',
+			async ( { titles, content, metadata, followRedirects } ) => handleGetPagesTool(
+				titles, content, metadata, followRedirects
+			)
 		)
 	);
 }

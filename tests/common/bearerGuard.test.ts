@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
 	evaluateBearerGuard,
-	hasStaticCredentials
+	hasStaticCredentials,
+	classifyAuthShape
 } from '../../src/common/bearerGuard.js';
 import type { WikiConfig } from '../../src/common/config.js';
 
@@ -112,5 +113,42 @@ describe( 'evaluateBearerGuard', () => {
 		expect( evaluateBearerGuard( {}, { MCP_ALLOW_STATIC_FALLBACK: 'true' } ) ).toEqual( {
 			kind: 'ok'
 		} );
+	} );
+} );
+
+describe( 'classifyAuthShape', () => {
+	const baseWiki: WikiConfig = {
+		sitename: 'X',
+		server: 'https://x',
+		articlepath: '/wiki',
+		scriptpath: '/w'
+	};
+
+	it( 'returns static-credential when any wiki has a token', () => {
+		const wikis = { a: { ...baseWiki, token: 't' } };
+		expect( classifyAuthShape( wikis, 'http' ) ).toBe( 'static-credential' );
+		expect( classifyAuthShape( wikis, 'stdio' ) ).toBe( 'static-credential' );
+	} );
+
+	it( 'returns static-credential when any wiki has username and password', () => {
+		const wikis = { a: { ...baseWiki, username: 'u', password: 'p' } };
+		expect( classifyAuthShape( wikis, 'http' ) ).toBe( 'static-credential' );
+	} );
+
+	it( 'returns bearer-passthrough on http when no static creds', () => {
+		const wikis = { a: baseWiki };
+		expect( classifyAuthShape( wikis, 'http' ) ).toBe( 'bearer-passthrough' );
+	} );
+
+	it( 'returns anonymous on stdio when no static creds', () => {
+		const wikis = { a: baseWiki };
+		expect( classifyAuthShape( wikis, 'stdio' ) ).toBe( 'anonymous' );
+	} );
+
+	it( 'is unaffected by partial credentials (username only or password only)', () => {
+		const wikisU = { a: { ...baseWiki, username: 'u' } };
+		const wikisP = { a: { ...baseWiki, password: 'p' } };
+		expect( classifyAuthShape( wikisU, 'http' ) ).toBe( 'bearer-passthrough' );
+		expect( classifyAuthShape( wikisP, 'http' ) ).toBe( 'bearer-passthrough' );
 	} );
 } );

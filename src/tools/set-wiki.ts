@@ -4,6 +4,7 @@ import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { wikiService } from '../common/wikiService.js';
+import { instrumentToolCall } from './instrument.js';
 import type { Reconcile } from './reconcile.js';
 import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../common/wikiResource.js';
 import { errorResult } from '../common/errorMapping.js';
@@ -28,7 +29,10 @@ export function setWikiTool(
 				openWorldHint: false
 			} as ToolAnnotations
 		},
-		( { uri } ) => handleSetWikiTool( uri, reconcile )
+		instrumentToolCall(
+			'set-wiki',
+			async ( { uri } ) => handleSetWikiTool( uri, reconcile )
+		)
 	);
 }
 

@@ -7,6 +7,7 @@ import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { ApiUploadResponse } from 'mwn';
 import { getMwn } from '../common/mwn.js';
 import { wikiService } from '../common/wikiService.js';
+import { instrumentToolCall } from './instrument.js';
 import { formatEditComment, getPageUrl } from '../common/utils.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
@@ -30,9 +31,13 @@ export function uploadFileFromUrlTool( server: McpServer ): RegisteredTool {
 				openWorldHint: true
 			} as ToolAnnotations
 		},
-		async (
-			{ url, title, text, comment }
-		) => handleUploadFileFromUrlTool( url, title, text, comment )
+		instrumentToolCall(
+			'upload-file-from-url',
+			async ( { url, title, text, comment } ) => (
+				handleUploadFileFromUrlTool( url, title, text, comment )
+			),
+			( a ) => a.title
+		)
 	);
 }
 

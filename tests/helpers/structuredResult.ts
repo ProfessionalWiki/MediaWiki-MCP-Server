@@ -8,14 +8,14 @@ import {
 } from '../../src/common/schemas.js';
 
 // Tool responses ride entirely in content[0].text. Successful responses carry
-// the typed payload as labelled prose (formatPayload); error responses carry
-// a JSON-serialised ErrorEnvelope plus isError=true. These helpers assert the
-// shared envelope conventions and return the inner data so tests can match
-// against substrings (success) or envelope fields (error).
+// the typed payload as labelled prose (formatPayload) and also set
+// structuredContent to the original payload for instrumentation; error
+// responses carry a JSON-serialised ErrorEnvelope plus isError=true. These
+// helpers assert the shared envelope conventions and return the inner data so
+// tests can match against substrings (success) or envelope fields (error).
 
 export function assertStructuredSuccess( result: CallToolResult ): string {
 	expect( result.isError ).toBeFalsy();
-	expect( result.structuredContent ).toBeUndefined();
 	expect( result.content ).toHaveLength( 1 );
 	expect( result.content![ 0 ].type ).toBe( 'text' );
 	return ( result.content![ 0 ] as TextContent ).text;

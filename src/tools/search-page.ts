@@ -5,6 +5,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import type { ApiSearchResult } from 'mwn';
+import { instrumentToolCall } from './instrument.js';
 import { getPageUrl } from '../common/utils.js';
 import type { TruncationInfo } from '../common/truncation.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
@@ -27,7 +28,11 @@ export function searchPageTool( server: McpServer ): RegisteredTool {
 				openWorldHint: true
 			} as ToolAnnotations
 		},
-		async ( { query, limit } ) => handleSearchPageTool( query, limit )
+		instrumentToolCall(
+			'search-page',
+			async ( { query, limit } ) => handleSearchPageTool( query, limit ),
+			( a ) => a.query
+		)
 	);
 }
 

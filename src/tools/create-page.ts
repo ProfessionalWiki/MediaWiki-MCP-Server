@@ -6,6 +6,7 @@ import type { ApiEditPageParams } from 'types-mediawiki-api';
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import { wikiService } from '../common/wikiService.js';
+import { instrumentToolCall } from './instrument.js';
 import { getPageUrl, formatEditComment } from '../common/utils.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
@@ -29,9 +30,13 @@ export function createPageTool( server: McpServer ): RegisteredTool {
 				openWorldHint: true
 			} as ToolAnnotations
 		},
-		async (
-			{ source, title, comment, contentModel }
-		) => handleCreatePageTool( source, title, comment, contentModel )
+		instrumentToolCall(
+			'create-page',
+			async ( { source, title, comment, contentModel } ) => (
+				handleCreatePageTool( source, title, comment, contentModel )
+			),
+			( a ) => a.title
+		)
 	);
 }
 

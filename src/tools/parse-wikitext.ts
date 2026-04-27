@@ -5,6 +5,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import { truncateByBytes } from '../common/truncation.js';
+import { instrumentToolCall } from './instrument.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 
@@ -35,8 +36,11 @@ export function parseWikitextTool( server: McpServer ): RegisteredTool {
 				openWorldHint: true
 			} as ToolAnnotations
 		},
-		async ( { wikitext, title, applyPreSaveTransform } ) => (
-			handleParseWikitextTool( wikitext, title, applyPreSaveTransform )
+		instrumentToolCall(
+			'parse-wikitext',
+			async ( { wikitext, title, applyPreSaveTransform } ) => (
+				handleParseWikitextTool( wikitext, title, applyPreSaveTransform )
+			)
 		)
 	);
 }

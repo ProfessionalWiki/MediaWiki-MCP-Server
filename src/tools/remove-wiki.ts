@@ -4,6 +4,7 @@ import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { wikiService } from '../common/wikiService.js';
+import { instrumentToolCall } from './instrument.js';
 import { removeMwnInstance } from '../common/mwn.js';
 import { removeLicenseCache } from '../resources/index.js';
 import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../common/wikiResource.js';
@@ -27,7 +28,11 @@ export function removeWikiTool( server: McpServer, reconcile: Reconcile ): Regis
 				openWorldHint: false
 			} as ToolAnnotations
 		},
-		( { uri } ) => handleRemoveWikiTool( server, reconcile, uri )
+		instrumentToolCall(
+			'remove-wiki',
+			async ( { uri } ) => handleRemoveWikiTool( server, reconcile, uri ),
+			( a ) => a.uri
+		)
 	);
 }
 

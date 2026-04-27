@@ -5,6 +5,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import type { Mwn } from 'mwn';
 import { getMwn } from '../common/mwn.js';
+import { instrumentToolCall } from './instrument.js';
 import { getPageUrl } from '../common/utils.js';
 import { ContentFormat } from '../common/contentFormat.js';
 import {
@@ -35,8 +36,12 @@ export function getPageTool( server: McpServer ): RegisteredTool {
 				openWorldHint: true
 			} as ToolAnnotations
 		},
-		async ( { title, content, metadata, section } ) => (
-			handleGetPageTool( title, content, metadata, section )
+		instrumentToolCall(
+			'get-page',
+			async ( { title, content, metadata, section } ) => (
+				handleGetPageTool( title, content, metadata, section )
+			),
+			( a ) => a.title
 		)
 	);
 }

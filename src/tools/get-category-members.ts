@@ -5,6 +5,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import type { TruncationInfo } from '../common/truncation.js';
+import { instrumentToolCall } from './instrument.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 
@@ -45,9 +46,13 @@ export function getCategoryMembersTool( server: McpServer ): RegisteredTool {
 				openWorldHint: true
 			} as ToolAnnotations
 		},
-		async (
-			{ category, types, namespaces, limit, continueFrom }
-		) => handleGetCategoryMembersTool( category, types, namespaces, limit, continueFrom )
+		instrumentToolCall(
+			'get-category-members',
+			async ( { category, types, namespaces, limit, continueFrom } ) => (
+				handleGetCategoryMembersTool( category, types, namespaces, limit, continueFrom )
+			),
+			( a ) => a.category
+		)
 	);
 }
 

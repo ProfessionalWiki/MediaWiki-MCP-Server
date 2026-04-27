@@ -7,6 +7,7 @@ import type { ApiUndeleteParams } from 'types-mediawiki-api';
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import { wikiService } from '../common/wikiService.js';
+import { instrumentToolCall } from './instrument.js';
 import { formatEditComment } from '../common/utils.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
@@ -28,9 +29,11 @@ export function undeletePageTool( server: McpServer ): RegisteredTool {
 				openWorldHint: true
 			} as ToolAnnotations
 		},
-		async (
-			{ title, comment }
-		) => handleUndeletePageTool( title, comment )
+		instrumentToolCall(
+			'undelete-page',
+			async ( { title, comment } ) => handleUndeletePageTool( title, comment ),
+			( a ) => a.title
+		)
 	);
 }
 

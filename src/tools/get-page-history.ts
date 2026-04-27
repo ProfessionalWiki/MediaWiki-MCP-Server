@@ -5,6 +5,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import type { ApiPage, ApiRevision } from 'mwn';
+import { instrumentToolCall } from './instrument.js';
 import type { TruncationInfo } from '../common/truncation.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
@@ -30,9 +31,13 @@ export function getPageHistoryTool( server: McpServer ): RegisteredTool {
 				openWorldHint: true
 			} as ToolAnnotations
 		},
-		async (
-			{ title, olderThan, newerThan, filter }
-		) => handleGetPageHistoryTool( title, olderThan, newerThan, filter )
+		instrumentToolCall(
+			'get-page-history',
+			async ( { title, olderThan, newerThan, filter } ) => (
+				handleGetPageHistoryTool( title, olderThan, newerThan, filter )
+			),
+			( a ) => a.title
+		)
 	);
 }
 
