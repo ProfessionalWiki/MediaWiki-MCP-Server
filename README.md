@@ -294,7 +294,7 @@ Every stderr line is a JSON object. Pipe through `jq` for live tailing:
 node dist/index.js 2>&1 | jq -R 'fromjson? // empty'
 ```
 
-Tool calls emit an `event: "tool_call"` line; the boot banner is `event: "startup"`. The HTTP transport adds `/health` (liveness) and `/ready` (probes the default wiki). [docs/deployment.md](docs/deployment.md) has the full schema.
+Tool calls emit an `event: "tool_call"` line; the startup banner is `event: "startup"`. The HTTP transport adds `/health` (liveness) and `/ready` (probes the default wiki). [docs/deployment.md](docs/deployment.md) has the full schema.
 
 ## Security
 

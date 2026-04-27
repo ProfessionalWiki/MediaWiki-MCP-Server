@@ -95,7 +95,7 @@ The image sets `MCP_TRANSPORT=http`, `PORT=8080`, and `MCP_BIND=0.0.0.0` (needed
 
 ## Observability
 
-Every stderr line is a JSON object. Reserved keys: `ts` (ISO-8601 UTC), `level` (RFC 5424 severity), and either `message` (for prose) or `event` (for structured events).
+Every stderr line is a JSON object. Each line has `ts` (ISO-8601 UTC) and `level` (RFC 5424 severity). Prose lines add `message`; structured events add `event` instead.
 
 ### Tool calls
 
@@ -134,13 +134,15 @@ Tokens, usernames, and passwords never appear.
 - **`GET /health`** — liveness. Returns `200 { "status": "ok" }` whenever the process is responsive. Wire this into your orchestrator's restart policy.
 - **`GET /ready`** — readiness. Probes the default wiki via `action=query&meta=siteinfo` with a 3-second timeout and 5-second result cache. Wire this into traffic-shedding policy.
 
-`/ready` response shape:
+`/ready` response shape — 200 OK:
 
 ```json
-// 200 OK
 { "status": "ready", "wiki": "example.org", "checked_at": "..." }
+```
 
-// 503 Service Unavailable
+503 Service Unavailable:
+
+```json
 { "status": "not_ready", "wiki": "example.org", "reason": "...", "checked_at": "..." }
 ```
 
