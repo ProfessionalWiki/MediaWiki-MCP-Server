@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
 	truncateByBytes,
 	DEFAULT_CONTENT_MAX_BYTES
-} from '../../src/common/truncation.js';
+} from '../../src/results/truncation.js';
 
 describe( 'DEFAULT_CONTENT_MAX_BYTES', () => {
 	it( 'is exported and equals 50000', () => {

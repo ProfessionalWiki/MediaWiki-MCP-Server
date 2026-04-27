@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import type { ErrorCategory } from '../../src/common/errorMapping.js';
-import { classifyError, errorResult } from '../../src/common/errorMapping.js';
+import type { ErrorCategory } from '../../src/errors/classifyError.js';
+import { classifyError } from '../../src/errors/classifyError.js';
+import { errorResult } from '../../src/results/response.js';
 import { createMockMwnError } from '../helpers/mock-mwn-error.js';
 import { assertStructuredError } from '../helpers/structuredResult.js';
 

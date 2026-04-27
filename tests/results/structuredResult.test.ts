@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { structuredResult } from '../../src/common/structuredResult.js';
-import { formatPayload } from '../../src/common/formatPayload.js';
+import { structuredResult } from '../../src/results/response.js';
+import { formatPayload } from '../../src/results/format.js';
 
 // structuredResult renders the payload via formatPayload and rides the result
 // in content[0].text. There is no structuredContent and no env-var toggle.
