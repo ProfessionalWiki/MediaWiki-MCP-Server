@@ -13,7 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Security
 
-- HTTP transport refuses to start when static credentials (`token`, or `username`+`password`) are configured for any wiki, because they would silently act as a fallback identity for unauthenticated requests. Set `MCP_ALLOW_STATIC_FALLBACK=true` to acknowledge a shared-identity deployment.
+- HTTP transport refuses to start with static credentials in `config.json` unless `MCP_ALLOW_STATIC_FALLBACK=true` opts into a shared-identity deployment.
 
 ## [0.7.0] - 2026-04-25
 
