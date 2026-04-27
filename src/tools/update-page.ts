@@ -57,7 +57,7 @@ export function updatePageTool( server: McpServer ): RegisteredTool {
 		},
 		instrumentToolCall(
 			'update-page',
-			async ( args: UpdatePageArgs ) => handleUpdatePageTool( args ),
+			async ( args ) => handleUpdatePageTool( args as UpdatePageArgs ),
 			( a ) => a.title
 		)
 	);
