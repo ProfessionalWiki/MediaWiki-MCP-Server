@@ -1,0 +1,611 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`pre-refactor MCP response snapshots > add-wiki error path (upstream_failure) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"upstream_failure","message":"Failed to add wiki: Connection refused"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > add-wiki happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Wiki key: example.org
+Sitename: Example Wiki
+Server: https://example.org
+Articlepath: /wiki
+Scriptpath: /w",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > compare-pages error path (nosuchrevid) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"not_found","message":"Revision 99999 not found","code":"nosuchrevid"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > compare-pages happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Changed: true
+From:
+  Title: Foo
+  Revision ID: 42
+  Timestamp: 2026-01-01T00:00:00Z
+  Size: 100
+To:
+  Title: Foo
+  Revision ID: 57
+  Timestamp: 2026-01-02T00:00:00Z
+  Size: 105
+Size delta: 5
+Diff:
+
+@@ Line 1 @@
+- old
++ new",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > create-page error path (articleexists) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"conflict","message":"Failed to create page: articleexists: mock MediaWiki error","code":"articleexists"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > create-page happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Page ID: 10
+Title: New Page
+Latest revision ID: 1
+Latest revision timestamp: 2026-01-01T00:00:00Z
+Content model: wikitext
+URL: https://test.wiki/wiki/New_Page",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > delete-page error path (missingtitle) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"not_found","message":"Failed to delete page: missingtitle: mock MediaWiki error","code":"missingtitle"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > delete-page happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Title: Old Page
+Deleted: true
+Log ID: 42",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > get-category-members error path (upstream_failure) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"upstream_failure","message":"Failed to retrieve category members: internal_api_error: mock MediaWiki error"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > get-category-members happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Members:
+- Title: Alpha
+  Page ID: 1
+  Namespace: 0
+  Type: page
+- Title: File:Bar.png
+  Page ID: 2
+  Namespace: 6
+  Type: file",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > get-file error path (missingtitle) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"not_found","message":"File \\"Missing.png\\" not found"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > get-file happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Title: File:Example.png
+Description URL: https://test.wiki/wiki/File:Example.png
+Timestamp: 2026-01-01T00:00:00Z
+User: Admin
+Size: 12345
+MIME: image/png
+URL: https://test.wiki/images/example.png
+Thumbnail URL: https://test.wiki/images/thumb/example.png/200px-example.png",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > get-page error path (missingtitle) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"not_found","message":"Failed to retrieve page data: missingtitle: mock MediaWiki error","code":"missingtitle"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > get-page happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Source: Hello world",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > get-page-history error path (missingtitle) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"not_found","message":"Page \\"Nonexistent\\" not found"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > get-page-history happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Revisions:
+- Revision ID: 100
+  Timestamp: 2026-01-01T00:00:00Z
+  User: Admin
+  Userid: 1
+  Comment: edit
+  Size: 500
+  Minor: false",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > get-pages error path (upstream_failure) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"upstream_failure","message":"Failed to retrieve pages: internal_api_error: mock MediaWiki error"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > get-pages happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Pages:
+- Requested title: Foo
+  Page ID: 1
+  Title: Foo
+  URL: https://test.wiki/wiki/Foo
+  Source: Body of Foo",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > get-recent-changes error path (invalid_input) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"invalid_input","message":"user and excludeUser are mutually exclusive"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > get-recent-changes happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Changes:
+- Type: edit
+  Title: Help:Foo
+  Timestamp: 2026-01-01T12:34:56Z
+  User: Alice
+  Userid: 42
+  Revision ID: 1234567
+  Old revision ID: 1234500
+  Newlen: 1523
+  Oldlen: 1500
+  Size delta: 23
+  Comment: typo fix
+  Minor: false
+  Bot: false
+  Tags: (none)",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > get-revision error path (nosuchrevid) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"not_found","message":"Revision 99999 not found"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > get-revision happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Revision ID: 42
+Page ID: 1
+Title: Test Page
+URL: https://test.wiki/wiki/Test_Page
+Source: Hello world",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > parse-wikitext error path (upstream_failure) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"upstream_failure","message":"Failed to preview wikitext: parsererror: mock MediaWiki error"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > parse-wikitext happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "HTML: <p>Hello</p>",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > remove-wiki error path (invalid_input) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"invalid_input","message":"mcp://wikis/unknown.example.org not found in MCP resources"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > remove-wiki happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Wiki key: example.org
+Sitename: Example
+Removed: true",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > search-page error path (upstream_failure) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"upstream_failure","message":"Failed to retrieve search data: srbackenderror: mock MediaWiki error"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > search-page happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Results:
+- Title: Test Page
+  Page ID: 1
+  Snippet: matching <span class="searchmatch">text</span>
+  Size: 1234
+  Word count: 80
+  Timestamp: 2026-01-01T00:00:00Z
+  URL: https://test.wiki/wiki/Test_Page",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > search-page-by-prefix error path (upstream_failure) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"upstream_failure","message":"Failed to retrieve search data: invalidprefix: mock MediaWiki error"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > search-page-by-prefix happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Results:
+- Title: Alpha
+  Page ID: 1
+  Namespace: 0
+- Title: Alphabet
+  Page ID: 2
+  Namespace: 0",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > set-wiki error path (invalid_input) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"invalid_input","message":"mcp://wikis/unknown.example.org not found in MCP resources"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > set-wiki happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Wiki key: example.org
+Sitename: Example
+Server: https://example.org",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > undelete-page error path (permissiondenied) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"permission_denied","message":"Failed to undelete page: permissiondenied: mock MediaWiki error","code":"permissiondenied"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > undelete-page happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Title: Restored Page
+Restored: true
+Revision count: 12",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > update-file error path (permissiondenied) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"permission_denied","message":"Failed to update file: permissiondenied: mock MediaWiki error","code":"permissiondenied"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > update-file happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Filename: Cat.jpg
+Page URL: https://test.wiki/wiki/File:Cat.jpg
+File URL: https://test.wiki/images/Cat.jpg",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > update-file-from-url error path (permissiondenied) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"permission_denied","message":"Failed to update file: permissiondenied: mock MediaWiki error","code":"permissiondenied"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > update-file-from-url happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Filename: Cat.jpg
+Page URL: https://test.wiki/wiki/File:Cat.jpg
+File URL: https://test.wiki/images/Cat.jpg",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > update-page error path (missingtitle) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"not_found","message":"Failed to update page: missingtitle: mock MediaWiki error","code":"missingtitle"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > update-page happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Page ID: 5
+Title: My Page
+Latest revision ID: 42
+Latest revision timestamp: 2026-01-02T00:00:00Z
+Content model: wikitext
+URL: https://test.wiki/wiki/My_Page",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > upload-file error path (permissiondenied) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"permission_denied","message":"Failed to upload file: permissiondenied: mock MediaWiki error","code":"permissiondenied"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > upload-file happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Filename: Cat.jpg
+Page URL: https://test.wiki/wiki/File:Cat.jpg
+File URL: https://test.wiki/images/Cat.jpg",
+      "type": "text",
+    },
+  ],
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > upload-file-from-url error path (permissiondenied) 1`] = `
+{
+  "content": [
+    {
+      "text": "{"category":"permission_denied","message":"Failed to upload file: permissiondenied: mock MediaWiki error","code":"permissiondenied"}",
+      "type": "text",
+    },
+  ],
+  "isError": true,
+}
+`;
+
+exports[`pre-refactor MCP response snapshots > upload-file-from-url happy path 1`] = `
+{
+  "content": [
+    {
+      "text": "Filename: Cat.jpg
+Page URL: https://test.wiki/wiki/File:Cat.jpg
+File URL: https://test.wiki/images/Cat.jpg",
+      "type": "text",
+    },
+  ],
+}
+`;
