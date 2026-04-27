@@ -1,4 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
+
+vi.mock( '../../src/common/wikiService.js', () => ( {
+	wikiService: {
+		getAll: () => ( {} )
+	}
+} ) );
+
 import express, { type Express, type Request } from 'express';
 import request from 'supertest';
 /* eslint-disable n/no-missing-import */

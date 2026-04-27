@@ -121,7 +121,7 @@ Authorization: Bearer <oauth2-access-token>
 
 Any MCP client that supports HTTP transport authentication can be configured to send this header. The token must be a MediaWiki OAuth2 access token obtained from `Special:OAuthConsumerRegistration/propose/oauth2` on the target wiki, with [Extension:OAuth](https://www.mediawiki.org/wiki/Extension:OAuth) installed.
 
-**Precedence**: request header → `config.json` `token` → `config.json` `username`/`password` → anonymous. When no `Authorization` header is present, the server falls back to the static credentials in `config.json`, preserving existing behaviour.
+**Precedence**: request header → `config.json` `token` → `config.json` `username`/`password` → anonymous. The HTTP transport refuses to start with static credentials in `config.json` unless `MCP_ALLOW_STATIC_FALLBACK=true` is set — see [deployment.md](deployment.md#shape-2--single-wiki-per-user-oauth2-bearer-passthrough) for why.
 
 Each request builds an independent MediaWiki session using the supplied token. Token rotation and revocation take effect on the next MCP session started with the new token.
 
