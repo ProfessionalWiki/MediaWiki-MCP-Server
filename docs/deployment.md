@@ -92,3 +92,46 @@ docker run --rm -p 8080:8080 \
 ```
 
 The image sets `MCP_TRANSPORT=http`, `PORT=8080`, and `MCP_BIND=0.0.0.0` (needed for container port forwarding), runs as a non-root user, and exposes `/health` for orchestration probes. No image is published; build from source.
+
+## Observability
+
+The server emits one JSON object per stderr line. Reserved keys: `ts` (ISO-8601 UTC), `level` (RFC 5424), `message` (omitted when empty), and — for non-message events — `event`.
+
+### Tool calls
+
+Every tool invocation produces one line:
+
+```json
+{"ts":"...","level":"info","event":"tool_call","tool":"get-page","wiki":"example.org","target":"Main Page","outcome":"success","duration_ms":142,"caller":"sha256:7f2a4c1d9e0b","session_id":"f4e1d2c3b4a5","upstream_status":200,"truncated":false}
+```
+
+`outcome` is one of `success`, `not_found`, `permission_denied`, `invalid_input`, `conflict`, `authentication`, `rate_limited`, `upstream_failure`. `level` is `error` for `upstream_failure`, `warning` for the other six error categories, `info` for `success` — so a `level=error` filter catches actual server-side problems without firing on every "user typoed a page title".
+
+`caller` is `sha256:` plus the first 12 hex chars of SHA-256 of the bearer token, or the literal string `anonymous`. Stable per token within a process; never the raw token.
+
+`target` is omitted when no single identifier applies (e.g. `get-pages`, `compare-pages`, `set-wiki`, `parse-wikitext`, `get-recent-changes`).
+
+### Startup banner
+
+One line on server boot:
+
+```json
+{"ts":"...","level":"info","event":"startup","version":"0.7.0","transport":"http","host":"0.0.0.0","port":8080,"auth_shape":"bearer-passthrough","default_wiki":"example.org","wikis":["example.org"],"allow_wiki_management":false,"allowed_hosts":["wiki.example.org"],"allowed_origins":["https://wiki.example.org"],"upload_dirs_configured":false}
+```
+
+`auth_shape` is one of `anonymous`, `static-credential`, `bearer-passthrough`. No tokens, usernames, or passwords appear in any field.
+
+### Health vs readiness
+
+- `GET /health` — liveness only. Returns `200 { "status": "ok" }` whenever the process is responsive. Use this for orchestrator restart decisions.
+- `GET /ready` — readiness. Probes the default wiki via `action=query&meta=siteinfo` (3-second timeout, 5-second cache). Returns `200 { "status": "ready", ... }` when reachable, `503 { "status": "not_ready", "reason": "...", ... }` otherwise. Use this for traffic-shedding decisions.
+
+### Tailing logs
+
+JSON output is the only format the server emits. To read live:
+
+```bash
+docker logs -f mediawiki-mcp-server | jq -R 'fromjson? // empty'
+# or
+docker logs -f mediawiki-mcp-server | humanlog
+```

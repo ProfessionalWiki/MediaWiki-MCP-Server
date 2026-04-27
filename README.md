@@ -286,6 +286,16 @@ See the [Gemini CLI extensions documentation](https://github.com/google-gemini/g
 
 Running the server as a remote HTTP endpoint for other users has its own configuration requirements — see [docs/deployment.md](docs/deployment.md).
 
+### Logs
+
+The server emits one JSON object per stderr line. Pipe through `jq` for human-readable tailing:
+
+```bash
+node dist/index.js | jq -R 'fromjson? // empty'
+```
+
+Each tool invocation produces an `event: "tool_call"` line; on boot the server emits one `event: "startup"` line. The HTTP transport exposes `GET /health` for liveness and `GET /ready` for readiness (probes the default wiki). See [docs/deployment.md](docs/deployment.md) for the full schema.
+
 ## Security
 
 Defaults are safe for single-user use. Before exposing the HTTP transport to others, lock down three things:

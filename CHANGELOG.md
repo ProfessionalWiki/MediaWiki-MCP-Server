@@ -10,10 +10,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - `update-file` tool for uploading a new revision of an existing file from local disk. (#304)
 - `update-file-from-url` tool for uploading a new revision of an existing file from a URL. (#304)
+- Structured per-tool-call logs on stderr (`event: "tool_call"`) with tool, wiki, target, outcome, duration_ms, caller hash, session id, upstream status, and truncation flag.
+- `GET /ready` readiness probe that calls the default wiki's `siteinfo` with a 3s timeout and a 5s in-process cache. Returns 200 ready / 503 not_ready.
+- Structured startup banner (`event: "startup"`) emitted on server boot, summarising version, transport, auth shape, configured wikis, and HTTP allowlists. No secrets are included.
 
 ### Changed
 
 - `set-wiki` and `remove-wiki` are hidden from `tools/list` when fewer than two wikis are configured: `set-wiki` has nothing to switch to, and `remove-wiki` would orphan the server.
+- Logger output is now one JSON object per stderr line. Operators that parsed the previous `<level>: <message> {<json>}` shape must pipe stderr through `jq -R 'fromjson? // empty'` (or a tool such as `humanlog`) for live readability, or update their parsers.
 
 ### Security
 
