@@ -39,7 +39,6 @@ describe( 'startup banner', () => {
 
 	afterEach( () => {
 		stderrSpy.mockRestore();
-		vi.resetModules();
 	} );
 
 	it( 'emits exactly one startup event for stdio', () => {

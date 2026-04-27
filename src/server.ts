@@ -3,7 +3,7 @@ import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server
 /* eslint-enable n/no-missing-import */
 import { createRequire } from 'node:module';
 import { logger, registerServer, unregisterServer } from './common/logger.js';
-import { classifyAuthShape, type Transport } from './common/bearerGuard.js';
+import { classifyAuthShape } from './common/bearerGuard.js';
 import type { WikiConfig } from './common/config.js';
 import { wikiService } from './common/wikiService.js';
 import { registerAllTools } from './tools/index.js';
@@ -25,15 +25,17 @@ Writes, deletes, and uploads use the caller's \`Authorization: Bearer\` token wh
 
 Tool errors fall into seven categories: \`not_found\`, \`permission_denied\`, \`invalid_input\`, \`conflict\`, \`authentication\`, \`rate_limited\`, and \`upstream_failure\`. Reads that exceed a per-call cap return a truncation marker describing what was returned and how to fetch the rest.`;
 
-export interface CreateServerOptions {
-	transport: Transport;
-	http?: {
-		host: string;
-		port: number;
-		allowedHosts?: readonly string[];
-		allowedOrigins?: readonly string[];
+export type CreateServerOptions =
+	| { transport: 'stdio' }
+	| {
+		transport: 'http';
+		http: {
+			host: string;
+			port: number;
+			allowedHosts?: readonly string[];
+			allowedOrigins?: readonly string[];
+		};
 	};
-}
 
 function emitStartupBanner( opts: CreateServerOptions ): void {
 	const wikis = wikiService.getAll() as Readonly<Record<string, WikiConfig>>;
@@ -47,7 +49,7 @@ function emitStartupBanner( opts: CreateServerOptions ): void {
 		allow_wiki_management: wikiService.isWikiManagementAllowed(),
 		upload_dirs_configured: wikiService.getUploadDirs().length > 0
 	};
-	if ( opts.transport === 'http' && opts.http ) {
+	if ( opts.transport === 'http' ) {
 		data.host = opts.http.host;
 		data.port = opts.http.port;
 		if ( opts.http.allowedHosts !== undefined ) {
