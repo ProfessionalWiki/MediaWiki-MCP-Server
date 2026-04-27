@@ -12,11 +12,8 @@ export class SsrfValidationError extends Error {
 	}
 }
 
-// ipaddr.js .range() classifies most reserved space correctly, but leaves
-// these as 'unicast' in v1.9.1. We treat them as non-public explicitly.
-const EXTRA_BLOCKED_V4: Record<string, [ipaddr.IPv4, number]> = {
-	benchmarking: [ ipaddr.IPv4.parse( '198.18.0.0' ), 15 ]
-};
+// ipaddr.js .range() classifies most reserved space correctly, but still
+// returns 'unicast' for these deprecated IPv6 blocks. Treat them as non-public.
 const EXTRA_BLOCKED_V6: Record<string, [ipaddr.IPv6, number]> = {
 	deprecatedSiteLocal: [ ipaddr.IPv6.parse( 'fec0::' ), 10 ],
 	deprecated6bone: [ ipaddr.IPv6.parse( '3ffe::' ), 16 ]
@@ -107,12 +104,12 @@ function assertAddressIsUnicast( address: string, urlString: string ): void {
 		);
 	}
 
-	const extraMatch = parsed.kind() === 'ipv4' ?
-		ipaddr.subnetMatch( parsed as ipaddr.IPv4, EXTRA_BLOCKED_V4, 'unicast' ) :
-		ipaddr.subnetMatch( parsed as ipaddr.IPv6, EXTRA_BLOCKED_V6, 'unicast' );
-	if ( extraMatch !== 'unicast' ) {
-		throw new SsrfValidationError(
-			`Refusing to fetch URL resolving to non-public address ${ address } (${ extraMatch }): ${ urlString }`
-		);
+	if ( parsed.kind() === 'ipv6' ) {
+		const extraMatch = ipaddr.subnetMatch( parsed as ipaddr.IPv6, EXTRA_BLOCKED_V6, 'unicast' );
+		if ( extraMatch !== 'unicast' ) {
+			throw new SsrfValidationError(
+				`Refusing to fetch URL resolving to non-public address ${ address } (${ extraMatch }): ${ urlString }`
+			);
+		}
 	}
 }
