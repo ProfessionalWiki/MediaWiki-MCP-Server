@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runtimeTokenStore, getRuntimeToken } from '../../src/common/requestContext.js';
+import { runtimeTokenStore, getRuntimeToken, getSessionId } from '../../src/common/requestContext.js';
 
 describe( 'requestContext', () => {
 
@@ -47,4 +47,29 @@ describe( 'requestContext', () => {
 		expect( results ).toContain( 'b:token-b' );
 	} );
 
+} );
+
+describe( 'getSessionId', () => {
+	it( 'returns undefined outside any store context', () => {
+		expect( getSessionId() ).toBeUndefined();
+	} );
+
+	it( 'returns the session id provided to the store', () => {
+		runtimeTokenStore.run( { sessionId: 'abc123' }, () => {
+			expect( getSessionId() ).toBe( 'abc123' );
+		} );
+	} );
+
+	it( 'is independent of runtimeToken', () => {
+		runtimeTokenStore.run( { runtimeToken: 't', sessionId: 's' }, () => {
+			expect( getRuntimeToken() ).toBe( 't' );
+			expect( getSessionId() ).toBe( 's' );
+		} );
+	} );
+
+	it( 'returns undefined when only runtimeToken is set', () => {
+		runtimeTokenStore.run( { runtimeToken: 't' }, () => {
+			expect( getSessionId() ).toBeUndefined();
+		} );
+	} );
 } );
