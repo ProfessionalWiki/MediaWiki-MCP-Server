@@ -24,7 +24,7 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | `remove-wiki` | Remove a wiki resource. Disabled when `allowWikiManagement` is `false` or fewer than two wikis are configured. | - |
 | `search-page` | Search wiki page titles and contents. | - |
 | `search-page-by-prefix` | Search page titles by prefix. | - |
-| `set-wiki` | Set the active wiki for the current session. Hidden when fewer than two wikis are configured. | - |
+| `set-wiki` | Set the active wiki for the current session. Disabled when fewer than two wikis are configured. | - |
 | `undelete-page` 🔐 | Undelete a wiki page. | `Delete pages, revisions, and log entries` |
 | `update-file` 🔐 | Upload a new revision of an existing file from local disk. | `Upload, replace, and move files` |
 | `update-file-from-url` 🔐 | Upload a new revision of an existing file from a URL. | `Upload, replace, and move files` |

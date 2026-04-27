@@ -13,7 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Changed
 
-- `set-wiki` and `remove-wiki` are hidden from `tools/list` when fewer than two wikis are configured. `set-wiki` has nothing to switch to in that state, and `remove-wiki` cannot succeed without leaving the server with no wikis.
+- `set-wiki` and `remove-wiki` are hidden from `tools/list` when fewer than two wikis are configured: `set-wiki` has nothing to switch to, and `remove-wiki` would orphan the server.
 
 ### Security
 
