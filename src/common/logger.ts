@@ -71,3 +71,8 @@ export const logger = {
 	alert: ( message: string, data?: LogContext ): void => emit( 'alert', message, data ),
 	emergency: ( message: string, data?: LogContext ): void => emit( 'emergency', message, data )
 };
+
+// Type aliases re-exported by `src/runtime/logger.ts` for use across the new
+// architecture surface. The runtime behaviour stays in this file.
+export type Logger = typeof logger;
+export type LogMeta = LogContext;
