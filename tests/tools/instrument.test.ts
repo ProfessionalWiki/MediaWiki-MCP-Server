@@ -23,7 +23,10 @@ function captureLine( spy: ReturnType<typeof vi.spyOn> ): Record<string, unknown
 }
 
 function okResult( payload: unknown = { ok: true } ): CallToolResult {
-	return { content: [ { type: 'text', text: JSON.stringify( payload ) } ] };
+	return {
+		content: [ { type: 'text', text: JSON.stringify( payload ) } ],
+		structuredContent: payload as Record<string, unknown>
+	};
 }
 
 function errResult( category: string, message: string ): CallToolResult {
@@ -45,11 +48,13 @@ describe( 'instrumentToolCall', () => {
 	} );
 
 	it( 'emits a success line with tool, outcome, duration_ms, level=info', async () => {
-		const handler = vi.fn().mockResolvedValue( okResult() );
+		const original = okResult();
+		const handler = vi.fn().mockResolvedValue( original );
 		const wrapped = instrumentToolCall( 'get-page', handler );
 
-		await wrapped( { title: 'Main Page' } );
+		const returned = await wrapped( { title: 'Main Page' } );
 
+		expect( returned ).toBe( original );
 		const line = captureLine( stderrSpy );
 		expect( line.event ).toBe( 'tool_call' );
 		expect( line.tool ).toBe( 'get-page' );
@@ -91,6 +96,16 @@ describe( 'instrumentToolCall', () => {
 	it( 'omits target when the extractor returns empty string', async () => {
 		const handler = vi.fn().mockResolvedValue( okResult() );
 		const target: TargetExtractor<{ title?: string }> = ( a ) => a.title ?? '';
+		const wrapped = instrumentToolCall( 'get-page', handler, target );
+
+		await wrapped( {} );
+
+		expect( 'target' in captureLine( stderrSpy ) ).toBe( false );
+	} );
+
+	it( 'omits target when the extractor throws', async () => {
+		const handler = vi.fn().mockResolvedValue( okResult() );
+		const target: TargetExtractor<unknown> = () => { throw new Error( 'oops' ); };
 		const wrapped = instrumentToolCall( 'get-page', handler, target );
 
 		await wrapped( {} );

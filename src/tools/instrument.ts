@@ -61,19 +61,24 @@ function parseEnvelope( text: string | undefined ): ParsedEnvelope {
 }
 
 function detectTruncation( result: CallToolResult ): boolean {
-	const text = ( result.content[ 0 ] as { text?: string } | undefined )?.text;
-	if ( !text ) {
-		return false;
+	const sc = result.structuredContent;
+	if ( sc !== undefined && sc !== null && typeof sc === 'object' ) {
+		return 'truncation' in ( sc as Record<string, unknown> );
+	}
+	return false;
+}
+
+function safeTarget<A>(
+	target: TargetExtractor<A> | undefined,
+	args: A
+): string {
+	if ( target === undefined ) {
+		return '';
 	}
 	try {
-		const parsed = JSON.parse( text );
-		return (
-			parsed !== null &&
-			typeof parsed === 'object' &&
-			'truncation' in ( parsed as Record<string, unknown> )
-		);
+		return target( args );
 	} catch {
-		return false;
+		return '';
 	}
 }
 
@@ -178,7 +183,7 @@ export function instrumentToolCall<A>(
 			Math.round( performance.now() - start ),
 			hashCaller( getRuntimeToken() ),
 			truncated,
-			target !== undefined ? target( args ) : '',
+			safeTarget( target, args ),
 			getSessionId(),
 			upstreamStatus,
 			errorMessage
