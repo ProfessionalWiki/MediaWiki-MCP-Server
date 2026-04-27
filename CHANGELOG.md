@@ -11,6 +11,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `update-file` tool for uploading a new revision of an existing file from local disk. (#304)
 - `update-file-from-url` tool for uploading a new revision of an existing file from a URL. (#304)
 
+### Changed
+
+- `set-wiki` and `remove-wiki` are hidden from `tools/list` when fewer than two wikis are configured. `set-wiki` has nothing to switch to in that state, and `remove-wiki` cannot succeed without leaving the server with no wikis.
+
 ### Security
 
 - HTTP transport refuses to start with static credentials in `config.json` unless `MCP_ALLOW_STATIC_FALLBACK=true` opts into a shared-identity deployment.

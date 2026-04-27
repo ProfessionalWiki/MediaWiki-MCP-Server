@@ -39,6 +39,8 @@ One wiki entry, `readOnly: true`, `allowWikiManagement: false`. This disables `a
 
 Don't set `token`, `username`, or `password` — there's no per-caller authentication in this shape, so static credentials would become shared across every caller.
 
+With only one wiki configured, `set-wiki` is also hidden from `tools/list` — there's nothing to switch to.
+
 Place the server behind a reverse proxy that terminates TLS and applies rate limiting. Cloudflare, nginx, and Caddy all work.
 
 ## Shape 2 — Single-wiki, per-user OAuth2 bearer passthrough
