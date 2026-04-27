@@ -5,6 +5,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import { inlineDiffToText } from '../common/diffFormat.js';
+import { instrumentToolCall } from './instrument.js';
 import { truncateByBytes } from '../common/truncation.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
@@ -56,7 +57,10 @@ export function comparePagesTool( server: McpServer ): RegisteredTool {
 				openWorldHint: true
 			} as ToolAnnotations
 		},
-		async ( args ) => handleComparePagesTool( args as ComparePagesArgs )
+		instrumentToolCall(
+			'compare-pages',
+			async ( args ) => handleComparePagesTool( args as ComparePagesArgs )
+		)
 	);
 }
 

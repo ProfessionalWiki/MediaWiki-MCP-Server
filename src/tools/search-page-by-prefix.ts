@@ -5,6 +5,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import type { TruncationInfo } from '../common/truncation.js';
+import { instrumentToolCall } from './instrument.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 
@@ -32,9 +33,13 @@ export function searchPageByPrefixTool( server: McpServer ): RegisteredTool {
 				openWorldHint: true
 			} as ToolAnnotations
 		},
-		async (
-			{ prefix, limit, namespace }
-		) => handleSearchPageByPrefixTool( prefix, limit, namespace )
+		instrumentToolCall(
+			'search-page-by-prefix',
+			async ( { prefix, limit, namespace } ) => (
+				handleSearchPageByPrefixTool( prefix, limit, namespace )
+			),
+			( a ) => a.prefix
+		)
 	);
 }
 

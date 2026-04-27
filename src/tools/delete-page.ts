@@ -7,6 +7,7 @@ import type { ApiDeleteParams } from 'types-mediawiki-api';
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import { wikiService } from '../common/wikiService.js';
+import { instrumentToolCall } from './instrument.js';
 import { formatEditComment } from '../common/utils.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
@@ -28,9 +29,11 @@ export function deletePageTool( server: McpServer ): RegisteredTool {
 				openWorldHint: true
 			} as ToolAnnotations
 		},
-		async (
-			{ title, comment }
-		) => handleDeletePageTool( title, comment )
+		instrumentToolCall(
+			'delete-page',
+			async ( { title, comment } ) => handleDeletePageTool( title, comment ),
+			( a ) => a.title
+		)
 	);
 }
 

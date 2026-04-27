@@ -4,6 +4,7 @@ import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { wikiService, DuplicateWikiKeyError } from '../common/wikiService.js';
+import { instrumentToolCall } from './instrument.js';
 import { discoverWiki } from '../common/wikiDiscovery.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
@@ -26,7 +27,11 @@ export function addWikiTool( server: McpServer, reconcile: Reconcile ): Register
 				openWorldHint: true
 			} as ToolAnnotations
 		},
-		( { wikiUrl } ) => handleAddWikiTool( server, reconcile, wikiUrl )
+		instrumentToolCall(
+			'add-wiki',
+			async ( { wikiUrl } ) => handleAddWikiTool( server, reconcile, wikiUrl ),
+			( a ) => a.wikiUrl
+		)
 	);
 }
 

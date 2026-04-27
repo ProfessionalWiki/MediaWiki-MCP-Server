@@ -7,6 +7,7 @@ import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { ApiUploadResponse } from 'mwn';
 import { getMwn } from '../common/mwn.js';
 import { wikiService } from '../common/wikiService.js';
+import { instrumentToolCall } from './instrument.js';
 import { assertAllowedPath, UploadValidationError } from '../common/uploadGuard.js';
 import { assertFileExists, FileNotFoundError } from '../common/fileExistence.js';
 import { formatEditComment, getPageUrl } from '../common/utils.js';
@@ -31,9 +32,13 @@ export function updateFileTool( server: McpServer ): RegisteredTool {
 				openWorldHint: true
 			} as ToolAnnotations
 		},
-		async (
-			{ filepath, title, comment }
-		) => handleUpdateFileTool( filepath, title, comment )
+		instrumentToolCall(
+			'update-file',
+			async ( { filepath, title, comment } ) => (
+				handleUpdateFileTool( filepath, title, comment )
+			),
+			( a ) => a.title
+		)
 	);
 }
 

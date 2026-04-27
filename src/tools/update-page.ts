@@ -5,6 +5,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import { getMwn } from '../common/mwn.js';
 import { wikiService } from '../common/wikiService.js';
+import { instrumentToolCall } from './instrument.js';
 import { getPageUrl, formatEditComment } from '../common/utils.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
@@ -54,7 +55,11 @@ export function updatePageTool( server: McpServer ): RegisteredTool {
 				openWorldHint: true
 			} as ToolAnnotations
 		},
-		async ( args ) => handleUpdatePageTool( args as UpdatePageArgs )
+		instrumentToolCall(
+			'update-page',
+			async ( args: UpdatePageArgs ) => handleUpdatePageTool( args ),
+			( a ) => a.title
+		)
 	);
 }
 
