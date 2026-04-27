@@ -72,4 +72,32 @@ describe( 'getSessionId', () => {
 			expect( getSessionId() ).toBeUndefined();
 		} );
 	} );
+
+	it( 'inner run overrides outer session id', () => {
+		runtimeTokenStore.run( { sessionId: 'outer' }, () => {
+			expect( getSessionId() ).toBe( 'outer' );
+			runtimeTokenStore.run( { sessionId: 'inner' }, () => {
+				expect( getSessionId() ).toBe( 'inner' );
+			} );
+			expect( getSessionId() ).toBe( 'outer' );
+		} );
+	} );
+
+	it( 'isolates concurrent session ids', async () => {
+		const results: string[] = [];
+
+		await Promise.all( [
+			runtimeTokenStore.run( { sessionId: 'session-a' }, async () => {
+				await new Promise( ( resolve ) => setTimeout( resolve, 10 ) );
+				results.push( `a:${ getSessionId() }` );
+			} ),
+			runtimeTokenStore.run( { sessionId: 'session-b' }, async () => {
+				await new Promise( ( resolve ) => setTimeout( resolve, 5 ) );
+				results.push( `b:${ getSessionId() }` );
+			} )
+		] );
+
+		expect( results ).toContain( 'a:session-a' );
+		expect( results ).toContain( 'b:session-b' );
+	} );
 } );
