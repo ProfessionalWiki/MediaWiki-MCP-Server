@@ -3,7 +3,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock( '../../src/common/wikiService.js', () => ( {
 	wikiService: {
 		getAll: () => ( {} ),
-		getCurrent: () => ( { key: 'example.org', config: {} } )
+		getCurrent: () => ( { key: 'example.org', config: {} } ),
+		isWikiManagementAllowed: () => false,
+		getUploadDirs: () => []
 	}
 } ) );
 

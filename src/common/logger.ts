@@ -59,6 +59,14 @@ function buildLogObject(
 // operator. Failing here would be unhelpful noise.
 const swallowNotificationError = (): undefined => undefined;
 
+// Emits a structured event to stderr only, bypassing the MCP
+// sendLoggingMessage broadcast. Used for operator-facing telemetry
+// (e.g. tool_call events) that must not leak to connected clients.
+export function emitTelemetryEvent( level: LogLevel, data: LogContext ): void {
+	const line = buildLogObject( level, '', data );
+	process.stderr.write( JSON.stringify( line ) + '\n' );
+}
+
 function emit( level: LogLevel, message: string, data?: LogContext ): void {
 	const line = buildLogObject( level, message, data );
 	process.stderr.write( JSON.stringify( line ) + '\n' );

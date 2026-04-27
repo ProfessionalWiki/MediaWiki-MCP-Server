@@ -2,7 +2,10 @@ import { describe, it, expect, vi } from 'vitest';
 
 vi.mock( '../../src/common/wikiService.js', () => ( {
 	wikiService: {
-		getAll: () => ( {} )
+		getAll: () => ( {} ),
+		getCurrent: () => ( { key: 'test-wiki', config: {} } ),
+		isWikiManagementAllowed: () => false,
+		getUploadDirs: () => []
 	}
 } ) );
 

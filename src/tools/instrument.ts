@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 /* eslint-disable n/no-missing-import */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { logger } from '../common/logger.js';
+import { emitTelemetryEvent } from '../common/logger.js';
 import {
 	classifyError,
 	type ErrorCategory
@@ -128,7 +128,7 @@ function emitToolCall(
 	}
 	if ( sessionId !== undefined ) {
 		// eslint-disable-next-line camelcase
-		data.session_id = sessionId.slice( 0, 12 );
+		data.session_id = sessionId.replace( /-/g, '' ).slice( 0, 12 );
 	}
 	if ( upstreamStatus !== undefined ) {
 		// eslint-disable-next-line camelcase
@@ -138,7 +138,7 @@ function emitToolCall(
 		// eslint-disable-next-line camelcase
 		data.error_message = errorMessage;
 	}
-	logger[ level ]( '', data );
+	emitTelemetryEvent( level, data );
 }
 
 export function instrumentToolCall<A>(

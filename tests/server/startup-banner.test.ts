@@ -9,19 +9,7 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 	}
 } ) );
 
-vi.mock( '../../src/tools/index.js', () => ( {
-	registerAllTools: () => new Map()
-} ) );
-
-vi.mock( '../../src/resources/index.js', () => ( {
-	registerAllResources: () => undefined
-} ) );
-
-vi.mock( '../../src/tools/reconcile.js', () => ( {
-	reconcileTools: () => undefined
-} ) );
-
-import { createServer } from '../../src/server.js';
+import { emitStartupBanner } from '../../src/server.js';
 
 function captureLines( spy: ReturnType<typeof vi.spyOn> ): Record<string, unknown>[] {
 	return spy.mock.calls
@@ -42,7 +30,7 @@ describe( 'startup banner', () => {
 	} );
 
 	it( 'emits exactly one startup event for stdio', () => {
-		createServer( { transport: 'stdio' } );
+		emitStartupBanner( { transport: 'stdio' } );
 
 		const events = captureLines( stderrSpy ).filter( ( e ) => e.event === 'startup' );
 		expect( events ).toHaveLength( 1 );
@@ -61,7 +49,7 @@ describe( 'startup banner', () => {
 	} );
 
 	it( 'includes http fields when transport is http', () => {
-		createServer( {
+		emitStartupBanner( {
 			transport: 'http',
 			http: {
 				host: '0.0.0.0',
@@ -83,7 +71,7 @@ describe( 'startup banner', () => {
 	} );
 
 	it( 'omits allowed_hosts/origins when not provided', () => {
-		createServer( {
+		emitStartupBanner( {
 			transport: 'http',
 			http: { host: '127.0.0.1', port: 3000 }
 		} );
@@ -107,18 +95,9 @@ describe( 'startup banner', () => {
 				getCurrent: () => ( { key: 'a.example', config: {} } )
 			}
 		} ) );
-		vi.doMock( '../../src/tools/index.js', () => ( {
-			registerAllTools: () => new Map()
-		} ) );
-		vi.doMock( '../../src/resources/index.js', () => ( {
-			registerAllResources: () => undefined
-		} ) );
-		vi.doMock( '../../src/tools/reconcile.js', () => ( {
-			reconcileTools: () => undefined
-		} ) );
 
-		const { createServer: cs } = await import( '../../src/server.js' );
-		cs( { transport: 'stdio' } );
+		const { emitStartupBanner: esb } = await import( '../../src/server.js' );
+		esb( { transport: 'stdio' } );
 
 		const allOutput = stderrSpy.mock.calls.map( ( c ) => String( c[ 0 ] ) ).join( '' );
 		expect( allOutput ).not.toContain( 'SUPER-SECRET' );

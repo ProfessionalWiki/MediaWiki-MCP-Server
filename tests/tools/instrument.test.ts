@@ -11,6 +11,10 @@ import {
 	type TargetExtractor
 } from '../../src/tools/instrument.js';
 import { runtimeTokenStore } from '../../src/common/requestContext.js';
+import {
+	registerServer,
+	clearRegisteredServers
+} from '../../src/common/logger.js';
 /* eslint-disable n/no-missing-import */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
@@ -193,12 +197,12 @@ describe( 'instrumentToolCall', () => {
 		expect( caller ).toMatch( /^sha256:[0-9a-f]{12}$/ );
 	} );
 
-	it( 'includes session_id (first 12 chars) when present in context', async () => {
+	it( 'includes session_id (first 12 hex chars, dashes stripped) when present in context', async () => {
 		const handler = vi.fn().mockResolvedValue( okResult() );
 		const wrapped = instrumentToolCall( 'get-page', handler );
 
 		await runtimeTokenStore.run(
-			{ sessionId: 'f4e1d2c3b4a5deadbeef' },
+			{ sessionId: 'f4e1d2c3-b4a5-dead-beef-abcdef012345' },
 			async () => { await wrapped( {} ); }
 		);
 
@@ -212,5 +216,20 @@ describe( 'instrumentToolCall', () => {
 		await wrapped( {} );
 
 		expect( 'session_id' in captureLine( stderrSpy ) ).toBe( false );
+	} );
+
+	it( 'does not broadcast tool_call events to connected MCP clients', async () => {
+		const fakeServer = {
+			sendLoggingMessage: vi.fn().mockResolvedValue( undefined ),
+			server: { onclose: undefined }
+		};
+		registerServer( fakeServer as unknown as Parameters<typeof registerServer>[ 0 ] );
+
+		const handler = vi.fn().mockResolvedValue( okResult() );
+		const wrapped = instrumentToolCall( 'get-page', handler );
+		await wrapped( {} );
+
+		expect( fakeServer.sendLoggingMessage ).not.toHaveBeenCalled();
+		clearRegisteredServers();
 	} );
 } );

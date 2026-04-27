@@ -37,7 +37,7 @@ export type CreateServerOptions =
 		};
 	};
 
-function emitStartupBanner( opts: CreateServerOptions ): void {
+export function emitStartupBanner( opts: CreateServerOptions ): void {
 	const wikis = wikiService.getAll() as Readonly<Record<string, WikiConfig>>;
 	const data: Record<string, unknown> = {
 		event: 'startup',
@@ -63,7 +63,6 @@ function emitStartupBanner( opts: CreateServerOptions ): void {
 }
 
 export const createServer = ( opts: CreateServerOptions ): McpServer => {
-	emitStartupBanner( opts );
 	const server = new McpServer(
 		{
 			name: SERVER_NAME,

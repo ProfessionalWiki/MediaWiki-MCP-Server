@@ -3,9 +3,10 @@
 /* eslint-disable n/no-missing-import */
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 /* eslint-enable n/no-missing-import */
-import { createServer } from './server.js';
+import { createServer, emitStartupBanner } from './server.js';
 
 async function main(): Promise<void> {
+	emitStartupBanner( { transport: 'stdio' } );
 	const transport = new StdioServerTransport();
 	const server = createServer( { transport: 'stdio' } );
 
