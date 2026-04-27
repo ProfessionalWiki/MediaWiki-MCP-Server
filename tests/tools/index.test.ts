@@ -5,7 +5,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 /* eslint-enable n/no-missing-import */
 import type { WikiConfig } from '../../src/common/config.js';
-import { reconcileToolsForActiveWiki } from '../../src/tools/reconcile.js';
+import { reconcileTools } from '../../src/tools/reconcile.js';
 
 const wikiA: WikiConfig = {
 	sitename: 'Writeable',
@@ -65,12 +65,12 @@ async function connectClientAndServer(): Promise<{ client: Client; server: McpSe
 		{ capabilities: { tools: { listChanged: true } } }
 	);
 	const tools = new Map<string, RegisteredTool>();
-	const reconcile = ( wiki: Readonly<WikiConfig> ) => reconcileToolsForActiveWiki( tools, wiki );
+	const reconcile = () => reconcileTools( tools );
 	const registered = registerAllTools( server, reconcile );
 	for ( const [ name, tool ] of registered ) {
 		tools.set( name, tool );
 	}
-	reconcile( wikiService.getCurrent().config );
+	reconcile();
 
 	const client = new Client( { name: 'test-client', version: '0.0.0' } );
 	const [ clientTransport, serverTransport ] = InMemoryTransport.createLinkedPair();
@@ -99,7 +99,7 @@ describe( 'registerAllTools — wiki management gating', () => {
 		expect( names ).toContain( 'get-page' );
 	} );
 
-	it( 'omits add-wiki and remove-wiki from listTools when wiki management is disallowed', async () => {
+	it( 'omits add-wiki and remove-wiki but keeps set-wiki when management is disallowed and 2+ wikis are configured', async () => {
 		vi.mocked( wikiService.isWikiManagementAllowed ).mockReturnValue( false );
 		const { client } = await connectClientAndServer();
 
@@ -110,6 +110,25 @@ describe( 'registerAllTools — wiki management gating', () => {
 		expect( names ).not.toContain( 'remove-wiki' );
 		expect( names ).toContain( 'get-page' );
 		expect( names ).toContain( 'set-wiki' );
+	} );
+
+	it( 'hides set-wiki, add-wiki, and remove-wiki on the hosted single-wiki shape (1 wiki + management disallowed)', async () => {
+		vi.mocked( wikiService.isWikiManagementAllowed ).mockReturnValue( false );
+		const originalByKey = wikiStore.byKey;
+		wikiStore.byKey = { a: wikiA };
+		try {
+			const { client } = await connectClientAndServer();
+
+			const { tools } = await client.listTools();
+			const names = tools.map( ( t ) => t.name );
+
+			expect( names ).not.toContain( 'add-wiki' );
+			expect( names ).not.toContain( 'remove-wiki' );
+			expect( names ).not.toContain( 'set-wiki' );
+			expect( names ).toContain( 'get-page' );
+		} finally {
+			wikiStore.byKey = originalByKey;
+		}
 	} );
 
 	it( 'rejects calls to add-wiki with a disabled error when wiki management is disallowed', async () => {

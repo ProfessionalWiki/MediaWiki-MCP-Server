@@ -4,16 +4,14 @@ import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { wikiService } from '../common/wikiService.js';
-import type { WikiConfig } from '../common/config.js';
+import type { Reconcile } from './reconcile.js';
 import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../common/wikiResource.js';
 import { errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 
-export type OnActiveWikiChanged = ( activeWiki: Readonly<WikiConfig> ) => void;
-
 export function setWikiTool(
 	server: McpServer,
-	onActiveWikiChanged: OnActiveWikiChanged
+	reconcile: Reconcile
 ): RegisteredTool {
 	return server.registerTool(
 		'set-wiki',
@@ -30,13 +28,13 @@ export function setWikiTool(
 				openWorldHint: false
 			} as ToolAnnotations
 		},
-		( { uri } ) => handleSetWikiTool( uri, onActiveWikiChanged )
+		( { uri } ) => handleSetWikiTool( uri, reconcile )
 	);
 }
 
 export async function handleSetWikiTool(
 	uri: string,
-	onActiveWikiChanged: OnActiveWikiChanged
+	reconcile: Reconcile
 ): Promise<CallToolResult> {
 	try {
 		const { wikiKey } = parseWikiResourceUri( uri );
@@ -47,8 +45,8 @@ export async function handleSetWikiTool(
 
 		wikiService.setCurrent( wikiKey );
 
+		reconcile();
 		const newConfig = wikiService.getCurrent().config;
-		onActiveWikiChanged( newConfig );
 		return structuredResult( {
 			wikiKey,
 			sitename: newConfig.sitename,

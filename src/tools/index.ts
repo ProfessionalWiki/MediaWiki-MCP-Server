@@ -2,14 +2,14 @@
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 /* eslint-enable n/no-missing-import */
 
-import { wikiService } from '../common/wikiService.js';
 import { logger } from '../common/logger.js';
 
 import { getPageTool } from './get-page.js';
 import { getPagesTool } from './get-pages.js';
 import { getPageHistoryTool } from './get-page-history.js';
 import { searchPageTool } from './search-page.js';
-import { setWikiTool, type OnActiveWikiChanged } from './set-wiki.js';
+import { setWikiTool } from './set-wiki.js';
+import type { Reconcile } from './reconcile.js';
 import { addWikiTool } from './add-wiki.js';
 import { removeWikiTool } from './remove-wiki.js';
 import { updatePageTool } from './update-page.js';
@@ -31,7 +31,7 @@ import { comparePagesTool } from './compare-pages.js';
 type ToolRegistrar = ( server: McpServer ) => RegisteredTool;
 
 // set-wiki is registered separately in registerAllTools because its
-// signature will take additional arguments in a subsequent change.
+// signature takes a reconcile callback.
 const toolRegistrars: [ string, ToolRegistrar ][] = [
 	[ 'get-page', getPageTool ],
 	[ 'get-pages', getPagesTool ],
@@ -56,29 +56,22 @@ const toolRegistrars: [ string, ToolRegistrar ][] = [
 	[ 'compare-pages', comparePagesTool ]
 ];
 
-const wikiManagementRegistrars: Set<ToolRegistrar> = new Set( [ addWikiTool, removeWikiTool ] );
-
 export function registerAllTools(
 	server: McpServer,
-	onActiveWikiChanged: OnActiveWikiChanged
+	reconcile: Reconcile
 ): Map<string, RegisteredTool> {
 	const registered = new Map<string, RegisteredTool>();
-	const allowManagement = wikiService.isWikiManagementAllowed();
 
 	for ( const [ name, registrar ] of toolRegistrars ) {
 		try {
-			const tool = registrar( server );
-			if ( !allowManagement && wikiManagementRegistrars.has( registrar ) ) {
-				tool.disable();
-			}
-			registered.set( name, tool );
+			registered.set( name, registrar( server ) );
 		} catch ( error ) {
 			logger.error( 'Error registering tool', { error: ( error as Error ).message } );
 		}
 	}
 
 	try {
-		registered.set( 'set-wiki', setWikiTool( server, onActiveWikiChanged ) );
+		registered.set( 'set-wiki', setWikiTool( server, reconcile ) );
 	} catch ( error ) {
 		logger.error( 'Error registering tool', { error: ( error as Error ).message } );
 	}
