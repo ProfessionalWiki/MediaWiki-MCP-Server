@@ -4,8 +4,8 @@ import type { LoggingLevel } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 
 // Eight RFC 5424 severity levels, in the order LoggingLevelSchema declares them.
-// Used both for the human-readable stderr prefix and the LoggingMessageNotification
-// the SDK forwards to clients.
+// Used both for the level field in the JSON stderr line and the
+// LoggingMessageNotification the SDK forwards to clients.
 export type LogLevel = LoggingLevel;
 
 export type LogContext = Record<string, unknown>;
@@ -31,7 +31,7 @@ export function getRegisteredServerCount(): number {
 	return servers.size;
 }
 
-const RESERVED_KEYS: readonly string[] = [ 'ts', 'level', 'message' ];
+const RESERVED_KEYS = new Set<string>( [ 'ts', 'level', 'message' ] );
 
 function buildLogObject(
 	level: LogLevel,
@@ -41,7 +41,7 @@ function buildLogObject(
 	const obj: Record<string, unknown> = {};
 	if ( data !== undefined ) {
 		for ( const [ key, value ] of Object.entries( data ) ) {
-			if ( !RESERVED_KEYS.includes( key ) ) {
+			if ( !RESERVED_KEYS.has( key ) ) {
 				obj[ key ] = value;
 			}
 		}

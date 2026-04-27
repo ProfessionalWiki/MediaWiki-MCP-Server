@@ -83,7 +83,7 @@ describe( 'logger', () => {
 			const obj = lastJson();
 			expect( obj.message ).toBe( 'real' );
 			expect( obj.level ).toBe( 'info' );
-			expect( obj.ts ).toMatch( /^\d{4}-\d{2}-\d{2}T/ );
+			expect( obj.ts ).toMatch( /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/ );
 			expect( obj.other ).toBe( 'kept' );
 		} );
 
