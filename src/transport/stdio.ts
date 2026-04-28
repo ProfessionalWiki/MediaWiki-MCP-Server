@@ -10,25 +10,25 @@ import { createToolContext } from '../runtime/createContext.js';
 import { registerShutdownHandlers } from '../runtime/shutdown.js';
 
 async function main(): Promise<void> {
-	emitStartupBanner( { transport: 'stdio' } );
+	emitStartupBanner({ transport: 'stdio' });
 	const transport = new StdioServerTransport();
-	const ctx = createToolContext( { logger } );
-	const server = createServer( ctx );
+	const ctx = createToolContext({ logger });
+	const server = createServer(ctx);
 
-	await server.connect( transport );
+	await server.connect(transport);
 	// Stdio has no in-flight queue, so grace doesn't apply — log graceMs: 0
 	// to make that explicit in the shutdown event.
-	registerShutdownHandlers( {
+	registerShutdownHandlers({
 		transport: 'stdio',
 		graceMs: 0,
-		stdioTransport: transport
-	} );
+		stdioTransport: transport,
+	});
 }
 
-main().catch( ( error ) => {
+main().catch((error) => {
 	// Bootstrap fail-safe: see the equivalent block in src/index.ts. Logger
 	// module not used here intentionally so a logger import failure can't
 	// suppress this path.
-	console.error( 'Server error:', error );
+	console.error('Server error:', error);
 	throw error;
-} );
+});

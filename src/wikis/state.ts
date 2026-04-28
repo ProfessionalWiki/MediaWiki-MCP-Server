@@ -10,20 +10,13 @@ const config: Config = loadConfigFromFile();
 
 export const wikiRegistry = new WikiRegistryImpl(
 	config.wikis,
-	config.allowWikiManagement !== false
+	config.allowWikiManagement !== false,
 );
 
-export const wikiSelection = new WikiSelectionImpl(
-	config.defaultWiki,
-	wikiRegistry
-);
+export const wikiSelection = new WikiSelectionImpl(config.defaultWiki, wikiRegistry);
 
-export const uploadDirs = new UploadDirsImpl( config.uploadDirs );
+export const uploadDirs = new UploadDirsImpl(config.uploadDirs);
 
-export const mwnProvider = new MwnProviderImpl(
-	wikiRegistry,
-	wikiSelection,
-	getRuntimeToken
-);
+export const mwnProvider = new MwnProviderImpl(wikiRegistry, wikiSelection, getRuntimeToken);
 
 export const licenseCache = new LicenseCacheImpl();

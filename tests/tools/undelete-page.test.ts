@@ -5,94 +5,86 @@ import { fakeContext } from '../helpers/fakeContext.js';
 import { undeletePage } from '../../src/tools/undelete-page.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
 import { formatPayload } from '../../src/results/format.js';
-import {
-	assertStructuredError,
-	assertStructuredSuccess
-} from '../helpers/structuredResult.js';
+import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
 
-describe( 'undelete-page', () => {
-	it( 'returns a structured payload on success', async () => {
-		const mock = createMockMwn( {
-			undelete: vi.fn().mockResolvedValue( {
+describe('undelete-page', () => {
+	it('returns a structured payload on success', async () => {
+		const mock = createMockMwn({
+			undelete: vi.fn().mockResolvedValue({
 				title: 'Restored Page',
 				reason: 'oops',
-				revisions: 12
-			} )
-		} );
-		const ctx = fakeContext( { mwn: async () => mock as never } );
+				revisions: 12,
+			}),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		const result = await undeletePage.handle(
-			{ title: 'Restored Page', comment: 'oops' },
-			ctx
+		const result = await undeletePage.handle({ title: 'Restored Page', comment: 'oops' }, ctx);
+
+		const text = assertStructuredSuccess(result);
+		expect(text).toBe(
+			formatPayload({
+				title: 'Restored Page',
+				restored: true,
+				revisionCount: 12,
+			}),
 		);
-
-		const text = assertStructuredSuccess( result );
-		expect( text ).toBe( formatPayload( {
-			title: 'Restored Page',
-			restored: true,
-			revisionCount: 12
-		} ) );
-		expect( mock.undelete ).toHaveBeenCalledWith(
+		expect(mock.undelete).toHaveBeenCalledWith(
 			'Restored Page',
-			expect.stringContaining( 'oops' ),
-			expect.any( Object )
+			expect.stringContaining('oops'),
+			expect.any(Object),
 		);
-	} );
+	});
 
-	it( 'works without a revision count', async () => {
-		const mock = createMockMwn( {
-			undelete: vi.fn().mockResolvedValue( { title: 'Restored Page' } )
-		} );
-		const ctx = fakeContext( { mwn: async () => mock as never } );
+	it('works without a revision count', async () => {
+		const mock = createMockMwn({
+			undelete: vi.fn().mockResolvedValue({ title: 'Restored Page' }),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		const result = await undeletePage.handle( { title: 'Restored Page' }, ctx );
+		const result = await undeletePage.handle({ title: 'Restored Page' }, ctx);
 
-		const text = assertStructuredSuccess( result );
-		expect( text ).not.toContain( 'Revision count:' );
-	} );
+		const text = assertStructuredSuccess(result);
+		expect(text).not.toContain('Revision count:');
+	});
 
-	it( 'dispatches permissiondenied as permission_denied via dispatcher', async () => {
-		const mock = createMockMwn( {
-			undelete: vi.fn().mockRejectedValue( createMockMwnError( 'permissiondenied' ) )
-		} );
-		const ctx = fakeContext( { mwn: async () => mock as never } );
+	it('dispatches permissiondenied as permission_denied via dispatcher', async () => {
+		const mock = createMockMwn({
+			undelete: vi.fn().mockRejectedValue(createMockMwnError('permissiondenied')),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		const result = await dispatch( undeletePage, ctx )( { title: 'Protected' } );
+		const result = await dispatch(undeletePage, ctx)({ title: 'Protected' });
 
-		assertStructuredError( result, 'permission_denied', 'permissiondenied' );
-	} );
+		assertStructuredError(result, 'permission_denied', 'permissiondenied');
+	});
 
-	it( 'dispatches generic upstream failures with the standard verb prefix', async () => {
-		const mock = createMockMwn( {
-			undelete: vi.fn().mockRejectedValue( new Error( 'Network down' ) )
-		} );
-		const ctx = fakeContext( { mwn: async () => mock as never } );
+	it('dispatches generic upstream failures with the standard verb prefix', async () => {
+		const mock = createMockMwn({
+			undelete: vi.fn().mockRejectedValue(new Error('Network down')),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		const result = await dispatch( undeletePage, ctx )( { title: 'Some Page' } );
+		const result = await dispatch(undeletePage, ctx)({ title: 'Some Page' });
 
-		const envelope = assertStructuredError( result, 'upstream_failure' );
-		expect( envelope.message ).toMatch( /Failed to undelete page: Network down/ );
-	} );
+		const envelope = assertStructuredError(result, 'upstream_failure');
+		expect(envelope.message).toMatch(/Failed to undelete page: Network down/);
+	});
 
-	it( 'forwards configured tags via ctx.edit.applyTags', async () => {
-		const mock = createMockMwn( {
-			undelete: vi.fn().mockResolvedValue( { title: 'X' } )
-		} );
-		const ctx = fakeContext( {
+	it('forwards configured tags via ctx.edit.applyTags', async () => {
+		const mock = createMockMwn({
+			undelete: vi.fn().mockResolvedValue({ title: 'X' }),
+		});
+		const ctx = fakeContext({
 			mwn: async () => mock as never,
 			edit: {
 				submit: vi.fn() as never,
 				submitUpload: vi.fn() as never,
-				applyTags: ( o: object ) => ( { ...o, tags: 'mcp-edit' } )
-			}
-		} );
+				applyTags: (o: object) => ({ ...o, tags: 'mcp-edit' }),
+			},
+		});
 
-		await undeletePage.handle( { title: 'X' }, ctx );
+		await undeletePage.handle({ title: 'X' }, ctx);
 
-		expect( mock.undelete ).toHaveBeenCalledWith(
-			'X',
-			expect.any( String ),
-			{ tags: 'mcp-edit' }
-		);
-	} );
-} );
+		expect(mock.undelete).toHaveBeenCalledWith('X', expect.any(String), { tags: 'mcp-edit' });
+	});
+});

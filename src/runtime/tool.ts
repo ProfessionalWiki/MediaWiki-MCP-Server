@@ -20,9 +20,6 @@ export interface Tool<TSchema extends ZodRawShape, TCtx extends ToolContext = To
 	 * telemetry event. Omitted for tools that don't have a single canonical
 	 * subject (e.g. get-pages, compare-pages, set-wiki).
 	 */
-	readonly target?: ( args: z.infer<z.ZodObject<TSchema>> ) => string;
-	readonly handle: (
-		args: z.infer<z.ZodObject<TSchema>>,
-		ctx: TCtx
-	) => Promise<CallToolResult>;
+	readonly target?: (args: z.infer<z.ZodObject<TSchema>>) => string;
+	readonly handle: (args: z.infer<z.ZodObject<TSchema>>, ctx: TCtx) => Promise<CallToolResult>;
 }

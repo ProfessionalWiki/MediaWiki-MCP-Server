@@ -56,37 +56,33 @@ export const standardTools: Tool<any>[] = [
 	uploadFile,
 	uploadFileFromUrl,
 	updateFile,
-	updateFileFromUrl
+	updateFileFromUrl,
 ];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const managementTools: Tool<any, ManagementContext>[] = [
-	addWiki,
-	removeWiki,
-	setWiki
-];
+export const managementTools: Tool<any, ManagementContext>[] = [addWiki, removeWiki, setWiki];
 
 export function registerAllTools(
 	server: McpServer,
 	reconcile: Reconcile,
-	ctx: ToolContext
+	ctx: ToolContext,
 ): Map<string, RegisteredTool> {
 	const registered = new Map<string, RegisteredTool>();
 
-	for ( const tool of standardTools ) {
+	for (const tool of standardTools) {
 		try {
-			registered.set( tool.name, register( server, tool, dispatch( tool, ctx ) ) );
-		} catch ( error ) {
-			logger.error( 'Error registering tool', { error: ( error as Error ).message } );
+			registered.set(tool.name, register(server, tool, dispatch(tool, ctx)));
+		} catch (error) {
+			logger.error('Error registering tool', { error: (error as Error).message });
 		}
 	}
 
 	const mgmtCtx: ManagementContext = { ...ctx, reconcile };
-	for ( const tool of managementTools ) {
+	for (const tool of managementTools) {
 		try {
-			registered.set( tool.name, register( server, tool, dispatch( tool, mgmtCtx ) ) );
-		} catch ( error ) {
-			logger.error( 'Error registering tool', { error: ( error as Error ).message } );
+			registered.set(tool.name, register(server, tool, dispatch(tool, mgmtCtx)));
+		} catch (error) {
+			logger.error('Error registering tool', { error: (error as Error).message });
 		}
 	}
 

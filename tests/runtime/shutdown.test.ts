@@ -1,58 +1,55 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resolveShutdownGrace, registerShutdownHandlers } from '../../src/runtime/shutdown.js';
 
-describe( 'resolveShutdownGrace', () => {
+describe('resolveShutdownGrace', () => {
 	let stderrSpy: ReturnType<typeof vi.spyOn>;
 
-	beforeEach( () => {
-		stderrSpy = vi.spyOn( process.stderr, 'write' ).mockImplementation( () => true );
-	} );
+	beforeEach(() => {
+		stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+	});
 
-	afterEach( () => {
+	afterEach(() => {
 		stderrSpy.mockRestore();
-	} );
+	});
 
 	function warningLines(): string[] {
 		return stderrSpy.mock.calls
-			.map( ( c ) => String( c[ 0 ] ) )
-			.filter( ( s ) => s.includes( '"level":"warning"' ) );
+			.map((c) => String(c[0]))
+			.filter((s) => s.includes('"level":"warning"'));
 	}
 
-	it( 'defaults to 10000 when unset', () => {
-		expect( resolveShutdownGrace( {} ) ).toBe( 10_000 );
-		expect( warningLines() ).toHaveLength( 0 );
-	} );
+	it('defaults to 10000 when unset', () => {
+		expect(resolveShutdownGrace({})).toBe(10_000);
+		expect(warningLines()).toHaveLength(0);
+	});
 
-	it( 'parses a valid integer string', () => {
-		expect( resolveShutdownGrace( { MCP_SHUTDOWN_GRACE_MS: '5000' } ) ).toBe( 5_000 );
-		expect( warningLines() ).toHaveLength( 0 );
-	} );
+	it('parses a valid integer string', () => {
+		expect(resolveShutdownGrace({ MCP_SHUTDOWN_GRACE_MS: '5000' })).toBe(5_000);
+		expect(warningLines()).toHaveLength(0);
+	});
 
-	it( 'accepts zero (immediate exit, no drain wait)', () => {
-		expect( resolveShutdownGrace( { MCP_SHUTDOWN_GRACE_MS: '0' } ) ).toBe( 0 );
-		expect( warningLines() ).toHaveLength( 0 );
-	} );
+	it('accepts zero (immediate exit, no drain wait)', () => {
+		expect(resolveShutdownGrace({ MCP_SHUTDOWN_GRACE_MS: '0' })).toBe(0);
+		expect(warningLines()).toHaveLength(0);
+	});
 
-	it.each( [
-		[ 'not-a-number' ],
-		[ '-1' ],
-		[ '1.5' ],
-		[ '600001' ],
-		[ '' ]
-	] )( 'falls back with a warning for %s', ( v ) => {
-		expect( resolveShutdownGrace( { MCP_SHUTDOWN_GRACE_MS: v } ) ).toBe( 10_000 );
-		const lines = warningLines();
-		expect( lines ).toHaveLength( 1 );
-		// For non-empty values the raw string is preserved in the log line.
-		// For the empty-string case, we verify the variable name appears instead,
-		// because toContain('') is always true and provides no signal.
-		expect( lines[ 0 ] ).toContain( v !== '' ? v : 'MCP_SHUTDOWN_GRACE_MS' );
-	} );
-} );
+	it.each([['not-a-number'], ['-1'], ['1.5'], ['600001'], ['']])(
+		'falls back with a warning for %s',
+		(v) => {
+			expect(resolveShutdownGrace({ MCP_SHUTDOWN_GRACE_MS: v })).toBe(10_000);
+			const lines = warningLines();
+			expect(lines).toHaveLength(1);
+			// For non-empty values the raw string is preserved in the log line.
+			// For the empty-string case, we verify the variable name appears instead,
+			// because toContain('') is always true and provides no signal.
+			expect(lines[0]).toContain(v !== '' ? v : 'MCP_SHUTDOWN_GRACE_MS');
+		},
+	);
+});
 
 interface FakeProcess {
-	on: ( signal: 'SIGTERM' | 'SIGINT', cb: () => void ) => void;
-	exit: ( code: number ) => void;
+	on: (signal: 'SIGTERM' | 'SIGINT', cb: () => void) => void;
+	exit: (code: number) => void;
 	signals: Map<string, () => void>;
 	exitCalls: number[];
 }
@@ -63,66 +60,69 @@ function fakeProcess(): FakeProcess {
 	return {
 		signals,
 		exitCalls,
-		on: ( s, cb ) => {
-			signals.set( s, cb );
+		on: (s, cb) => {
+			signals.set(s, cb);
 		},
-		exit: ( code ) => {
-			exitCalls.push( code );
-		}
+		exit: (code) => {
+			exitCalls.push(code);
+		},
 	};
 }
 
-function captureEvents( spy: ReturnType<typeof vi.spyOn>, name: string ): Record<string, unknown>[] {
+function captureEvents(spy: ReturnType<typeof vi.spyOn>, name: string): Record<string, unknown>[] {
 	return spy.mock.calls
-		.map( ( c ) => String( c[ 0 ] ) )
-		.filter( ( s ) => s.startsWith( '{' ) )
-		.map( ( s ) => JSON.parse( s.replace( /\n$/, '' ) ) as Record<string, unknown> )
-		.filter( ( e ) => e.event === name );
+		.map((c) => String(c[0]))
+		.filter((s) => s.startsWith('{'))
+		.map((s) => JSON.parse(s.replace(/\n$/, '')) as Record<string, unknown>)
+		.filter((e) => e.event === name);
 }
 
-describe( 'registerShutdownHandlers (http)', () => {
+describe('registerShutdownHandlers (http)', () => {
 	let stderrSpy: ReturnType<typeof vi.spyOn>;
 
-	beforeEach( () => {
-		stderrSpy = vi.spyOn( process.stderr, 'write' ).mockImplementation( () => true );
-	} );
+	beforeEach(() => {
+		stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+	});
 
-	afterEach( () => {
+	afterEach(() => {
 		stderrSpy.mockRestore();
-	} );
+	});
 
-	function setup( opts: { inFlight: number; sessions: number; graceMs?: number } ) {
+	function setup(opts: { inFlight: number; sessions: number; graceMs?: number }) {
 		const proc = fakeProcess();
 		const closedSessions: string[] = [];
 		const sessions: Record<string, { transport: { close: () => Promise<void> } }> = {};
-		for ( let i = 0; i < opts.sessions; i++ ) {
-			const id = `s-${ i }`;
-			sessions[ id ] = {
+		for (let i = 0; i < opts.sessions; i++) {
+			const id = `s-${i}`;
+			sessions[id] = {
 				transport: {
 					close: async () => {
-						closedSessions.push( id );
-					}
-				}
+						closedSessions.push(id);
+					},
+				},
 			};
 		}
 
 		let httpClosed = false;
 		const httpServer = {
-			close: ( cb?: () => void ) => {
+			close: (cb?: () => void) => {
 				httpClosed = true;
-				if ( cb ) {
+				if (cb) {
 					cb();
 				}
 			},
-			closeIdleConnections: () => {}
+			closeIdleConnections: () => {},
 		};
 
 		let count = opts.inFlight;
-		const inFlight = { count: () => count, drain: () => {
-			count = 0;
-		} };
+		const inFlight = {
+			count: () => count,
+			drain: () => {
+				count = 0;
+			},
+		};
 
-		registerShutdownHandlers( {
+		registerShutdownHandlers({
 			transport: 'http',
 			graceMs: opts.graceMs ?? 10_000,
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -132,103 +132,107 @@ describe( 'registerShutdownHandlers (http)', () => {
 			inFlight,
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			process: proc as any,
-			pollIntervalMs: 5
-		} );
+			pollIntervalMs: 5,
+		});
 
 		return { proc, sessions, closedSessions, httpServer: { closed: () => httpClosed }, inFlight };
 	}
 
-	it( 'registers SIGTERM and SIGINT', () => {
-		const { proc } = setup( { inFlight: 0, sessions: 0 } );
-		expect( proc.signals.has( 'SIGTERM' ) ).toBe( true );
-		expect( proc.signals.has( 'SIGINT' ) ).toBe( true );
-	} );
+	it('registers SIGTERM and SIGINT', () => {
+		const { proc } = setup({ inFlight: 0, sessions: 0 });
+		expect(proc.signals.has('SIGTERM')).toBe(true);
+		expect(proc.signals.has('SIGINT')).toBe(true);
+	});
 
-	it( 'drains cleanly when in-flight reaches zero', async () => {
-		const { proc, httpServer, closedSessions, inFlight } = setup( { inFlight: 2, sessions: 1 } );
-		proc.signals.get( 'SIGTERM' )!();
-		await new Promise( ( r ) => setImmediate( r ) );
+	it('drains cleanly when in-flight reaches zero', async () => {
+		const { proc, httpServer, closedSessions, inFlight } = setup({ inFlight: 2, sessions: 1 });
+		proc.signals.get('SIGTERM')!();
+		await new Promise((r) => setImmediate(r));
 		inFlight.drain();
-		await new Promise( ( r ) => setTimeout( r, 20 ) );
+		await new Promise((r) => setTimeout(r, 20));
 
-		expect( httpServer.closed() ).toBe( true );
-		expect( closedSessions ).toEqual( [ 's-0' ] );
-		expect( proc.exitCalls ).toEqual( [ 0 ] );
+		expect(httpServer.closed()).toBe(true);
+		expect(closedSessions).toEqual(['s-0']);
+		expect(proc.exitCalls).toEqual([0]);
 
-		const start = captureEvents( stderrSpy, 'shutdown' );
-		const done = captureEvents( stderrSpy, 'shutdown_complete' );
-		expect( start ).toHaveLength( 1 );
-		expect( start[ 0 ] ).toMatchObject( {
+		const start = captureEvents(stderrSpy, 'shutdown');
+		const done = captureEvents(stderrSpy, 'shutdown_complete');
+		expect(start).toHaveLength(1);
+		expect(start[0]).toMatchObject({
 			signal: 'SIGTERM',
 			transport: 'http',
 			grace_ms: 10_000,
 			in_flight_at_signal: 2,
-			sessions_at_signal: 1
-		} );
-		expect( done ).toHaveLength( 1 );
-		expect( done[ 0 ] ).toMatchObject( {
+			sessions_at_signal: 1,
+		});
+		expect(done).toHaveLength(1);
+		expect(done[0]).toMatchObject({
 			in_flight_drained: 2,
 			sessions_closed: 1,
-			grace_exceeded: false
-		} );
-		expect( typeof done[ 0 ].duration_ms ).toBe( 'number' );
-	} );
+			grace_exceeded: false,
+		});
+		expect(typeof done[0].duration_ms).toBe('number');
+	});
 
-	it( 'exits 1 with grace_exceeded: true when in-flight is stuck', async () => {
-		const { proc } = setup( { inFlight: 3, sessions: 0, graceMs: 30 } );
-		proc.signals.get( 'SIGINT' )!();
-		await new Promise( ( r ) => setTimeout( r, 60 ) );
-		expect( proc.exitCalls ).toEqual( [ 1 ] );
-		const done = captureEvents( stderrSpy, 'shutdown_complete' );
-		expect( done[ 0 ] ).toMatchObject( {
+	it('exits 1 with grace_exceeded: true when in-flight is stuck', async () => {
+		const { proc } = setup({ inFlight: 3, sessions: 0, graceMs: 30 });
+		proc.signals.get('SIGINT')!();
+		await new Promise((r) => setTimeout(r, 60));
+		expect(proc.exitCalls).toEqual([1]);
+		const done = captureEvents(stderrSpy, 'shutdown_complete');
+		expect(done[0]).toMatchObject({
 			grace_exceeded: true,
-			in_flight_drained: 0
-		} );
-	} );
+			in_flight_drained: 0,
+		});
+	});
 
-	it( 'forces immediate exit on a second signal', async () => {
-		const { proc } = setup( { inFlight: 5, sessions: 0, graceMs: 10_000 } );
-		proc.signals.get( 'SIGTERM' )!();
-		await new Promise( ( r ) => setImmediate( r ) );
-		proc.signals.get( 'SIGTERM' )!();
-		expect( proc.exitCalls[ proc.exitCalls.length - 1 ] ).toBe( 1 );
-	} );
-} );
+	it('forces immediate exit on a second signal', async () => {
+		const { proc } = setup({ inFlight: 5, sessions: 0, graceMs: 10_000 });
+		proc.signals.get('SIGTERM')!();
+		await new Promise((r) => setImmediate(r));
+		proc.signals.get('SIGTERM')!();
+		expect(proc.exitCalls[proc.exitCalls.length - 1]).toBe(1);
+	});
+});
 
-describe( 'registerShutdownHandlers (stdio)', () => {
+describe('registerShutdownHandlers (stdio)', () => {
 	let stderrSpy: ReturnType<typeof vi.spyOn>;
 
-	beforeEach( () => {
-		stderrSpy = vi.spyOn( process.stderr, 'write' ).mockImplementation( () => true );
-	} );
+	beforeEach(() => {
+		stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+	});
 
-	afterEach( () => {
+	afterEach(() => {
 		stderrSpy.mockRestore();
-	} );
+	});
 
-	it( 'closes the stdio transport and exits 0', async () => {
+	it('closes the stdio transport and exits 0', async () => {
 		const proc = fakeProcess();
 		let closed = false;
-		registerShutdownHandlers( {
+		registerShutdownHandlers({
 			transport: 'stdio',
 			graceMs: 0,
-			stdioTransport: { close: async () => { closed = true; } },
+			stdioTransport: {
+				close: async () => {
+					closed = true;
+				},
+			},
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			process: proc as any
-		} );
+			process: proc as any,
+		});
 
-		proc.signals.get( 'SIGTERM' )!();
-		await new Promise( ( r ) => setImmediate( r ) );
+		proc.signals.get('SIGTERM')!();
+		await new Promise((r) => setImmediate(r));
 
-		expect( closed ).toBe( true );
-		expect( proc.exitCalls ).toEqual( [ 0 ] );
-		const events = captureEvents( stderrSpy, 'shutdown' );
-		const done = captureEvents( stderrSpy, 'shutdown_complete' );
-		expect( events[ 0 ] ).toMatchObject( {
+		expect(closed).toBe(true);
+		expect(proc.exitCalls).toEqual([0]);
+		const events = captureEvents(stderrSpy, 'shutdown');
+		const done = captureEvents(stderrSpy, 'shutdown_complete');
+		expect(events[0]).toMatchObject({
 			transport: 'stdio',
 			signal: 'SIGTERM',
-			grace_ms: 0
-		} );
-		expect( done[ 0 ] ).toMatchObject( { transport: 'stdio', grace_exceeded: false } );
-	} );
-} );
+			grace_ms: 0,
+		});
+		expect(done[0]).toMatchObject({ transport: 'stdio', grace_exceeded: false });
+	});
+});

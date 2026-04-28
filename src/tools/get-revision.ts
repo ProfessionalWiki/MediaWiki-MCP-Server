@@ -9,28 +9,39 @@ import { getPageUrl } from '../wikis/utils.js';
 import { ContentFormat } from '../results/contentFormat.js';
 
 const inputSchema = {
-	revisionId: z.number().int().positive().describe( 'Revision ID' ),
-	content: z.nativeEnum( ContentFormat ).describe( 'Type of content to return' ).optional().default( ContentFormat.source ),
-	metadata: z.boolean().describe( 'Whether to include metadata (revision ID, page ID, page title, user ID, user name, timestamp, comment, size, minor, HTML URL) in the response' ).optional().default( false )
+	revisionId: z.number().int().positive().describe('Revision ID'),
+	content: z
+		.nativeEnum(ContentFormat)
+		.describe('Type of content to return')
+		.optional()
+		.default(ContentFormat.source),
+	metadata: z
+		.boolean()
+		.describe(
+			'Whether to include metadata (revision ID, page ID, page title, user ID, user name, timestamp, comment, size, minor, HTML URL) in the response',
+		)
+		.optional()
+		.default(false),
 } as const;
 
 export const getRevision: Tool<typeof inputSchema> = {
 	name: 'get-revision',
-	description: 'Returns a specific historical revision of a wiki page by revision ID (wikitext source, rendered HTML, or metadata only). If the revision ID does not exist, an error is returned. For the latest revision plus metadata, use get-page with metadata=true.',
+	description:
+		'Returns a specific historical revision of a wiki page by revision ID (wikitext source, rendered HTML, or metadata only). If the revision ID does not exist, an error is returned. For the latest revision plus metadata, use get-page with metadata=true.',
 	inputSchema,
 	annotations: {
 		title: 'Get revision',
 		readOnlyHint: true,
 		destructiveHint: false,
 		idempotentHint: true,
-		openWorldHint: true
+		openWorldHint: true,
 	} as ToolAnnotations,
 	failureVerb: 'retrieve revision data',
-	target: ( a ) => String( a.revisionId ),
+	target: (a) => String(a.revisionId),
 
-	async handle( { revisionId, content, metadata }, ctx: ToolContext ): Promise<CallToolResult> {
-		if ( content === ContentFormat.none && !metadata ) {
-			return ctx.format.invalidInput( 'When content is set to "none", metadata must be true' );
+	async handle({ revisionId, content, metadata }, ctx: ToolContext): Promise<CallToolResult> {
+		if (content === ContentFormat.none && !metadata) {
+			return ctx.format.invalidInput('When content is set to "none", metadata must be true');
 		}
 
 		const mwn = await ctx.mwn();
@@ -53,32 +64,32 @@ export const getRevision: Tool<typeof inputSchema> = {
 		const needsSource = content === ContentFormat.source;
 		const needsMetadata = metadata || content === ContentFormat.none;
 
-		if ( needsSource || needsMetadata ) {
-			const rvprop = needsSource ?
-				'ids|timestamp|user|userid|comment|size|flags|content' :
-				'ids|timestamp|user|userid|comment|size|flags';
+		if (needsSource || needsMetadata) {
+			const rvprop = needsSource
+				? 'ids|timestamp|user|userid|comment|size|flags|content'
+				: 'ids|timestamp|user|userid|comment|size|flags';
 
-			const response = await mwn.request( {
+			const response = await mwn.request({
 				action: 'query',
 				prop: 'revisions',
 				revids: revisionId,
 				rvprop,
-				formatversion: '2'
-			} );
+				formatversion: '2',
+			});
 
-			const page = response.query?.pages?.[ 0 ] as ApiPage | undefined;
-			const rev: ApiRevision | undefined = page?.revisions?.[ 0 ];
+			const page = response.query?.pages?.[0] as ApiPage | undefined;
+			const rev: ApiRevision | undefined = page?.revisions?.[0];
 
-			if ( !rev || !page || page.missing ) {
-				return ctx.format.notFound( `Revision ${ revisionId } not found` );
+			if (!rev || !page || page.missing) {
+				return ctx.format.notFound(`Revision ${revisionId} not found`);
 			}
 
 			payload.revisionId = rev.revid;
 			payload.pageId = page.pageid;
 			payload.title = page.title;
-			payload.url = getPageUrl( page.title );
+			payload.url = getPageUrl(page.title);
 
-			if ( needsMetadata ) {
+			if (needsMetadata) {
 				payload.userid = rev.userid;
 				payload.user = rev.user;
 				payload.timestamp = rev.timestamp;
@@ -87,32 +98,32 @@ export const getRevision: Tool<typeof inputSchema> = {
 				payload.minor = rev.minor ?? false;
 			}
 
-			if ( needsSource && rev.content !== undefined ) {
+			if (needsSource && rev.content !== undefined) {
 				payload.source = rev.content;
 			}
 		}
 
-		if ( content === ContentFormat.html ) {
-			const parseResult = await mwn.request( {
+		if (content === ContentFormat.html) {
+			const parseResult = await mwn.request({
 				action: 'parse',
 				oldid: revisionId,
 				prop: 'text',
-				formatversion: '2'
-			} );
+				formatversion: '2',
+			});
 			payload.html = parseResult.parse?.text;
 
-			if ( payload.revisionId === undefined ) {
+			if (payload.revisionId === undefined) {
 				payload.revisionId = revisionId;
-				if ( parseResult.parse?.pageid !== undefined ) {
+				if (parseResult.parse?.pageid !== undefined) {
 					payload.pageId = parseResult.parse.pageid;
 				}
-				if ( parseResult.parse?.title !== undefined ) {
+				if (parseResult.parse?.title !== undefined) {
 					payload.title = parseResult.parse.title;
-					payload.url = getPageUrl( parseResult.parse.title );
+					payload.url = getPageUrl(parseResult.parse.title);
 				}
 			}
 		}
 
-		return ctx.format.ok( payload );
-	}
+		return ctx.format.ok(payload);
+	},
 };

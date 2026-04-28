@@ -3,7 +3,7 @@ export interface UploadDirs {
 }
 
 export class UploadDirsImpl implements UploadDirs {
-	public constructor( private readonly dirs: readonly string[] ) {}
+	public constructor(private readonly dirs: readonly string[]) {}
 
 	public list(): readonly string[] {
 		return this.dirs;

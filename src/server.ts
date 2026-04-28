@@ -9,7 +9,7 @@ import { reconcileTools } from './runtime/reconcile.js';
 import type { ToolContext } from './runtime/context.js';
 
 // https://github.com/nodejs/node/issues/51347#issuecomment-2111337854
-const serverInfo = createRequire( import.meta.url )( '../server.json' ) as {
+const serverInfo = createRequire(import.meta.url)('../server.json') as {
 	title: string;
 	description: string;
 	version: string;
@@ -23,29 +23,29 @@ Writes, deletes, and uploads use the caller's \`Authorization: Bearer\` token wh
 
 Tool errors fall into seven categories: \`not_found\`, \`permission_denied\`, \`invalid_input\`, \`conflict\`, \`authentication\`, \`rate_limited\`, and \`upstream_failure\`. Reads that exceed a per-call cap return a truncation marker describing what was returned and how to fetch the rest.`;
 
-export const createServer = ( ctx: ToolContext ): McpServer => {
+export const createServer = (ctx: ToolContext): McpServer => {
 	const server = new McpServer(
 		{
 			name: SERVER_NAME,
 			title: serverInfo.title,
 			version: serverInfo.version,
-			description: serverInfo.description
+			description: serverInfo.description,
 		},
 		{
 			capabilities: {
 				resources: {
-					listChanged: true
+					listChanged: true,
 				},
 				tools: {
-					listChanged: true
+					listChanged: true,
 				},
-				logging: {}
+				logging: {},
 			},
-			instructions: SERVER_INSTRUCTIONS
-		}
+			instructions: SERVER_INSTRUCTIONS,
+		},
 	);
 
-	registerServer( server );
+	registerServer(server);
 	// The SDK transport only fires onclose on DELETE / explicit transport.close()
 	// / process termination — not on a raw HTTP disconnect. So this registry
 	// drains on the same lifecycle as the existing sessions map in
@@ -54,24 +54,24 @@ export const createServer = ( ctx: ToolContext ): McpServer => {
 	// transport rejects, and swallowNotificationError absorbs that quietly.
 	const previousOnClose = server.server.onclose;
 	server.server.onclose = (): void => {
-		unregisterServer( server );
+		unregisterServer(server);
 		previousOnClose?.();
 	};
 
 	const tools = new Map<string, RegisteredTool>();
 	const reconcile = (): void => {
-		reconcileTools( tools );
+		reconcileTools(tools);
 		// Notify clients that the wiki resource list may have changed (e.g. after
 		// add-wiki / remove-wiki). Also covers tool-list changes since toggling a
 		// RegisteredTool's enabled state already emits its own listChanged event.
 		server.sendResourceListChanged();
 	};
 
-	const registered = registerAllTools( server, reconcile, ctx );
-	for ( const [ name, tool ] of registered ) {
-		tools.set( name, tool );
+	const registered = registerAllTools(server, reconcile, ctx);
+	for (const [name, tool] of registered) {
+		tools.set(name, tool);
 	}
-	registerAllResources( server, ctx );
+	registerAllResources(server, ctx);
 
 	reconcile();
 

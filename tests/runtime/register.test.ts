@@ -3,9 +3,9 @@ import { z } from 'zod';
 import { register } from '../../src/runtime/register.js';
 import type { Tool } from '../../src/runtime/tool.js';
 
-describe( 'register', () => {
-	it( 'forwards descriptor metadata and handler to server.registerTool', () => {
-		const registerTool = vi.fn().mockReturnValue( { x: 1 } );
+describe('register', () => {
+	it('forwards descriptor metadata and handler to server.registerTool', () => {
+		const registerTool = vi.fn().mockReturnValue({ x: 1 });
 		const server = { registerTool } as never;
 		const tool: Tool<{ a: z.ZodString }> = {
 			name: 'foo',
@@ -16,26 +16,26 @@ describe( 'register', () => {
 				readOnlyHint: true,
 				destructiveHint: false,
 				idempotentHint: true,
-				openWorldHint: true
+				openWorldHint: true,
 			},
-			handle: async () => ( { content: [] } )
+			handle: async () => ({ content: [] }),
 		};
 		const handler = vi.fn();
-		register( server, tool, handler );
-		expect( registerTool ).toHaveBeenCalledWith(
+		register(server, tool, handler);
+		expect(registerTool).toHaveBeenCalledWith(
 			'foo',
 			{
 				description: 'd',
 				inputSchema: { a: expect.anything() },
-				annotations: tool.annotations
+				annotations: tool.annotations,
 			},
-			handler
+			handler,
 		);
-	} );
+	});
 
-	it( 'returns the result of server.registerTool', () => {
+	it('returns the result of server.registerTool', () => {
 		const registered = { enabled: true } as never;
-		const registerTool = vi.fn().mockReturnValue( registered );
+		const registerTool = vi.fn().mockReturnValue(registered);
 		const server = { registerTool } as never;
 		const tool: Tool<{ a: z.ZodString }> = {
 			name: 'bar',
@@ -46,11 +46,11 @@ describe( 'register', () => {
 				readOnlyHint: true,
 				destructiveHint: false,
 				idempotentHint: true,
-				openWorldHint: true
+				openWorldHint: true,
 			},
-			handle: async () => ( { content: [] } )
+			handle: async () => ({ content: [] }),
 		};
-		const result = register( server, tool, vi.fn() );
-		expect( result ).toBe( registered );
-	} );
-} );
+		const result = register(server, tool, vi.fn());
+		expect(result).toBe(registered);
+	});
+});

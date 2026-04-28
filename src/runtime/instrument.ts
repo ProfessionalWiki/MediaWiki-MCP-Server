@@ -8,31 +8,31 @@ import type { ErrorCategory } from '../errors/classifyError.js';
 
 export type ToolOutcome = 'success' | ErrorCategory;
 
-const WARNING_OUTCOMES: ReadonlySet<ToolOutcome> = new Set( [
+const WARNING_OUTCOMES: ReadonlySet<ToolOutcome> = new Set([
 	'not_found',
 	'invalid_input',
 	'permission_denied',
 	'conflict',
 	'authentication',
-	'rate_limited'
-] );
+	'rate_limited',
+]);
 
-export function levelFor( outcome: ToolOutcome ): 'info' | 'warning' | 'error' {
-	if ( outcome === 'success' ) {
+export function levelFor(outcome: ToolOutcome): 'info' | 'warning' | 'error' {
+	if (outcome === 'success') {
 		return 'info';
 	}
-	if ( outcome === 'upstream_failure' ) {
+	if (outcome === 'upstream_failure') {
 		return 'error';
 	}
-	return WARNING_OUTCOMES.has( outcome ) ? 'warning' : 'error';
+	return WARNING_OUTCOMES.has(outcome) ? 'warning' : 'error';
 }
 
-export function hashCaller( token: string | undefined ): string {
-	if ( !token ) {
+export function hashCaller(token: string | undefined): string {
+	if (!token) {
 		return 'anonymous';
 	}
-	const hex = createHash( 'sha256' ).update( token ).digest( 'hex' );
-	return `sha256:${ hex.slice( 0, 12 ) }`;
+	const hex = createHash('sha256').update(token).digest('hex');
+	return `sha256:${hex.slice(0, 12)}`;
 }
 
 export interface ParsedEnvelope {
@@ -40,13 +40,13 @@ export interface ParsedEnvelope {
 	message?: string;
 }
 
-export function parseEnvelope( text: string | undefined ): ParsedEnvelope {
-	if ( !text ) {
+export function parseEnvelope(text: string | undefined): ParsedEnvelope {
+	if (!text) {
 		return {};
 	}
 	try {
-		const obj = JSON.parse( text );
-		if ( obj && typeof obj === 'object' ) {
+		const obj = JSON.parse(text);
+		if (obj && typeof obj === 'object') {
 			return obj as ParsedEnvelope;
 		}
 	} catch {
@@ -55,18 +55,18 @@ export function parseEnvelope( text: string | undefined ): ParsedEnvelope {
 	return {};
 }
 
-export function detectTruncation( result: CallToolResult ): boolean {
+export function detectTruncation(result: CallToolResult): boolean {
 	const sc = result.structuredContent;
-	if ( sc !== undefined && sc !== null && typeof sc === 'object' ) {
-		return 'truncation' in ( sc as Record<string, unknown> );
+	if (sc !== undefined && sc !== null && typeof sc === 'object') {
+		return 'truncation' in (sc as Record<string, unknown>);
 	}
 	return false;
 }
 
-export function extractUpstreamStatus( err: unknown ): number | undefined {
-	if ( err !== null && typeof err === 'object' ) {
-		const response = ( err as { response?: { status?: unknown } } ).response;
-		if ( response && typeof response.status === 'number' ) {
+export function extractUpstreamStatus(err: unknown): number | undefined {
+	if (err !== null && typeof err === 'object') {
+		const response = (err as { response?: { status?: unknown } }).response;
+		if (response && typeof response.status === 'number') {
 			return response.status;
 		}
 	}
@@ -74,14 +74,14 @@ export function extractUpstreamStatus( err: unknown ): number | undefined {
 }
 
 export function safeTarget<TArgs>(
-	target: ( ( args: TArgs ) => string ) | undefined,
-	args: TArgs
+	target: ((args: TArgs) => string) | undefined,
+	args: TArgs,
 ): string {
-	if ( target === undefined ) {
+	if (target === undefined) {
 		return '';
 	}
 	try {
-		return target( args );
+		return target(args);
 	} catch {
 		return '';
 	}
@@ -89,7 +89,7 @@ export function safeTarget<TArgs>(
 
 export interface EmitToolCallOptions<TArgs> {
 	readonly toolName: string;
-	readonly target?: ( args: TArgs ) => string;
+	readonly target?: (args: TArgs) => string;
 	readonly args: TArgs;
 	readonly started: number;
 	readonly result: CallToolResult;
@@ -101,11 +101,11 @@ export interface EmitToolCallOptions<TArgs> {
 	readonly wikiKey: string;
 }
 
-export function emitToolCall<TArgs>( opts: EmitToolCallOptions<TArgs> ): void {
-	const level = levelFor( opts.outcome );
-	const targetValue = safeTarget( opts.target, opts.args );
-	const truncated = opts.outcome === 'success' ? detectTruncation( opts.result ) : false;
-	const durationMs = Math.round( performance.now() - opts.started );
+export function emitToolCall<TArgs>(opts: EmitToolCallOptions<TArgs>): void {
+	const level = levelFor(opts.outcome);
+	const targetValue = safeTarget(opts.target, opts.args);
+	const truncated = opts.outcome === 'success' ? detectTruncation(opts.result) : false;
+	const durationMs = Math.round(performance.now() - opts.started);
 	// Snake-case keys are required by the structured log schema.
 	const data: Record<string, unknown> = {
 		event: 'tool_call',
@@ -114,37 +114,37 @@ export function emitToolCall<TArgs>( opts: EmitToolCallOptions<TArgs> ): void {
 		outcome: opts.outcome,
 		// eslint-disable-next-line camelcase
 		duration_ms: durationMs,
-		caller: hashCaller( opts.runtimeToken ),
-		truncated
+		caller: hashCaller(opts.runtimeToken),
+		truncated,
 	};
-	if ( targetValue !== '' ) {
+	if (targetValue !== '') {
 		data.target = targetValue;
 	}
-	if ( opts.sessionId !== undefined ) {
+	if (opts.sessionId !== undefined) {
 		// eslint-disable-next-line camelcase
-		data.session_id = opts.sessionId.replace( /-/g, '' ).slice( 0, 12 );
+		data.session_id = opts.sessionId.replace(/-/g, '').slice(0, 12);
 	}
-	if ( opts.upstreamStatus !== undefined ) {
+	if (opts.upstreamStatus !== undefined) {
 		// eslint-disable-next-line camelcase
 		data.upstream_status = opts.upstreamStatus;
 	}
-	if ( opts.errorMessage !== undefined ) {
+	if (opts.errorMessage !== undefined) {
 		// eslint-disable-next-line camelcase
 		data.error_message = opts.errorMessage;
 	}
-	emitTelemetryEvent( level, data );
+	emitTelemetryEvent(level, data);
 	// Telemetry must never break tool calls — the dispatcher does not wrap
 	// emitToolCall in its own try/catch, so an unexpected throw from the
 	// metrics path would propagate up and fail the call. The stderr line
 	// above has already flushed, so we still have an operator-visible record.
 	try {
-		recordToolCall( {
+		recordToolCall({
 			tool: opts.toolName,
 			wiki: opts.wikiKey,
 			outcome: opts.outcome,
 			durationMs,
-			upstreamStatus: opts.upstreamStatus
-		} );
+			upstreamStatus: opts.upstreamStatus,
+		});
 	} catch {
 		// swallow
 	}

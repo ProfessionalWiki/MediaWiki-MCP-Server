@@ -2,17 +2,17 @@
 
 async function main(): Promise<void> {
 	const transportType = process.env.MCP_TRANSPORT || 'stdio';
-	if ( transportType === 'http' ) {
-		await import( './transport/streamableHttp.js' );
+	if (transportType === 'http') {
+		await import('./transport/streamableHttp.js');
 	} else {
-		await import( './transport/stdio.js' );
+		await import('./transport/stdio.js');
 	}
 }
 
-main().catch( ( error ) => {
+main().catch((error) => {
 	// Bootstrap fail-safe: the logger module may itself be unimportable here
 	// (transitive failure during boot). Stay on console.error so this last-
 	// resort path always works.
-	console.error( 'Fatal error in main():', error );
+	console.error('Fatal error in main():', error);
 	throw error;
-} );
+});
