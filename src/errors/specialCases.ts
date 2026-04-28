@@ -20,9 +20,9 @@ function pickFromMessage( msg: string, pattern: RegExp ): string | undefined {
 // these tools opt into the matching override below — every other tool keeps
 // the raw upstream message and the dispatcher's standard verb prefix.
 const TAILORED_TOOLS: Record<string, ReadonlySet<string>> = {
-	missingtitle: new Set( [ 'get-page', 'get-page-history', 'get-file', 'compare-pages' ] ),
-	nosuchrevid: new Set( [ 'get-revision', 'compare-pages' ] ),
-	nosuchsection: new Set( [ 'get-page', 'update-page' ] )
+	missingtitle: new Set( [ 'compare-pages' ] ),
+	nosuchrevid: new Set( [ 'compare-pages' ] ),
+	nosuchsection: new Set( [ 'update-page' ] )
 };
 
 function appliesTo( code: string, toolName: string ): boolean {
