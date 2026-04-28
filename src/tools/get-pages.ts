@@ -2,13 +2,11 @@ import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
+import type { Mwn } from 'mwn';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
 import { getPageUrl } from '../wikis/utils.js';
-import {
-	truncateByBytes,
-	type TruncationInfo
-} from '../results/truncation.js';
+import { truncateByBytes, type TruncationInfo } from '../results/truncation.js';
 
 const MAX_TITLES = 50;
 
@@ -47,10 +45,16 @@ interface ApiPageLike {
 	revisions?: PageRev[];
 }
 
-interface RedirectOrNormalizedEntry {
-	from: string;
-	to: string;
-}
+type FetchResult = {
+	byResolvedTitle: Map<string, ApiPageLike>;
+	aliasTo: Map<string, string>;
+	redirectFrom: Set<string>;
+};
+
+type PendingTruncation = {
+	entryIndex: number; title: string;
+	returnedBytes: number; totalBytes: number;
+};
 
 const inputSchema = {
 	titles: z.array( z.string() ).describe( `Array of wiki page titles (1..${ MAX_TITLES })` ),
@@ -59,10 +63,23 @@ const inputSchema = {
 	followRedirects: z.boolean().optional().default( true ).describe( 'Follow wiki redirects. When true (default), redirect targets are returned with a "Redirected from:" line in the metadata. Set false to fetch redirect pseudo-pages as-is (sync-fidelity).' )
 } as const;
 
+type GetPagesArgs = z.infer<z.ZodObject<typeof inputSchema>>;
+
+function validateArgs( { titles, content, metadata }: GetPagesArgs ): string | undefined {
+	if ( titles.length === 0 ) {
+		return 'titles must contain at least one entry';
+	}
+	if ( titles.length > MAX_TITLES ) {
+		return `titles must contain at most ${ MAX_TITLES } entries`;
+	}
+	if ( content === BatchContentFormat.none && !metadata ) {
+		return 'When content is set to "none", metadata must be true';
+	}
+	return undefined;
+}
+
 function resolveChain(
-	requested: string,
-	aliasTo: Map<string, string>,
-	redirectFrom: Set<string>
+	requested: string, aliasTo: Map<string, string>, redirectFrom: Set<string>
 ): { resolved: string; viaRedirect: boolean } {
 	let cur = requested;
 	let viaRedirect = false;
@@ -75,6 +92,134 @@ function resolveChain(
 		cur = aliasTo.get( cur )!;
 	}
 	return { resolved: cur, viaRedirect };
+}
+
+function normalisePage( page: ApiPageLike, ctx: ToolContext ): ApiPageLike {
+	if ( page.revisions ) {
+		page.revisions = page.revisions.map( ( rev ) => ctx.revision.normalise( rev ) as PageRev );
+	}
+	return page;
+}
+
+async function fetchPages(
+	mwn: Mwn, ctx: ToolContext, args: GetPagesArgs, rvprop: string
+): Promise<FetchResult> {
+	const result: FetchResult = {
+		byResolvedTitle: new Map(), aliasTo: new Map(), redirectFrom: new Set()
+	};
+	if ( !args.followRedirects ) {
+		// mwn.read() defaults to following redirects, which would rewrite the requested
+		// title to the target and break our lookup. Emit the redirect pseudo-page as-is.
+		const response = await mwn.read( args.titles, { rvprop, redirects: false } );
+		const pages: ApiPageLike[] = Array.isArray( response ) ? response : [ response ];
+		for ( const page of pages ) {
+			result.byResolvedTitle.set( page.title, normalisePage( page, ctx ) );
+		}
+		return result;
+	}
+	const responses = await mwn.massQuery( {
+		action: 'query', titles: args.titles, prop: 'revisions', rvprop,
+		rvslots: 'main', redirects: true, formatversion: '2'
+	}, 'titles' );
+	for ( const response of responses ) {
+		const query = response?.query;
+		if ( !query ) {
+			continue;
+		}
+		type Alias = { from: string; to: string };
+		for ( const entry of ( query.normalized ?? [] ) as Alias[] ) {
+			result.aliasTo.set( entry.from, entry.to );
+		}
+		for ( const entry of ( query.redirects ?? [] ) as Alias[] ) {
+			result.aliasTo.set( entry.from, entry.to );
+			result.redirectFrom.add( entry.from );
+		}
+		for ( const page of ( query.pages ?? [] ) as ApiPageLike[] ) {
+			result.byResolvedTitle.set( page.title, normalisePage( page, ctx ) );
+		}
+	}
+	return result;
+}
+
+function buildPageEntry(
+	requested: string, page: ApiPageLike, viaRedirect: boolean,
+	args: GetPagesArgs, entryIndex: number, pending: PendingTruncation[]
+): PageEntry {
+	const rev = page.revisions?.[ 0 ];
+	const entry: PageEntry = {
+		requestedTitle: requested, pageId: page.pageid,
+		title: page.title, url: getPageUrl( page.title ),
+		...( viaRedirect ? { redirectedFrom: requested } : {} ),
+		...( args.metadata ? {
+			latestRevisionId: rev?.revid,
+			latestRevisionTimestamp: rev?.timestamp,
+			contentModel: rev?.contentmodel
+		} : {} )
+	};
+	if ( args.content === BatchContentFormat.source && rev?.content !== undefined ) {
+		const truncated = truncateByBytes( rev.content );
+		entry.source = truncated.text;
+		if ( truncated.truncated ) {
+			pending.push( {
+				entryIndex, title: page.title,
+				returnedBytes: truncated.returnedBytes, totalBytes: truncated.totalBytes
+			} );
+		}
+	}
+	return entry;
+}
+
+async function applyTruncations(
+	mwn: Mwn, ctx: ToolContext, entries: PageEntry[], pending: PendingTruncation[]
+): Promise<void> {
+	if ( pending.length === 0 ) {
+		return;
+	}
+	const sectionLists = await Promise.all(
+		pending.map( ( p ) => ctx.sections.list( mwn, p.title ) )
+	);
+	pending.forEach( ( p, i ) => {
+		entries[ p.entryIndex ].truncation = {
+			reason: 'content-truncated',
+			returnedBytes: p.returnedBytes,
+			totalBytes: p.totalBytes,
+			itemNoun: 'wikitext',
+			toolName: 'get-pages',
+			sections: sectionLists[ i ],
+			remedyHint: 'To read a specific section, call get-page again with section=N.'
+		};
+	} );
+}
+
+function assembleEntries(
+	args: GetPagesArgs, fetched: FetchResult
+): { entries: PageEntry[]; missing: string[]; pending: PendingTruncation[] } {
+	const entries: PageEntry[] = [];
+	const emitted = new Set<string>();
+	const missing: string[] = [];
+	const missingSeen = new Set<string>();
+	const pending: PendingTruncation[] = [];
+	for ( const requested of args.titles ) {
+		const { resolved, viaRedirect } = args.followRedirects ?
+			resolveChain( requested, fetched.aliasTo, fetched.redirectFrom ) :
+			{ resolved: requested, viaRedirect: false };
+		const page = fetched.byResolvedTitle.get( resolved );
+		if ( !page || page.missing ) {
+			if ( !missingSeen.has( requested ) ) {
+				missingSeen.add( requested );
+				missing.push( requested );
+			}
+			continue;
+		}
+		if ( emitted.has( page.title ) ) {
+			continue;
+		}
+		emitted.add( page.title );
+		entries.push(
+			buildPageEntry( requested, page, viaRedirect, args, entries.length, pending )
+		);
+	}
+	return { entries, missing, pending };
 }
 
 export const getPages: Tool<typeof inputSchema> = {
@@ -90,174 +235,19 @@ export const getPages: Tool<typeof inputSchema> = {
 	} as ToolAnnotations,
 	failureVerb: 'retrieve pages',
 
-	async handle(
-		{ titles, content, metadata, followRedirects },
-		ctx: ToolContext
-	): Promise<CallToolResult> {
-		if ( titles.length === 0 ) {
-			return ctx.format.invalidInput( 'titles must contain at least one entry' );
-		}
-		if ( titles.length > MAX_TITLES ) {
-			return ctx.format.invalidInput( `titles must contain at most ${ MAX_TITLES } entries` );
-		}
-		if ( content === BatchContentFormat.none && !metadata ) {
-			return ctx.format.invalidInput( 'When content is set to "none", metadata must be true' );
+	async handle( args, ctx: ToolContext ): Promise<CallToolResult> {
+		const validationError = validateArgs( args );
+		if ( validationError ) {
+			return ctx.format.invalidInput( validationError );
 		}
 
 		const mwn = await ctx.mwn();
-		const needsSource = content === BatchContentFormat.source;
-		const rvprop = needsSource ?
+		const rvprop = args.content === BatchContentFormat.source ?
 			'ids|timestamp|contentmodel|content' :
 			'ids|timestamp|contentmodel';
-
-		const byResolvedTitle = new Map<string, ApiPageLike>();
-		const aliasTo = new Map<string, string>();
-		const redirectFrom = new Set<string>();
-
-		if ( followRedirects ) {
-			const responses = await mwn.massQuery( {
-				action: 'query',
-				titles,
-				prop: 'revisions',
-				rvprop,
-				rvslots: 'main',
-				redirects: true,
-				formatversion: '2'
-			}, 'titles' );
-
-			for ( const response of responses ) {
-				const query = response?.query;
-				if ( !query ) {
-					continue;
-				}
-
-				const normalized: RedirectOrNormalizedEntry[] = query.normalized ?? [];
-				for ( const entry of normalized ) {
-					aliasTo.set( entry.from, entry.to );
-				}
-
-				const redirects: RedirectOrNormalizedEntry[] = query.redirects ?? [];
-				for ( const entry of redirects ) {
-					aliasTo.set( entry.from, entry.to );
-					redirectFrom.add( entry.from );
-				}
-
-				const pages = ( query.pages ?? [] ) as ApiPageLike[];
-				for ( const page of pages ) {
-					const revs = page.revisions;
-					if ( revs ) {
-						page.revisions = revs.map(
-							( rev ) => ctx.revision.normalise( rev ) as PageRev
-						);
-					}
-					byResolvedTitle.set( page.title, page );
-				}
-			}
-		} else {
-			// redirects: false — mwn.read() defaults to following redirects, which
-			// replaces the requested title in the response with the redirect target
-			// and breaks our requested-title lookup. Emit the redirect pseudo-page
-			// as-is so callers can see (and sync) it.
-			const response = await mwn.read( titles, { rvprop, redirects: false } );
-			const pages: ApiPageLike[] = Array.isArray( response ) ? response : [ response ];
-			for ( const p of pages ) {
-				const revs = p.revisions;
-				if ( revs ) {
-					p.revisions = revs.map(
-						( rev ) => ctx.revision.normalise( rev ) as PageRev
-					);
-				}
-				byResolvedTitle.set( p.title, p );
-			}
-		}
-
-		const entries: PageEntry[] = [];
-		const emitted = new Set<string>();
-		const missing: string[] = [];
-		const missingSeen = new Set<string>();
-
-		interface PendingTruncation {
-			entryIndex: number;
-			title: string;
-			returnedBytes: number;
-			totalBytes: number;
-		}
-		const pendingTruncations: PendingTruncation[] = [];
-
-		for ( const requested of titles ) {
-			let resolvedTitle: string;
-			let viaRedirect: boolean;
-			if ( followRedirects ) {
-				const resolution = resolveChain( requested, aliasTo, redirectFrom );
-				resolvedTitle = resolution.resolved;
-				viaRedirect = resolution.viaRedirect;
-			} else {
-				resolvedTitle = requested;
-				viaRedirect = false;
-			}
-
-			const page = byResolvedTitle.get( resolvedTitle );
-
-			if ( !page || page.missing ) {
-				if ( !missingSeen.has( requested ) ) {
-					missingSeen.add( requested );
-					missing.push( requested );
-				}
-				continue;
-			}
-
-			if ( emitted.has( page.title ) ) {
-				continue;
-			}
-			emitted.add( page.title );
-
-			const rev = page.revisions?.[ 0 ];
-			const entry: PageEntry = {
-				requestedTitle: requested,
-				pageId: page.pageid,
-				title: page.title,
-				url: getPageUrl( page.title )
-			};
-			if ( viaRedirect ) {
-				entry.redirectedFrom = requested;
-			}
-			if ( metadata ) {
-				entry.latestRevisionId = rev?.revid;
-				entry.latestRevisionTimestamp = rev?.timestamp;
-				entry.contentModel = rev?.contentmodel;
-			}
-			if ( needsSource && rev?.content !== undefined ) {
-				const truncated = truncateByBytes( rev.content );
-				entry.source = truncated.text;
-				if ( truncated.truncated ) {
-					pendingTruncations.push( {
-						entryIndex: entries.length,
-						title: page.title,
-						returnedBytes: truncated.returnedBytes,
-						totalBytes: truncated.totalBytes
-					} );
-				}
-			}
-			entries.push( entry );
-		}
-
-		if ( pendingTruncations.length > 0 ) {
-			const sectionLists = await Promise.all(
-				pendingTruncations.map( ( p ) => ctx.sections.list( mwn, p.title ) )
-			);
-			pendingTruncations.forEach( ( p, i ) => {
-				const info: TruncationInfo = {
-					reason: 'content-truncated',
-					returnedBytes: p.returnedBytes,
-					totalBytes: p.totalBytes,
-					itemNoun: 'wikitext',
-					toolName: 'get-pages',
-					sections: sectionLists[ i ],
-					remedyHint: 'To read a specific section, call get-page again with section=N.'
-				};
-				entries[ p.entryIndex ].truncation = info;
-			} );
-		}
+		const fetched = await fetchPages( mwn, ctx, args, rvprop );
+		const { entries, missing, pending } = assembleEntries( args, fetched );
+		await applyTruncations( mwn, ctx, entries, pending );
 
 		return ctx.format.ok( {
 			pages: entries,

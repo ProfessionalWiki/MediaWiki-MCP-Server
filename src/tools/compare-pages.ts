@@ -32,26 +32,14 @@ const inputSchema = {
 	includeDiff: z.boolean().optional().describe( 'Include the diff body (default true). Set false for a cheap change-detection response.' )
 } as const;
 
-type ComparePagesArgs = {
-	fromRevision?: number;
-	fromTitle?: string;
-	fromText?: string;
-	toRevision?: number;
-	toTitle?: string;
-	toText?: string;
-	includeDiff?: boolean;
-};
+type ComparePagesArgs = z.infer<z.ZodObject<typeof inputSchema>>;
 
-function countSide( side: Side, args: ComparePagesArgs ): number {
-	return [
+function validateSide( side: Side, args: ComparePagesArgs ): string | undefined {
+	const count = [
 		args[ `${ side }Revision` as const ],
 		args[ `${ side }Title` as const ],
 		args[ `${ side }Text` as const ]
 	].filter( ( v ) => v !== undefined ).length;
-}
-
-function validateSide( side: Side, args: ComparePagesArgs ): string | undefined {
-	const count = countSide( side, args );
 	if ( count === 0 ) {
 		return `Must supply exactly one of ${ side }Revision, ${ side }Title, ${ side }Text`;
 	}
@@ -62,20 +50,19 @@ function validateSide( side: Side, args: ComparePagesArgs ): string | undefined 
 }
 
 function buildSideParams( side: Side, args: ComparePagesArgs ): Record<string, string | number> {
-	const params: Record<string, string | number> = {};
 	const rev = args[ `${ side }Revision` as const ];
 	const title = args[ `${ side }Title` as const ];
 	const text = args[ `${ side }Text` as const ];
-
 	if ( rev !== undefined ) {
-		params[ `${ side }rev` ] = rev;
-	} else if ( title !== undefined ) {
-		params[ `${ side }title` ] = title;
-	} else if ( text !== undefined ) {
-		params[ `${ side }slots` ] = 'main';
-		params[ `${ side }text-main` ] = text;
+		return { [ `${ side }rev` ]: rev };
 	}
-	return params;
+	if ( title !== undefined ) {
+		return { [ `${ side }title` ]: title };
+	}
+	if ( text !== undefined ) {
+		return { [ `${ side }slots` ]: 'main', [ `${ side }text-main` ]: text };
+	}
+	return {};
 }
 
 function detectChanged( compare: CompareResponse, diffText: string ): boolean {
@@ -89,6 +76,65 @@ function detectChanged( compare: CompareResponse, diffText: string ): boolean {
 		return compare.diffsize > 0;
 	}
 	return ( compare.fromsize ?? 0 ) !== ( compare.tosize ?? 0 );
+}
+
+// MediaWiki omits fromsize/tosize when the side is supplied text; we have the text
+// locally, so compute the byte length. For title/revision sides where MW still
+// omits size (rare) we leave the field undefined rather than reporting a misleading 0.
+function computeSideSizes( compare: CompareResponse, args: ComparePagesArgs ): {
+	fromSize?: number; toSize?: number; sizeDelta?: number;
+} {
+	const byteLength = ( text: string | undefined ): number | undefined => (
+		text !== undefined ? Buffer.byteLength( text, 'utf8' ) : undefined
+	);
+	const fromSize = compare.fromsize ?? byteLength( args.fromText );
+	const toSize = compare.tosize ?? byteLength( args.toText );
+	const sizeDelta = ( fromSize !== undefined && toSize !== undefined ) ?
+		toSize - fromSize :
+		undefined;
+	return { fromSize, toSize, sizeDelta };
+}
+
+function buildSidePayload(
+	side: Side, compare: CompareResponse, args: ComparePagesArgs,
+	size: number | undefined, includeDiff: boolean
+): Record<string, unknown> {
+	return {
+		title: compare[ `${ side }title` as const ],
+		revisionId: compare[ `${ side }revid` as const ],
+		timestamp: includeDiff ? compare[ `${ side }timestamp` as const ] : undefined,
+		size,
+		...( args[ `${ side }Text` as const ] !== undefined ? { isSuppliedText: true } : {} )
+	};
+}
+
+function buildPayload(
+	compare: CompareResponse, args: ComparePagesArgs, includeDiff: boolean
+): Record<string, unknown> {
+	const diffText = compare.body ? inlineDiffToText( compare.body ) : '';
+	const changed = detectChanged( compare, diffText );
+	const { fromSize, toSize, sizeDelta } = computeSideSizes( compare, args );
+	const payload: Record<string, unknown> = {
+		changed,
+		from: buildSidePayload( 'from', compare, args, fromSize, includeDiff ),
+		to: buildSidePayload( 'to', compare, args, toSize, includeDiff ),
+		...( sizeDelta !== undefined ? { sizeDelta } : {} )
+	};
+	if ( includeDiff && changed && diffText ) {
+		const truncated = truncateByBytes( diffText );
+		payload.diff = truncated.text;
+		if ( truncated.truncated ) {
+			payload.truncation = {
+				reason: 'content-truncated',
+				returnedBytes: truncated.returnedBytes,
+				totalBytes: truncated.totalBytes,
+				itemNoun: 'diff',
+				toolName: 'compare-pages',
+				remedyHint: 'To avoid truncation, compare a narrower revision range or set includeDiff=false for a metadata-only response.'
+			};
+		}
+	}
+	return payload;
 }
 
 export const comparePages: Tool<typeof inputSchema> = {
@@ -105,86 +151,27 @@ export const comparePages: Tool<typeof inputSchema> = {
 	failureVerb: 'compare pages',
 
 	async handle( args, ctx: ToolContext ): Promise<CallToolResult> {
-		const fromError = validateSide( 'from', args );
-		if ( fromError ) {
-			return ctx.format.invalidInput( fromError );
-		}
-		const toError = validateSide( 'to', args );
-		if ( toError ) {
-			return ctx.format.invalidInput( toError );
+		const sideError = validateSide( 'from', args ) ?? validateSide( 'to', args );
+		if ( sideError ) {
+			return ctx.format.invalidInput( sideError );
 		}
 		if ( args.fromText !== undefined && args.toText !== undefined ) {
 			return ctx.format.invalidInput( 'Cannot compare supplied text against supplied text' );
 		}
 
 		const includeDiff = args.includeDiff ?? true;
-
-		const params: Record<string, string | number> = {
+		const mwn = await ctx.mwn();
+		const response = await mwn.request( {
 			action: 'compare',
 			prop: includeDiff ? 'ids|title|size|timestamp|diff' : 'ids|title|size|diffsize',
 			formatversion: '2',
 			...buildSideParams( 'from', args ),
 			...buildSideParams( 'to', args )
-		};
-
-		const mwn = await ctx.mwn();
-		const response = await mwn.request( params );
+		} );
 		const compare = response.compare as CompareResponse | undefined;
-
 		if ( !compare ) {
 			return ctx.format.error( 'upstream_failure', 'Failed to compare pages: no compare result returned' );
 		}
-
-		const diffText = compare.body ? inlineDiffToText( compare.body ) : '';
-		const changed = detectChanged( compare, diffText );
-		// MediaWiki omits fromsize/tosize when the side is supplied text;
-		// we have the text locally, so compute the byte length ourselves.
-		// For title/revision sides where MW still omits size (rare) we leave
-		// the field undefined rather than reporting a misleading 0.
-		const fromSize = compare.fromsize ?? (
-			args.fromText !== undefined ? Buffer.byteLength( args.fromText, 'utf8' ) : undefined
-		);
-		const toSize = compare.tosize ?? (
-			args.toText !== undefined ? Buffer.byteLength( args.toText, 'utf8' ) : undefined
-		);
-		const sizeDelta = ( fromSize !== undefined && toSize !== undefined ) ?
-			toSize - fromSize :
-			undefined;
-
-		const payload: Record<string, unknown> = {
-			changed,
-			from: {
-				title: compare.fromtitle,
-				revisionId: compare.fromrevid,
-				timestamp: includeDiff ? compare.fromtimestamp : undefined,
-				size: fromSize,
-				...( args.fromText !== undefined ? { isSuppliedText: true } : {} )
-			},
-			to: {
-				title: compare.totitle,
-				revisionId: compare.torevid,
-				timestamp: includeDiff ? compare.totimestamp : undefined,
-				size: toSize,
-				...( args.toText !== undefined ? { isSuppliedText: true } : {} )
-			},
-			...( sizeDelta !== undefined ? { sizeDelta } : {} )
-		};
-
-		if ( includeDiff && changed && diffText ) {
-			const truncated = truncateByBytes( diffText );
-			payload.diff = truncated.text;
-			if ( truncated.truncated ) {
-				payload.truncation = {
-					reason: 'content-truncated',
-					returnedBytes: truncated.returnedBytes,
-					totalBytes: truncated.totalBytes,
-					itemNoun: 'diff',
-					toolName: 'compare-pages',
-					remedyHint: 'To avoid truncation, compare a narrower revision range or set includeDiff=false for a metadata-only response.'
-				};
-			}
-		}
-
-		return ctx.format.ok( payload );
+		return ctx.format.ok( buildPayload( compare, args, includeDiff ) );
 	}
 };

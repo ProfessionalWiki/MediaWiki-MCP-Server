@@ -29,6 +29,37 @@ const inputSchema = {
 	sectionTitle: z.string().optional().describe( 'Heading for a new section; required when section=\'new\', rejected otherwise.' )
 } as const;
 
+type UpdatePageArgs = z.infer<z.ZodObject<typeof inputSchema>>;
+
+function validateArgs( { section, mode, sectionTitle }: UpdatePageArgs ): string | undefined {
+	if ( section === 'new' && mode !== undefined ) {
+		return 'mode is not compatible with section=\'new\'';
+	}
+	if ( section === 'new' && sectionTitle === undefined ) {
+		return 'sectionTitle is required when section=\'new\'';
+	}
+	if ( sectionTitle !== undefined && section !== 'new' ) {
+		return 'sectionTitle is only valid when section=\'new\'';
+	}
+	return undefined;
+}
+
+function buildEditParams(
+	{ title, source, latestId, comment, section, mode, sectionTitle }: UpdatePageArgs
+): Record<string, string | number | boolean> {
+	const sourceField = mode === 'append' ? 'appendtext' : mode === 'prepend' ? 'prependtext' : 'text';
+	return {
+		action: 'edit',
+		title,
+		summary: formatEditComment( 'update-page', comment ),
+		nocreate: true,
+		[ sourceField ]: source,
+		...( latestId !== undefined ? { baserevid: latestId } : {} ),
+		...( section !== undefined ? { section: String( section ) } : {} ),
+		...( sectionTitle !== undefined ? { sectiontitle: sectionTitle } : {} )
+	};
+}
+
 export const updatePage: Tool<typeof inputSchema> = {
 	name: 'update-page',
 	description: 'Replaces the existing content of a wiki page and returns the new revision ID. Fails if the page does not exist; for new pages, use create-page. Pass latestId (obtained from get-page with metadata=true) to enable edit-conflict detection: if the page has been edited since that revision, the update is rejected rather than silently clobbering concurrent changes. For large pages, three modifiers avoid shipping the full source: section=N edits one section (pairs with get-page section=N for reads), section=\'new\' adds a new heading section, and mode=\'append\' or \'prepend\' sends a delta. Each call is a separate revision; for chains of mode=\'append\' calls, re-fetching latestId between calls confirms the previous chunk landed before the next.',
@@ -42,54 +73,20 @@ export const updatePage: Tool<typeof inputSchema> = {
 	} as ToolAnnotations,
 	failureVerb: 'update page',
 
-	async handle(
-		{ title, source, latestId, comment, section, mode, sectionTitle },
-		ctx: ToolContext
-	): Promise<CallToolResult> {
-		if ( section === 'new' && mode !== undefined ) {
-			return ctx.format.invalidInput( 'mode is not compatible with section=\'new\'' );
-		}
-		if ( section === 'new' && sectionTitle === undefined ) {
-			return ctx.format.invalidInput( 'sectionTitle is required when section=\'new\'' );
-		}
-		if ( sectionTitle !== undefined && section !== 'new' ) {
-			return ctx.format.invalidInput( 'sectionTitle is only valid when section=\'new\'' );
+	async handle( args, ctx: ToolContext ): Promise<CallToolResult> {
+		const validationError = validateArgs( args );
+		if ( validationError ) {
+			return ctx.format.invalidInput( validationError );
 		}
 
 		const mwn = await ctx.mwn();
-
-		const params: Record<string, string | number | boolean> = {
-			action: 'edit',
-			title,
-			summary: formatEditComment( 'update-page', comment ),
-			nocreate: true
-		};
-		if ( mode === 'append' ) {
-			params.appendtext = source;
-		} else if ( mode === 'prepend' ) {
-			params.prependtext = source;
-		} else {
-			params.text = source;
-		}
-		if ( latestId !== undefined ) {
-			params.baserevid = latestId;
-		}
-		if ( section !== undefined ) {
-			params.section = String( section );
-		}
-		if ( sectionTitle !== undefined ) {
-			params.sectiontitle = sectionTitle;
-		}
-
-		const response = await ctx.edit.submit( mwn, params ) as
+		const response = await ctx.edit.submit( mwn, buildEditParams( args ) ) as
 			{ edit?: ApiEditResponse } | undefined;
 		const edit = response?.edit;
-
 		if ( !edit || edit.result !== 'Success' ) {
 			return ctx.format.error( 'upstream_failure', `Failed to update page: ${ JSON.stringify( edit ?? response ) }` );
 		}
-
-		const resolvedTitle = edit.title ?? title;
+		const resolvedTitle = edit.title ?? args.title;
 		return ctx.format.ok( {
 			pageId: edit.pageid,
 			title: resolvedTitle,
