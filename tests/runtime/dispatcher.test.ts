@@ -84,7 +84,8 @@ describe( 'dispatcher', () => {
 		const tool = noopTool( async () => {
 			throw new Error( 'boom' );
 		} );
-		( tool as { name: string } ).name = 'update-page';
+		( tool as { name: string; failureVerb: string } ).name = 'update-page';
+		( tool as { name: string; failureVerb: string } ).failureVerb = 'update page';
 		const result = await dispatch( tool, ctx )( { x: 'y' } );
 		const envelope = JSON.parse(
 			( result.content[ 0 ] as { text: string } ).text

@@ -6,36 +6,7 @@ import type { Tool } from './tool.js';
 import type { ToolContext } from './context.js';
 import { applySpecialCase } from '../errors/specialCases.js';
 
-const FAILURE_VERB: Record<string, string> = {
-	'get-page': 'retrieve page data',
-	'get-pages': 'retrieve pages',
-	'get-page-history': 'retrieve page history',
-	'get-recent-changes': 'retrieve recent changes',
-	'get-revision': 'retrieve revision data',
-	'get-file': 'retrieve file data',
-	'get-category-members': 'retrieve category members',
-	'search-page': 'retrieve search data',
-	'search-page-by-prefix': 'retrieve search data',
-	'parse-wikitext': 'preview wikitext',
-	'compare-pages': 'compare pages',
-	'create-page': 'create page',
-	'update-page': 'update page',
-	'delete-page': 'delete page',
-	'undelete-page': 'undelete page',
-	'upload-file': 'upload file',
-	'upload-file-from-url': 'upload file',
-	'update-file': 'update file',
-	'update-file-from-url': 'update file',
-	'add-wiki': 'add wiki',
-	'remove-wiki': 'remove wiki',
-	'set-wiki': 'set wiki'
-};
-
-function failurePrefix( toolName: string ): string {
-	return `Failed to ${ FAILURE_VERB[ toolName ] ?? toolName }`;
-}
-
-export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext>(
+export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext = ToolContext>(
 	tool: Tool<TSchema, TCtx>,
 	ctx: TCtx
 ): ( args: z.infer<z.ZodObject<TSchema>> ) => Promise<CallToolResult> {
@@ -51,9 +22,10 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext>(
 			// the raw error message — matching today's per-tool conventions.
 			const rawMessage = ( err as Error ).message ?? 'Unknown error';
 			const tailored = overridden.message !== rawMessage;
+			const verb = tool.failureVerb ?? tool.name;
 			const message = tailored ?
 				overridden.message :
-				`${ failurePrefix( tool.name ) }: ${ overridden.message }`;
+				`Failed to ${ verb }: ${ overridden.message }`;
 
 			ctx.logger.error( 'Tool failed', {
 				tool: tool.name,

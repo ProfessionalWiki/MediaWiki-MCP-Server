@@ -21,6 +21,7 @@ export const getFile: Tool<typeof inputSchema> = {
 		idempotentHint: true,
 		openWorldHint: true
 	} as ToolAnnotations,
+	failureVerb: 'retrieve file data',
 
 	async handle( { title }, ctx: ToolContext ): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();

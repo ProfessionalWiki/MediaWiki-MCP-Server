@@ -42,6 +42,7 @@ export const getCategoryMembers: Tool<typeof inputSchema> = {
 		idempotentHint: true,
 		openWorldHint: true
 	} as ToolAnnotations,
+	failureVerb: 'retrieve category members',
 
 	async handle(
 		{ category, types, namespaces, limit, continueFrom },

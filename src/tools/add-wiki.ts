@@ -23,6 +23,7 @@ export const addWiki: Tool<typeof inputSchema, ManagementContext> = {
 		idempotentHint: true,
 		openWorldHint: true
 	} as ToolAnnotations,
+	failureVerb: 'add wiki',
 
 	async handle( { wikiUrl }, ctx: ManagementContext ): Promise<CallToolResult> {
 		let wikiInfo;

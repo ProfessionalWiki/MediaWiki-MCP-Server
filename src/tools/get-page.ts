@@ -31,6 +31,7 @@ export const getPage: Tool<typeof inputSchema> = {
 		idempotentHint: true,
 		openWorldHint: true
 	} as ToolAnnotations,
+	failureVerb: 'retrieve page data',
 
 	async handle(
 		{ title, content, metadata, section },

@@ -26,6 +26,7 @@ export const updateFileFromUrl: Tool<typeof inputSchema> = {
 		idempotentHint: false,
 		openWorldHint: true
 	} as ToolAnnotations,
+	failureVerb: 'update file',
 
 	async handle(
 		{ url, title, comment },

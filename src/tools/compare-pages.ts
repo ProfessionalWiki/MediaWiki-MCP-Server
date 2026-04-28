@@ -102,6 +102,7 @@ export const comparePages: Tool<typeof inputSchema> = {
 		idempotentHint: true,
 		openWorldHint: true
 	} as ToolAnnotations,
+	failureVerb: 'compare pages',
 
 	async handle( args, ctx: ToolContext ): Promise<CallToolResult> {
 		const fromError = validateSide( 'from', args );

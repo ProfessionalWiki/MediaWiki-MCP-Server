@@ -27,6 +27,7 @@ export const uploadFile: Tool<typeof inputSchema> = {
 		idempotentHint: true,
 		openWorldHint: true
 	} as ToolAnnotations,
+	failureVerb: 'upload file',
 
 	async handle(
 		{ filepath, title, text, comment },

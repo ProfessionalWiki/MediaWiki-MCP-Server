@@ -25,6 +25,7 @@ export const createPage: Tool<typeof inputSchema> = {
 		idempotentHint: true,
 		openWorldHint: true
 	} as ToolAnnotations,
+	failureVerb: 'create page',
 
 	async handle(
 		{ source, title, comment, contentModel },

@@ -88,6 +88,7 @@ export const getPages: Tool<typeof inputSchema> = {
 		idempotentHint: true,
 		openWorldHint: true
 	} as ToolAnnotations,
+	failureVerb: 'retrieve pages',
 
 	async handle(
 		{ titles, content, metadata, followRedirects },

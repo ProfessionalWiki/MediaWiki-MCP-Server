@@ -106,6 +106,7 @@ export const getRecentChanges: Tool<typeof inputSchema> = {
 		idempotentHint: true,
 		openWorldHint: true
 	} as ToolAnnotations,
+	failureVerb: 'retrieve recent changes',
 
 	async handle( args, ctx: ToolContext ): Promise<CallToolResult> {
 		if ( args.user && args.excludeUser ) {

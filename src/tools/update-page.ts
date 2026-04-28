@@ -40,6 +40,7 @@ export const updatePage: Tool<typeof inputSchema> = {
 		idempotentHint: true,
 		openWorldHint: true
 	} as ToolAnnotations,
+	failureVerb: 'update page',
 
 	async handle(
 		{ title, source, latestId, comment, section, mode, sectionTitle },

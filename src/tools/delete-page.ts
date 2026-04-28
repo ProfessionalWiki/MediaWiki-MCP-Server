@@ -24,6 +24,7 @@ export const deletePage: Tool<typeof inputSchema> = {
 		idempotentHint: true,
 		openWorldHint: true
 	} as ToolAnnotations,
+	failureVerb: 'delete page',
 
 	async handle( { title, comment }, ctx: ToolContext ): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();

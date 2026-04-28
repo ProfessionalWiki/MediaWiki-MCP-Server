@@ -21,6 +21,7 @@ export const removeWiki: Tool<typeof inputSchema, ManagementContext> = {
 		idempotentHint: true,
 		openWorldHint: false
 	} as ToolAnnotations,
+	failureVerb: 'remove wiki',
 
 	async handle( { uri }, ctx: ManagementContext ): Promise<CallToolResult> {
 		let wikiKey: string;

@@ -32,6 +32,7 @@ export const parseWikitext: Tool<typeof inputSchema> = {
 		idempotentHint: true,
 		openWorldHint: true
 	} as ToolAnnotations,
+	failureVerb: 'preview wikitext',
 
 	async handle(
 		{ wikitext, title, applyPreSaveTransform },

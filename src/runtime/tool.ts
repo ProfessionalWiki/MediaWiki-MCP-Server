@@ -9,6 +9,11 @@ export interface Tool<TSchema extends ZodRawShape, TCtx extends ToolContext = To
 	readonly description: string;
 	readonly inputSchema: TSchema;
 	readonly annotations: ToolAnnotations;
+	/**
+	 * Verb phrase used by the dispatcher to wrap raw upstream errors as
+	 * "Failed to <verb>: <message>". Falls back to `name` if omitted.
+	 */
+	readonly failureVerb?: string;
 	readonly handle: (
 		args: z.infer<z.ZodObject<TSchema>>,
 		ctx: TCtx

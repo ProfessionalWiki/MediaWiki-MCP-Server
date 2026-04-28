@@ -21,6 +21,7 @@ export const setWiki: Tool<typeof inputSchema, ManagementContext> = {
 		idempotentHint: true,
 		openWorldHint: false
 	} as ToolAnnotations,
+	failureVerb: 'set wiki',
 
 	async handle( { uri }, ctx: ManagementContext ): Promise<CallToolResult> {
 		let wikiKey: string;
