@@ -11,9 +11,13 @@ describe('redactAuthorizationHeader', () => {
 			},
 		});
 		redactAuthorizationHeader(err);
+		// oxlint-disable-next-line typescript/no-explicit-any
 		expect((err as any).request.headers.Authorization).toBe('[REDACTED]');
+		// oxlint-disable-next-line typescript/no-explicit-any
 		expect((err as any).request.headers['User-Agent']).toBe('x');
+		// oxlint-disable-next-line typescript/no-explicit-any
 		expect((err as any).request.method).toBe('POST');
+		// oxlint-disable-next-line typescript/no-explicit-any
 		expect((err as any).request.path).toBe('/w/api.php');
 	});
 
@@ -22,6 +26,7 @@ describe('redactAuthorizationHeader', () => {
 			config: { headers: { Authorization: 'Bearer secret123' } },
 		});
 		redactAuthorizationHeader(err);
+		// oxlint-disable-next-line typescript/no-explicit-any
 		expect((err as any).config.headers.Authorization).toBe('[REDACTED]');
 	});
 
@@ -33,7 +38,9 @@ describe('redactAuthorizationHeader', () => {
 			},
 		});
 		redactAuthorizationHeader(err);
+		// oxlint-disable-next-line typescript/no-explicit-any
 		expect((err as any).response.config.headers.Authorization).toBe('[REDACTED]');
+		// oxlint-disable-next-line typescript/no-explicit-any
 		expect((err as any).response.status).toBe(500);
 	});
 
@@ -48,6 +55,7 @@ describe('redactAuthorizationHeader', () => {
 			request: { method: 'GET', headers: { 'User-Agent': 'x' } },
 		});
 		redactAuthorizationHeader(err);
+		// oxlint-disable-next-line typescript/no-explicit-any
 		expect((err as any).request.headers['User-Agent']).toBe('x');
 	});
 
@@ -62,6 +70,7 @@ describe('redactAuthorizationHeader', () => {
 			config: { headers: { authorization: 'Bearer secret123' } },
 		});
 		redactAuthorizationHeader(err);
+		// oxlint-disable-next-line typescript/no-explicit-any
 		expect((err as any).config.headers.authorization).toBe('[REDACTED]');
 	});
 
@@ -70,7 +79,9 @@ describe('redactAuthorizationHeader', () => {
 			request: { headers: { Authorization: 'Bearer secret123' } },
 		});
 		redactAuthorizationHeader(err);
+		// oxlint-disable-next-line typescript/no-explicit-any
 		expect('Authorization' in (err as any).request.headers).toBe(true);
+		// oxlint-disable-next-line typescript/no-explicit-any
 		expect((err as any).request.headers.Authorization).toBe('[REDACTED]');
 	});
 
@@ -111,6 +122,7 @@ describe('wrapMwnErrors', () => {
 		try {
 			wrapped.syncFail();
 		} catch (e) {
+			// oxlint-disable-next-line typescript/no-explicit-any
 			expect((e as any).request.headers.Authorization).toBe('[REDACTED]');
 		}
 	});
@@ -137,7 +149,8 @@ describe('wrapMwnErrors', () => {
 		const target = {
 			inner: vi.fn().mockResolvedValue('ok'),
 			outer() {
-				return (this as any).inner();
+				// oxlint-disable-next-line typescript/no-explicit-any
+			return (this as any).inner();
 			},
 		};
 		const wrapped = wrapMwnErrors(target) as typeof target;

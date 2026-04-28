@@ -34,6 +34,7 @@ import { setWiki } from './set-wiki.js';
 // is invariant in `TSchema`, so `Tool<never>` and `Tool<ZodRawShape>` both
 // fail this assignment. The dispatcher's own generic re-narrows TSchema
 // when each tool's handler is wrapped.
+// oxlint-disable-next-line typescript/no-explicit-any
 export const standardTools: Tool<any>[] = [
 	getPage,
 	getPages,
@@ -56,6 +57,7 @@ export const standardTools: Tool<any>[] = [
 	updateFileFromUrl,
 ];
 
+// oxlint-disable-next-line typescript/no-explicit-any
 export const managementTools: Tool<any, ManagementContext>[] = [addWiki, removeWiki, setWiki];
 
 export function registerAllTools(

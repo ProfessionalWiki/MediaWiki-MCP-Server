@@ -125,9 +125,12 @@ describe('registerShutdownHandlers (http)', () => {
 		registerShutdownHandlers({
 			transport: 'http',
 			graceMs: opts.graceMs ?? 10_000,
+			// oxlint-disable-next-line typescript/no-explicit-any
 			httpServer: httpServer as any,
+			// oxlint-disable-next-line typescript/no-explicit-any
 			sessions: sessions as any,
 			inFlight,
+			// oxlint-disable-next-line typescript/no-explicit-any
 			process: proc as any,
 			pollIntervalMs: 5,
 		});
@@ -214,6 +217,7 @@ describe('registerShutdownHandlers (stdio)', () => {
 					closed = true;
 				},
 			},
+			// oxlint-disable-next-line typescript/no-explicit-any
 			process: proc as any,
 		});
 
