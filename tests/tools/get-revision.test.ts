@@ -1,26 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { z } from 'zod';
+import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
-
-vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
-vi.mock( '../../src/common/wikiService.js', () => ( {
-	wikiService: {
-		getCurrent: vi.fn().mockReturnValue( {
-			key: 'test-wiki',
-			config: { server: 'https://test.wiki', articlepath: '/wiki', scriptpath: '/w' }
-		} )
-	}
-} ) );
-
-import { getMwn } from '../../src/common/mwn.js';
+import { fakeContext } from '../helpers/fakeContext.js';
+import { getRevision } from '../../src/tools/get-revision.js';
+import { dispatch } from '../../src/runtime/dispatcher.js';
+import { ContentFormat } from '../../src/common/contentFormat.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
 
 describe( 'get-revision', () => {
-	beforeEach( () => { vi.clearAllMocks(); } );
-
 	it( 'returns source content from a specific revision', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
@@ -42,10 +31,12 @@ describe( 'get-revision', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
-		const result = await handleGetRevisionTool( 42, 'source', false );
+		const result = await getRevision.handle(
+			{ revisionId: 42, content: ContentFormat.source, metadata: false },
+			ctx
+		);
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Source: Hello world' );
@@ -60,10 +51,12 @@ describe( 'get-revision', () => {
 				parse: { text: '<p>Hello</p>' }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
-		const result = await handleGetRevisionTool( 42, 'html', false );
+		const result = await getRevision.handle(
+			{ revisionId: 42, content: ContentFormat.html, metadata: false },
+			ctx
+		);
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'HTML: <p>Hello</p>' );
@@ -90,10 +83,12 @@ describe( 'get-revision', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
-		const result = await handleGetRevisionTool( 42, 'none', true );
+		const result = await getRevision.handle(
+			{ revisionId: 42, content: ContentFormat.none, metadata: true },
+			ctx
+		);
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Minor: true' );
@@ -114,23 +109,28 @@ describe( 'get-revision', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
-		const result = await handleGetRevisionTool( 99999, 'source', false );
+		const result = await getRevision.handle(
+			{ revisionId: 99999, content: ContentFormat.source, metadata: false },
+			ctx
+		);
 
 		const envelope = assertStructuredError( result, 'not_found' );
 		expect( envelope.message ).toContain( 'not found' );
 	} );
 
-	it( 'returns error on failure', async () => {
+	it( 'returns error on failure via dispatcher', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockRejectedValue( new Error( 'API error' ) )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
-		const result = await handleGetRevisionTool( 42, 'source', false );
+		const result = await dispatch( getRevision, ctx )( {
+			revisionId: 42,
+			content: ContentFormat.source,
+			metadata: false
+		} );
 
 		const envelope = assertStructuredError( result, 'upstream_failure' );
 		expect( envelope.message ).toContain( 'API error' );

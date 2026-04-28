@@ -1,12 +1,10 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
-import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { getMwn } from '../common/mwn.js';
-import type { TruncationInfo } from '../common/truncation.js';
-import { classifyError, errorResult } from '../common/errorMapping.js';
-import { structuredResult } from '../common/structuredResult.js';
+import type { Tool } from '../runtime/tool.js';
+import type { ToolContext } from '../runtime/context.js';
+import type { TruncationInfo } from '../results/truncation.js';
 
 const RC_LIMIT = 50;
 const RC_PROP = 'user|userid|comment|flags|timestamp|title|ids|sizes|tags|loginfo';
@@ -48,24 +46,9 @@ const inputSchema = {
 	continue: z.string().optional().describe(
 		"Continuation token from a prior call's truncation marker"
 	)
-};
+} as const;
 
-type RecentChangesArgs = {
-	since?: string;
-	until?: string;
-	namespace?: number[];
-	types?: z.infer<typeof RcType>[];
-	user?: string;
-	excludeUser?: string;
-	tag?: string;
-	hideBots?: boolean;
-	hideMinor?: boolean;
-	hideAnon?: boolean;
-	hideRedirects?: boolean;
-	hidePatrolled?: boolean;
-	showPatrolStatus?: boolean;
-	continue?: string;
-};
+type RecentChangesArgs = z.infer<z.ZodObject<typeof inputSchema>>;
 
 interface RecentChange {
 	type: 'edit' | 'new' | 'log' | 'categorize' | 'external';
@@ -92,24 +75,6 @@ interface RecentChange {
 	logparams?: Record<string, unknown>;
 }
 
-export function getRecentChangesTool( server: McpServer ): RegisteredTool {
-	return server.registerTool(
-		'get-recent-changes',
-		{
-			description: 'Returns recent change events, newest first, in segments of 50. Defaults to edits and page creations; set types to include log actions, categorizations, or external changes. Each row includes title, timestamp, user, revision IDs, size change, flags (minor/bot/new/anon), tags, and change type. Filter by timestamp window, namespaces, user, change tag, or hide flags (hideBots/hideMinor/hideAnon/hideRedirects/hidePatrolled). Pass showPatrolStatus to include per-row patrol state (requires patrol rights). Paginate with the continue token from the truncation marker. For a single page\'s revision history, use get-page-history.',
-			inputSchema,
-			annotations: {
-				title: 'Get recent changes',
-				readOnlyHint: true,
-				destructiveHint: false,
-				idempotentHint: true,
-				openWorldHint: true
-			} as ToolAnnotations
-		},
-		async ( args ) => handleGetRecentChangesTool( args as RecentChangesArgs )
-	);
-}
-
 function buildRcShow( args: RecentChangesArgs ): string | undefined {
 	const parts: string[] = [];
 	if ( args.hideBots ) {
@@ -130,15 +95,24 @@ function buildRcShow( args: RecentChangesArgs ): string | undefined {
 	return parts.length > 0 ? parts.join( '|' ) : undefined;
 }
 
-export async function handleGetRecentChangesTool(
-	args: RecentChangesArgs
-): Promise<CallToolResult> {
-	if ( args.user && args.excludeUser ) {
-		return errorResult( 'invalid_input', 'user and excludeUser are mutually exclusive' );
-	}
+export const getRecentChanges: Tool<typeof inputSchema> = {
+	name: 'get-recent-changes',
+	description: 'Returns recent change events, newest first, in segments of 50. Defaults to edits and page creations; set types to include log actions, categorizations, or external changes. Each row includes title, timestamp, user, revision IDs, size change, flags (minor/bot/new/anon), tags, and change type. Filter by timestamp window, namespaces, user, change tag, or hide flags (hideBots/hideMinor/hideAnon/hideRedirects/hidePatrolled). Pass showPatrolStatus to include per-row patrol state (requires patrol rights). Paginate with the continue token from the truncation marker. For a single page\'s revision history, use get-page-history.',
+	inputSchema,
+	annotations: {
+		title: 'Get recent changes',
+		readOnlyHint: true,
+		destructiveHint: false,
+		idempotentHint: true,
+		openWorldHint: true
+	} as ToolAnnotations,
 
-	try {
-		const mwn = await getMwn();
+	async handle( args, ctx: ToolContext ): Promise<CallToolResult> {
+		if ( args.user && args.excludeUser ) {
+			return ctx.format.invalidInput( 'user and excludeUser are mutually exclusive' );
+		}
+
+		const mwn = await ctx.mwn();
 
 		const types = args.types ?? [ 'edit', 'new' ];
 
@@ -192,7 +166,7 @@ export async function handleGetRecentChangesTool(
 			continueWith: { param: 'continue', value: nextCursor }
 		} : null;
 
-		return structuredResult( {
+		return ctx.format.ok( {
 			changes: changes.map( ( c ) => {
 				const sizeDelta = ( c.newlen !== undefined && c.oldlen !== undefined ) ?
 					c.newlen - c.oldlen :
@@ -225,8 +199,5 @@ export async function handleGetRecentChangesTool(
 			} ),
 			...( truncation !== null ? { truncation } : {} )
 		} );
-	} catch ( error ) {
-		const { category, code } = classifyError( error );
-		return errorResult( category, `Failed to retrieve recent changes: ${ ( error as Error ).message }`, code );
 	}
-}
+};

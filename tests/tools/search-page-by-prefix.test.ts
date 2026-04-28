@@ -1,38 +1,23 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { z } from 'zod';
+import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
-
-vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
-vi.mock( '../../src/common/wikiService.js', () => ( {
-	wikiService: {
-		getCurrent: vi.fn().mockReturnValue( {
-			key: 'test-wiki',
-			config: { server: 'https://test.wiki', articlepath: '/wiki', scriptpath: '/w' }
-		} )
-	}
-} ) );
-
-import { getMwn } from '../../src/common/mwn.js';
+import { fakeContext } from '../helpers/fakeContext.js';
+import { searchPageByPrefix } from '../../src/tools/search-page-by-prefix.js';
+import { dispatch } from '../../src/runtime/dispatcher.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
 
 describe( 'search-page-by-prefix', () => {
-	beforeEach( () => {
-		vi.clearAllMocks();
-	} );
-
 	it( 'calls action=query&list=allpages with apprefix and aplimit', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { allpages: [ { pageid: 1, ns: 0, title: 'Foo' } ] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
-		await handleSearchPageByPrefixTool( 'F', 50, 0 );
+		await searchPageByPrefix.handle( { prefix: 'F', limit: 50, namespace: 0 }, ctx );
 
 		const call = mock.request.mock.calls[ 0 ][ 0 ];
 		expect( call ).toMatchObject( {
@@ -53,10 +38,9 @@ describe( 'search-page-by-prefix', () => {
 				] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
-		const result = await handleSearchPageByPrefixTool( 'Alph', undefined, undefined );
+		const result = await searchPageByPrefix.handle( { prefix: 'Alph' }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( '- Title: Alpha' );
@@ -72,10 +56,9 @@ describe( 'search-page-by-prefix', () => {
 				query: { allpages: [] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
-		const result = await handleSearchPageByPrefixTool( 'Zzz', undefined, undefined );
+		const result = await searchPageByPrefix.handle( { prefix: 'Zzz' }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Results: (none)' );
@@ -89,10 +72,9 @@ describe( 'search-page-by-prefix', () => {
 				continue: { apcontinue: 'B', continue: '-||' }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
-		const result = await handleSearchPageByPrefixTool( 'A', 10, undefined );
+		const result = await searchPageByPrefix.handle( { prefix: 'A', limit: 10 }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Truncation:' );
@@ -108,23 +90,21 @@ describe( 'search-page-by-prefix', () => {
 				query: { allpages: [ { pageid: 1, ns: 0, title: 'A' } ] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
-		const result = await handleSearchPageByPrefixTool( 'A', undefined, undefined );
+		const result = await searchPageByPrefix.handle( { prefix: 'A' }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
-	it( 'surfaces errors as isError results', async () => {
+	it( 'surfaces errors as isError results via dispatcher', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockRejectedValue( new Error( 'API error' ) )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
-		const result = await handleSearchPageByPrefixTool( 'A', undefined, undefined );
+		const result = await dispatch( searchPageByPrefix, ctx )( { prefix: 'A' } );
 
 		const envelope = assertStructuredError( result, 'upstream_failure' );
 		expect( envelope.message ).toContain( 'API error' );

@@ -179,7 +179,7 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	// ------------------------------------------------------------------
 
 	it( 'get-page-history happy path', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: {
 					pages: [ {
@@ -197,20 +197,22 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			} )
 		} );
 
-		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
-		const result = await handleGetPageHistoryTool( 'Test Page' );
+		const { getPageHistory } = await import( '../../src/tools/get-page-history.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( getPageHistory, ctx )( { title: 'Test Page' } );
 		expect( result ).toMatchSnapshot();
 	} );
 
 	it( 'get-page-history error path (missingtitle)', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { pages: [ { missing: true, title: 'Nonexistent' } ] }
 			} )
 		} );
 
-		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
-		const result = await handleGetPageHistoryTool( 'Nonexistent' );
+		const { getPageHistory } = await import( '../../src/tools/get-page-history.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( getPageHistory, ctx )( { title: 'Nonexistent' } );
 		expect( result ).toMatchSnapshot();
 	} );
 
@@ -219,7 +221,7 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	// ------------------------------------------------------------------
 
 	it( 'get-recent-changes happy path', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: {
 					recentchanges: [ {
@@ -242,14 +244,20 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			} )
 		} );
 
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		const result = await handleGetRecentChangesTool( {} );
+		const { getRecentChanges } = await import( '../../src/tools/get-recent-changes.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( getRecentChanges, ctx )( {} );
 		expect( result ).toMatchSnapshot();
 	} );
 
 	it( 'get-recent-changes error path (invalid_input)', async () => {
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		const result = await handleGetRecentChangesTool( { user: 'Alice', excludeUser: 'Bob' } );
+		const mock = createMockMwn();
+		const { getRecentChanges } = await import( '../../src/tools/get-recent-changes.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( getRecentChanges, ctx )( {
+			user: 'Alice',
+			excludeUser: 'Bob'
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
@@ -258,7 +266,7 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	// ------------------------------------------------------------------
 
 	it( 'get-revision happy path', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: {
 					pages: [ {
@@ -279,20 +287,30 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			} )
 		} );
 
-		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
-		const result = await handleGetRevisionTool( 42, 'source' as any, false );
+		const { getRevision } = await import( '../../src/tools/get-revision.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( getRevision, ctx )( {
+			revisionId: 42,
+			content: 'source' as any,
+			metadata: false
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
 	it( 'get-revision error path (nosuchrevid)', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { pages: [ { pageid: 0, title: '', missing: true } ] }
 			} )
 		} );
 
-		const { handleGetRevisionTool } = await import( '../../src/tools/get-revision.js' );
-		const result = await handleGetRevisionTool( 99999, 'source' as any, false );
+		const { getRevision } = await import( '../../src/tools/get-revision.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( getRevision, ctx )( {
+			revisionId: 99999,
+			content: 'source' as any,
+			metadata: false
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
@@ -301,7 +319,7 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	// ------------------------------------------------------------------
 
 	it( 'get-file happy path', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: {
 					pages: [ {
@@ -322,13 +340,14 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			} )
 		} );
 
-		const { handleGetFileTool } = await import( '../../src/tools/get-file.js' );
-		const result = await handleGetFileTool( 'Example.png' );
+		const { getFile } = await import( '../../src/tools/get-file.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( getFile, ctx )( { title: 'Example.png' } );
 		expect( result ).toMatchSnapshot();
 	} );
 
 	it( 'get-file error path (missingtitle)', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: {
 					pages: [ { title: 'File:Missing.png', missing: true } ]
@@ -336,8 +355,9 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			} )
 		} );
 
-		const { handleGetFileTool } = await import( '../../src/tools/get-file.js' );
-		const result = await handleGetFileTool( 'Missing.png' );
+		const { getFile } = await import( '../../src/tools/get-file.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( getFile, ctx )( { title: 'Missing.png' } );
 		expect( result ).toMatchSnapshot();
 	} );
 
@@ -346,7 +366,7 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	// ------------------------------------------------------------------
 
 	it( 'get-category-members happy path', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: {
 					categorymembers: [
@@ -357,18 +377,20 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			} )
 		} );
 
-		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
-		const result = await handleGetCategoryMembersTool( 'Foo' );
+		const { getCategoryMembers } = await import( '../../src/tools/get-category-members.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( getCategoryMembers, ctx )( { category: 'Foo' } );
 		expect( result ).toMatchSnapshot();
 	} );
 
 	it( 'get-category-members error path (upstream_failure)', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			request: vi.fn().mockRejectedValue( createMockMwnError( 'internal_api_error' ) )
 		} );
 
-		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
-		const result = await handleGetCategoryMembersTool( 'Foo' );
+		const { getCategoryMembers } = await import( '../../src/tools/get-category-members.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( getCategoryMembers, ctx )( { category: 'Foo' } );
 		expect( result ).toMatchSnapshot();
 	} );
 
@@ -377,7 +399,7 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	// ------------------------------------------------------------------
 
 	it( 'search-page happy path', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: {
 					search: [ {
@@ -393,18 +415,20 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			} )
 		} );
 
-		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
-		const result = await handleSearchPageTool( 'test query', 10 );
+		const { searchPage } = await import( '../../src/tools/search-page.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( searchPage, ctx )( { query: 'test query', limit: 10 } );
 		expect( result ).toMatchSnapshot();
 	} );
 
 	it( 'search-page error path (upstream_failure)', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			request: vi.fn().mockRejectedValue( createMockMwnError( 'srbackenderror' ) )
 		} );
 
-		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
-		const result = await handleSearchPageTool( 'test', 10 );
+		const { searchPage } = await import( '../../src/tools/search-page.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( searchPage, ctx )( { query: 'test', limit: 10 } );
 		expect( result ).toMatchSnapshot();
 	} );
 
@@ -413,7 +437,7 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	// ------------------------------------------------------------------
 
 	it( 'search-page-by-prefix happy path', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: {
 					allpages: [
@@ -424,18 +448,28 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			} )
 		} );
 
-		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
-		const result = await handleSearchPageByPrefixTool( 'Alph', 50, 0 );
+		const { searchPageByPrefix } = await import( '../../src/tools/search-page-by-prefix.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( searchPageByPrefix, ctx )( {
+			prefix: 'Alph',
+			limit: 50,
+			namespace: 0
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
 	it( 'search-page-by-prefix error path (upstream_failure)', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			request: vi.fn().mockRejectedValue( createMockMwnError( 'invalidprefix' ) )
 		} );
 
-		const { handleSearchPageByPrefixTool } = await import( '../../src/tools/search-page-by-prefix.js' );
-		const result = await handleSearchPageByPrefixTool( '!', 10, 0 );
+		const { searchPageByPrefix } = await import( '../../src/tools/search-page-by-prefix.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( searchPageByPrefix, ctx )( {
+			prefix: '!',
+			limit: 10,
+			namespace: 0
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
@@ -444,24 +478,32 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	// ------------------------------------------------------------------
 
 	it( 'parse-wikitext happy path', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				parse: { text: '<p>Hello</p>', parsewarnings: [] }
 			} )
 		} );
 
-		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
-		const result = await handleParseWikitextTool( "'''Hello'''", undefined, true );
+		const { parseWikitext } = await import( '../../src/tools/parse-wikitext.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( parseWikitext, ctx )( {
+			wikitext: "'''Hello'''",
+			applyPreSaveTransform: true
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
 	it( 'parse-wikitext error path (upstream_failure)', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			request: vi.fn().mockRejectedValue( createMockMwnError( 'parsererror' ) )
 		} );
 
-		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
-		const result = await handleParseWikitextTool( 'x', undefined, true );
+		const { parseWikitext } = await import( '../../src/tools/parse-wikitext.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( parseWikitext, ctx )( {
+			wikitext: 'x',
+			applyPreSaveTransform: true
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 

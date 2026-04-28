@@ -1,18 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { z } from 'zod';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-
-vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
-vi.mock( '../../src/common/wikiService.js', () => ( {
-	wikiService: {
-		getCurrent: vi.fn().mockReturnValue( {
-			key: 'test-wiki',
-			config: { server: 'https://test.wiki', articlepath: '/wiki', scriptpath: '/w' }
-		} )
-	}
-} ) );
-
-import { getMwn } from '../../src/common/mwn.js';
+import { createMockMwn, type MockMwn } from '../helpers/mock-mwn.js';
+import { fakeContext } from '../helpers/fakeContext.js';
+import type { ToolContext } from '../../src/runtime/context.js';
+import { getRecentChanges } from '../../src/tools/get-recent-changes.js';
+import { dispatch } from '../../src/runtime/dispatcher.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
@@ -20,21 +11,20 @@ import {
 
 const RC_PROP = 'user|userid|comment|flags|timestamp|title|ids|sizes|tags|loginfo';
 
-function mockRequest( response: unknown ) {
+function setup( response: unknown ): { mock: MockMwn; ctx: ToolContext } {
 	const mock = createMockMwn( {
 		request: vi.fn().mockResolvedValue( response )
 	} );
-	vi.mocked( getMwn ).mockResolvedValue( mock as any );
-	return mock;
+	const ctx = fakeContext( { mwn: async () => mock as never } );
+	return { mock, ctx };
 }
 
 describe( 'get-recent-changes — parameter mapping', () => {
 	beforeEach( () => { vi.clearAllMocks(); } );
 
 	it( 'issues a default query with rctype=edit|new, rclimit=50, rcdir=older, full rcprop', async () => {
-		const mock = mockRequest( { query: { recentchanges: [] } } );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		await handleGetRecentChangesTool( {} );
+		const { mock, ctx } = setup( { query: { recentchanges: [] } } );
+		await getRecentChanges.handle( {}, ctx );
 
 		expect( mock.request ).toHaveBeenCalledWith( expect.objectContaining( {
 			action: 'query',
@@ -48,9 +38,11 @@ describe( 'get-recent-changes — parameter mapping', () => {
 	} );
 
 	it( 'maps since to rcend and until to rcstart (rcdir=older walks rcstart→rcend)', async () => {
-		const mock = mockRequest( { query: { recentchanges: [] } } );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		await handleGetRecentChangesTool( { since: '2026-01-01T00:00:00Z', until: '2026-02-01T00:00:00Z' } );
+		const { mock, ctx } = setup( { query: { recentchanges: [] } } );
+		await getRecentChanges.handle(
+			{ since: '2026-01-01T00:00:00Z', until: '2026-02-01T00:00:00Z' },
+			ctx
+		);
 
 		const call = mock.request.mock.calls[ 0 ][ 0 ];
 		expect( call ).toMatchObject( {
@@ -60,25 +52,22 @@ describe( 'get-recent-changes — parameter mapping', () => {
 	} );
 
 	it( 'pipe-joins namespace array into rcnamespace', async () => {
-		const mock = mockRequest( { query: { recentchanges: [] } } );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		await handleGetRecentChangesTool( { namespace: [ 0, 1, 14 ] } );
+		const { mock, ctx } = setup( { query: { recentchanges: [] } } );
+		await getRecentChanges.handle( { namespace: [ 0, 1, 14 ] }, ctx );
 
 		expect( mock.request.mock.calls[ 0 ][ 0 ].rcnamespace ).toBe( '0|1|14' );
 	} );
 
 	it( 'pipe-joins types array into rctype', async () => {
-		const mock = mockRequest( { query: { recentchanges: [] } } );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		await handleGetRecentChangesTool( { types: [ 'log', 'categorize' ] } );
+		const { mock, ctx } = setup( { query: { recentchanges: [] } } );
+		await getRecentChanges.handle( { types: [ 'log', 'categorize' ] }, ctx );
 
 		expect( mock.request.mock.calls[ 0 ][ 0 ].rctype ).toBe( 'log|categorize' );
 	} );
 
 	it( 'maps user and tag through to rcuser and rctag', async () => {
-		const mock = mockRequest( { query: { recentchanges: [] } } );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		await handleGetRecentChangesTool( { user: 'Alice', tag: 'mobile-edit' } );
+		const { mock, ctx } = setup( { query: { recentchanges: [] } } );
+		await getRecentChanges.handle( { user: 'Alice', tag: 'mobile-edit' }, ctx );
 
 		expect( mock.request.mock.calls[ 0 ][ 0 ] ).toMatchObject( {
 			rcuser: 'Alice',
@@ -87,47 +76,42 @@ describe( 'get-recent-changes — parameter mapping', () => {
 	} );
 
 	it( 'maps excludeUser to rcexcludeuser', async () => {
-		const mock = mockRequest( { query: { recentchanges: [] } } );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		await handleGetRecentChangesTool( { excludeUser: 'Bob' } );
+		const { mock, ctx } = setup( { query: { recentchanges: [] } } );
+		await getRecentChanges.handle( { excludeUser: 'Bob' }, ctx );
 
 		expect( mock.request.mock.calls[ 0 ][ 0 ].rcexcludeuser ).toBe( 'Bob' );
 	} );
 
 	it( 'composes hide flags into a pipe-joined rcshow', async () => {
-		const mock = mockRequest( { query: { recentchanges: [] } } );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		await handleGetRecentChangesTool( {
+		const { mock, ctx } = setup( { query: { recentchanges: [] } } );
+		await getRecentChanges.handle( {
 			hideBots: true, hideMinor: true, hideAnon: true,
 			hideRedirects: false, hidePatrolled: false
-		} );
+		}, ctx );
 
 		expect( mock.request.mock.calls[ 0 ][ 0 ].rcshow ).toBe( '!bot|!minor|!anon' );
 	} );
 
 	it( 'omits rcshow when no hide flags are set', async () => {
-		const mock = mockRequest( { query: { recentchanges: [] } } );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		await handleGetRecentChangesTool( {} );
+		const { mock, ctx } = setup( { query: { recentchanges: [] } } );
+		await getRecentChanges.handle( {}, ctx );
 
 		expect( mock.request.mock.calls[ 0 ][ 0 ].rcshow ).toBeUndefined();
 	} );
 
 	it( 'appends patrolled to rcprop only when showPatrolStatus is set', async () => {
-		const mockOff = mockRequest( { query: { recentchanges: [] } } );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		await handleGetRecentChangesTool( {} );
-		expect( mockOff.request.mock.calls[ 0 ][ 0 ].rcprop ).toBe( RC_PROP );
+		const off = setup( { query: { recentchanges: [] } } );
+		await getRecentChanges.handle( {}, off.ctx );
+		expect( off.mock.request.mock.calls[ 0 ][ 0 ].rcprop ).toBe( RC_PROP );
 
-		const mockOn = mockRequest( { query: { recentchanges: [] } } );
-		await handleGetRecentChangesTool( { showPatrolStatus: true } );
-		expect( mockOn.request.mock.calls[ 0 ][ 0 ].rcprop ).toBe( `${ RC_PROP }|patrolled` );
+		const on = setup( { query: { recentchanges: [] } } );
+		await getRecentChanges.handle( { showPatrolStatus: true }, on.ctx );
+		expect( on.mock.request.mock.calls[ 0 ][ 0 ].rcprop ).toBe( `${ RC_PROP }|patrolled` );
 	} );
 
 	it( 'maps continue token to rccontinue', async () => {
-		const mock = mockRequest( { query: { recentchanges: [] } } );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		await handleGetRecentChangesTool( { continue: '20260101123456|1234567' } );
+		const { mock, ctx } = setup( { query: { recentchanges: [] } } );
+		await getRecentChanges.handle( { continue: '20260101123456|1234567' }, ctx );
 
 		expect( mock.request.mock.calls[ 0 ][ 0 ].rccontinue ).toBe( '20260101123456|1234567' );
 	} );
@@ -137,9 +121,11 @@ describe( 'get-recent-changes — handler validation', () => {
 	beforeEach( () => { vi.clearAllMocks(); } );
 
 	it( 'rejects user + excludeUser combined without issuing an API call', async () => {
-		const mock = mockRequest( { query: { recentchanges: [] } } );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		const result = await handleGetRecentChangesTool( { user: 'Alice', excludeUser: 'Bob' } );
+		const { mock, ctx } = setup( { query: { recentchanges: [] } } );
+		const result = await getRecentChanges.handle(
+			{ user: 'Alice', excludeUser: 'Bob' },
+			ctx
+		);
 
 		const envelope = assertStructuredError( result, 'invalid_input' );
 		expect( envelope.message ).toContain(
@@ -152,14 +138,13 @@ describe( 'get-recent-changes — handler validation', () => {
 describe( 'get-recent-changes — error handling', () => {
 	beforeEach( () => { vi.clearAllMocks(); } );
 
-	it( 'surfaces API errors as isError with a wrapped message', async () => {
+	it( 'surfaces API errors as isError with a wrapped message via dispatcher', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockRejectedValue( new Error( 'badtimestamp' ) )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		const result = await handleGetRecentChangesTool( { since: 'garbage' } );
+		const result = await dispatch( getRecentChanges, ctx )( { since: 'garbage' } );
 
 		const envelope = assertStructuredError( result, 'upstream_failure' );
 		expect( envelope.message ).toContain(
@@ -172,7 +157,7 @@ describe( 'get-recent-changes — payload shape', () => {
 	beforeEach( () => { vi.clearAllMocks(); } );
 
 	it( 'emits a full edit row with sizeDelta computed server-side', async () => {
-		mockRequest( {
+		const { ctx } = setup( {
 			query: { recentchanges: [ {
 				type: 'edit',
 				title: 'Help:Foo',
@@ -190,8 +175,7 @@ describe( 'get-recent-changes — payload shape', () => {
 				tags: [ 'mobile-edit' ]
 			} ] }
 		} );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		const result = await handleGetRecentChangesTool( {} );
+		const result = await getRecentChanges.handle( {}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		const titles = ( text.match( /Title: /g ) ?? [] );
@@ -214,7 +198,7 @@ describe( 'get-recent-changes — payload shape', () => {
 	} );
 
 	it( 'renders a new-page row with isNew=true and a positive sizeDelta', async () => {
-		mockRequest( {
+		const { ctx } = setup( {
 			query: { recentchanges: [ {
 				type: 'new',
 				title: 'Brand New',
@@ -230,8 +214,7 @@ describe( 'get-recent-changes — payload shape', () => {
 				tags: []
 			} ] }
 		} );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		const result = await handleGetRecentChangesTool( {} );
+		const result = await getRecentChanges.handle( {}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Type: new' );
@@ -242,7 +225,7 @@ describe( 'get-recent-changes — payload shape', () => {
 	} );
 
 	it( 'renders a log row with logtype, logaction and logparams preserved', async () => {
-		mockRequest( {
+		const { ctx } = setup( {
 			query: { recentchanges: [ {
 				type: 'log',
 				title: 'User:BadActor',
@@ -256,8 +239,7 @@ describe( 'get-recent-changes — payload shape', () => {
 				tags: []
 			} ] }
 		} );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		const result = await handleGetRecentChangesTool( { types: [ 'log' ] } );
+		const result = await getRecentChanges.handle( { types: [ 'log' ] }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Type: log' );
@@ -271,7 +253,7 @@ describe( 'get-recent-changes — payload shape', () => {
 	} );
 
 	it( 'preserves anon flag on anonymous edits', async () => {
-		mockRequest( {
+		const { ctx } = setup( {
 			query: { recentchanges: [ {
 				type: 'edit',
 				title: 'Foo',
@@ -286,8 +268,7 @@ describe( 'get-recent-changes — payload shape', () => {
 				tags: []
 			} ] }
 		} );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		const result = await handleGetRecentChangesTool( {} );
+		const result = await getRecentChanges.handle( {}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'User: 192.0.2.1' );
@@ -296,7 +277,7 @@ describe( 'get-recent-changes — payload shape', () => {
 	} );
 
 	it( 'drops comment when commenthidden is set and preserves userhidden', async () => {
-		mockRequest( {
+		const { ctx } = setup( {
 			query: { recentchanges: [ {
 				type: 'edit',
 				title: 'Foo',
@@ -311,8 +292,7 @@ describe( 'get-recent-changes — payload shape', () => {
 				tags: []
 			} ] }
 		} );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		const result = await handleGetRecentChangesTool( {} );
+		const result = await getRecentChanges.handle( {}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Userhidden: true' );
@@ -321,7 +301,7 @@ describe( 'get-recent-changes — payload shape', () => {
 	} );
 
 	it( 'preserves unpatrolled when set on the row', async () => {
-		mockRequest( {
+		const { ctx } = setup( {
 			query: { recentchanges: [ {
 				type: 'edit',
 				title: 'Foo',
@@ -337,15 +317,14 @@ describe( 'get-recent-changes — payload shape', () => {
 				unpatrolled: true
 			} ] }
 		} );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		const result = await handleGetRecentChangesTool( { showPatrolStatus: true } );
+		const result = await getRecentChanges.handle( { showPatrolStatus: true }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Unpatrolled: true' );
 	} );
 
 	it( 'omits unpatrolled when not set on the row', async () => {
-		mockRequest( {
+		const { ctx } = setup( {
 			query: { recentchanges: [ {
 				type: 'edit',
 				title: 'Foo',
@@ -360,8 +339,7 @@ describe( 'get-recent-changes — payload shape', () => {
 				tags: []
 			} ] }
 		} );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		const result = await handleGetRecentChangesTool( { showPatrolStatus: true } );
+		const result = await getRecentChanges.handle( { showPatrolStatus: true }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).not.toContain( 'Unpatrolled:' );
@@ -385,13 +363,12 @@ describe( 'get-recent-changes — truncation and empty results', () => {
 			comment: '',
 			tags: []
 		} ) );
-		mockRequest( {
+		const { ctx } = setup( {
 			query: { recentchanges: rows },
 			continue: { rccontinue: '20260101000000|1234', continue: '-||' }
 		} );
 
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		const result = await handleGetRecentChangesTool( {} );
+		const result = await getRecentChanges.handle( {}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Truncation:' );
@@ -405,24 +382,22 @@ describe( 'get-recent-changes — truncation and empty results', () => {
 	} );
 
 	it( 'omits truncation when rccontinue is absent', async () => {
-		mockRequest( {
+		const { ctx } = setup( {
 			query: { recentchanges: [ {
 				type: 'edit', title: 'Foo', timestamp: '2026-01-01T00:00:00Z',
 				user: 'A', userid: 1, revid: 100, old_revid: 99,
 				newlen: 100, oldlen: 100, comment: '', tags: []
 			} ] }
 		} );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		const result = await handleGetRecentChangesTool( {} );
+		const result = await getRecentChanges.handle( {}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
 	it( 'returns an empty changes array when no matches', async () => {
-		mockRequest( { query: { recentchanges: [] } } );
-		const { handleGetRecentChangesTool } = await import( '../../src/tools/get-recent-changes.js' );
-		const result = await handleGetRecentChangesTool( {} );
+		const { ctx } = setup( { query: { recentchanges: [] } } );
+		const result = await getRecentChanges.handle( {}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Changes: (none)' );

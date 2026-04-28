@@ -1,53 +1,42 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
-import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
-/* eslint-enable n/no-missing-import */
-import { getMwn } from '../common/mwn.js';
 import type { ApiPage, ApiRevision } from 'mwn';
-import type { TruncationInfo } from '../common/truncation.js';
-import { classifyError, errorResult } from '../common/errorMapping.js';
-import { structuredResult } from '../common/structuredResult.js';
+/* eslint-enable n/no-missing-import */
+import type { Tool } from '../runtime/tool.js';
+import type { ToolContext } from '../runtime/context.js';
+import type { TruncationInfo } from '../results/truncation.js';
 
 const PAGE_HISTORY_LIMIT = 20;
 
-export function getPageHistoryTool( server: McpServer ): RegisteredTool {
-	return server.registerTool(
-		'get-page-history',
-		{
-			description: `Returns revision metadata (revision ID, timestamp, user, comment, size, minor flag) for a wiki page, in segments of ${ PAGE_HISTORY_LIMIT } revisions, newest first. Paginate with olderThan or newerThan (mutually exclusive). If the title does not exist, an error is returned.`,
-			inputSchema: {
-				title: z.string().describe( 'Wiki page title' ),
-				olderThan: z.number().int().positive().optional().describe( 'Revision ID — return revisions older than this (exclusive). Mutually exclusive with newerThan.' ),
-				newerThan: z.number().int().positive().optional().describe( 'Revision ID — return revisions newer than this (exclusive). Mutually exclusive with olderThan.' ),
-				filter: z.string().optional().describe( 'Change tag — return only revisions carrying this tag' )
-			},
-			annotations: {
-				title: 'Get page history',
-				readOnlyHint: true,
-				destructiveHint: false,
-				idempotentHint: true,
-				openWorldHint: true
-			} as ToolAnnotations
-		},
-		async (
-			{ title, olderThan, newerThan, filter }
-		) => handleGetPageHistoryTool( title, olderThan, newerThan, filter )
-	);
-}
+const inputSchema = {
+	title: z.string().describe( 'Wiki page title' ),
+	olderThan: z.number().int().positive().optional().describe( 'Revision ID — return revisions older than this (exclusive). Mutually exclusive with newerThan.' ),
+	newerThan: z.number().int().positive().optional().describe( 'Revision ID — return revisions newer than this (exclusive). Mutually exclusive with olderThan.' ),
+	filter: z.string().optional().describe( 'Change tag — return only revisions carrying this tag' )
+} as const;
 
-export async function handleGetPageHistoryTool(
-	title: string,
-	olderThan?: number,
-	newerThan?: number,
-	filter?: string
-): Promise<CallToolResult> {
-	if ( olderThan && newerThan ) {
-		return errorResult( 'invalid_input', 'olderThan and newerThan are mutually exclusive' );
-	}
+export const getPageHistory: Tool<typeof inputSchema> = {
+	name: 'get-page-history',
+	description: `Returns revision metadata (revision ID, timestamp, user, comment, size, minor flag) for a wiki page, in segments of ${ PAGE_HISTORY_LIMIT } revisions, newest first. Paginate with olderThan or newerThan (mutually exclusive). If the title does not exist, an error is returned.`,
+	inputSchema,
+	annotations: {
+		title: 'Get page history',
+		readOnlyHint: true,
+		destructiveHint: false,
+		idempotentHint: true,
+		openWorldHint: true
+	} as ToolAnnotations,
 
-	try {
-		const mwn = await getMwn();
+	async handle(
+		{ title, olderThan, newerThan, filter },
+		ctx: ToolContext
+	): Promise<CallToolResult> {
+		if ( olderThan && newerThan ) {
+			return ctx.format.invalidInput( 'olderThan and newerThan are mutually exclusive' );
+		}
+
+		const mwn = await ctx.mwn();
 		const boundaryId = olderThan ?? newerThan;
 
 		const params: Record<string, string | number | boolean> = {
@@ -79,7 +68,7 @@ export async function handleGetPageHistoryTool(
 		const page = response.query?.pages?.[ 0 ] as ApiPage | undefined;
 
 		if ( page?.missing ) {
-			return errorResult( 'not_found', `Page "${ title }" not found` );
+			return ctx.format.notFound( `Page "${ title }" not found` );
 		}
 
 		const revisions: ApiRevision[] = page?.revisions ?? [];
@@ -107,7 +96,7 @@ export async function handleGetPageHistoryTool(
 			};
 		}
 
-		return structuredResult( {
+		return ctx.format.ok( {
 			revisions: filteredRevisions.map( ( r ) => ( {
 				revisionId: r.revid!,
 				timestamp: r.timestamp!,
@@ -120,8 +109,5 @@ export async function handleGetPageHistoryTool(
 			} ) ),
 			...( truncation !== null ? { truncation } : {} )
 		} );
-	} catch ( error ) {
-		const { category, code } = classifyError( error );
-		return errorResult( category, `Failed to retrieve page history: ${ ( error as Error ).message }`, code );
 	}
-}
+};

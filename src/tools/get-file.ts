@@ -1,36 +1,29 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
-import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
-/* eslint-enable n/no-missing-import */
-import { getMwn } from '../common/mwn.js';
 import type { ApiPage, ImageInfo } from 'mwn';
-import { classifyError, errorResult } from '../common/errorMapping.js';
-import { structuredResult } from '../common/structuredResult.js';
+/* eslint-enable n/no-missing-import */
+import type { Tool } from '../runtime/tool.js';
+import type { ToolContext } from '../runtime/context.js';
 
-export function getFileTool( server: McpServer ): RegisteredTool {
-	return server.registerTool(
-		'get-file',
-		{
-			description: 'Returns metadata for a file (uploader, timestamp, size, MIME type) along with download URLs for the thumbnail, preview, and original. The File: prefix is added automatically if omitted.',
-			inputSchema: {
-				title: z.string().describe( 'File title (with or without the "File:" prefix)' )
-			},
-			annotations: {
-				title: 'Get file',
-				readOnlyHint: true,
-				destructiveHint: false,
-				idempotentHint: true,
-				openWorldHint: true
-			} as ToolAnnotations
-		},
-		async ( { title } ) => handleGetFileTool( title )
-	);
-}
+const inputSchema = {
+	title: z.string().describe( 'File title (with or without the "File:" prefix)' )
+} as const;
 
-export async function handleGetFileTool( title: string ): Promise<CallToolResult> {
-	try {
-		const mwn = await getMwn();
+export const getFile: Tool<typeof inputSchema> = {
+	name: 'get-file',
+	description: 'Returns metadata for a file (uploader, timestamp, size, MIME type) along with download URLs for the thumbnail, preview, and original. The File: prefix is added automatically if omitted.',
+	inputSchema,
+	annotations: {
+		title: 'Get file',
+		readOnlyHint: true,
+		destructiveHint: false,
+		idempotentHint: true,
+		openWorldHint: true
+	} as ToolAnnotations,
+
+	async handle( { title }, ctx: ToolContext ): Promise<CallToolResult> {
+		const mwn = await ctx.mwn();
 
 		const fileTitle = title.startsWith( 'File:' ) ? title : `File:${ title }`;
 
@@ -46,16 +39,16 @@ export async function handleGetFileTool( title: string ): Promise<CallToolResult
 		const page = response.query?.pages?.[ 0 ] as ApiPage | undefined;
 
 		if ( !page || page.missing ) {
-			return errorResult( 'not_found', `File "${ title }" not found` );
+			return ctx.format.notFound( `File "${ title }" not found` );
 		}
 
 		const info: ImageInfo | undefined = page.imageinfo?.[ 0 ];
 
 		if ( !info ) {
-			return errorResult( 'not_found', `No file info available for "${ title }"` );
+			return ctx.format.notFound( `No file info available for "${ title }"` );
 		}
 
-		return structuredResult( {
+		return ctx.format.ok( {
 			title: page.title,
 			descriptionUrl: info.descriptionurl,
 			timestamp: info.timestamp,
@@ -65,8 +58,5 @@ export async function handleGetFileTool( title: string ): Promise<CallToolResult
 			url: info.url,
 			thumbnailUrl: ( info as ImageInfo & { thumburl?: string } ).thumburl
 		} );
-	} catch ( error ) {
-		const { category, code } = classifyError( error );
-		return errorResult( category, `Failed to retrieve file data: ${ ( error as Error ).message }`, code );
 	}
-}
+};

@@ -1,28 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { z } from 'zod';
+import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
-
-vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
-vi.mock( '../../src/common/wikiService.js', () => ( {
-	wikiService: {
-		getCurrent: vi.fn().mockReturnValue( {
-			key: 'test-wiki',
-			config: { server: 'https://test.wiki', articlepath: '/wiki', scriptpath: '/w' }
-		} )
-	}
-} ) );
-
-import { getMwn } from '../../src/common/mwn.js';
+import { fakeContext } from '../helpers/fakeContext.js';
+import { searchPage } from '../../src/tools/search-page.js';
+import { dispatch } from '../../src/runtime/dispatcher.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
 
 describe( 'search-page', () => {
-	beforeEach( () => {
-		vi.clearAllMocks();
-	} );
-
 	it( 'returns full-text search results with snippets', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
@@ -39,10 +25,9 @@ describe( 'search-page', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
-		const result = await handleSearchPageTool( 'test query', 10 );
+		const result = await searchPage.handle( { query: 'test query', limit: 10 }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( '- Title: Test Page' );
@@ -51,7 +36,7 @@ describe( 'search-page', () => {
 		expect( text ).toContain( '  Size: 1234' );
 		expect( text ).toContain( '  Word count: 80' );
 		expect( text ).toContain( '  Timestamp: 2026-01-01T00:00:00Z' );
-		expect( text ).toContain( '  URL: https://test.wiki/wiki/Test_Page' );
+		expect( text ).toMatch( /URL: .*\/wiki\/Test_Page/ );
 		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
@@ -61,23 +46,21 @@ describe( 'search-page', () => {
 				query: { search: [] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
-		const result = await handleSearchPageTool( 'nonexistent', undefined );
+		const result = await searchPage.handle( { query: 'nonexistent' }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Results: (none)' );
 	} );
 
-	it( 'returns error on failure', async () => {
+	it( 'returns error on failure via dispatcher', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockRejectedValue( new Error( 'API error' ) )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
-		const result = await handleSearchPageTool( 'test', undefined );
+		const result = await dispatch( searchPage, ctx )( { query: 'test' } );
 
 		const envelope = assertStructuredError( result, 'upstream_failure' );
 		expect( envelope.message ).toContain( 'API error' );
@@ -95,10 +78,9 @@ describe( 'search-page', () => {
 				continue: { sroffset: 10, continue: '-||' }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
-		const result = await handleSearchPageTool( 'test', 10 );
+		const result = await searchPage.handle( { query: 'test', limit: 10 }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Truncation:' );
@@ -119,10 +101,9 @@ describe( 'search-page', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
-		const result = await handleSearchPageTool( 'test', 10 );
+		const result = await searchPage.handle( { query: 'test', limit: 10 }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).not.toContain( 'Truncation:' );
@@ -140,10 +121,9 @@ describe( 'search-page', () => {
 				continue: { sroffset: 10 }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleSearchPageTool } = await import( '../../src/tools/search-page.js' );
-		const result = await handleSearchPageTool( 'test', undefined );
+		const result = await searchPage.handle( { query: 'test' }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Truncation:' );

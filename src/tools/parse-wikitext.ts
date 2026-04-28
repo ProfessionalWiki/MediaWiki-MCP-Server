@@ -1,53 +1,43 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
-import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { getMwn } from '../common/mwn.js';
-import { truncateByBytes } from '../common/truncation.js';
-import { classifyError, errorResult } from '../common/errorMapping.js';
-import { structuredResult } from '../common/structuredResult.js';
+import type { Tool } from '../runtime/tool.js';
+import type { ToolContext } from '../runtime/context.js';
+import { truncateByBytes } from '../results/truncation.js';
 
 const DEFAULT_TITLE = 'API';
 
 type CategoryItem = { category: string; hidden?: boolean };
 type LinkItem = { title: string; exists?: boolean };
 
-export function parseWikitextTool( server: McpServer ): RegisteredTool {
-	return server.registerTool(
-		'parse-wikitext',
-		{
-			description: 'Renders wikitext through the live wiki without saving. Returns HTML, parse warnings, categories, wikilinks, templates, external URLs, and display title. Suited to dry-running a planned edit before create-page or update-page, or previewing standalone wikitext (template combinations, sanitizer checks) with no target page. HTML output is truncated at 50000 bytes with a trailing marker; a smaller wikitext fragment in a follow-up call returns the rest.',
-			inputSchema: {
-				wikitext: z.string().min( 1 ).describe( 'Wikitext to render' ),
-				title: z.string().optional().describe(
-					'Wiki page title providing context for magic words like {{PAGENAME}}. Defaults to "API".'
-				),
-				applyPreSaveTransform: z.boolean().optional().default( true ).describe(
-					'Apply pre-save transform (expand ~~~~ signatures, {{subst:}}, normalize whitespace). Matches editor "Show preview" behavior.'
-				)
-			},
-			annotations: {
-				title: 'Preview wikitext',
-				readOnlyHint: true,
-				destructiveHint: false,
-				idempotentHint: true,
-				openWorldHint: true
-			} as ToolAnnotations
-		},
-		async ( { wikitext, title, applyPreSaveTransform } ) => (
-			handleParseWikitextTool( wikitext, title, applyPreSaveTransform )
-		)
-	);
-}
+const inputSchema = {
+	wikitext: z.string().min( 1 ).describe( 'Wikitext to render' ),
+	title: z.string().optional().describe(
+		'Wiki page title providing context for magic words like {{PAGENAME}}. Defaults to "API".'
+	),
+	applyPreSaveTransform: z.boolean().optional().default( true ).describe(
+		'Apply pre-save transform (expand ~~~~ signatures, {{subst:}}, normalize whitespace). Matches editor "Show preview" behavior.'
+	)
+} as const;
 
-export async function handleParseWikitextTool(
-	wikitext: string,
-	title: string | undefined,
-	applyPreSaveTransform: boolean
-): Promise<CallToolResult> {
-	try {
-		const mwn = await getMwn();
+export const parseWikitext: Tool<typeof inputSchema> = {
+	name: 'parse-wikitext',
+	description: 'Renders wikitext through the live wiki without saving. Returns HTML, parse warnings, categories, wikilinks, templates, external URLs, and display title. Suited to dry-running a planned edit before create-page or update-page, or previewing standalone wikitext (template combinations, sanitizer checks) with no target page. HTML output is truncated at 50000 bytes with a trailing marker; a smaller wikitext fragment in a follow-up call returns the rest.',
+	inputSchema,
+	annotations: {
+		title: 'Preview wikitext',
+		readOnlyHint: true,
+		destructiveHint: false,
+		idempotentHint: true,
+		openWorldHint: true
+	} as ToolAnnotations,
+
+	async handle(
+		{ wikitext, title, applyPreSaveTransform },
+		ctx: ToolContext
+	): Promise<CallToolResult> {
+		const mwn = await ctx.mwn();
 		const response = await mwn.request( {
 			action: 'parse',
 			text: wikitext,
@@ -113,9 +103,6 @@ export async function handleParseWikitextTool(
 			};
 		}
 
-		return structuredResult( payload );
-	} catch ( error ) {
-		const { category, code } = classifyError( error );
-		return errorResult( category, `Failed to preview wikitext: ${ ( error as Error ).message }`, code );
+		return ctx.format.ok( payload );
 	}
-}
+};

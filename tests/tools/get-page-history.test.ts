@@ -1,28 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { z } from 'zod';
+import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
-
-vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
-vi.mock( '../../src/common/wikiService.js', () => ( {
-	wikiService: {
-		getCurrent: vi.fn().mockReturnValue( {
-			key: 'test-wiki',
-			config: { server: 'https://test.wiki', articlepath: '/wiki', scriptpath: '/w' }
-		} )
-	}
-} ) );
-
-import { getMwn } from '../../src/common/mwn.js';
+import { fakeContext } from '../helpers/fakeContext.js';
+import { getPageHistory } from '../../src/tools/get-page-history.js';
+import { dispatch } from '../../src/runtime/dispatcher.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
 
 describe( 'get-page-history', () => {
-	beforeEach( () => {
-		vi.clearAllMocks();
-	} );
-
 	it( 'returns basic revision history', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
@@ -41,10 +27,9 @@ describe( 'get-page-history', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
-		const result = await handleGetPageHistoryTool( 'Test Page' );
+		const result = await getPageHistory.handle( { title: 'Test Page' }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Revision ID: 100' );
@@ -65,10 +50,9 @@ describe( 'get-page-history', () => {
 				] } ] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
-		const result = await handleGetPageHistoryTool( 'Test Page', 100 );
+		const result = await getPageHistory.handle( { title: 'Test Page', olderThan: 100 }, ctx );
 
 		const call = mock.request.mock.calls[ 0 ][ 0 ];
 		expect( call ).toMatchObject( { rvstartid: 100 } );
@@ -86,10 +70,9 @@ describe( 'get-page-history', () => {
 				query: { pages: [ { revisions: [ { revid: 50, timestamp: '2026-01-01T00:00:00Z', user: 'Admin', userid: 1, comment: '', size: 100, minor: false }, { revid: 101, timestamp: '2026-01-02T00:00:00Z', user: 'Admin', userid: 1, comment: '', size: 200, minor: false } ] } ] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
-		const result = await handleGetPageHistoryTool( 'Test Page', undefined, 50 );
+		const result = await getPageHistory.handle( { title: 'Test Page', newerThan: 50 }, ctx );
 
 		expect( mock.request ).toHaveBeenCalledWith(
 			expect.objectContaining( { rvstartid: 50, rvdir: 'newer' } )
@@ -106,10 +89,9 @@ describe( 'get-page-history', () => {
 				query: { pages: [ { revisions: [ { revid: 100, timestamp: '2026-01-01T00:00:00Z', user: 'Admin', userid: 1, comment: '', size: 100, minor: false } ] } ] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
-		await handleGetPageHistoryTool( 'Test Page', undefined, undefined, 'mw-reverted' );
+		await getPageHistory.handle( { title: 'Test Page', filter: 'mw-reverted' }, ctx );
 
 		expect( mock.request ).toHaveBeenCalledWith(
 			expect.objectContaining( { rvtag: 'mw-reverted' } )
@@ -122,10 +104,9 @@ describe( 'get-page-history', () => {
 				query: { pages: [ { missing: true, title: 'Nonexistent' } ] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
-		const result = await handleGetPageHistoryTool( 'Nonexistent' );
+		const result = await getPageHistory.handle( { title: 'Nonexistent' }, ctx );
 
 		const envelope = assertStructuredError( result, 'not_found' );
 		expect( envelope.message ).toContain( 'not found' );
@@ -137,10 +118,9 @@ describe( 'get-page-history', () => {
 				query: { pages: [ { revisions: [] } ] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
-		const result = await handleGetPageHistoryTool( 'Test Page' );
+		const result = await getPageHistory.handle( { title: 'Test Page' }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Revisions: (none)' );
@@ -162,10 +142,9 @@ describe( 'get-page-history', () => {
 				query: { pages: [ { revisions } ] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
-		const result = await handleGetPageHistoryTool( 'Test Page', 100 );
+		const result = await getPageHistory.handle( { title: 'Test Page', olderThan: 100 }, ctx );
 
 		expect( mock.request ).toHaveBeenCalledWith(
 			expect.objectContaining( { rvlimit: 21, rvstartid: 100 } )
@@ -193,10 +172,9 @@ describe( 'get-page-history', () => {
 				query: { pages: [ { revisions } ] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
-		const result = await handleGetPageHistoryTool( 'Test Page', 999 );
+		const result = await getPageHistory.handle( { title: 'Test Page', olderThan: 999 }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		const revIds = ( text.match( /Revision ID: \d+/g ) ?? [] );
@@ -212,24 +190,22 @@ describe( 'get-page-history', () => {
 				} ] } ] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
-		await handleGetPageHistoryTool( 'Test Page' );
+		await getPageHistory.handle( { title: 'Test Page' }, ctx );
 
 		expect( mock.request ).toHaveBeenCalledWith(
 			expect.objectContaining( { rvlimit: 20 } )
 		);
 	} );
 
-	it( 'returns error on failure', async () => {
+	it( 'returns error on failure via dispatcher', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockRejectedValue( new Error( 'API error' ) )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
-		const result = await handleGetPageHistoryTool( 'Test Page' );
+		const result = await dispatch( getPageHistory, ctx )( { title: 'Test Page' } );
 
 		const envelope = assertStructuredError( result, 'upstream_failure' );
 		expect( envelope.message ).toContain( 'API error' );
@@ -245,10 +221,9 @@ describe( 'get-page-history', () => {
 				continue: { rvcontinue: '20260101000000|98', continue: '||' }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
-		const result = await handleGetPageHistoryTool( 'Test Page' );
+		const result = await getPageHistory.handle( { title: 'Test Page' }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Truncation:' );
@@ -271,10 +246,9 @@ describe( 'get-page-history', () => {
 				continue: { rvcontinue: '20260103000000|70', continue: '||' }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
-		const result = await handleGetPageHistoryTool( 'Test Page', undefined, 49 );
+		const result = await getPageHistory.handle( { title: 'Test Page', newerThan: 49 }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Truncation:' );
@@ -298,10 +272,9 @@ describe( 'get-page-history', () => {
 				] } ] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetPageHistoryTool } = await import( '../../src/tools/get-page-history.js' );
-		const result = await handleGetPageHistoryTool( 'Test Page' );
+		const result = await getPageHistory.handle( { title: 'Test Page' }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).not.toContain( 'Truncation:' );

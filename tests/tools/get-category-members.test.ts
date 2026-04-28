@@ -1,38 +1,23 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { z } from 'zod';
+import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
-
-vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
-vi.mock( '../../src/common/wikiService.js', () => ( {
-	wikiService: {
-		getCurrent: vi.fn().mockReturnValue( {
-			key: 'test-wiki',
-			config: { server: 'https://test.wiki', articlepath: '/wiki', scriptpath: '/w' }
-		} )
-	}
-} ) );
-
-import { getMwn } from '../../src/common/mwn.js';
+import { fakeContext } from '../helpers/fakeContext.js';
+import { getCategoryMembers } from '../../src/tools/get-category-members.js';
+import { dispatch } from '../../src/runtime/dispatcher.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
 
 describe( 'get-category-members', () => {
-	beforeEach( () => {
-		vi.clearAllMocks();
-	} );
-
 	it( 'prefixes a bare category name with "Category:" for cmtitle', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				query: { categorymembers: [ { pageid: 1, ns: 0, title: 'Foo' } ] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
-		await handleGetCategoryMembersTool( 'Living people' );
+		await getCategoryMembers.handle( { category: 'Living people' }, ctx );
 
 		const call = mock.request.mock.calls[ 0 ][ 0 ];
 		expect( call ).toMatchObject( {
@@ -48,10 +33,9 @@ describe( 'get-category-members', () => {
 				query: { categorymembers: [] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
-		await handleGetCategoryMembersTool( 'Category:Foo' );
+		await getCategoryMembers.handle( { category: 'Category:Foo' }, ctx );
 
 		expect( mock.request.mock.calls[ 0 ][ 0 ].cmtitle ).toBe( 'Category:Foo' );
 	} );
@@ -62,10 +46,15 @@ describe( 'get-category-members', () => {
 				query: { categorymembers: [] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
-		await handleGetCategoryMembersTool( 'Foo', [ 'page', 'file' ] as any, [ 0, 6 ], 100, 'page|DOE|123' );
+		await getCategoryMembers.handle( {
+			category: 'Foo',
+			types: [ 'page', 'file' ] as any,
+			namespaces: [ 0, 6 ],
+			limit: 100,
+			continueFrom: 'page|DOE|123'
+		}, ctx );
 
 		const call = mock.request.mock.calls[ 0 ][ 0 ];
 		expect( call ).toMatchObject( {
@@ -86,10 +75,9 @@ describe( 'get-category-members', () => {
 				] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
-		const result = await handleGetCategoryMembersTool( 'Foo' );
+		const result = await getCategoryMembers.handle( { category: 'Foo' }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Title: Alpha' );
@@ -118,10 +106,9 @@ describe( 'get-category-members', () => {
 				] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
-		const result = await handleGetCategoryMembersTool( 'Foo' );
+		const result = await getCategoryMembers.handle( { category: 'Foo' }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Title: Alpha' );
@@ -137,10 +124,9 @@ describe( 'get-category-members', () => {
 				continue: { cmcontinue: 'page|DOE|456', continue: '-||' }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
-		const result = await handleGetCategoryMembersTool( 'Foo' );
+		const result = await getCategoryMembers.handle( { category: 'Foo' }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Truncation:' );
@@ -159,23 +145,21 @@ describe( 'get-category-members', () => {
 				query: { categorymembers: [ { pageid: 1, ns: 0, title: 'A' } ] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
-		const result = await handleGetCategoryMembersTool( 'Foo' );
+		const result = await getCategoryMembers.handle( { category: 'Foo' }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).not.toContain( 'Truncation:' );
 	} );
 
-	it( 'surfaces errors as isError results', async () => {
+	it( 'surfaces errors as isError results via dispatcher', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockRejectedValue( new Error( 'API error' ) )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetCategoryMembersTool } = await import( '../../src/tools/get-category-members.js' );
-		const result = await handleGetCategoryMembersTool( 'Foo' );
+		const result = await dispatch( getCategoryMembers, ctx )( { category: 'Foo' } );
 
 		const envelope = assertStructuredError( result, 'upstream_failure' );
 		expect( envelope.message ).toContain( 'API error' );
