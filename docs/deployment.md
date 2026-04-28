@@ -150,6 +150,19 @@ Tokens, usernames, and passwords never appear.
 
 Set `MCP_METRICS=true` to expose `GET /metrics` on the HTTP transport in Prometheus text format. Off by default.
 
+Sample scrape:
+
+```
+# HELP mcp_tool_calls_total Total number of MCP tool invocations, labelled by tool, wiki, and outcome.
+# TYPE mcp_tool_calls_total counter
+mcp_tool_calls_total{tool="get-page",wiki="example.org",outcome="success"} 142
+mcp_tool_calls_total{tool="get-page",wiki="example.org",outcome="not_found"} 4
+
+# HELP mcp_active_sessions Number of active StreamableHTTP MCP sessions.
+# TYPE mcp_active_sessions gauge
+mcp_active_sessions 3
+```
+
 Exposed series:
 
 - `mcp_tool_calls_total{tool,wiki,outcome}` — counter of tool invocations.
@@ -158,9 +171,9 @@ Exposed series:
 - `mcp_active_sessions` — gauge of active StreamableHTTP MCP sessions.
 - `mcp_ready_failures_total` — counter of `/ready` probes that returned non-200.
 
-The endpoint is **unauthenticated**. Bind reverse-proxy access to your scrape network only — most Kubernetes-style deployments expose `/metrics` on a separate port or path that isn't routable from the public ingress.
+The endpoint is **unauthenticated**. Restrict reverse-proxy access to your scrape network only — most Kubernetes-style deployments expose `/metrics` on a separate port or path that isn't routable from the public ingress.
 
-Cardinality scales as `tools × wikis × outcomes` for `mcp_tool_calls_total`. Typical deployments stay in the low thousands of series, well within typical Prometheus ingest budgets. If you enable `allowWikiManagement`, treat the `wiki` label set as monotonically growing — `add-wiki` / `remove-wiki` cycles never shrink the cardinality of historical series.
+Cardinality for `mcp_tool_calls_total` scales as `tools × wikis × outcomes` — low thousands of series in a typical deployment, comfortably within Prometheus ingest budgets. With `allowWikiManagement` enabled, treat the `wiki` label set as monotonically growing: `remove-wiki` does not retract values already exported in past samples.
 
 ### Tailing logs
 
