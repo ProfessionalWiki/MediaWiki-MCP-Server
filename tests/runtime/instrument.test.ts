@@ -1,4 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+vi.mock( '../../src/runtime/metrics.js', () => ( {
+	recordToolCall: vi.fn()
+} ) );
+
 /* eslint-disable n/no-missing-import */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
@@ -15,6 +20,7 @@ import {
 	registerServer,
 	clearRegisteredServers
 } from '../../src/runtime/logger.js';
+import { recordToolCall } from '../../src/runtime/metrics.js';
 
 function captureToolCallLine( spy: ReturnType<typeof vi.spyOn> ): Record<string, unknown> {
 	const events = spy.mock.calls
@@ -433,5 +439,57 @@ describe( 'emitToolCall', () => {
 		} );
 
 		expect( fakeServer.sendLoggingMessage ).not.toHaveBeenCalled();
+	} );
+} );
+
+describe( 'emitToolCall — metrics integration', () => {
+	beforeEach( () => {
+		( recordToolCall as ReturnType<typeof vi.fn> ).mockClear();
+	} );
+
+	it( 'forwards the call to recordToolCall with raw duration and labels', () => {
+		const stderrSpy = vi.spyOn( process.stderr, 'write' ).mockReturnValue( true );
+		emitToolCall( {
+			toolName: 'get-page',
+			args: { title: 'X' },
+			started: performance.now() - 25,
+			result: okResult(),
+			outcome: 'success',
+			upstreamStatus: 200,
+			errorMessage: undefined,
+			runtimeToken: undefined,
+			sessionId: undefined,
+			wikiKey: 'example.org'
+		} );
+		stderrSpy.mockRestore();
+		expect( recordToolCall ).toHaveBeenCalledTimes( 1 );
+		const call = ( recordToolCall as ReturnType<typeof vi.fn> ).mock.calls[ 0 ][ 0 ];
+		expect( call ).toMatchObject( {
+			tool: 'get-page',
+			wiki: 'example.org',
+			outcome: 'success',
+			upstreamStatus: 200
+		} );
+		expect( typeof call.durationMs ).toBe( 'number' );
+		expect( call.durationMs ).toBeGreaterThanOrEqual( 0 );
+	} );
+
+	it( 'passes upstreamStatus undefined through unchanged', () => {
+		const stderrSpy = vi.spyOn( process.stderr, 'write' ).mockReturnValue( true );
+		emitToolCall( {
+			toolName: 'set-wiki',
+			args: {},
+			started: performance.now(),
+			result: okResult(),
+			outcome: 'success',
+			upstreamStatus: undefined,
+			errorMessage: undefined,
+			runtimeToken: undefined,
+			sessionId: undefined,
+			wikiKey: 'example.org'
+		} );
+		stderrSpy.mockRestore();
+		const call = ( recordToolCall as ReturnType<typeof vi.fn> ).mock.calls[ 0 ][ 0 ];
+		expect( call.upstreamStatus ).toBeUndefined();
 	} );
 } );

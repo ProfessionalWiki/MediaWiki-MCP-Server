@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { emitTelemetryEvent } from './logger.js';
+import { recordToolCall } from './metrics.js';
 import type { ErrorCategory } from '../errors/classifyError.js';
 
 export type ToolOutcome = 'success' | ErrorCategory;
@@ -131,4 +132,11 @@ export function emitToolCall<TArgs>( opts: EmitToolCallOptions<TArgs> ): void {
 		data.error_message = opts.errorMessage;
 	}
 	emitTelemetryEvent( level, data );
+	recordToolCall( {
+		tool: opts.toolName,
+		wiki: opts.wikiKey,
+		outcome: opts.outcome,
+		durationMs: Math.round( performance.now() - opts.started ),
+		upstreamStatus: opts.upstreamStatus
+	} );
 }
