@@ -35,7 +35,7 @@
         },
         {
           "name": "MCP_MAX_REQUEST_BODY",
-          "description": "Maximum HTTP request body size for the StreamableHTTP transport. Accepts body-parser size strings (e.g. 1mb, 512kb).",
+          "description": "Maximum HTTP request body size on the StreamableHTTP transport. Accepts size strings like 1mb or 512kb.",
           "default": "1mb"
         },
         {
@@ -92,7 +92,7 @@
         },
         {
           "name": "MCP_MAX_REQUEST_BODY",
-          "description": "Maximum HTTP request body size for the StreamableHTTP transport. Accepts body-parser size strings (e.g. 1mb, 512kb).",
+          "description": "Maximum HTTP request body size on the StreamableHTTP transport. Accepts size strings like 1mb or 512kb.",
           "default": "1mb"
         },
         {

@@ -17,7 +17,7 @@ The server can run as a remote HTTP endpoint for clients that only accept URLs (
 - `MCP_SHUTDOWN_GRACE_MS` — milliseconds to wait for in-flight `/mcp` requests to drain on `SIGTERM` or `SIGINT` (default `10000`, max `600000`). On expiry the server exits 1 with `grace_exceeded: true`. See [Graceful shutdown](#graceful-shutdown).
 - `MCP_ALLOWED_HOSTS` — comma-separated Host-header allowlist (e.g. `MCP_ALLOWED_HOSTS=wiki.example.org`). Set it on any non-localhost bind — without it, the SDK disables its DNS-rebinding check and logs a startup warning. Not needed on localhost binds, where the SDK auto-allows `localhost`, `127.0.0.1`, and `[::1]`. A bare hostname in `MCP_BIND` counts as non-localhost: the auto-allowlist only matches those three literals.
 - `MCP_ALLOWED_ORIGINS` — comma-separated `Origin`-header allowlist (e.g. `MCP_ALLOWED_ORIGINS=https://wiki.example.org`). Requests whose `Origin` is present but not listed get a 403. On a localhost bind, defaults to the three loopback origins on the bound port (`http://localhost:<port>`, `http://127.0.0.1:<port>`, `http://[::1]:<port>`) so local browser clients keep working. On a non-localhost bind, leaving it unset disables Origin validation and logs a startup warning. The allowlist is an exact string match — see [configuration.md — reverse proxy requirements](configuration.md#reverse-proxy-requirements) for the gotchas that silently cause every browser request to fail.
-- `MCP_MAX_REQUEST_BODY` — maximum HTTP request body size (default `1mb`). Long-form wikitext can run 100–300 kB and the JSON-RPC envelope adds escape overhead; the default mirrors typical reverse-proxy caps (e.g. nginx's `client_max_body_size 1m`). Raise this when `update-page` calls return 413 on legitimately large edits, or when your wiki has raised `$wgMaxArticleSize` (default 2 MB) and routinely edits near the ceiling. Lower it for a tighter DoS guard. Accepts body-parser size strings (`b`, `kb`, `mb`, `gb`).
+- `MCP_MAX_REQUEST_BODY` — maximum HTTP request body size (default `1mb`, matching nginx's `client_max_body_size 1m`). Raise it if `update-page` calls return 413 on legitimately large edits, or if your wiki has raised `$wgMaxArticleSize` (MediaWiki default 2 MB) and routinely edits near the ceiling. Lower it for a tighter DoS guard. Accepts body-parser size strings (`b`, `kb`, `mb`, `gb`).
 
 ## Shape 1 — Single-wiki, read-only, anonymous
 
@@ -128,7 +128,7 @@ One line on server boot — a snapshot of the effective configuration that's saf
 - **`auth_shape`** — `anonymous`, `static-credential`, or `bearer-passthrough`.
 - **`host`, `port`, `allowed_hosts`, `allowed_origins`** — HTTP transport only. The two allowlists are also omitted when not configured.
 - **`upload_dirs_configured`** — `true` when `uploadDirs` (config) or `MCP_UPLOAD_DIRS` (env) is set. The actual paths are not logged.
-- **`max_request_body`** — HTTP transport only. The resolved `MCP_MAX_REQUEST_BODY` value (default `1mb`).
+- **`max_request_body`** — HTTP transport only. The resolved `MCP_MAX_REQUEST_BODY` value.
 
 Tokens, usernames, and passwords never appear.
 
