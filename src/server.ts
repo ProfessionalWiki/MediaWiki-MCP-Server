@@ -7,6 +7,11 @@ import { registerAllTools } from './tools/index.js';
 import { registerAllResources } from './resources/index.js';
 import { reconcileTools } from './tools/reconcile.js';
 
+// USER_AGENT lives in a leaf module so wiki/mwn code can import it without
+// transitively pulling in tools/* (which would create a wikiService ↔ tools
+// import cycle through state.ts).
+export { USER_AGENT } from './common/userAgent.js';
+
 // https://github.com/nodejs/node/issues/51347#issuecomment-2111337854
 const serverInfo = createRequire( import.meta.url )( '../server.json' ) as {
 	title: string;
@@ -71,4 +76,3 @@ export const createServer = (): McpServer => {
 	return server;
 };
 
-export const USER_AGENT: string = `${ SERVER_NAME }/${ serverInfo.version }`;
