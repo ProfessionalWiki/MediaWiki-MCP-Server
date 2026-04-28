@@ -187,4 +187,94 @@ describe( 'resolveHttpConfig', () => {
 			expect( resolveHttpConfig().allowedOrigins ).toBeUndefined();
 		} );
 	} );
+
+	describe( 'maxRequestBody', () => {
+		it( 'defaults to 1mb when MCP_MAX_REQUEST_BODY is unset', () => {
+			expect( resolveHttpConfig().maxRequestBody ).toBe( '1mb' );
+		} );
+
+		it( 'defaults to 1mb when MCP_MAX_REQUEST_BODY is empty', () => {
+			vi.stubEnv( 'MCP_MAX_REQUEST_BODY', '' );
+			expect( resolveHttpConfig().maxRequestBody ).toBe( '1mb' );
+		} );
+
+		it( 'defaults to 1mb when MCP_MAX_REQUEST_BODY is whitespace', () => {
+			vi.stubEnv( 'MCP_MAX_REQUEST_BODY', '   ' );
+			expect( resolveHttpConfig().maxRequestBody ).toBe( '1mb' );
+		} );
+
+		it.each( [ '100b', '512kb', '1mb', '2mb', '1.5mb', '1024' ] )(
+			'accepts %s and passes it through',
+			( value ) => {
+				vi.stubEnv( 'MCP_MAX_REQUEST_BODY', value );
+				expect( resolveHttpConfig().maxRequestBody ).toBe( value );
+			}
+		);
+
+		it( 'trims surrounding whitespace from a valid value', () => {
+			vi.stubEnv( 'MCP_MAX_REQUEST_BODY', '  2mb  ' );
+			expect( resolveHttpConfig().maxRequestBody ).toBe( '2mb' );
+		} );
+
+		it.each( [ 'potato', '1md', '--', '5 mibibytes', '.5mb' ] )(
+			'falls back to 1mb when MCP_MAX_REQUEST_BODY=%s is malformed',
+			( value ) => {
+				vi.stubEnv( 'MCP_MAX_REQUEST_BODY', value );
+				expect( resolveHttpConfig().maxRequestBody ).toBe( '1mb' );
+			}
+		);
+
+		it.each( [ '0', '0mb', '0kb', '0.0mb' ] )(
+			'falls back to 1mb when MCP_MAX_REQUEST_BODY=%s would reject all requests',
+			( value ) => {
+				vi.stubEnv( 'MCP_MAX_REQUEST_BODY', value );
+				expect( resolveHttpConfig().maxRequestBody ).toBe( '1mb' );
+			}
+		);
+
+		it( 'still passes through fractional sub-1mb values like 0.5mb', () => {
+			vi.stubEnv( 'MCP_MAX_REQUEST_BODY', '0.5mb' );
+			expect( resolveHttpConfig().maxRequestBody ).toBe( '0.5mb' );
+		} );
+	} );
+
+	describe( 'warnings', () => {
+		it( 'is empty by default', () => {
+			expect( resolveHttpConfig().warnings ).toEqual( [] );
+		} );
+
+		it( 'is empty for valid MCP_MAX_REQUEST_BODY', () => {
+			vi.stubEnv( 'MCP_MAX_REQUEST_BODY', '2mb' );
+			expect( resolveHttpConfig().warnings ).toEqual( [] );
+		} );
+
+		it( 'contains a warning naming the rejected raw value when MCP_MAX_REQUEST_BODY is malformed', () => {
+			vi.stubEnv( 'MCP_MAX_REQUEST_BODY', '1md' );
+			const { warnings } = resolveHttpConfig();
+			expect( warnings ).toHaveLength( 1 );
+			expect( warnings[ 0 ] ).toContain( 'MCP_MAX_REQUEST_BODY' );
+			expect( warnings[ 0 ] ).toContain( '1md' );
+			expect( warnings[ 0 ] ).toContain( '1mb' );
+		} );
+
+		it( 'emits a "would reject all requests" warning when MCP_MAX_REQUEST_BODY is zero', () => {
+			vi.stubEnv( 'MCP_MAX_REQUEST_BODY', '0' );
+			const { warnings } = resolveHttpConfig();
+			expect( warnings ).toHaveLength( 1 );
+			expect( warnings[ 0 ] ).toContain( 'MCP_MAX_REQUEST_BODY' );
+			expect( warnings[ 0 ] ).toContain( 'would reject all requests' );
+			expect( warnings[ 0 ] ).toContain( '1mb' );
+		} );
+
+		it( 'distinguishes the zero warning from the malformed warning', () => {
+			vi.stubEnv( 'MCP_MAX_REQUEST_BODY', '0mb' );
+			const zeroWarnings = resolveHttpConfig().warnings;
+			vi.unstubAllEnvs();
+			vi.stubEnv( 'MCP_MAX_REQUEST_BODY', '1md' );
+			const malformedWarnings = resolveHttpConfig().warnings;
+			expect( zeroWarnings[ 0 ] ).not.toBe( malformedWarnings[ 0 ] );
+			expect( zeroWarnings[ 0 ] ).toContain( 'would reject' );
+			expect( malformedWarnings[ 0 ] ).toContain( 'not a recognised size' );
+		} );
+	} );
 } );

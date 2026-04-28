@@ -3,6 +3,8 @@ export interface HttpConfig {
 	port: number;
 	allowedHosts: string[] | undefined;
 	allowedOrigins: string[] | undefined;
+	maxRequestBody: string;
+	warnings: string[];
 }
 
 export const LOCALHOST_HOSTS: readonly string[] = [ '127.0.0.1', 'localhost', '::1' ];
@@ -10,6 +12,12 @@ export const LOCALHOST_HOSTS: readonly string[] = [ '127.0.0.1', 'localhost', ':
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 3000;
 const MAX_PORT = 65535;
+export const DEFAULT_MAX_REQUEST_BODY = '1mb';
+
+// Mirrors body-parser's size grammar: optional decimal number followed by an
+// optional unit (bytes if omitted). Validating at startup prevents body-parser
+// from silently treating a malformed value as "no limit".
+const SIZE_PATTERN = /^\s*\d+(?:\.\d+)?\s*(?:b|kb|mb|gb|tb|pb)?\s*$/i;
 
 function resolveHost(): string {
 	const raw = process.env.MCP_BIND;
@@ -71,13 +79,44 @@ function resolveAllowedOrigins( host: string, port: number ): string[] | undefin
 	return undefined;
 }
 
+function resolveMaxRequestBody(): { value: string; warning?: string } {
+	const raw = process.env.MCP_MAX_REQUEST_BODY;
+	if ( raw === undefined ) {
+		return { value: DEFAULT_MAX_REQUEST_BODY };
+	}
+	const trimmed = raw.trim();
+	if ( trimmed === '' ) {
+		return { value: DEFAULT_MAX_REQUEST_BODY };
+	}
+	if ( !SIZE_PATTERN.test( trimmed ) ) {
+		return {
+			value: DEFAULT_MAX_REQUEST_BODY,
+			warning: `MCP_MAX_REQUEST_BODY=${ raw } is not a recognised size; using default ${ DEFAULT_MAX_REQUEST_BODY }`
+		};
+	}
+	if ( parseFloat( trimmed ) === 0 ) {
+		return {
+			value: DEFAULT_MAX_REQUEST_BODY,
+			warning: `MCP_MAX_REQUEST_BODY=${ raw } would reject all requests; using default ${ DEFAULT_MAX_REQUEST_BODY }`
+		};
+	}
+	return { value: trimmed };
+}
+
 export function resolveHttpConfig(): HttpConfig {
 	const host = resolveHost();
 	const port = resolvePort();
+	const body = resolveMaxRequestBody();
+	const warnings: string[] = [];
+	if ( body.warning ) {
+		warnings.push( body.warning );
+	}
 	return {
 		host,
 		port,
 		allowedHosts: resolveAllowedHosts(),
-		allowedOrigins: resolveAllowedOrigins( host, port )
+		allowedOrigins: resolveAllowedOrigins( host, port ),
+		maxRequestBody: body.value,
+		warnings
 	};
 }

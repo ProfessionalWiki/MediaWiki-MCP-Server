@@ -62,6 +62,7 @@ describe( 'startup banner', () => {
 		expect( 'port' in e ).toBe( false );
 		expect( 'allowed_hosts' in e ).toBe( false );
 		expect( 'allowed_origins' in e ).toBe( false );
+		expect( 'max_request_body' in e ).toBe( false );
 	} );
 
 	it( 'includes http fields when transport is http', () => {
@@ -71,7 +72,8 @@ describe( 'startup banner', () => {
 				host: '0.0.0.0',
 				port: 8080,
 				allowedHosts: [ 'wiki.example.org' ],
-				allowedOrigins: [ 'https://wiki.example.org' ]
+				allowedOrigins: [ 'https://wiki.example.org' ],
+				maxRequestBody: '2mb'
 			}
 		} );
 
@@ -84,12 +86,13 @@ describe( 'startup banner', () => {
 		expect( e.auth_shape ).toBe( 'bearer-passthrough' );
 		expect( e.allowed_hosts ).toEqual( [ 'wiki.example.org' ] );
 		expect( e.allowed_origins ).toEqual( [ 'https://wiki.example.org' ] );
+		expect( e.max_request_body ).toBe( '2mb' );
 	} );
 
-	it( 'omits allowed_hosts/origins when not provided', () => {
+	it( 'omits allowed_hosts/origins when not provided but always emits max_request_body', () => {
 		emitStartupBanner( {
 			transport: 'http',
-			http: { host: '127.0.0.1', port: 3000 }
+			http: { host: '127.0.0.1', port: 3000, maxRequestBody: '1mb' }
 		} );
 
 		const e = captureLines( stderrSpy ).find( ( x ) => x.event === 'startup' );
@@ -97,6 +100,7 @@ describe( 'startup banner', () => {
 		expect( e!.host ).toBe( '127.0.0.1' );
 		expect( 'allowed_hosts' in e! ).toBe( false );
 		expect( 'allowed_origins' in e! ).toBe( false );
+		expect( e!.max_request_body ).toBe( '1mb' );
 	} );
 
 	it( 'classifies static-credential and never logs the token value', async () => {

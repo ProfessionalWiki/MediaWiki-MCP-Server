@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
-import express, { type RequestHandler, type Request, type Response } from 'express';
+import express, {
+	type ErrorRequestHandler,
+	type RequestHandler,
+	type Request,
+	type Response
+} from 'express';
 /* eslint-disable n/no-missing-import */
 import {
 	hostHeaderValidation,
@@ -214,6 +219,29 @@ export function createSessionRequestHandler( sessions: SessionRegistry ): Reques
 	};
 }
 
+// body-parser raises a PayloadTooLargeError with `type === 'entity.too.large'`
+// when the request body exceeds the configured limit. Without this handler the
+// default Express error page returns an HTML blob, which an MCP client cannot
+// parse — so we shape it as a JSON-RPC error.
+export function payloadTooLargeHandler( limit: string ): ErrorRequestHandler {
+	return ( err, _req, res, next ) => {
+		const tooLarge = typeof err === 'object' && err !== null &&
+			( err as { type?: unknown } ).type === 'entity.too.large';
+		if ( !tooLarge ) {
+			next( err );
+			return;
+		}
+		res.status( 413 ).json( {
+			jsonrpc: '2.0',
+			error: {
+				code: -32000,
+				message: `Request body exceeds the configured maximum size of ${ limit }`
+			},
+			id: null
+		} );
+	};
+}
+
 interface ReadyCacheEntry {
 	expiresAt: number;
 	payload: { status: 'ready' | 'not_ready'; wiki: string; reason?: string; checked_at: string };
@@ -303,7 +331,7 @@ export function mountReadyEndpoint( app: express.Express ): void {
 	} );
 }
 
-const { host, port, allowedHosts, allowedOrigins } = resolveHttpConfig();
+const { host, port, allowedHosts, allowedOrigins, maxRequestBody, warnings } = resolveHttpConfig();
 const guard = evaluateBearerGuard( wikiRegistry.getAll(), process.env );
 if ( guard.kind === 'block' ) {
 	logger.error(
@@ -325,12 +353,19 @@ if ( guard.kind === 'override' ) {
 		'This deployment cannot attribute writes to individual callers.'
 	);
 }
+for ( const warning of warnings ) {
+	logger.warning( warning );
+}
 // Emit the process-level startup banner before any HTTP request
 // can spin up a per-session McpServer.
-emitStartupBanner( { transport: 'http', http: { host, port, allowedHosts, allowedOrigins } } );
+emitStartupBanner( {
+	transport: 'http',
+	http: { host, port, allowedHosts, allowedOrigins, maxRequestBody }
+} );
 
 const app = express();
-app.use( express.json() );
+app.use( express.json( { limit: maxRequestBody } ) );
+app.use( payloadTooLargeHandler( maxRequestBody ) );
 
 const hostValidation = resolveMcpHostValidation( host, allowedHosts );
 if ( hostValidation ) {

@@ -19,6 +19,7 @@ export type CreateServerOptions =
 			port: number;
 			allowedHosts?: readonly string[];
 			allowedOrigins?: readonly string[];
+			maxRequestBody: string;
 		};
 	};
 
@@ -49,6 +50,8 @@ export function emitStartupBanner( opts: CreateServerOptions ): void {
 			// eslint-disable-next-line camelcase
 			data.allowed_origins = opts.http.allowedOrigins;
 		}
+		// eslint-disable-next-line camelcase
+		data.max_request_body = opts.http.maxRequestBody;
 	}
 	logger.info( '', data );
 }
