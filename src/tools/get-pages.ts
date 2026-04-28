@@ -160,6 +160,12 @@ export const getPages: Tool<typeof inputSchema> = {
 			const response = await mwn.read( titles, { rvprop, redirects: false } );
 			const pages: ApiPageLike[] = Array.isArray( response ) ? response : [ response ];
 			for ( const p of pages ) {
+				const revs = p.revisions;
+				if ( revs ) {
+					p.revisions = revs.map(
+						( rev ) => ctx.revision.normalise( rev ) as PageRev
+					);
+				}
 				byResolvedTitle.set( p.title, p );
 			}
 		}
