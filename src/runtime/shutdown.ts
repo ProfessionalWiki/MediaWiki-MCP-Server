@@ -2,7 +2,7 @@ import type { Server as HttpServer } from 'node:http';
 /* eslint-disable n/no-missing-import */
 import type { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 /* eslint-enable n/no-missing-import */
-import { logger } from './logger.js';
+import { emitTelemetryEvent, logger } from './logger.js';
 
 const DEFAULT_GRACE_MS = 10_000;
 const MAX_GRACE_MS = 600_000;
@@ -75,7 +75,7 @@ async function runDrain(
 	const inFlightAtSignal = deps.inFlight?.count() ?? 0;
 	const sessionsAtSignal = deps.sessions ? Object.keys( deps.sessions ).length : 0;
 
-	logger.info( '', {
+	emitTelemetryEvent( 'info', {
 		event: 'shutdown',
 		signal,
 		transport: deps.transport,
@@ -125,7 +125,7 @@ async function runDrain(
 	);
 
 	const drained = inFlightAtSignal - ( deps.inFlight?.count() ?? 0 );
-	logger.info( '', {
+	emitTelemetryEvent( 'info', {
 		event: 'shutdown_complete',
 		signal,
 		transport: deps.transport,

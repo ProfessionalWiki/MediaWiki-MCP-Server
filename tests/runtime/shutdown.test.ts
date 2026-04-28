@@ -211,7 +211,7 @@ describe( 'registerShutdownHandlers (stdio)', () => {
 		let closed = false;
 		registerShutdownHandlers( {
 			transport: 'stdio',
-			graceMs: 10_000,
+			graceMs: 0,
 			stdioTransport: { close: async () => { closed = true; } },
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			process: proc as any
@@ -224,7 +224,11 @@ describe( 'registerShutdownHandlers (stdio)', () => {
 		expect( proc.exitCalls ).toEqual( [ 0 ] );
 		const events = captureEvents( stderrSpy, 'shutdown' );
 		const done = captureEvents( stderrSpy, 'shutdown_complete' );
-		expect( events[ 0 ] ).toMatchObject( { transport: 'stdio', signal: 'SIGTERM' } );
+		expect( events[ 0 ] ).toMatchObject( {
+			transport: 'stdio',
+			signal: 'SIGTERM',
+			grace_ms: 0
+		} );
 		expect( done[ 0 ] ).toMatchObject( { transport: 'stdio', grace_exceeded: false } );
 	} );
 } );
