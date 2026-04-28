@@ -35,6 +35,10 @@ import { comparePagesTool } from './compare-pages.js';
 type ToolRegistrar = ( server: McpServer ) => RegisteredTool;
 
 // Tools migrated to the new descriptor + dispatcher shape.
+// `Tool<any>` widens the heterogeneous-schema array; `inputSchema: TSchema`
+// is invariant in `TSchema`, so `Tool<never>` and `Tool<ZodRawShape>` both
+// fail this assignment. The dispatcher's own generic re-narrows TSchema
+// when each tool's handler is wrapped.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const standardTools: Tool<any>[] = [ deletePage ];
 

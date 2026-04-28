@@ -27,7 +27,7 @@ export const deletePage: Tool<typeof inputSchema> = {
 
 	async handle( { title, comment }, ctx: ToolContext ): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
-		const options: ApiDeleteParams = ctx.edit.applyTags( {} );
+		const options = ctx.edit.applyTags<ApiDeleteParams>( {} );
 		const data: ApiDeleteResponse & { logid?: number } = await mwn.delete(
 			title,
 			formatEditComment( 'delete-page', comment ),
