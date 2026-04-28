@@ -1,9 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { z } from 'zod';
 import { dispatch } from '../../src/runtime/dispatcher.js';
 import type { Tool } from '../../src/runtime/tool.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 import { createMockMwnError } from '../helpers/mock-mwn-error.js';
+import { clearRegisteredServers } from '../../src/runtime/logger.js';
 
 const noopTool = (
 	handle: Tool<{ x: z.ZodString }>[ 'handle' ]
@@ -20,6 +21,15 @@ const noopTool = (
 	},
 	handle
 } );
+
+function captureToolCallLine( spy: ReturnType<typeof vi.spyOn> ): Record<string, unknown> | undefined {
+	const events = spy.mock.calls
+		.map( ( c ) => String( c[ 0 ] ) )
+		.filter( ( s ) => s.startsWith( '{' ) )
+		.map( ( s ) => JSON.parse( s.slice( 0, -1 ) ) as Record<string, unknown> )
+		.filter( ( e ) => e.event === 'tool_call' );
+	return events[ events.length - 1 ];
+}
 
 describe( 'dispatcher', () => {
 	it( 'returns successful results unchanged', async () => {
@@ -91,5 +101,44 @@ describe( 'dispatcher', () => {
 			( result.content[ 0 ] as { text: string } ).text
 		);
 		expect( envelope.message ).toBe( 'Failed to update page: boom' );
+	} );
+} );
+
+describe( 'dispatcher emits tool_call telemetry', () => {
+	let stderrSpy: ReturnType<typeof vi.spyOn>;
+
+	beforeEach( () => {
+		stderrSpy = vi.spyOn( process.stderr, 'write' ).mockImplementation( () => true );
+	} );
+
+	afterEach( () => {
+		stderrSpy.mockRestore();
+		clearRegisteredServers();
+	} );
+
+	it( 'emits a success tool_call event on a successful handler', async () => {
+		const ctx = fakeContext();
+		const tool = noopTool( async () => ctx.format.ok( { ok: true } ) );
+		await dispatch( tool, ctx )( { x: 'y' } );
+
+		const line = captureToolCallLine( stderrSpy );
+		expect( line ).toBeDefined();
+		expect( line!.tool ).toBe( 'get-page' );
+		expect( line!.outcome ).toBe( 'success' );
+		expect( line!.level ).toBe( 'info' );
+	} );
+
+	it( 'emits an error tool_call event when the handler throws', async () => {
+		const ctx = fakeContext();
+		const tool = noopTool( async () => {
+			throw createMockMwnError( 'permissiondenied' );
+		} );
+		await dispatch( tool, ctx )( { x: 'y' } );
+
+		const line = captureToolCallLine( stderrSpy );
+		expect( line ).toBeDefined();
+		expect( line!.outcome ).toBe( 'permission_denied' );
+		expect( line!.level ).toBe( 'warning' );
+		expect( typeof line!.error_message ).toBe( 'string' );
 	} );
 } );

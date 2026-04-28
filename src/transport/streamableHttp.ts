@@ -15,7 +15,8 @@ import { LOCALHOST_HOSTS, resolveHttpConfig } from './httpConfig.js';
 import { logger } from '../runtime/logger.js';
 import { runtimeTokenStore } from './requestContext.js';
 import { wikiRegistry, wikiSelection, mwnProvider } from '../wikis/state.js';
-import { createServer, emitStartupBanner } from '../server.js';
+import { createServer } from '../server.js';
+import { emitStartupBanner } from '../runtime/banner.js';
 import { createToolContext } from '../runtime/createContext.js';
 
 export async function withRequestContext<T>(

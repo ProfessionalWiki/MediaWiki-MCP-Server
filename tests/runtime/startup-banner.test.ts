@@ -25,7 +25,7 @@ vi.mock( '../../src/wikis/state.js', () => ( {
 	}
 } ) );
 
-import { emitStartupBanner } from '../../src/server.js';
+import { emitStartupBanner } from '../../src/runtime/banner.js';
 
 function captureLines( spy: ReturnType<typeof vi.spyOn> ): Record<string, unknown>[] {
 	return spy.mock.calls
@@ -128,7 +128,7 @@ describe( 'startup banner', () => {
 			}
 		} ) );
 
-		const { emitStartupBanner: esb } = await import( '../../src/server.js' );
+		const { emitStartupBanner: esb } = await import( '../../src/runtime/banner.js' );
 		esb( { transport: 'stdio' } );
 
 		const allOutput = stderrSpy.mock.calls.map( ( c ) => String( c[ 0 ] ) ).join( '' );
