@@ -4,9 +4,7 @@ vi.mock('../../src/runtime/metrics.js', () => ({
 	recordToolCall: vi.fn(),
 }));
 
-/* eslint-disable n/no-missing-import */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-/* eslint-enable n/no-missing-import */
 import {
 	detectTruncation,
 	emitToolCall,

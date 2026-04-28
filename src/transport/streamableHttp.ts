@@ -7,14 +7,12 @@ import express, {
 	type Request,
 	type Response,
 } from 'express';
-/* eslint-disable n/no-missing-import */
 import {
 	hostHeaderValidation,
 	localhostHostValidation,
 } from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
-/* eslint-enable n/no-missing-import */
 import { evaluateBearerGuard } from './bearerGuard.js';
 import { LOCALHOST_HOSTS, resolveHttpConfig } from './httpConfig.js';
 import { logger } from '../runtime/logger.js';
@@ -246,7 +244,6 @@ const READY_CACHE_TTL_MS = 5_000;
 const READY_PROBE_TIMEOUT_MS = 3_000;
 let readyCache: ReadyCacheEntry | null = null;
 
-// eslint-disable-next-line no-underscore-dangle
 export function __resetReadyCacheForTesting(): void {
 	readyCache = null;
 }
@@ -275,7 +272,6 @@ async function probeDefaultWiki(): Promise<ReadyCacheEntry> {
 		]);
 		return {
 			expiresAt: Date.now() + READY_CACHE_TTL_MS,
-			// eslint-disable-next-line camelcase
 			payload: { status: 'ready', wiki, checked_at: checkedAt },
 			httpStatus: 200,
 		};
@@ -283,7 +279,6 @@ async function probeDefaultWiki(): Promise<ReadyCacheEntry> {
 		const reason = err instanceof Error ? err.message : String(err);
 		return {
 			expiresAt: Date.now() + READY_CACHE_TTL_MS,
-			// eslint-disable-next-line camelcase
 			payload: { status: 'not_ready', wiki, reason, checked_at: checkedAt },
 			httpStatus: 503,
 		};
@@ -296,7 +291,6 @@ async function probeDefaultWiki(): Promise<ReadyCacheEntry> {
 
 // Test seam: exported so the timeout test can call the probe directly,
 // bypassing supertest's lazy request sending under vi.useFakeTimers.
-// eslint-disable-next-line no-underscore-dangle
 export const __probeDefaultWikiForTesting = probeDefaultWiki;
 
 export function mountMetricsEndpoint(app: express.Express): void {
@@ -337,7 +331,6 @@ if (guard.kind === 'block') {
 			'Remove `token`, `username`, and `password` from these wikis in config.json, ' +
 			'or set MCP_ALLOW_STATIC_FALLBACK=true to acknowledge the shared-identity deployment shape.',
 	);
-	// eslint-disable-next-line n/no-process-exit
 	process.exit(1);
 }
 if (guard.kind === 'override') {

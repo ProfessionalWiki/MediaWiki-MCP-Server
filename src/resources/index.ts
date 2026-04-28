@@ -1,8 +1,6 @@
-/* eslint-disable n/no-missing-import */
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Resource } from '@modelcontextprotocol/sdk/types.js';
-/* eslint-enable n/no-missing-import */
 import type { ToolContext } from '../runtime/context.js';
 import type { WikiConfig, PublicWikiConfig } from '../config/loadConfig.js';
 import { WIKI_RESOURCE_URI_PREFIX } from '../runtime/constants.js';
@@ -10,7 +8,6 @@ import { licenseCache } from '../wikis/state.js';
 import type { LicenseInfo } from '../wikis/licenseCache.js';
 
 function sanitize(wikiConfig: Readonly<WikiConfig>): PublicWikiConfig {
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	const { token: _token, username: _username, password: _password, ...publicConfig } = wikiConfig;
 	return publicConfig;
 }

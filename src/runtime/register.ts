@@ -1,11 +1,9 @@
-/* eslint-disable n/no-missing-import */
 import type {
 	McpServer,
 	RegisteredTool,
 	ToolCallback,
 } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-/* eslint-enable n/no-missing-import */
 import type { ZodRawShape, z } from 'zod';
 import type { Tool } from './tool.js';
 import type { ToolContext } from './context.js';

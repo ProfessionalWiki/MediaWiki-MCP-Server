@@ -1,7 +1,5 @@
 import type { Server as HttpServer } from 'node:http';
-/* eslint-disable n/no-missing-import */
 import type { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-/* eslint-enable n/no-missing-import */
 import { emitTelemetryEvent, logger } from './logger.js';
 
 const DEFAULT_GRACE_MS = 10_000;
@@ -82,11 +80,8 @@ async function runDrain(
 		event: 'shutdown',
 		signal,
 		transport: deps.transport,
-		// eslint-disable-next-line camelcase
 		grace_ms: deps.graceMs,
-		// eslint-disable-next-line camelcase
 		in_flight_at_signal: inFlightAtSignal,
-		// eslint-disable-next-line camelcase
 		sessions_at_signal: sessionsAtSignal,
 	});
 
@@ -138,13 +133,9 @@ async function runDrain(
 		event: 'shutdown_complete',
 		signal,
 		transport: deps.transport,
-		// eslint-disable-next-line camelcase
 		in_flight_drained: drained,
-		// eslint-disable-next-line camelcase
 		sessions_closed: sessionsClosed,
-		// eslint-disable-next-line camelcase
 		grace_exceeded: graceExceeded,
-		// eslint-disable-next-line camelcase
 		duration_ms: Date.now() - start,
 	});
 

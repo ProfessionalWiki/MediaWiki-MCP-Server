@@ -1,7 +1,5 @@
 import type { ApiParams, Mwn } from 'mwn';
-/* eslint-disable n/no-missing-import */
 import type { ApiUploadParams } from 'types-mediawiki-api';
-/* eslint-enable n/no-missing-import */
 import type { ApiUploadResponse } from 'mwn';
 import type { WikiSelection } from '../wikis/wikiSelection.js';
 

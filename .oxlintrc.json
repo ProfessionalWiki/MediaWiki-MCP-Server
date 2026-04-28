@@ -6,6 +6,10 @@
 		"suspicious": "warn"
 	},
 	"rules": {
+		"no-new": "off",
+		"no-shadow": "off",
+		"no-underscore-dangle": "off",
+		"preserve-caught-error": "off"
 	},
 	"overrides": [
 		{

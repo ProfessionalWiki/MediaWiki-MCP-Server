@@ -23,11 +23,8 @@ const DURATION_BUCKETS_SECONDS: readonly number[] = [
 
 function makeDisabledRecorder(): Recorder {
 	return {
-		// eslint-disable-next-line @typescript-eslint/no-empty-function
 		recordToolCall: () => {},
-		// eslint-disable-next-line @typescript-eslint/no-empty-function
 		recordReadyFailure: () => {},
-		// eslint-disable-next-line @typescript-eslint/no-empty-function
 		setSessionsProvider: () => {},
 		getMetricsHandler: () => undefined,
 	};
@@ -65,7 +62,6 @@ function makeLiveRecorder(): Recorder {
 		registers: [registry],
 	});
 
-	// eslint-disable-next-line no-new
 	new Gauge({
 		name: 'mcp_active_sessions',
 		help: 'Number of active StreamableHTTP MCP sessions.',
@@ -137,7 +133,6 @@ export function getMetricsHandler(): RequestHandler | undefined {
 
 // Test-only seam: returns the module to its disabled state so tests can re-init
 // without prom-client throwing on duplicate metric registration.
-// eslint-disable-next-line no-underscore-dangle
 export function __resetMetricsForTesting(): void {
 	initialized = false;
 	recorder = makeDisabledRecorder();

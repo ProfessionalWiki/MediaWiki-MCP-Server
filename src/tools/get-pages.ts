@@ -1,7 +1,5 @@
 import { z } from 'zod';
-/* eslint-disable n/no-missing-import */
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
-/* eslint-enable n/no-missing-import */
 import type { Mwn } from 'mwn';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';

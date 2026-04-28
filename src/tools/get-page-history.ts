@@ -1,8 +1,6 @@
 import { z } from 'zod';
-/* eslint-disable n/no-missing-import */
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import type { ApiPage, ApiRevision } from 'mwn';
-/* eslint-enable n/no-missing-import */
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
 import type { TruncationInfo } from '../results/truncation.js';

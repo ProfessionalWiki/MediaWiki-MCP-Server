@@ -1,7 +1,5 @@
 import type { ZodRawShape, z } from 'zod';
-/* eslint-disable n/no-missing-import */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-/* eslint-enable n/no-missing-import */
 import type { Tool } from './tool.js';
 import type { ToolContext } from './context.js';
 import { applySpecialCase } from '../errors/specialCases.js';

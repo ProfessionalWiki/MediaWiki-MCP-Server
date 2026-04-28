@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { z } from 'zod';
 import { assertStructuredSuccess, assertStructuredError } from './structuredResult.js';
 import { structuredResult, errorResult } from '../../src/results/response.js';
 

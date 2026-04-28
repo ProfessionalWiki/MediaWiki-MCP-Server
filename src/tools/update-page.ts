@@ -1,7 +1,5 @@
 import { z } from 'zod';
-/* eslint-disable n/no-missing-import */
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
-/* eslint-enable n/no-missing-import */
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
 import { getPageUrl, formatEditComment } from '../wikis/utils.js';
@@ -31,7 +29,6 @@ const inputSchema = {
 			'Base revision ID for edit-conflict detection; obtain from get-page with metadata=true. If omitted, the update is applied without conflict detection.',
 		),
 	comment: z.string().optional().describe('Summary of the edit'),
-	// eslint-disable-next-line es-x/no-set-prototype-union -- z.union, not Set.prototype.union
 	section: z
 		.union([z.number().int().nonnegative(), z.literal('new')])
 		.optional()

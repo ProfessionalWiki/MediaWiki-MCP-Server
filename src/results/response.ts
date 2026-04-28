@@ -1,6 +1,4 @@
-/* eslint-disable n/no-missing-import */
 import type { CallToolResult, TextContent } from '@modelcontextprotocol/sdk/types.js';
-/* eslint-enable n/no-missing-import */
 import type { ErrorEnvelope } from '../results/schemas.js';
 import type { ErrorCategory } from '../errors/classifyError.js';
 import { formatPayload } from './format.js';

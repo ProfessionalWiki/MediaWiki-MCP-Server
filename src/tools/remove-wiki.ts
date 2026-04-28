@@ -1,7 +1,5 @@
 import { z } from 'zod';
-/* eslint-disable n/no-missing-import */
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
-/* eslint-enable n/no-missing-import */
 import type { Tool } from '../runtime/tool.js';
 import type { ManagementContext } from '../runtime/context.js';
 import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../wikis/wikiResource.js';

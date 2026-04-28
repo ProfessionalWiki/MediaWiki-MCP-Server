@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-/* eslint-disable n/no-missing-import */
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
-/* eslint-enable n/no-missing-import */
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 import { reconcileTools } from '../../src/runtime/reconcile.js';
 

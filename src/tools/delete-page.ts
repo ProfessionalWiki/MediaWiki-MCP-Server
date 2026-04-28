@@ -1,9 +1,7 @@
 import { z } from 'zod';
-/* eslint-disable n/no-missing-import */
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import type { ApiDeleteResponse } from 'mwn';
 import type { ApiDeleteParams } from 'types-mediawiki-api';
-/* eslint-enable n/no-missing-import */
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
 import { formatEditComment } from '../wikis/utils.js';

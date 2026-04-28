@@ -1,7 +1,5 @@
 import { createHash } from 'node:crypto';
-/* eslint-disable n/no-missing-import */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-/* eslint-enable n/no-missing-import */
 import { emitTelemetryEvent } from './logger.js';
 import { recordToolCall } from './metrics.js';
 import type { ErrorCategory } from '../errors/classifyError.js';
@@ -112,7 +110,6 @@ export function emitToolCall<TArgs>(opts: EmitToolCallOptions<TArgs>): void {
 		tool: opts.toolName,
 		wiki: opts.wikiKey,
 		outcome: opts.outcome,
-		// eslint-disable-next-line camelcase
 		duration_ms: durationMs,
 		caller: hashCaller(opts.runtimeToken),
 		truncated,
@@ -121,15 +118,12 @@ export function emitToolCall<TArgs>(opts: EmitToolCallOptions<TArgs>): void {
 		data.target = targetValue;
 	}
 	if (opts.sessionId !== undefined) {
-		// eslint-disable-next-line camelcase
 		data.session_id = opts.sessionId.replace(/-/g, '').slice(0, 12);
 	}
 	if (opts.upstreamStatus !== undefined) {
-		// eslint-disable-next-line camelcase
 		data.upstream_status = opts.upstreamStatus;
 	}
 	if (opts.errorMessage !== undefined) {
-		// eslint-disable-next-line camelcase
 		data.error_message = opts.errorMessage;
 	}
 	emitTelemetryEvent(level, data);

@@ -125,12 +125,9 @@ describe('registerShutdownHandlers (http)', () => {
 		registerShutdownHandlers({
 			transport: 'http',
 			graceMs: opts.graceMs ?? 10_000,
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			httpServer: httpServer as any,
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			sessions: sessions as any,
 			inFlight,
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			process: proc as any,
 			pollIntervalMs: 5,
 		});
@@ -217,7 +214,6 @@ describe('registerShutdownHandlers (stdio)', () => {
 					closed = true;
 				},
 			},
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			process: proc as any,
 		});
 

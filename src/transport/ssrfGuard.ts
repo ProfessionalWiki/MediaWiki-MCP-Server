@@ -2,7 +2,6 @@ import { lookup } from 'node:dns/promises';
 import type { LookupAddress } from 'node:dns';
 import { Agent as HttpAgent } from 'node:http';
 import { Agent as HttpsAgent } from 'node:https';
-// eslint-disable-next-line n/no-missing-import
 import ipaddr from 'ipaddr.js';
 
 export class SsrfValidationError extends Error {

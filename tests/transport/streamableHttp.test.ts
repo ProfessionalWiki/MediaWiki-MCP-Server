@@ -35,9 +35,7 @@ vi.mock('../../src/wikis/state.js', () => ({
 
 import express, { type Express, type Request } from 'express';
 import request from 'supertest';
-/* eslint-disable n/no-missing-import */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-/* eslint-enable n/no-missing-import */
 import {
 	createInFlightCounter,
 	createMcpPostHandler,

@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 
-/* eslint-disable n/no-missing-import */
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-/* eslint-enable n/no-missing-import */
 import { logger } from '../runtime/logger.js';
 import { createServer } from '../server.js';
 import { emitStartupBanner } from '../runtime/banner.js';

@@ -1,7 +1,5 @@
 import { expect } from 'vitest';
-/* eslint-disable n/no-missing-import */
 import type { CallToolResult, TextContent } from '@modelcontextprotocol/sdk/types.js';
-/* eslint-enable n/no-missing-import */
 import { ErrorEnvelopeSchema, type ErrorEnvelope } from '../../src/results/schemas.js';
 
 // Tool responses ride entirely in content[0].text. Successful responses carry

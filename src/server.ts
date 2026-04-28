@@ -1,6 +1,4 @@
-/* eslint-disable n/no-missing-import */
 import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
-/* eslint-enable n/no-missing-import */
 import { createRequire } from 'node:module';
 import { registerServer, unregisterServer } from './runtime/logger.js';
 import { registerAllTools } from './tools/index.js';

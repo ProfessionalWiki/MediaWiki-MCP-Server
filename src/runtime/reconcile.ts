@@ -1,6 +1,4 @@
-/* eslint-disable n/no-missing-import */
 import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
-/* eslint-enable n/no-missing-import */
 import type { WikiConfig } from '../config/loadConfig.js';
 import { wikiRegistry, wikiSelection } from '../wikis/state.js';
 
