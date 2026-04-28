@@ -90,6 +90,8 @@ async function runDrain(
 	let sessionsClosed = 0;
 	if ( deps.transport === 'http' ) {
 		if ( deps.httpServer ) {
+			// Stop accepting new connections. The close callback isn't awaited
+			// because drain is gated on inFlight.count(), not on socket lifetime.
 			deps.httpServer.close();
 			const idleCloser = (
 				deps.httpServer as unknown as { closeIdleConnections?: () => void }
