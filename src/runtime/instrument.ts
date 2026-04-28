@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { emitTelemetryEvent } from './logger.js';
+import { recordToolCall } from './metrics.js';
 import type { ErrorCategory } from '../errors/classifyError.js';
 
 export type ToolOutcome = 'success' | ErrorCategory;
@@ -104,6 +105,7 @@ export function emitToolCall<TArgs>( opts: EmitToolCallOptions<TArgs> ): void {
 	const level = levelFor( opts.outcome );
 	const targetValue = safeTarget( opts.target, opts.args );
 	const truncated = opts.outcome === 'success' ? detectTruncation( opts.result ) : false;
+	const durationMs = Math.round( performance.now() - opts.started );
 	// Snake-case keys are required by the structured log schema.
 	const data: Record<string, unknown> = {
 		event: 'tool_call',
@@ -111,7 +113,7 @@ export function emitToolCall<TArgs>( opts: EmitToolCallOptions<TArgs> ): void {
 		wiki: opts.wikiKey,
 		outcome: opts.outcome,
 		// eslint-disable-next-line camelcase
-		duration_ms: Math.round( performance.now() - opts.started ),
+		duration_ms: durationMs,
 		caller: hashCaller( opts.runtimeToken ),
 		truncated
 	};
@@ -131,4 +133,19 @@ export function emitToolCall<TArgs>( opts: EmitToolCallOptions<TArgs> ): void {
 		data.error_message = opts.errorMessage;
 	}
 	emitTelemetryEvent( level, data );
+	// Telemetry must never break tool calls — the dispatcher does not wrap
+	// emitToolCall in its own try/catch, so an unexpected throw from the
+	// metrics path would propagate up and fail the call. The stderr line
+	// above has already flushed, so we still have an operator-visible record.
+	try {
+		recordToolCall( {
+			tool: opts.toolName,
+			wiki: opts.wikiKey,
+			outcome: opts.outcome,
+			durationMs,
+			upstreamStatus: opts.upstreamStatus
+		} );
+	} catch {
+		// swallow
+	}
 }
