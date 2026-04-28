@@ -4,8 +4,6 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import type { Tool } from '../runtime/tool.js';
 import type { ManagementContext } from '../runtime/context.js';
-import { mwnProvider } from '../wikis/state.js';
-import { removeLicenseCache } from '../resources/index.js';
 import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../wikis/wikiResource.js';
 
 const inputSchema = {
@@ -47,8 +45,7 @@ export const removeWiki: Tool<typeof inputSchema, ManagementContext> = {
 		}
 
 		ctx.wikis.remove( wikiKey );
-		mwnProvider.invalidate( wikiKey );
-		removeLicenseCache( wikiKey );
+		ctx.wikiCache.invalidate( wikiKey );
 		ctx.reconcile();
 
 		return ctx.format.ok( {

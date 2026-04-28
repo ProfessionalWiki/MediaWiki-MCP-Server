@@ -1,6 +1,7 @@
 import type { Logger } from './logger.js';
 import type { ToolContext } from './context.js';
-import { wikiRegistry, wikiSelection, uploadDirs, mwnProvider } from '../wikis/state.js';
+import { wikiRegistry, wikiSelection, uploadDirs, mwnProvider, licenseCache } from '../wikis/state.js';
+import { WikiCacheImpl } from '../wikis/wikiCache.js';
 import { SectionServiceImpl } from '../services/sectionService.js';
 import { EditServiceImpl } from '../services/editService.js';
 import { RevisionNormalizerImpl } from '../services/revisionNormalize.js';
@@ -13,6 +14,7 @@ export function createToolContext( deps: { logger: Logger } ): ToolContext {
 		wikis: wikiRegistry,
 		selection: wikiSelection,
 		uploadDirs,
+		wikiCache: new WikiCacheImpl( mwnProvider, licenseCache ),
 		sections: new SectionServiceImpl(),
 		edit: new EditServiceImpl( wikiSelection ),
 		revision: new RevisionNormalizerImpl(),

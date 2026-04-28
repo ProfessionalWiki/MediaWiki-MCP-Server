@@ -25,6 +25,11 @@ vi.mock( '../../src/wikis/state.js', () => ( {
 	mwnProvider: {
 		get: () => Promise.reject( new Error( 'mwn not available in tests' ) ),
 		invalidate: () => {}
+	},
+	licenseCache: {
+		get: () => undefined,
+		set: () => {},
+		delete: () => {}
 	}
 } ) );
 

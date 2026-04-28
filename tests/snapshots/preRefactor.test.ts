@@ -30,11 +30,7 @@ vi.mock( '../../src/wikis/state.js', () => ( {
 		remove: vi.fn(),
 		isManagementAllowed: () => true
 	},
-	uploadDirs: { list: () => [ '/home/user/uploads' ] },
-	mwnProvider: {
-		get: vi.fn(),
-		invalidate: vi.fn()
-	}
+	uploadDirs: { list: () => [ '/home/user/uploads' ] }
 } ) );
 
 vi.mock( '../../src/wikis/wikiDiscovery.js', () => ( {
@@ -60,10 +56,6 @@ vi.mock( '../../src/transport/fileExistence.js', async () => {
 		assertFileExists: vi.fn()
 	};
 } );
-
-vi.mock( '../../src/resources/index.js', () => ( {
-	removeLicenseCache: vi.fn()
-} ) );
 
 import { discoverWiki } from '../../src/wikis/wikiDiscovery.js';
 import { assertAllowedPath } from '../../src/transport/uploadGuard.js';
@@ -991,6 +983,7 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	it( 'remove-wiki happy path', async () => {
 		const { removeWiki } = await import( '../../src/tools/remove-wiki.js' );
 		const ctx = fakeManagementContext( {
+			wikiCache: { invalidate: vi.fn() },
 			wikis: {
 				getAll: () => ( {} ),
 				get: () => ( {

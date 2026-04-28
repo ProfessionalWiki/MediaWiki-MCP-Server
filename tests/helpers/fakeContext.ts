@@ -33,6 +33,7 @@ export function fakeContext( overrides: Partial<ToolContext> = {} ): ToolContext
 			reset: throws( 'selection.reset' ) as never
 		},
 		uploadDirs: { list: () => [] },
+		wikiCache: { invalidate: throws( 'wikiCache.invalidate' ) as never },
 		sections: { list: throws( 'sections.list' ) as never },
 		edit: {
 			submit: throws( 'edit.submit' ) as never,

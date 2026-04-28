@@ -6,14 +6,8 @@ import type { Resource } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolContext } from '../runtime/context.js';
 import type { WikiConfig, PublicWikiConfig } from '../config/loadConfig.js';
 import { WIKI_RESOURCE_URI_PREFIX } from '../runtime/constants.js';
-
-type LicenseInfo = { url: string; title: string };
-
-const licenseCache = new Map<string, LicenseInfo>();
-
-export function removeLicenseCache( wikiKey: string ): void {
-	licenseCache.delete( wikiKey );
-}
+import { licenseCache } from '../wikis/state.js';
+import type { LicenseInfo } from '../wikis/licenseCache.js';
 
 function sanitize( wikiConfig: Readonly<WikiConfig> ): PublicWikiConfig {
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars

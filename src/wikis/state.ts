@@ -4,6 +4,7 @@ import { WikiRegistryImpl } from './wikiRegistry.js';
 import { WikiSelectionImpl } from './wikiSelection.js';
 import { UploadDirsImpl } from './uploadDirs.js';
 import { MwnProviderImpl } from './mwnProvider.js';
+import { LicenseCacheImpl } from './licenseCache.js';
 
 const config: Config = loadConfigFromFile();
 
@@ -24,3 +25,5 @@ export const mwnProvider = new MwnProviderImpl(
 	wikiSelection,
 	getRuntimeToken
 );
+
+export const licenseCache = new LicenseCacheImpl();

@@ -1,19 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const invalidateMwn = vi.hoisted( () => vi.fn() );
-
-vi.mock( '../../src/wikis/state.js', () => ( {
-	mwnProvider: {
-		invalidate: invalidateMwn
-	}
-} ) );
-
-vi.mock( '../../src/resources/index.js', () => ( {
-	removeLicenseCache: vi.fn()
-} ) );
-
 import type { WikiConfig } from '../../src/config/loadConfig.js';
-import { removeLicenseCache } from '../../src/resources/index.js';
 import { formatPayload } from '../../src/results/format.js';
 import {
 	assertStructuredError,
@@ -41,8 +28,10 @@ describe( 'remove-wiki', () => {
 	it( 'removes the wiki and returns a structured payload', async () => {
 		const reconcile = vi.fn();
 		const remove = vi.fn();
+		const invalidate = vi.fn();
 		const ctx = fakeManagementContext( {
 			reconcile,
+			wikiCache: { invalidate },
 			wikis: {
 				getAll: () => ( {} ),
 				get: () => wikiConfig(),
@@ -68,8 +57,7 @@ describe( 'remove-wiki', () => {
 			removed: true
 		} ) );
 		expect( remove ).toHaveBeenCalledWith( 'example.org' );
-		expect( invalidateMwn ).toHaveBeenCalledWith( 'example.org' );
-		expect( vi.mocked( removeLicenseCache ) ).toHaveBeenCalledWith( 'example.org' );
+		expect( invalidate ).toHaveBeenCalledWith( 'example.org' );
 		expect( reconcile ).toHaveBeenCalledTimes( 1 );
 	} );
 
