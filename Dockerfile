@@ -26,6 +26,9 @@ COPY --from=builder /app/dist ./dist
 # Copy package.json and lockfile for production install
 COPY package.json package-lock.json ./
 
+# Copy server.json (loaded at runtime for server name, title, and version)
+COPY server.json ./
+
 # Install only production dependencies
 RUN npm install --production --ignore-scripts
 

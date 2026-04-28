@@ -19,6 +19,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `set-wiki` and `remove-wiki` are hidden from `tools/list` when fewer than two wikis are configured: `set-wiki` has nothing to switch to, and `remove-wiki` would orphan the server.
 - Logger output is now one JSON object per stderr line, replacing the previous `<level>: <message> {<json>}` text shape. Operators with stderr parsers must update them or pipe through `jq -R 'fromjson? // empty'` (or `humanlog`) for live reading.
 
+### Fixed
+
+- Docker image now includes `server.json`, so containers start instead of crashing with `Cannot find module '../server.json'`.
+
 ### Security
 
 - HTTP transport refuses to start with static credentials in `config.json` unless `MCP_ALLOW_STATIC_FALLBACK=true` opts into a shared-identity deployment.
