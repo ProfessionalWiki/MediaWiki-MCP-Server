@@ -38,6 +38,12 @@
           "description": "Set to 'true' to expose Prometheus metrics at GET /metrics on the HTTP transport. Has no effect on the stdio transport."
         },
         {
+          "name": "MCP_SHUTDOWN_GRACE_MS",
+          "description": "Maximum milliseconds to wait for in-flight /mcp calls to drain on SIGTERM/SIGINT before exiting. Capped at 600000.",
+          "format": "number",
+          "default": "10000"
+        },
+        {
           "name": "MCP_TRANSPORT",
           "description": "Type of MCP server transport",
           "choices": [
@@ -82,6 +88,12 @@
         {
           "name": "MCP_METRICS",
           "description": "Set to 'true' to expose Prometheus metrics at GET /metrics on the HTTP transport. Has no effect on the stdio transport."
+        },
+        {
+          "name": "MCP_SHUTDOWN_GRACE_MS",
+          "description": "Maximum milliseconds to wait for in-flight /mcp calls to drain on SIGTERM/SIGINT before exiting. Capped at 600000.",
+          "format": "number",
+          "default": "10000"
         },
         {
           "name": "MCP_TRANSPORT",

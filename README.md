@@ -77,6 +77,7 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | `MCP_ALLOW_STATIC_FALLBACK` | Set to `true` to allow HTTP startup when `config.json` has static credentials. Otherwise the server refuses to start, preventing silent shared-identity fallback for unauthenticated requests. | `unset` |
 | `MCP_CONTENT_MAX_BYTES` | Byte cap for content bodies (wikitext, rendered HTML, diffs) returned by `get-page`, `get-pages`, `parse-wikitext`, and `compare-pages`. Oversized bodies are truncated with a trailing marker. Tune to the target LLM client's tool-response budget. | `50000` |
 | `MCP_METRICS` | Set to `true` to expose Prometheus metrics at `GET /metrics` on the HTTP transport. | `unset` |
+| `MCP_SHUTDOWN_GRACE_MS` | Maximum time in ms to wait for in-flight `/mcp` calls to drain on `SIGTERM` / `SIGINT` before exiting. Capped at 600000 (10 min); invalid values fall back to the default with a warning. | `10000` |
 | `MCP_TRANSPORT` | Type of MCP server transport (`stdio` or `http`) | `stdio` |
 | `PORT` | Port used for StreamableHTTP transport | `3000` |
 
