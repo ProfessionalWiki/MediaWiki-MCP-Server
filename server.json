@@ -34,6 +34,10 @@
           "default": "50000"
         },
         {
+          "name": "MCP_METRICS",
+          "description": "Set to 'true' to expose Prometheus metrics at GET /metrics on the HTTP transport. Off by default. No effect on the stdio transport."
+        },
+        {
           "name": "MCP_TRANSPORT",
           "description": "Type of MCP server transport",
           "choices": [
@@ -74,6 +78,10 @@
           "description": "Byte cap for content bodies (wikitext, rendered HTML, diffs) returned by get-page, get-pages, parse-wikitext, and compare-pages. Oversized bodies are truncated with a trailing marker.",
           "format": "number",
           "default": "50000"
+        },
+        {
+          "name": "MCP_METRICS",
+          "description": "Set to 'true' to expose Prometheus metrics at GET /metrics on the HTTP transport. Off by default. No effect on the stdio transport."
         },
         {
           "name": "MCP_TRANSPORT",

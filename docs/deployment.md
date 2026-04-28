@@ -17,6 +17,22 @@ The server can run as a remote HTTP endpoint for clients that only accept URLs (
 - `MCP_ALLOWED_HOSTS` — comma-separated Host-header allowlist (e.g. `MCP_ALLOWED_HOSTS=wiki.example.org`). Set it on any non-localhost bind — without it, the SDK disables its DNS-rebinding check and logs a startup warning. Not needed on localhost binds, where the SDK auto-allows `localhost`, `127.0.0.1`, and `[::1]`. A bare hostname in `MCP_BIND` counts as non-localhost: the auto-allowlist only matches those three literals.
 - `MCP_ALLOWED_ORIGINS` — comma-separated `Origin`-header allowlist (e.g. `MCP_ALLOWED_ORIGINS=https://wiki.example.org`). Requests whose `Origin` is present but not listed get a 403. On a localhost bind, defaults to the three loopback origins on the bound port (`http://localhost:<port>`, `http://127.0.0.1:<port>`, `http://[::1]:<port>`) so local browser clients keep working. On a non-localhost bind, leaving it unset disables Origin validation and logs a startup warning. The allowlist is an exact string match — see [configuration.md — reverse proxy requirements](configuration.md#reverse-proxy-requirements) for the gotchas that silently cause every browser request to fail.
 
+## Metrics
+
+Set `MCP_METRICS=true` to expose `GET /metrics` on the HTTP transport in Prometheus text format. Off by default.
+
+Exposed series:
+
+- `mcp_tool_calls_total{tool,wiki,outcome}` — counter of tool invocations.
+- `mcp_tool_call_duration_seconds{tool,wiki}` — histogram of tool-call durations.
+- `mcp_upstream_status_total{tool,wiki,status}` — counter of upstream MediaWiki HTTP status codes.
+- `mcp_active_sessions` — gauge of active StreamableHTTP MCP sessions.
+- `mcp_ready_failures_total` — counter of `/ready` probes that returned non-200.
+
+The endpoint is **unauthenticated**. Bind reverse-proxy access to your scrape network only — most Kubernetes-style deployments expose `/metrics` on a separate port or path that isn't routable from the public ingress.
+
+Cardinality scales as `tools × wikis × outcomes` for `mcp_tool_calls_total`. Typical deployments (≤ 50 tools, ≤ 5 wikis, ~10 outcomes) stay well within prom-client's practical limits.
+
 ## Shape 1 — Single-wiki, read-only, anonymous
 
 ```json

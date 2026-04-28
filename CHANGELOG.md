@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- Optional `GET /metrics` Prometheus endpoint on the HTTP transport, enabled with `MCP_METRICS=true`. Exposes tool-call counters, latency histograms, upstream status totals, active sessions, and ready-probe failures. Off by default.
+
 ## [0.8.0] - 2026-04-28
 
 ### Added
