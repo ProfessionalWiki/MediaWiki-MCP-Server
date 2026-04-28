@@ -16,3 +16,13 @@ export type NormalisedRevision = Omit<ApiRevisionLike, 'slots'> & {
 export interface RevisionNormalizer {
 	normalise( rev: ApiRevisionLike ): NormalisedRevision;
 }
+
+export class RevisionNormalizerImpl implements RevisionNormalizer {
+	public normalise( rev: ApiRevisionLike ): NormalisedRevision {
+		const { slots, ...base } = rev;
+		if ( slots?.main ) {
+			return { ...base, ...slots.main };
+		}
+		return base;
+	}
+}
