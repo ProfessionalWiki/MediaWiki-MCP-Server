@@ -13,6 +13,13 @@ import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { evaluateBearerGuard } from './bearerGuard.js';
 import { LOCALHOST_HOSTS, resolveHttpConfig } from './httpConfig.js';
 import { logger } from '../runtime/logger.js';
+import {
+	getMetricsHandler,
+	initMetrics,
+	isMetricsEnabled,
+	recordReadyFailure,
+	setSessionsProvider
+} from '../runtime/metrics.js';
 import { runtimeTokenStore } from './requestContext.js';
 import { wikiRegistry, wikiSelection, mwnProvider } from '../wikis/state.js';
 import { createServer } from '../server.js';
@@ -252,10 +259,24 @@ async function probeDefaultWiki(): Promise<ReadyCacheEntry> {
 // eslint-disable-next-line no-underscore-dangle
 export const __probeDefaultWikiForTesting = probeDefaultWiki;
 
+export function mountMetricsEndpoint( app: express.Express ): void {
+	if ( !isMetricsEnabled() ) {
+		return;
+	}
+	initMetrics();
+	const handler = getMetricsHandler();
+	if ( handler ) {
+		app.get( '/metrics', handler );
+	}
+}
+
 export function mountReadyEndpoint( app: express.Express ): void {
 	app.get( '/ready', async ( _req, res ) => {
 		if ( !readyCache || Date.now() >= readyCache.expiresAt ) {
 			readyCache = await probeDefaultWiki();
+		}
+		if ( readyCache.httpStatus !== 200 ) {
+			recordReadyFailure();
 		}
 		res.status( readyCache.httpStatus ).json( readyCache.payload );
 	} );
@@ -321,6 +342,8 @@ app.get( '/health', ( _req: Request, res: Response ) => {
 } );
 
 mountReadyEndpoint( app );
+mountMetricsEndpoint( app );
+setSessionsProvider( () => Object.keys( sessions ).length );
 
 app.listen( port, host, () => {
 	logger.info( `MCP Streamable HTTP Server listening on ${ host }:${ port }` );
