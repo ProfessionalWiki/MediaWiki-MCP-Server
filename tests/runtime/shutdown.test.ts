@@ -194,3 +194,37 @@ describe( 'registerShutdownHandlers (http)', () => {
 		expect( proc.exitCalls[ proc.exitCalls.length - 1 ] ).toBe( 1 );
 	} );
 } );
+
+describe( 'registerShutdownHandlers (stdio)', () => {
+	let stderrSpy: ReturnType<typeof vi.spyOn>;
+
+	beforeEach( () => {
+		stderrSpy = vi.spyOn( process.stderr, 'write' ).mockImplementation( () => true );
+	} );
+
+	afterEach( () => {
+		stderrSpy.mockRestore();
+	} );
+
+	it( 'closes the stdio transport and exits 0', async () => {
+		const proc = fakeProcess();
+		let closed = false;
+		registerShutdownHandlers( {
+			transport: 'stdio',
+			graceMs: 10_000,
+			stdioTransport: { close: async () => { closed = true; } },
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			process: proc as any
+		} );
+
+		proc.signals.get( 'SIGTERM' )!();
+		await new Promise( ( r ) => setImmediate( r ) );
+
+		expect( closed ).toBe( true );
+		expect( proc.exitCalls ).toEqual( [ 0 ] );
+		const events = captureEvents( stderrSpy, 'shutdown' );
+		const done = captureEvents( stderrSpy, 'shutdown_complete' );
+		expect( events[ 0 ] ).toMatchObject( { transport: 'stdio', signal: 'SIGTERM' } );
+		expect( done[ 0 ] ).toMatchObject( { transport: 'stdio', grace_exceeded: false } );
+	} );
+} );
