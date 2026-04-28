@@ -70,6 +70,8 @@ import { wikiService } from '../../src/common/wikiService.js';
 import { discoverWiki } from '../../src/common/wikiDiscovery.js';
 import { assertAllowedPath } from '../../src/common/uploadGuard.js';
 import { assertFileExists } from '../../src/common/fileExistence.js';
+import { fakeContext } from '../helpers/fakeContext.js';
+import { dispatch } from '../../src/runtime/dispatcher.js';
 
 type Mwn = Awaited<ReturnType<typeof getMwn>>;
 
@@ -597,7 +599,7 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	// ------------------------------------------------------------------
 
 	it( 'delete-page happy path', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			delete: vi.fn().mockResolvedValue( {
 				title: 'Old Page',
 				reason: 'spam',
@@ -605,18 +607,23 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			} )
 		} );
 
-		const { handleDeletePageTool } = await import( '../../src/tools/delete-page.js' );
-		const result = await handleDeletePageTool( 'Old Page', 'spam' );
+		const { deletePage } = await import( '../../src/tools/delete-page.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( deletePage, ctx )( {
+			title: 'Old Page',
+			comment: 'spam'
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
 	it( 'delete-page error path (missingtitle)', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			delete: vi.fn().mockRejectedValue( createMockMwnError( 'missingtitle' ) )
 		} );
 
-		const { handleDeletePageTool } = await import( '../../src/tools/delete-page.js' );
-		const result = await handleDeletePageTool( 'Nonexistent' );
+		const { deletePage } = await import( '../../src/tools/delete-page.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( deletePage, ctx )( { title: 'Nonexistent' } );
 		expect( result ).toMatchSnapshot();
 	} );
 

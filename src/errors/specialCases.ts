@@ -15,14 +15,34 @@ function pickFromMessage( msg: string, pattern: RegExp ): string | undefined {
 	return msg.match( pattern )?.[ 1 ];
 }
 
+// Tools whose pre-refactor error wording included tailored, code-specific
+// messages (rather than the generic "Failed to <verb>: <raw>" prefix). Only
+// these tools opt into the matching override below — every other tool keeps
+// the raw upstream message and the dispatcher's standard verb prefix.
+const TAILORED_TOOLS: Record<string, ReadonlySet<string>> = {
+	missingtitle: new Set( [ 'get-page', 'get-page-history', 'get-file', 'compare-pages' ] ),
+	nosuchrevid: new Set( [ 'get-revision', 'compare-pages' ] ),
+	nosuchsection: new Set( [ 'get-page', 'update-page' ] )
+};
+
+function appliesTo( code: string, toolName: string ): boolean {
+	return TAILORED_TOOLS[ code ]?.has( toolName ) ?? false;
+}
+
 const overrides: Record<string, Override> = {
-	nosuchsection: ( err ) => {
+	nosuchsection: ( err, { toolName } ) => {
+		if ( !appliesTo( 'nosuchsection', toolName ) ) {
+			return null;
+		}
 		const msg = ( err as Error ).message ?? '';
 		const sectionMatch = pickFromMessage( msg, /section[^\d]*(\d+)/i );
 		const label = sectionMatch ?? 'unknown';
 		return { category: 'not_found', code: 'nosuchsection', message: `Section ${ label } does not exist` };
 	},
-	nosuchrevid: ( err ) => {
+	nosuchrevid: ( err, { toolName } ) => {
+		if ( !appliesTo( 'nosuchrevid', toolName ) ) {
+			return null;
+		}
 		const msg = ( err as Error ).message ?? '';
 		const idMatch = pickFromMessage( msg, /\b(\d+)\b/ );
 		return {
@@ -31,7 +51,10 @@ const overrides: Record<string, Override> = {
 			message: idMatch !== undefined ? `Revision ${ idMatch } not found` : 'Revision not found'
 		};
 	},
-	missingtitle: ( err ) => {
+	missingtitle: ( err, { toolName } ) => {
+		if ( !appliesTo( 'missingtitle', toolName ) ) {
+			return null;
+		}
 		const msg = ( err as Error ).message ?? '';
 		const titleMatch = pickFromMessage( msg, /["'`]([^"'`]+)["'`]/ );
 		return {

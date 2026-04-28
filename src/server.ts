@@ -28,8 +28,7 @@ Writes, deletes, and uploads use the caller's \`Authorization: Bearer\` token wh
 
 Tool errors fall into seven categories: \`not_found\`, \`permission_denied\`, \`invalid_input\`, \`conflict\`, \`authentication\`, \`rate_limited\`, and \`upstream_failure\`. Reads that exceed a per-call cap return a truncation marker describing what was returned and how to fetch the rest.`;
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export const createServer = ( _ctx: ToolContext ): McpServer => {
+export const createServer = ( ctx: ToolContext ): McpServer => {
 	const server = new McpServer(
 		{
 			name: SERVER_NAME,
@@ -67,7 +66,7 @@ export const createServer = ( _ctx: ToolContext ): McpServer => {
 	const tools = new Map<string, RegisteredTool>();
 	const reconcile = (): void => reconcileTools( tools );
 
-	const registered = registerAllTools( server, reconcile );
+	const registered = registerAllTools( server, reconcile, ctx );
 	for ( const [ name, tool ] of registered ) {
 		tools.set( name, tool );
 	}

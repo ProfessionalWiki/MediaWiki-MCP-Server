@@ -1,35 +1,16 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { z } from 'zod';
+import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 import { createMockMwnError } from '../helpers/mock-mwn-error.js';
-import { formatPayload } from '../../src/common/formatPayload.js';
-
-vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
-vi.mock( '../../src/common/wikiService.js', () => ( {
-	wikiService: {
-		getCurrent: vi.fn().mockReturnValue( {
-			key: 'test-wiki',
-			config: {
-				server: 'https://test.wiki',
-				articlepath: '/wiki',
-				scriptpath: '/w',
-				tags: null
-			}
-		} )
-	}
-} ) );
-
-import { getMwn } from '../../src/common/mwn.js';
+import { fakeContext } from '../helpers/fakeContext.js';
+import { deletePage } from '../../src/tools/delete-page.js';
+import { dispatch } from '../../src/runtime/dispatcher.js';
+import { formatPayload } from '../../src/results/format.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
 
 describe( 'delete-page', () => {
-	beforeEach( () => {
-		vi.clearAllMocks();
-	} );
-
 	it( 'returns a structured payload on success', async () => {
 		const mock = createMockMwn( {
 			delete: vi.fn().mockResolvedValue( {
@@ -38,10 +19,12 @@ describe( 'delete-page', () => {
 				logid: 42
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as unknown as Awaited<ReturnType<typeof getMwn>> );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleDeletePageTool } = await import( '../../src/tools/delete-page.js' );
-		const result = await handleDeletePageTool( 'Old Page', 'spam' );
+		const result = await deletePage.handle(
+			{ title: 'Old Page', comment: 'spam' },
+			ctx
+		);
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toBe( formatPayload( {
@@ -60,36 +43,55 @@ describe( 'delete-page', () => {
 		const mock = createMockMwn( {
 			delete: vi.fn().mockResolvedValue( { title: 'Old Page' } )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as unknown as Awaited<ReturnType<typeof getMwn>> );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleDeletePageTool } = await import( '../../src/tools/delete-page.js' );
-		const result = await handleDeletePageTool( 'Old Page' );
+		const result = await deletePage.handle( { title: 'Old Page' }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).not.toContain( 'Log ID:' );
 	} );
 
-	it( 'categorises missingtitle as not_found with code', async () => {
+	it( 'dispatches missingtitle as not_found via dispatcher', async () => {
 		const mock = createMockMwn( {
 			delete: vi.fn().mockRejectedValue( createMockMwnError( 'missingtitle' ) )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as unknown as Awaited<ReturnType<typeof getMwn>> );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleDeletePageTool } = await import( '../../src/tools/delete-page.js' );
-		const result = await handleDeletePageTool( 'Nonexistent' );
+		const result = await dispatch( deletePage, ctx )( { title: 'Nonexistent' } );
 
 		assertStructuredError( result, 'not_found', 'missingtitle' );
 	} );
 
-	it( 'categorises permissiondenied as permission_denied with code', async () => {
+	it( 'dispatches permissiondenied as permission_denied via dispatcher', async () => {
 		const mock = createMockMwn( {
 			delete: vi.fn().mockRejectedValue( createMockMwnError( 'permissiondenied' ) )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as unknown as Awaited<ReturnType<typeof getMwn>> );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleDeletePageTool } = await import( '../../src/tools/delete-page.js' );
-		const result = await handleDeletePageTool( 'Protected' );
+		const result = await dispatch( deletePage, ctx )( { title: 'Protected' } );
 
 		assertStructuredError( result, 'permission_denied', 'permissiondenied' );
+	} );
+
+	it( 'injects tags from selection when configured', async () => {
+		const mock = createMockMwn( {
+			delete: vi.fn().mockResolvedValue( { title: 'X' } )
+		} );
+		const ctx = fakeContext( {
+			mwn: async () => mock as never,
+			edit: {
+				submit: vi.fn() as never,
+				submitUpload: vi.fn() as never,
+				applyTags: ( o: object ) => ( { ...o, tags: 'mcp-edit' } )
+			}
+		} );
+
+		await deletePage.handle( { title: 'X' }, ctx );
+
+		expect( mock.delete ).toHaveBeenCalledWith(
+			'X',
+			expect.any( String ),
+			{ tags: 'mcp-edit' }
+		);
 	} );
 } );
