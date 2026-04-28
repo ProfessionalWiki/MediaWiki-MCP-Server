@@ -12,6 +12,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `SIGTERM` and `SIGINT` now drain in-flight `/mcp` calls and close active StreamableHTTP sessions before exit, with a structured `event: "shutdown"` / `event: "shutdown_complete"` pair on stderr. Configurable via `MCP_SHUTDOWN_GRACE_MS` (default `10000`). Stdio transport closes its single transport on the same signals.
 - `MCP_MAX_REQUEST_BODY` env var (default `1mb`) caps HTTP request body size, replacing body-parser's silent 100 kB default that was rejecting long-form wikitext edits. Oversize requests return a JSON-RPC 413; the resolved value appears in the startup banner.
 
+### Changed
+
+- Added `.dockerignore`. The Docker build context is now an allow-list (`src/`, `package.json`, `package-lock.json`, `tsconfig.json`, `server.json`) instead of the entire repository.
+- Reworked Docker image labels to follow OCI image-spec: dropped the deprecated `maintainer` label and the hand-maintained `image.version`; added `image.title`, `image.url`, `image.source`, `image.licenses`, and a per-build `image.revision` populated from a `GIT_SHA` build arg.
+- The production image now installs dependencies with `npm ci --omit=dev` instead of `npm install --production`. Builds fail if `package-lock.json` and `package.json` are out of sync.
+- `npm version` no longer touches `Dockerfile`. The `image.version` label it used to keep in sync has been removed; `scripts/sync-version.cjs` continues to update `server.json`, `mcpb/manifest.json`, and `gemini-extension.json`.
+
+### Removed
+
+- `.npmignore`. The `files` field in `package.json` already controls npm tarball contents.
+
 ## [0.8.0] - 2026-04-28
 
 ### Added
