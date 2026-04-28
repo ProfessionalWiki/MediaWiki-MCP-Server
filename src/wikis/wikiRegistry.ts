@@ -1,4 +1,4 @@
-import type { WikiConfig } from '../common/config.js';
+import type { WikiConfig } from '../config/loadConfig.js';
 
 export interface WikiRegistry {
 	getAll(): Readonly<Record<string, WikiConfig>>;

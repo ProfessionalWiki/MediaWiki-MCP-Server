@@ -1,17 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock( '../../src/common/mwn.js', () => ( {
-	removeMwnInstance: vi.fn()
+const invalidateMwn = vi.hoisted( () => vi.fn() );
+
+vi.mock( '../../src/wikis/state.js', () => ( {
+	mwnProvider: {
+		invalidate: invalidateMwn
+	}
 } ) );
 
 vi.mock( '../../src/resources/index.js', () => ( {
 	removeLicenseCache: vi.fn()
 } ) );
 
-import type { WikiConfig } from '../../src/common/config.js';
-import { removeMwnInstance } from '../../src/common/mwn.js';
+import type { WikiConfig } from '../../src/config/loadConfig.js';
 import { removeLicenseCache } from '../../src/resources/index.js';
-import { formatPayload } from '../../src/common/formatPayload.js';
+import { formatPayload } from '../../src/results/format.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
@@ -65,7 +68,7 @@ describe( 'remove-wiki', () => {
 			removed: true
 		} ) );
 		expect( remove ).toHaveBeenCalledWith( 'example.org' );
-		expect( vi.mocked( removeMwnInstance ) ).toHaveBeenCalledWith( 'example.org' );
+		expect( invalidateMwn ).toHaveBeenCalledWith( 'example.org' );
 		expect( vi.mocked( removeLicenseCache ) ).toHaveBeenCalledWith( 'example.org' );
 		expect( reconcile ).toHaveBeenCalledTimes( 1 );
 	} );

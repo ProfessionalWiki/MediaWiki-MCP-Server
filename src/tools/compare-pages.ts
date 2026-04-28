@@ -4,7 +4,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
-import { inlineDiffToText } from '../common/diffFormat.js';
+import { inlineDiffToText } from '../results/diffFormat.js';
 import { truncateByBytes } from '../results/truncation.js';
 
 interface CompareResponse {

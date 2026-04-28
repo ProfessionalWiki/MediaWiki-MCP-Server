@@ -6,7 +6,7 @@ import type { ApiDeleteParams } from 'types-mediawiki-api';
 /* eslint-enable n/no-missing-import */
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
-import { formatEditComment } from '../common/utils.js';
+import { formatEditComment } from '../wikis/utils.js';
 
 const inputSchema = {
 	title: z.string().describe( 'Wiki page title' ),

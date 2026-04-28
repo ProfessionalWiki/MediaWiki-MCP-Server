@@ -6,8 +6,8 @@ import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { ApiUploadResponse } from 'mwn';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
-import { assertAllowedPath, UploadValidationError } from '../common/uploadGuard.js';
-import { formatEditComment, getPageUrl } from '../common/utils.js';
+import { assertAllowedPath, UploadValidationError } from '../transport/uploadGuard.js';
+import { formatEditComment, getPageUrl } from '../wikis/utils.js';
 
 const inputSchema = {
 	filepath: z.string().describe( 'File path on the local disk' ),

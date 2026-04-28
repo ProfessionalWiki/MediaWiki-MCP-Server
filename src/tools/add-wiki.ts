@@ -4,8 +4,8 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import type { Tool } from '../runtime/tool.js';
 import type { ManagementContext } from '../runtime/context.js';
-import { discoverWiki } from '../common/wikiDiscovery.js';
-import { SsrfValidationError } from '../common/ssrfGuard.js';
+import { discoverWiki } from '../wikis/wikiDiscovery.js';
+import { SsrfValidationError } from '../transport/ssrfGuard.js';
 import { DuplicateWikiKeyError } from '../wikis/wikiRegistry.js';
 
 const inputSchema = {

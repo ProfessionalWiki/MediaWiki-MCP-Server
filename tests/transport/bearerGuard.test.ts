@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
 	evaluateBearerGuard,
 	hasStaticCredentials
-} from '../../src/common/bearerGuard.js';
-import type { WikiConfig } from '../../src/common/config.js';
+} from '../../src/transport/bearerGuard.js';
+import type { WikiConfig } from '../../src/config/loadConfig.js';
 
 function wiki( overrides: Partial<WikiConfig> = {} ): WikiConfig {
 	return {

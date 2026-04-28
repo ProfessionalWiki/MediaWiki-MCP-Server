@@ -1,4 +1,4 @@
-import type { WikiConfig } from '../common/config.js';
+import type { WikiConfig } from '../config/loadConfig.js';
 import type { WikiRegistry } from './wikiRegistry.js';
 
 export interface WikiSelection {

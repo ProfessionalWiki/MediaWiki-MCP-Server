@@ -9,14 +9,14 @@ vi.mock( 'node-fetch', async () => {
 	};
 } );
 
-vi.mock( '../../src/common/ssrfGuard.js', () => ( {
+vi.mock( '../../src/transport/ssrfGuard.js', () => ( {
 	assertPublicDestination: vi.fn(),
 	buildPinnedAgent: vi.fn()
 } ) );
 
 import fetch from 'node-fetch';
-import { assertPublicDestination, buildPinnedAgent } from '../../src/common/ssrfGuard.js';
-import { makeApiRequest, fetchPageHtml } from '../../src/common/utils.js';
+import { assertPublicDestination, buildPinnedAgent } from '../../src/transport/ssrfGuard.js';
+import { makeApiRequest, fetchPageHtml } from '../../src/transport/httpFetch.js';
 
 describe( 'utils.fetchCore (via makeApiRequest / fetchPageHtml)', () => {
 	beforeEach( () => {

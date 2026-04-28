@@ -5,7 +5,7 @@ import type { ApiEditPageParams } from 'types-mediawiki-api';
 /* eslint-enable n/no-missing-import */
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
-import { getPageUrl, formatEditComment } from '../common/utils.js';
+import { getPageUrl, formatEditComment } from '../wikis/utils.js';
 
 const inputSchema = {
 	source: z.string().describe( 'Page content in the format specified by the contentModel parameter' ),

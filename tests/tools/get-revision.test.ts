@@ -3,7 +3,7 @@ import { createMockMwn } from '../helpers/mock-mwn.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 import { getRevision } from '../../src/tools/get-revision.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
-import { ContentFormat } from '../../src/common/contentFormat.js';
+import { ContentFormat } from '../../src/results/contentFormat.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess

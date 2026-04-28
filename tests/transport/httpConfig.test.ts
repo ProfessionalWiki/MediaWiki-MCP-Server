@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { resolveHttpConfig } from '../../src/common/httpConfig.js';
+import { resolveHttpConfig } from '../../src/transport/httpConfig.js';
 
 describe( 'resolveHttpConfig', () => {
 	afterEach( () => {

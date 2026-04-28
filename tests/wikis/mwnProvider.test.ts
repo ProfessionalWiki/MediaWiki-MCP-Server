@@ -16,14 +16,14 @@ vi.mock( 'mwn', () => ( {
 	}
 } ) );
 
-vi.mock( '../../src/common/userAgent.js', () => ( {
+vi.mock( '../../src/runtime/constants.js', () => ( {
 	USER_AGENT: 'test-agent'
 } ) );
 
 import { MwnProviderImpl } from '../../src/wikis/mwnProvider.js';
 import { WikiRegistryImpl } from '../../src/wikis/wikiRegistry.js';
 import { WikiSelectionImpl } from '../../src/wikis/wikiSelection.js';
-import type { WikiConfig } from '../../src/common/config.js';
+import type { WikiConfig } from '../../src/config/loadConfig.js';
 
 const sample = ( name: string ): WikiConfig => ( {
 	sitename: name,

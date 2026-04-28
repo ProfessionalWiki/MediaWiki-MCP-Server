@@ -5,7 +5,7 @@ import type { ApiSearchResult } from 'mwn';
 /* eslint-enable n/no-missing-import */
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
-import { getPageUrl } from '../common/utils.js';
+import { getPageUrl } from '../wikis/utils.js';
 import type { TruncationInfo } from '../results/truncation.js';
 
 const inputSchema = {

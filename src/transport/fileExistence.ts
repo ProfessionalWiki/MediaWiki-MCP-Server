@@ -1,5 +1,4 @@
-import type { ApiPage } from 'mwn';
-import { getMwn } from './mwn.js';
+import type { ApiPage, Mwn } from 'mwn';
 
 export class FileNotFoundError extends Error {
 	public constructor( public readonly title: string ) {
@@ -8,9 +7,8 @@ export class FileNotFoundError extends Error {
 	}
 }
 
-export async function assertFileExists( title: string ): Promise<void> {
+export async function assertFileExists( mwn: Mwn, title: string ): Promise<void> {
 	const fileTitle = title.startsWith( 'File:' ) ? title : `File:${ title }`;
-	const mwn = await getMwn();
 
 	const response = await mwn.request( {
 		action: 'query',

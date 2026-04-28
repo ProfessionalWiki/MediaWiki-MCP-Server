@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { WikiSelectionImpl } from '../../src/wikis/wikiSelection.js';
 import { WikiRegistryImpl } from '../../src/wikis/wikiRegistry.js';
-import type { WikiConfig } from '../../src/common/config.js';
+import type { WikiConfig } from '../../src/config/loadConfig.js';
 
 const sample = ( name: string ): WikiConfig => ( {
 	sitename: name,

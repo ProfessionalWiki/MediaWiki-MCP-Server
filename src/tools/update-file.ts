@@ -6,9 +6,9 @@ import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { ApiUploadResponse } from 'mwn';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
-import { assertAllowedPath, UploadValidationError } from '../common/uploadGuard.js';
-import { assertFileExists, FileNotFoundError } from '../common/fileExistence.js';
-import { formatEditComment, getPageUrl } from '../common/utils.js';
+import { assertAllowedPath, UploadValidationError } from '../transport/uploadGuard.js';
+import { assertFileExists, FileNotFoundError } from '../transport/fileExistence.js';
+import { formatEditComment, getPageUrl } from '../wikis/utils.js';
 
 const inputSchema = {
 	filepath: z.string().describe( 'File path on the local disk' ),
@@ -42,8 +42,9 @@ export const updateFile: Tool<typeof inputSchema> = {
 			throw error;
 		}
 
+		const mwn = await ctx.mwn();
 		try {
-			await assertFileExists( title );
+			await assertFileExists( mwn, title );
 		} catch ( error ) {
 			if ( error instanceof FileNotFoundError ) {
 				return ctx.format.notFound(
@@ -53,7 +54,6 @@ export const updateFile: Tool<typeof inputSchema> = {
 			throw error;
 		}
 
-		const mwn = await ctx.mwn();
 		const params: ApiUploadParams = {
 			comment: formatEditComment( 'update-file', comment ),
 			ignorewarnings: true

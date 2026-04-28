@@ -1,6 +1,5 @@
 import fetch, { Response } from 'node-fetch';
-import { USER_AGENT } from '../server.js';
-import { wikiService } from './wikiService.js';
+import { USER_AGENT } from '../runtime/constants.js';
 import { assertPublicDestination, buildPinnedAgent } from './ssrfGuard.js';
 
 const MAX_REDIRECTS = 5;
@@ -91,21 +90,4 @@ export async function fetchPageHtml( url: string ): Promise<string | null> {
 	} catch {
 		return null;
 	}
-}
-
-export function getPageUrl( title: string ): string {
-	const { server, articlepath } = wikiService.getCurrent().config;
-	// MediaWiki convention: spaces become underscores. encodeURI preserves
-	// '/' (subpages) and ':' (namespace prefixes) while encoding spaces and
-	// non-ASCII characters. Characters disallowed in MW titles ('#', '?',
-	// '|', '[', ']', etc.) cannot reach this function via a real page title.
-	return `${ server }${ articlepath }/${ encodeURI( title.replace( / /g, '_' ) ) }`;
-}
-
-export function formatEditComment( tool: string, comment?: string ): string {
-	const suffix = `(via ${ tool } on MediaWiki MCP Server)`;
-	if ( !comment ) {
-		return `Automated edit ${ suffix }`;
-	}
-	return `${ comment } ${ suffix }`;
 }

@@ -3,9 +3,9 @@ import { createMockMwn } from '../helpers/mock-mwn.js';
 import { createMockMwnError } from '../helpers/mock-mwn-error.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 
-vi.mock( '../../src/common/uploadGuard.js', async () => {
-	const actual = await vi.importActual<typeof import( '../../src/common/uploadGuard.js' )>(
-		'../../src/common/uploadGuard.js'
+vi.mock( '../../src/transport/uploadGuard.js', async () => {
+	const actual = await vi.importActual<typeof import( '../../src/transport/uploadGuard.js' )>(
+		'../../src/transport/uploadGuard.js'
 	);
 	return {
 		...actual,
@@ -13,7 +13,7 @@ vi.mock( '../../src/common/uploadGuard.js', async () => {
 	};
 } );
 
-import { assertAllowedPath, UploadValidationError } from '../../src/common/uploadGuard.js';
+import { assertAllowedPath, UploadValidationError } from '../../src/transport/uploadGuard.js';
 import { uploadFile } from '../../src/tools/upload-file.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
 import {

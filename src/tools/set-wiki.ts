@@ -4,7 +4,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import type { Tool } from '../runtime/tool.js';
 import type { ManagementContext } from '../runtime/context.js';
-import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../common/wikiResource.js';
+import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../wikis/wikiResource.js';
 
 const inputSchema = {
 	uri: z.string().describe( 'MCP resource URI of the wiki to use (e.g. mcp://wikis/en.wikipedia.org)' )

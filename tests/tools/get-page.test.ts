@@ -3,7 +3,7 @@ import { createMockMwn } from '../helpers/mock-mwn.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 import { getPage } from '../../src/tools/get-page.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
-import { ContentFormat } from '../../src/common/contentFormat.js';
+import { ContentFormat } from '../../src/results/contentFormat.js';
 import { SectionServiceImpl } from '../../src/services/sectionService.js';
 import {
 	assertStructuredError,

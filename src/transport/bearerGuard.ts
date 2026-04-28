@@ -1,4 +1,4 @@
-import type { WikiConfig } from './config.js';
+import type { WikiConfig } from '../config/loadConfig.js';
 
 export interface BearerGuardEnv {
 	MCP_ALLOW_STATIC_FALLBACK?: string;

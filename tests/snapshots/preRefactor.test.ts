@@ -3,47 +3,47 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 import { createMockMwnError } from '../helpers/mock-mwn-error.js';
 
-// Mocks for the common modules.
-// These are hoisted by vi.mock so they apply before any source import below.
+// Mocks for the wiki state singletons used by leaf helpers (getPageUrl reads
+// wikiSelection.getCurrent() to format article URLs). Per-tool tests construct
+// ctx directly via fakeContext, so handler-internal calls go through ctx; only
+// state-singleton consumers need module-level mocking.
 
-vi.mock( '../../src/common/mwn.js', () => ( {
-	getMwn: vi.fn(),
-	removeMwnInstance: vi.fn()
+vi.mock( '../../src/wikis/state.js', () => ( {
+	wikiSelection: {
+		getCurrent: () => ( {
+			key: 'test-wiki',
+			config: {
+				sitename: 'Test',
+				server: 'https://test.wiki',
+				articlepath: '/wiki',
+				scriptpath: '/w',
+				tags: null
+			}
+		} ),
+		setCurrent: vi.fn(),
+		reset: vi.fn()
+	},
+	wikiRegistry: {
+		getAll: () => ( {} ),
+		get: vi.fn(),
+		add: vi.fn(),
+		remove: vi.fn(),
+		isManagementAllowed: () => true
+	},
+	uploadDirs: { list: () => [ '/home/user/uploads' ] },
+	mwnProvider: {
+		get: vi.fn(),
+		invalidate: vi.fn()
+	}
 } ) );
 
-vi.mock( '../../src/common/wikiService.js', async () => {
-	const actual = await vi.importActual<typeof import( '../../src/common/wikiService.js' )>(
-		'../../src/common/wikiService.js'
-	);
-	return {
-		...actual,
-		wikiService: {
-			getCurrent: vi.fn().mockReturnValue( {
-				key: 'test-wiki',
-				config: {
-					sitename: 'Test',
-					server: 'https://test.wiki',
-					articlepath: '/wiki',
-					scriptpath: '/w',
-					tags: null
-				}
-			} ),
-			get: vi.fn(),
-			add: vi.fn(),
-			remove: vi.fn(),
-			setCurrent: vi.fn(),
-			getUploadDirs: vi.fn().mockReturnValue( [ '/home/user/uploads' ] )
-		}
-	};
-} );
-
-vi.mock( '../../src/common/wikiDiscovery.js', () => ( {
+vi.mock( '../../src/wikis/wikiDiscovery.js', () => ( {
 	discoverWiki: vi.fn()
 } ) );
 
-vi.mock( '../../src/common/uploadGuard.js', async () => {
-	const actual = await vi.importActual<typeof import( '../../src/common/uploadGuard.js' )>(
-		'../../src/common/uploadGuard.js'
+vi.mock( '../../src/transport/uploadGuard.js', async () => {
+	const actual = await vi.importActual<typeof import( '../../src/transport/uploadGuard.js' )>(
+		'../../src/transport/uploadGuard.js'
 	);
 	return {
 		...actual,
@@ -51,9 +51,9 @@ vi.mock( '../../src/common/uploadGuard.js', async () => {
 	};
 } );
 
-vi.mock( '../../src/common/fileExistence.js', async () => {
-	const actual = await vi.importActual<typeof import( '../../src/common/fileExistence.js' )>(
-		'../../src/common/fileExistence.js'
+vi.mock( '../../src/transport/fileExistence.js', async () => {
+	const actual = await vi.importActual<typeof import( '../../src/transport/fileExistence.js' )>(
+		'../../src/transport/fileExistence.js'
 	);
 	return {
 		...actual,
@@ -65,35 +65,15 @@ vi.mock( '../../src/resources/index.js', () => ( {
 	removeLicenseCache: vi.fn()
 } ) );
 
-import { getMwn } from '../../src/common/mwn.js';
-import { wikiService } from '../../src/common/wikiService.js';
-import { discoverWiki } from '../../src/common/wikiDiscovery.js';
-import { assertAllowedPath } from '../../src/common/uploadGuard.js';
-import { assertFileExists } from '../../src/common/fileExistence.js';
+import { discoverWiki } from '../../src/wikis/wikiDiscovery.js';
+import { assertAllowedPath } from '../../src/transport/uploadGuard.js';
+import { assertFileExists } from '../../src/transport/fileExistence.js';
 import { fakeContext, fakeManagementContext } from '../helpers/fakeContext.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
-
-type Mwn = Awaited<ReturnType<typeof getMwn>>;
-
-function setMwn( overrides: Parameters<typeof createMockMwn>[ 0 ] = {} ): void {
-	vi.mocked( getMwn ).mockResolvedValue( createMockMwn( overrides ) as unknown as Mwn );
-}
 
 describe( 'pre-refactor MCP response snapshots', () => {
 	beforeEach( () => {
 		vi.clearAllMocks();
-		// Reset wikiService defaults that some tests mutate.
-		vi.mocked( wikiService.getCurrent ).mockReturnValue( {
-			key: 'test-wiki',
-			config: {
-				sitename: 'Test',
-				server: 'https://test.wiki',
-				articlepath: '/wiki',
-				scriptpath: '/w',
-				tags: null
-			}
-		} as ReturnType<typeof wikiService.getCurrent> );
-		vi.mocked( wikiService.getUploadDirs ).mockReturnValue( [ '/home/user/uploads' ] );
 	} );
 
 	// ------------------------------------------------------------------

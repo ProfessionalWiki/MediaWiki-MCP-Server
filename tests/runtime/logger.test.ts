@@ -12,7 +12,7 @@ import {
 	unregisterServer,
 	type LogContext,
 	type LogLevel
-} from '../../src/common/logger.js';
+} from '../../src/runtime/logger.js';
 
 interface FakeServer {
 	sendLoggingMessage: ReturnType<typeof vi.fn>;

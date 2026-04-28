@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 
-vi.mock( '../../src/common/uploadGuard.js', async () => {
-	const actual = await vi.importActual<typeof import( '../../src/common/uploadGuard.js' )>(
-		'../../src/common/uploadGuard.js'
+vi.mock( '../../src/transport/uploadGuard.js', async () => {
+	const actual = await vi.importActual<typeof import( '../../src/transport/uploadGuard.js' )>(
+		'../../src/transport/uploadGuard.js'
 	);
 	return {
 		...actual,
@@ -12,9 +12,9 @@ vi.mock( '../../src/common/uploadGuard.js', async () => {
 	};
 } );
 
-vi.mock( '../../src/common/fileExistence.js', async () => {
-	const actual = await vi.importActual<typeof import( '../../src/common/fileExistence.js' )>(
-		'../../src/common/fileExistence.js'
+vi.mock( '../../src/transport/fileExistence.js', async () => {
+	const actual = await vi.importActual<typeof import( '../../src/transport/fileExistence.js' )>(
+		'../../src/transport/fileExistence.js'
 	);
 	return {
 		...actual,
@@ -22,8 +22,8 @@ vi.mock( '../../src/common/fileExistence.js', async () => {
 	};
 } );
 
-import { assertAllowedPath, UploadValidationError } from '../../src/common/uploadGuard.js';
-import { assertFileExists, FileNotFoundError } from '../../src/common/fileExistence.js';
+import { assertAllowedPath, UploadValidationError } from '../../src/transport/uploadGuard.js';
+import { assertFileExists, FileNotFoundError } from '../../src/transport/fileExistence.js';
 import { updateFile } from '../../src/tools/update-file.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
 import {

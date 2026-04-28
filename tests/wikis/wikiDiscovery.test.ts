@@ -1,17 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock( '../../src/common/utils.js', () => ( {
+vi.mock( '../../src/transport/httpFetch.js', () => ( {
 	makeApiRequest: vi.fn(),
 	fetchPageHtml: vi.fn()
 } ) );
 
-vi.mock( '../../src/common/ssrfGuard.js', () => ( {
+vi.mock( '../../src/transport/ssrfGuard.js', () => ( {
 	assertPublicDestination: vi.fn()
 } ) );
 
-import { makeApiRequest } from '../../src/common/utils.js';
-import { assertPublicDestination } from '../../src/common/ssrfGuard.js';
-import { discoverWiki } from '../../src/common/wikiDiscovery.js';
+import { makeApiRequest } from '../../src/transport/httpFetch.js';
+import { assertPublicDestination } from '../../src/transport/ssrfGuard.js';
+import { discoverWiki } from '../../src/wikis/wikiDiscovery.js';
 
 describe( 'discoverWiki', () => {
 	beforeEach( () => {

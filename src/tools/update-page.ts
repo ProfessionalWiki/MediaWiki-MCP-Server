@@ -4,7 +4,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
-import { getPageUrl, formatEditComment } from '../common/utils.js';
+import { getPageUrl, formatEditComment } from '../wikis/utils.js';
 
 interface ApiEditResponse {
 	result?: string;

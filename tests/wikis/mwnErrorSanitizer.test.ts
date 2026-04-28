@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { redactAuthorizationHeader, wrapMwnErrors } from '../../src/common/mwnErrorSanitizer.js';
+import { redactAuthorizationHeader, wrapMwnErrors } from '../../src/wikis/mwnErrorSanitizer.js';
 
 describe( 'redactAuthorizationHeader', () => {
 	it( 'redacts Authorization on .request.headers but preserves other fields', () => {

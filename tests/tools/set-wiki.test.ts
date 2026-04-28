@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import type { WikiConfig } from '../../src/common/config.js';
-import { formatPayload } from '../../src/common/formatPayload.js';
+import type { WikiConfig } from '../../src/config/loadConfig.js';
+import { formatPayload } from '../../src/results/format.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess

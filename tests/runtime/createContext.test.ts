@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createToolContext } from '../../src/runtime/createContext.js';
-import { logger } from '../../src/common/logger.js';
+import { logger } from '../../src/runtime/logger.js';
 
 describe( 'createToolContext', () => {
 	it( 'populates all 10 ToolContext fields', () => {

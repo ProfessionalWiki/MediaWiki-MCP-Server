@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runtimeTokenStore, getRuntimeToken } from '../../src/common/requestContext.js';
+import { runtimeTokenStore, getRuntimeToken } from '../../src/transport/requestContext.js';
 
 describe( 'requestContext', () => {
 

@@ -1,11 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
-
-vi.mock( '../../src/common/mwn.js', () => ( {
-	getMwn: vi.fn()
-} ) );
-
-import { getMwn } from '../../src/common/mwn.js';
+import { assertFileExists, FileNotFoundError } from '../../src/transport/fileExistence.js';
 
 describe( 'assertFileExists', () => {
 	beforeEach( () => {
@@ -21,10 +16,8 @@ describe( 'assertFileExists', () => {
 				} ] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
-		const { assertFileExists } = await import( '../../src/common/fileExistence.js' );
-		await expect( assertFileExists( 'Cat.jpg' ) ).resolves.toBeUndefined();
+		await expect( assertFileExists( mock as never, 'Cat.jpg' ) ).resolves.toBeUndefined();
 	} );
 
 	it( 'prefixes File: when the title lacks it', async () => {
@@ -36,10 +29,8 @@ describe( 'assertFileExists', () => {
 				} ] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
-		const { assertFileExists } = await import( '../../src/common/fileExistence.js' );
-		await assertFileExists( 'Cat.jpg' );
+		await assertFileExists( mock as never, 'Cat.jpg' );
 
 		expect( mock.request ).toHaveBeenCalledWith( {
 			action: 'query',
@@ -59,10 +50,8 @@ describe( 'assertFileExists', () => {
 				} ] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
-		const { assertFileExists } = await import( '../../src/common/fileExistence.js' );
-		await assertFileExists( 'File:Cat.jpg' );
+		await assertFileExists( mock as never, 'File:Cat.jpg' );
 
 		expect( ( mock.request.mock.calls[ 0 ][ 0 ] as { titles: string } ).titles ).toBe(
 			'File:Cat.jpg'
@@ -75,13 +64,9 @@ describe( 'assertFileExists', () => {
 				query: { pages: [ { title: 'File:Missing.jpg', missing: true } ] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
-		const { assertFileExists, FileNotFoundError } = await import(
-			'../../src/common/fileExistence.js'
-		);
-		await expect( assertFileExists( 'Missing.jpg' ) ).rejects.toThrow( FileNotFoundError );
-		await expect( assertFileExists( 'Missing.jpg' ) ).rejects.toThrow( /Missing\.jpg/ );
+		await expect( assertFileExists( mock as never, 'Missing.jpg' ) ).rejects.toThrow( FileNotFoundError );
+		await expect( assertFileExists( mock as never, 'Missing.jpg' ) ).rejects.toThrow( /Missing\.jpg/ );
 	} );
 
 	it( 'throws FileNotFoundError when the page exists but has no imageinfo', async () => {
@@ -90,21 +75,15 @@ describe( 'assertFileExists', () => {
 				query: { pages: [ { title: 'File:Empty.jpg' } ] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
-		const { assertFileExists, FileNotFoundError } = await import(
-			'../../src/common/fileExistence.js'
-		);
-		await expect( assertFileExists( 'Empty.jpg' ) ).rejects.toThrow( FileNotFoundError );
+		await expect( assertFileExists( mock as never, 'Empty.jpg' ) ).rejects.toThrow( FileNotFoundError );
 	} );
 
 	it( 're-throws non-missing errors from mwn.request', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockRejectedValue( new Error( 'Connection refused' ) )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
 
-		const { assertFileExists } = await import( '../../src/common/fileExistence.js' );
-		await expect( assertFileExists( 'Cat.jpg' ) ).rejects.toThrow( 'Connection refused' );
+		await expect( assertFileExists( mock as never, 'Cat.jpg' ) ).rejects.toThrow( 'Connection refused' );
 	} );
 } );

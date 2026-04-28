@@ -1,8 +1,30 @@
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock( '../../src/common/wikiService.js', () => ( {
-	wikiService: {
-		getAll: () => ( {} )
+vi.mock( '../../src/wikis/state.js', () => ( {
+	wikiRegistry: {
+		getAll: () => ( {} ),
+		get: () => undefined,
+		add: () => {},
+		remove: () => {},
+		isManagementAllowed: () => true
+	},
+	wikiSelection: {
+		getCurrent: () => ( {
+			key: 'test',
+			config: {
+				sitename: 'Test',
+				server: 'https://test.example',
+				articlepath: '/wiki',
+				scriptpath: '/w'
+			}
+		} ),
+		setCurrent: () => {},
+		reset: () => {}
+	},
+	uploadDirs: { list: () => [] },
+	mwnProvider: {
+		get: () => Promise.reject( new Error( 'mwn not available in tests' ) ),
+		invalidate: () => {}
 	}
 } ) );
 
@@ -19,7 +41,7 @@ import {
 	resolveMcpHostValidation,
 	type SessionRegistry,
 	verifySessionBearer
-} from '../../src/streamableHttp.js';
+} from '../../src/transport/streamableHttp.js';
 
 function req( authorization: string | undefined ): Request {
 	return { headers: { authorization } } as unknown as Request;

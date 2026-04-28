@@ -6,7 +6,7 @@ import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { ApiUploadResponse } from 'mwn';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
-import { formatEditComment, getPageUrl } from '../common/utils.js';
+import { formatEditComment, getPageUrl } from '../wikis/utils.js';
 
 const inputSchema = {
 	url: z.string().url().describe( 'URL of the file to upload' ),

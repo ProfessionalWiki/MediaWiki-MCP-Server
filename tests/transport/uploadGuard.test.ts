@@ -5,7 +5,7 @@ vi.mock( 'node:fs/promises', () => ( {
 } ) );
 
 import { realpath } from 'node:fs/promises';
-import { assertAllowedPath } from '../../src/common/uploadGuard.js';
+import { assertAllowedPath } from '../../src/transport/uploadGuard.js';
 
 describe( 'uploadGuard.assertAllowedPath', () => {
 	beforeEach( () => {

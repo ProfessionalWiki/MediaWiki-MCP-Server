@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock( '../../src/common/wikiDiscovery.js', () => ( {
+vi.mock( '../../src/wikis/wikiDiscovery.js', () => ( {
 	discoverWiki: vi.fn()
 } ) );
 
-import { discoverWiki } from '../../src/common/wikiDiscovery.js';
-import { SsrfValidationError } from '../../src/common/ssrfGuard.js';
+import { discoverWiki } from '../../src/wikis/wikiDiscovery.js';
+import { SsrfValidationError } from '../../src/transport/ssrfGuard.js';
 import { DuplicateWikiKeyError } from '../../src/wikis/wikiRegistry.js';
-import { formatPayload } from '../../src/common/formatPayload.js';
+import { formatPayload } from '../../src/results/format.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess

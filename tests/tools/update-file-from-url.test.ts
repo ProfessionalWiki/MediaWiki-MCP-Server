@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 
-vi.mock( '../../src/common/fileExistence.js', async () => {
-	const actual = await vi.importActual<typeof import( '../../src/common/fileExistence.js' )>(
-		'../../src/common/fileExistence.js'
+vi.mock( '../../src/transport/fileExistence.js', async () => {
+	const actual = await vi.importActual<typeof import( '../../src/transport/fileExistence.js' )>(
+		'../../src/transport/fileExistence.js'
 	);
 	return {
 		...actual,
@@ -12,7 +12,7 @@ vi.mock( '../../src/common/fileExistence.js', async () => {
 	};
 } );
 
-import { assertFileExists, FileNotFoundError } from '../../src/common/fileExistence.js';
+import { assertFileExists, FileNotFoundError } from '../../src/transport/fileExistence.js';
 import { updateFileFromUrl } from '../../src/tools/update-file-from-url.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
 import {

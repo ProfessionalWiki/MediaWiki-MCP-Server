@@ -6,8 +6,8 @@ import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { ApiUploadResponse } from 'mwn';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
-import { assertFileExists, FileNotFoundError } from '../common/fileExistence.js';
-import { formatEditComment, getPageUrl } from '../common/utils.js';
+import { assertFileExists, FileNotFoundError } from '../transport/fileExistence.js';
+import { formatEditComment, getPageUrl } from '../wikis/utils.js';
 
 const inputSchema = {
 	url: z.string().url().describe( 'URL of the file to upload' ),
@@ -31,8 +31,9 @@ export const updateFileFromUrl: Tool<typeof inputSchema> = {
 		{ url, title, comment },
 		ctx: ToolContext
 	): Promise<CallToolResult> {
+		const mwn = await ctx.mwn();
 		try {
-			await assertFileExists( title );
+			await assertFileExists( mwn, title );
 		} catch ( error ) {
 			if ( error instanceof FileNotFoundError ) {
 				return ctx.format.notFound(
@@ -42,7 +43,6 @@ export const updateFileFromUrl: Tool<typeof inputSchema> = {
 			throw error;
 		}
 
-		const mwn = await ctx.mwn();
 		const baseParams: ApiUploadParams = {
 			comment: formatEditComment( 'update-file-from-url', comment ),
 			ignorewarnings: true

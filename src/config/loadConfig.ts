@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
-import { logger } from './logger.js';
+import { logger } from '../runtime/logger.js';
 
 export interface WikiConfig {
 	/**

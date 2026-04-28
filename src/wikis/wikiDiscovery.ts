@@ -1,6 +1,6 @@
-import { makeApiRequest, fetchPageHtml } from './utils.js';
-import { assertPublicDestination } from './ssrfGuard.js';
-import { logger } from './logger.js';
+import { makeApiRequest, fetchPageHtml } from '../transport/httpFetch.js';
+import { assertPublicDestination } from '../transport/ssrfGuard.js';
+import { logger } from '../runtime/logger.js';
 
 const COMMON_SCRIPT_PATHS = [ '/w', '' ];
 

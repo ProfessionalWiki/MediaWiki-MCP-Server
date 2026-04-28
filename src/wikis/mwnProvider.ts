@@ -1,7 +1,7 @@
 import { Mwn, type MwnOptions } from 'mwn';
-import { USER_AGENT } from '../common/userAgent.js';
-import type { WikiConfig } from '../common/config.js';
-import { redactAuthorizationHeader, wrapMwnErrors } from '../common/mwnErrorSanitizer.js';
+import { USER_AGENT } from '../runtime/constants.js';
+import type { WikiConfig } from '../config/loadConfig.js';
+import { redactAuthorizationHeader, wrapMwnErrors } from './mwnErrorSanitizer.js';
 import type { WikiRegistry } from './wikiRegistry.js';
 import type { WikiSelection } from './wikiSelection.js';
 
@@ -36,7 +36,7 @@ export class MwnProviderImpl implements MwnProvider {
 		return this.getInstance( key, config );
 	}
 
-	public async getInstance( key: string, config: Readonly<WikiConfig> ): Promise<Mwn> {
+	private async getInstance( key: string, config: Readonly<WikiConfig> ): Promise<Mwn> {
 		const runtimeToken = this.getRuntimeToken();
 		if ( runtimeToken ) {
 			return this.create( config, runtimeToken );

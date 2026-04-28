@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { inlineDiffToText } from '../../src/common/diffFormat.js';
+import { inlineDiffToText } from '../../src/results/diffFormat.js';
 
 describe( 'inlineDiffToText', () => {
 	it( 'returns empty string for empty input', () => {

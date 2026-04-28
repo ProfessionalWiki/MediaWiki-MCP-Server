@@ -1,4 +1,4 @@
-import { WIKI_RESOURCE_URI_PREFIX } from './constants.js';
+import { WIKI_RESOURCE_URI_PREFIX } from '../runtime/constants.js';
 
 export interface ParsedWikiUri {
 	wikiKey: string;

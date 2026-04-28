@@ -5,8 +5,8 @@ import type { ApiPage, ApiRevision } from 'mwn';
 /* eslint-enable n/no-missing-import */
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
-import { getPageUrl } from '../common/utils.js';
-import { ContentFormat } from '../common/contentFormat.js';
+import { getPageUrl } from '../wikis/utils.js';
+import { ContentFormat } from '../results/contentFormat.js';
 
 const inputSchema = {
 	revisionId: z.number().int().positive().describe( 'Revision ID' ),

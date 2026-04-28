@@ -2,16 +2,11 @@
 import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 /* eslint-enable n/no-missing-import */
 import { createRequire } from 'node:module';
-import { registerServer, unregisterServer } from './common/logger.js';
+import { registerServer, unregisterServer } from './runtime/logger.js';
 import { registerAllTools } from './tools/index.js';
 import { registerAllResources } from './resources/index.js';
 import { reconcileTools } from './runtime/reconcile.js';
 import type { ToolContext } from './runtime/context.js';
-
-// USER_AGENT lives in a leaf module so wiki/mwn code can import it without
-// transitively pulling in tools/* (which would create a wikiService ↔ tools
-// import cycle through state.ts).
-export { USER_AGENT } from './common/userAgent.js';
 
 // https://github.com/nodejs/node/issues/51347#issuecomment-2111337854
 const serverInfo = createRequire( import.meta.url )( '../server.json' ) as {
@@ -76,7 +71,7 @@ export const createServer = ( ctx: ToolContext ): McpServer => {
 	for ( const [ name, tool ] of registered ) {
 		tools.set( name, tool );
 	}
-	registerAllResources( server );
+	registerAllResources( server, ctx );
 
 	reconcile();
 
