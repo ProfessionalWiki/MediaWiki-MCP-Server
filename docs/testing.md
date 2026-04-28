@@ -6,23 +6,35 @@ Reference for unit tests, integration testing against a real wiki, and the local
 
 ## Unit tests
 
-Tests use [Vitest](https://vitest.dev/) with mocked `mwn`. Tool handler functions (`handleXxxTool`) must be exported from their `src/tools/<name>.ts` file so tests can import them.
+Tests use [Vitest](https://vitest.dev/). Each tool exports a `Tool<TSchema>` descriptor from `src/tools/<name>.ts`; tests import the descriptor and route through `dispatch( descriptor, ctx )` from `src/runtime/dispatcher.js`.
 
-Each test file mocks `getMwn` and `wikiService` **before** any imports that depend on them:
+Build a `ToolContext` per test via `fakeContext()` from `tests/helpers/fakeContext.ts`. Override only the slices the test exercises — by default unstubbed methods throw, so tests fail loudly when they reach for something they didn't mean to:
 
 ```typescript
-vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
-vi.mock( '../../src/common/wikiService.js', () => ( {
-	wikiService: {
-		getCurrent: vi.fn().mockReturnValue( {
-			key: 'test-wiki',
-			config: { server: 'https://test.wiki', articlepath: '/wiki', scriptpath: '/w' }
-		} )
-	}
-} ) );
+import { describe, it, expect, vi } from 'vitest';
+import { fakeContext } from '../helpers/fakeContext.js';
+import { createMockMwn } from '../helpers/mock-mwn.js';
+import { dispatch } from '../../src/runtime/dispatcher.js';
+import { getPage } from '../../src/tools/get-page.js';
+
+it( 'returns page source', async () => {
+	const mwn = createMockMwn( { read: vi.fn().mockResolvedValue( /* … */ ) } );
+	const ctx = fakeContext( { mwn: async () => mwn as never } );
+	const result = await getPage.handle( { title: 'Foo' /* … */ }, ctx );
+	// assertions
+} );
+
+it( 'maps missingtitle to not_found via the dispatcher', async () => {
+	const mwn = createMockMwn( { read: vi.fn().mockRejectedValue( /* … */ ) } );
+	const ctx = fakeContext( { mwn: async () => mwn as never } );
+	const result = await dispatch( getPage, ctx )( { title: 'Missing' } );
+	// assertions
+} );
 ```
 
-Use `createMockMwn()` from `tests/helpers/mock-mwn.ts` to create mock `mwn` instances with method overrides. See existing test files under `tests/` for the full pattern.
+Happy-path tests typically call `descriptor.handle( args, ctx )` directly. Error-classification tests go through `dispatch( descriptor, ctx )` so the dispatcher's classification + special-case + format.error pipeline runs end-to-end.
+
+Use `createMockMwn()` from `tests/helpers/mock-mwn.ts` to create mock `mwn` instances with method overrides. See existing test files under `tests/tools/` for the full pattern.
 
 Run:
 
