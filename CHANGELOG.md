@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - Optional `GET /metrics` Prometheus endpoint on the HTTP transport, enabled with `MCP_METRICS=true`. Exposes tool-call counters, duration histograms, upstream status totals, active sessions, and readiness-probe failures.
 - `SIGTERM` and `SIGINT` now drain in-flight `/mcp` calls and close active StreamableHTTP sessions before exit, with a structured `event: "shutdown"` / `event: "shutdown_complete"` pair on stderr. Configurable via `MCP_SHUTDOWN_GRACE_MS` (default `10000`). Stdio transport closes its single transport on the same signals.
+- `MCP_MAX_REQUEST_BODY` env var (default `1mb`) caps HTTP request body size on the StreamableHTTP transport. Replaces body-parser's silent 100 kB default that was rejecting long-form wikitext edits. The resolved value appears in the startup banner; oversize requests return a JSON-RPC 413 instead of an HTML error page.
 
 ## [0.8.0] - 2026-04-28
 
