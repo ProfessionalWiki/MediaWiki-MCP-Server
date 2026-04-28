@@ -41,6 +41,15 @@ A PR that adds, removes, or renames a tool — or that materially changes a tool
 
 Pure-internal refactors that don't change tool surface or behaviour don't need either.
 
+## Adding or changing environment variables
+
+A PR that adds, removes, or renames an env var read by the server — or that changes its default or accepted values — must also update:
+
+- **`README.md`** — the environment-variable table.
+- **`server.json`** — the `environmentVariables` array in **both** the `mcpb` and `npm` package blocks.
+- **`CHANGELOG.md`** — an entry under `## [Unreleased]` if the change is user-visible.
+- **`Dockerfile`** — only if the var needs a default baked into the docker image.
+
 ## Testing
 
 Tool tests build a `ToolContext` via `fakeContext()` from `tests/helpers/fakeContext.ts` and dispatch through `dispatch( descriptor, ctx )`. Provide an `mwn` factory (typically `createMockMwn()` from `tests/helpers/mock-mwn.ts`) and override only the slices the test exercises. See [docs/testing.md](docs/testing.md) for the full pattern, MCP Inspector CLI examples, and the bot-password setup required to exercise authenticated tools against a local wiki.

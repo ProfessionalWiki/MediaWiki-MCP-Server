@@ -24,6 +24,16 @@
           "format": "filepath"
         },
         {
+          "name": "MCP_ALLOW_STATIC_FALLBACK",
+          "description": "Set to 'true' to allow HTTP startup when config.json has static credentials. Otherwise the server refuses to start, preventing silent shared-identity fallback for unauthenticated requests."
+        },
+        {
+          "name": "MCP_CONTENT_MAX_BYTES",
+          "description": "Byte cap for content bodies (wikitext, rendered HTML, diffs) returned by get-page, get-pages, parse-wikitext, and compare-pages. Oversized bodies are truncated with a trailing marker.",
+          "format": "number",
+          "default": "50000"
+        },
+        {
           "name": "MCP_TRANSPORT",
           "description": "Type of MCP server transport",
           "choices": [
@@ -44,6 +54,7 @@
       "registryType": "npm",
       "identifier": "@professional-wiki/mediawiki-mcp-server",
       "version": "0.7.0",
+      "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
       },
@@ -53,6 +64,16 @@
           "description": "Path to your configuration file",
           "default": "config.json",
           "format": "filepath"
+        },
+        {
+          "name": "MCP_ALLOW_STATIC_FALLBACK",
+          "description": "Set to 'true' to allow HTTP startup when config.json has static credentials. Otherwise the server refuses to start, preventing silent shared-identity fallback for unauthenticated requests."
+        },
+        {
+          "name": "MCP_CONTENT_MAX_BYTES",
+          "description": "Byte cap for content bodies (wikitext, rendered HTML, diffs) returned by get-page, get-pages, parse-wikitext, and compare-pages. Oversized bodies are truncated with a trailing marker.",
+          "format": "number",
+          "default": "50000"
         },
         {
           "name": "MCP_TRANSPORT",
