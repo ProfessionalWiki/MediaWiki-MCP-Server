@@ -7,6 +7,7 @@ import { logger } from '../runtime/logger.js';
 import { createServer } from '../server.js';
 import { emitStartupBanner } from '../runtime/banner.js';
 import { createToolContext } from '../runtime/createContext.js';
+import { registerShutdownHandlers, resolveShutdownGrace } from '../runtime/shutdown.js';
 
 async function main(): Promise<void> {
 	emitStartupBanner( { transport: 'stdio' } );
@@ -15,6 +16,11 @@ async function main(): Promise<void> {
 	const server = createServer( ctx );
 
 	await server.connect( transport );
+	registerShutdownHandlers( {
+		transport: 'stdio',
+		graceMs: resolveShutdownGrace( process.env ),
+		stdioTransport: transport
+	} );
 }
 
 main().catch( ( error ) => {
