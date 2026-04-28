@@ -1,0 +1,8 @@
+# Production build context — keep in sync with .mcpbignore and "files" in package.json.
+# This is an allow-list: anything not !-prefixed is excluded from the build context.
+/*
+!/src
+!/package.json
+!/package-lock.json
+!/tsconfig.json
+!/server.json
