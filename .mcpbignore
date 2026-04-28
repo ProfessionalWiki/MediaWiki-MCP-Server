@@ -1,0 +1,11 @@
+# Whitelist: only ship runtime, metadata, README, LICENSE.
+# Mirrors the npm tarball contents (`files` in package.json plus npm's
+# auto-included README and LICENSE).
+/*
+!/dist
+!/node_modules
+!/server.json
+!/package.json
+!/manifest.json
+!/README.md
+!/LICENSE
