@@ -50,5 +50,5 @@ export function fakeContext( overrides: Partial<ToolContext> = {} ): ToolContext
 export function fakeManagementContext(
 	overrides: Partial<ManagementContext> = {}
 ): ManagementContext {
-	return { ...fakeContext( overrides ), reconcile: vi.fn() };
+	return { ...fakeContext( overrides ), reconcile: vi.fn(), ...overrides };
 }

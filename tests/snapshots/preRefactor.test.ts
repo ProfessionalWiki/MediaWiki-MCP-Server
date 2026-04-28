@@ -70,7 +70,7 @@ import { wikiService } from '../../src/common/wikiService.js';
 import { discoverWiki } from '../../src/common/wikiDiscovery.js';
 import { assertAllowedPath } from '../../src/common/uploadGuard.js';
 import { assertFileExists } from '../../src/common/fileExistence.js';
-import { fakeContext } from '../helpers/fakeContext.js';
+import { fakeContext, fakeManagementContext } from '../helpers/fakeContext.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
 
 type Mwn = Awaited<ReturnType<typeof getMwn>>;
@@ -78,10 +78,6 @@ type Mwn = Awaited<ReturnType<typeof getMwn>>;
 function setMwn( overrides: Parameters<typeof createMockMwn>[ 0 ] = {} ): void {
 	vi.mocked( getMwn ).mockResolvedValue( createMockMwn( overrides ) as unknown as Mwn );
 }
-
-const fakeMcpServer = { sendResourceListChanged: vi.fn() } as unknown as Parameters<
-	typeof import( '../../src/tools/add-wiki.js' )[ 'handleAddWikiTool' ]
->[ 0 ];
 
 describe( 'pre-refactor MCP response snapshots', () => {
 	beforeEach( () => {
@@ -984,28 +980,27 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			articlepath: '/wiki',
 			scriptpath: '/w'
 		} );
-		vi.mocked( wikiService.add ).mockImplementation( () => {} );
 
-		const { handleAddWikiTool } = await import( '../../src/tools/add-wiki.js' );
-		const reconcile = vi.fn();
-		const result = await handleAddWikiTool(
-			fakeMcpServer,
-			reconcile,
-			'https://example.org/'
-		);
+		const { addWiki } = await import( '../../src/tools/add-wiki.js' );
+		const ctx = fakeManagementContext( {
+			wikis: {
+				getAll: () => ( {} ),
+				get: () => undefined,
+				add: () => {},
+				remove: () => {},
+				isManagementAllowed: () => true
+			}
+		} );
+		const result = await dispatch( addWiki, ctx )( { wikiUrl: 'https://example.org/' } );
 		expect( result ).toMatchSnapshot();
 	} );
 
 	it( 'add-wiki error path (upstream_failure)', async () => {
 		vi.mocked( discoverWiki ).mockRejectedValue( new Error( 'Connection refused' ) );
 
-		const { handleAddWikiTool } = await import( '../../src/tools/add-wiki.js' );
-		const reconcile = vi.fn();
-		const result = await handleAddWikiTool(
-			fakeMcpServer,
-			reconcile,
-			'https://example.org/'
-		);
+		const { addWiki } = await import( '../../src/tools/add-wiki.js' );
+		const ctx = fakeManagementContext();
+		const result = await dispatch( addWiki, ctx )( { wikiUrl: 'https://example.org/' } );
 		expect( result ).toMatchSnapshot();
 	} );
 
@@ -1014,35 +1009,43 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	// ------------------------------------------------------------------
 
 	it( 'remove-wiki happy path', async () => {
-		vi.mocked( wikiService.get ).mockReturnValue( {
-			sitename: 'Example',
-			server: 'https://example.org'
-		} as ReturnType<typeof wikiService.get> );
-		vi.mocked( wikiService.getCurrent ).mockReturnValue( {
-			key: 'other.example.org',
-			config: {} as ReturnType<typeof wikiService.getCurrent>[ 'config' ]
+		const { removeWiki } = await import( '../../src/tools/remove-wiki.js' );
+		const ctx = fakeManagementContext( {
+			wikis: {
+				getAll: () => ( {} ),
+				get: () => ( {
+					sitename: 'Example',
+					server: 'https://example.org'
+				} as never ),
+				add: () => {},
+				remove: () => {},
+				isManagementAllowed: () => true
+			},
+			selection: {
+				getCurrent: () => ( {
+					key: 'other.example.org',
+					config: {} as never
+				} ),
+				setCurrent: () => {},
+				reset: () => {}
+			}
 		} );
-
-		const { handleRemoveWikiTool } = await import( '../../src/tools/remove-wiki.js' );
-		const reconcile = vi.fn();
-		const result = await handleRemoveWikiTool(
-			fakeMcpServer,
-			reconcile,
-			'mcp://wikis/example.org'
-		);
+		const result = await dispatch( removeWiki, ctx )( { uri: 'mcp://wikis/example.org' } );
 		expect( result ).toMatchSnapshot();
 	} );
 
 	it( 'remove-wiki error path (invalid_input)', async () => {
-		vi.mocked( wikiService.get ).mockReturnValue( undefined );
-
-		const { handleRemoveWikiTool } = await import( '../../src/tools/remove-wiki.js' );
-		const reconcile = vi.fn();
-		const result = await handleRemoveWikiTool(
-			fakeMcpServer,
-			reconcile,
-			'mcp://wikis/unknown.example.org'
-		);
+		const { removeWiki } = await import( '../../src/tools/remove-wiki.js' );
+		const ctx = fakeManagementContext( {
+			wikis: {
+				getAll: () => ( {} ),
+				get: () => undefined,
+				add: () => {},
+				remove: () => {},
+				isManagementAllowed: () => true
+			}
+		} );
+		const result = await dispatch( removeWiki, ctx )( { uri: 'mcp://wikis/unknown.example.org' } );
 		expect( result ).toMatchSnapshot();
 	} );
 
@@ -1051,36 +1054,46 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	// ------------------------------------------------------------------
 
 	it( 'set-wiki happy path', async () => {
-		vi.mocked( wikiService.get ).mockReturnValue( {
-			sitename: 'Example',
-			server: 'https://example.org'
-		} as ReturnType<typeof wikiService.get> );
-		vi.mocked( wikiService.getCurrent ).mockReturnValue( {
-			key: 'example.org',
-			config: {
-				sitename: 'Example',
-				server: 'https://example.org'
-			} as ReturnType<typeof wikiService.getCurrent>[ 'config' ]
+		const { setWiki } = await import( '../../src/tools/set-wiki.js' );
+		const ctx = fakeManagementContext( {
+			wikis: {
+				getAll: () => ( {} ),
+				get: () => ( {
+					sitename: 'Example',
+					server: 'https://example.org'
+				} as never ),
+				add: () => {},
+				remove: () => {},
+				isManagementAllowed: () => true
+			},
+			selection: {
+				getCurrent: () => ( {
+					key: 'example.org',
+					config: {
+						sitename: 'Example',
+						server: 'https://example.org'
+					} as never
+				} ),
+				setCurrent: () => {},
+				reset: () => {}
+			}
 		} );
-
-		const { handleSetWikiTool } = await import( '../../src/tools/set-wiki.js' );
-		const onActiveWikiChanged = vi.fn();
-		const result = await handleSetWikiTool(
-			'mcp://wikis/example.org',
-			onActiveWikiChanged
-		);
+		const result = await dispatch( setWiki, ctx )( { uri: 'mcp://wikis/example.org' } );
 		expect( result ).toMatchSnapshot();
 	} );
 
 	it( 'set-wiki error path (invalid_input)', async () => {
-		vi.mocked( wikiService.get ).mockReturnValue( undefined );
-
-		const { handleSetWikiTool } = await import( '../../src/tools/set-wiki.js' );
-		const onActiveWikiChanged = vi.fn();
-		const result = await handleSetWikiTool(
-			'mcp://wikis/unknown.example.org',
-			onActiveWikiChanged
-		);
+		const { setWiki } = await import( '../../src/tools/set-wiki.js' );
+		const ctx = fakeManagementContext( {
+			wikis: {
+				getAll: () => ( {} ),
+				get: () => undefined,
+				add: () => {},
+				remove: () => {},
+				isManagementAllowed: () => true
+			}
+		} );
+		const result = await dispatch( setWiki, ctx )( { uri: 'mcp://wikis/unknown.example.org' } );
 		expect( result ).toMatchSnapshot();
 	} );
 } );

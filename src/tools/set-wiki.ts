@@ -1,61 +1,50 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
-import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { wikiService } from '../common/wikiService.js';
-import type { Reconcile } from '../runtime/reconcile.js';
+import type { Tool } from '../runtime/tool.js';
+import type { ManagementContext } from '../runtime/context.js';
 import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../common/wikiResource.js';
-import { errorResult } from '../common/errorMapping.js';
-import { structuredResult } from '../common/structuredResult.js';
 
-export function setWikiTool(
-	server: McpServer,
-	reconcile: Reconcile
-): RegisteredTool {
-	return server.registerTool(
-		'set-wiki',
-		{
-			description: 'Selects the wiki to use for subsequent tool calls in this session. Required before interacting with a wiki that is not the configured default; the active wiki is consulted by every page, file, search, and history tool. Returns the new active wiki\'s sitename and server URL.',
-			inputSchema: {
-				uri: z.string().describe( 'MCP resource URI of the wiki to use (e.g. mcp://wikis/en.wikipedia.org)' )
-			},
-			annotations: {
-				title: 'Set wiki',
-				readOnlyHint: false,
-				destructiveHint: false,
-				idempotentHint: true,
-				openWorldHint: false
-			} as ToolAnnotations
-		},
-		( { uri } ) => handleSetWikiTool( uri, reconcile )
-	);
-}
+const inputSchema = {
+	uri: z.string().describe( 'MCP resource URI of the wiki to use (e.g. mcp://wikis/en.wikipedia.org)' )
+} as const;
 
-export async function handleSetWikiTool(
-	uri: string,
-	reconcile: Reconcile
-): Promise<CallToolResult> {
-	try {
-		const { wikiKey } = parseWikiResourceUri( uri );
+export const setWiki: Tool<typeof inputSchema, ManagementContext> = {
+	name: 'set-wiki',
+	description: 'Selects the wiki to use for subsequent tool calls in this session. Required before interacting with a wiki that is not the configured default; the active wiki is consulted by every page, file, search, and history tool. Returns the new active wiki\'s sitename and server URL.',
+	inputSchema,
+	annotations: {
+		title: 'Set wiki',
+		readOnlyHint: false,
+		destructiveHint: false,
+		idempotentHint: true,
+		openWorldHint: false
+	} as ToolAnnotations,
 
-		if ( !wikiService.get( wikiKey ) ) {
-			return errorResult( 'invalid_input', `mcp://wikis/${ wikiKey } not found in MCP resources` );
+	async handle( { uri }, ctx: ManagementContext ): Promise<CallToolResult> {
+		let wikiKey: string;
+		try {
+			( { wikiKey } = parseWikiResourceUri( uri ) );
+		} catch ( error ) {
+			if ( error instanceof InvalidWikiResourceUriError ) {
+				return ctx.format.invalidInput( error.message );
+			}
+			throw error;
 		}
 
-		wikiService.setCurrent( wikiKey );
+		if ( !ctx.wikis.get( wikiKey ) ) {
+			return ctx.format.invalidInput( `mcp://wikis/${ wikiKey } not found in MCP resources` );
+		}
 
-		reconcile();
-		const newConfig = wikiService.getCurrent().config;
-		return structuredResult( {
+		ctx.selection.setCurrent( wikiKey );
+		ctx.reconcile();
+
+		const newConfig = ctx.selection.getCurrent().config;
+		return ctx.format.ok( {
 			wikiKey,
 			sitename: newConfig.sitename,
 			server: newConfig.server
 		} );
-	} catch ( error ) {
-		if ( error instanceof InvalidWikiResourceUriError ) {
-			return errorResult( 'invalid_input', error.message );
-		}
-		throw error;
 	}
-}
+};

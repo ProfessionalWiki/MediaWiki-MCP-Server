@@ -4,13 +4,13 @@ import type { ToolAnnotations, CallToolResult } from '@modelcontextprotocol/sdk/
 /* eslint-enable n/no-missing-import */
 import type { ToolContext } from './context.js';
 
-export interface Tool<TSchema extends ZodRawShape> {
+export interface Tool<TSchema extends ZodRawShape, TCtx extends ToolContext = ToolContext> {
 	readonly name: string;
 	readonly description: string;
 	readonly inputSchema: TSchema;
 	readonly annotations: ToolAnnotations;
 	readonly handle: (
 		args: z.infer<z.ZodObject<TSchema>>,
-		ctx: ToolContext
+		ctx: TCtx
 	) => Promise<CallToolResult>;
 }

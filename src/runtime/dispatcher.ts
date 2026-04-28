@@ -35,9 +35,9 @@ function failurePrefix( toolName: string ): string {
 	return `Failed to ${ FAILURE_VERB[ toolName ] ?? toolName }`;
 }
 
-export function dispatch<TSchema extends ZodRawShape>(
-	tool: Tool<TSchema>,
-	ctx: ToolContext
+export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext>(
+	tool: Tool<TSchema, TCtx>,
+	ctx: TCtx
 ): ( args: z.infer<z.ZodObject<TSchema>> ) => Promise<CallToolResult> {
 	return async ( args ) => {
 		try {

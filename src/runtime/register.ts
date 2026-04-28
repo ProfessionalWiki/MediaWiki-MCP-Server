@@ -4,10 +4,11 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import type { ZodRawShape, z } from 'zod';
 import type { Tool } from './tool.js';
+import type { ToolContext } from './context.js';
 
-export function register<TSchema extends ZodRawShape>(
+export function register<TSchema extends ZodRawShape, TCtx extends ToolContext>(
 	server: McpServer,
-	tool: Tool<TSchema>,
+	tool: Tool<TSchema, TCtx>,
 	handler: ( args: z.infer<z.ZodObject<TSchema>> ) => Promise<CallToolResult>
 ): RegisteredTool {
 	return server.registerTool(

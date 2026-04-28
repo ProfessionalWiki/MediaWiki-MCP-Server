@@ -70,6 +70,7 @@ vi.mock( '../../src/wikis/state.js', () => ( {
 import { wikiService } from '../../src/common/wikiService.js';
 import { wikiRegistry } from '../../src/wikis/state.js';
 import { registerAllTools } from '../../src/tools/index.js';
+import { fakeContext } from '../helpers/fakeContext.js';
 
 const WRITE_TOOLS = [
 	'create-page',
@@ -80,6 +81,12 @@ const WRITE_TOOLS = [
 	'upload-file-from-url'
 ];
 
+function currentKey(): string {
+	return Object.keys( wikiStore.byKey ).find(
+		( k ) => wikiStore.byKey[ k ] === wikiStore.current
+	) ?? 'a';
+}
+
 async function connectClientAndServer(): Promise<{ client: Client; server: McpServer }> {
 	const server = new McpServer(
 		{ name: 'test', version: '0.0.0' },
@@ -87,7 +94,26 @@ async function connectClientAndServer(): Promise<{ client: Client; server: McpSe
 	);
 	const tools = new Map<string, RegisteredTool>();
 	const reconcile = () => reconcileTools( tools );
-	const registered = registerAllTools( server, reconcile );
+	const ctx = fakeContext( {
+		wikis: {
+			getAll: () => wikiStore.byKey,
+			get: ( key: string ) => wikiStore.byKey[ key ],
+			add: () => {},
+			remove: () => {},
+			isManagementAllowed: () => wikiRegistry.isManagementAllowed()
+		},
+		selection: {
+			getCurrent: () => ( { key: currentKey(), config: wikiStore.current } ),
+			setCurrent: ( key: string ) => {
+				if ( !wikiStore.byKey[ key ] ) {
+					throw new Error( `Wiki "${ key }" not found` );
+				}
+				wikiStore.current = wikiStore.byKey[ key ];
+			},
+			reset: () => {}
+		}
+	} );
+	const registered = registerAllTools( server, reconcile, ctx );
 	for ( const [ name, tool ] of registered ) {
 		tools.set( name, tool );
 	}

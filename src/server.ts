@@ -64,7 +64,13 @@ export const createServer = ( ctx: ToolContext ): McpServer => {
 	};
 
 	const tools = new Map<string, RegisteredTool>();
-	const reconcile = (): void => reconcileTools( tools );
+	const reconcile = (): void => {
+		reconcileTools( tools );
+		// Notify clients that the wiki resource list may have changed (e.g. after
+		// add-wiki / remove-wiki). Also covers tool-list changes since toggling a
+		// RegisteredTool's enabled state already emits its own listChanged event.
+		server.sendResourceListChanged();
+	};
 
 	const registered = registerAllTools( server, reconcile, ctx );
 	for ( const [ name, tool ] of registered ) {

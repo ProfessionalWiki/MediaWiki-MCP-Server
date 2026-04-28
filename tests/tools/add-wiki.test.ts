@@ -4,34 +4,24 @@ vi.mock( '../../src/common/wikiDiscovery.js', () => ( {
 	discoverWiki: vi.fn()
 } ) );
 
-vi.mock( '../../src/common/wikiService.js', async () => {
-	const actual = await vi.importActual<typeof import( '../../src/common/wikiService.js' )>(
-		'../../src/common/wikiService.js'
-	);
-	return {
-		...actual,
-		wikiService: {
-			add: vi.fn()
-		}
-	};
-} );
-
-import { z } from 'zod';
 import { discoverWiki } from '../../src/common/wikiDiscovery.js';
-import { wikiService, DuplicateWikiKeyError } from '../../src/common/wikiService.js';
 import { SsrfValidationError } from '../../src/common/ssrfGuard.js';
+import { DuplicateWikiKeyError } from '../../src/wikis/wikiRegistry.js';
 import { formatPayload } from '../../src/common/formatPayload.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
+import { fakeManagementContext } from '../helpers/fakeContext.js';
+import { addWiki } from '../../src/tools/add-wiki.js';
+import { dispatch } from '../../src/runtime/dispatcher.js';
 
 describe( 'add-wiki', () => {
 	beforeEach( () => {
 		vi.clearAllMocks();
 	} );
 
-	it( 'returns a structured payload on success', async () => {
+	it( 'returns a structured payload on success and reconciles', async () => {
 		vi.mocked( discoverWiki ).mockResolvedValue( {
 			servername: 'example.org',
 			sitename: 'Example Wiki',
@@ -39,16 +29,30 @@ describe( 'add-wiki', () => {
 			articlepath: '/wiki',
 			scriptpath: '/w'
 		} );
-		vi.mocked( wikiService.add ).mockImplementation( () => {} );
 
-		const { handleAddWikiTool } = await import( '../../src/tools/add-wiki.js' );
-		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
 		const reconcile = vi.fn();
-		const result = await handleAddWikiTool( server, reconcile, 'https://example.org/' );
+		const add = vi.fn();
+		const ctx = fakeManagementContext( {
+			reconcile,
+			wikis: {
+				getAll: () => ( {} ),
+				get: () => undefined,
+				add,
+				remove: () => {},
+				isManagementAllowed: () => true
+			}
+		} );
+		const result = await dispatch( addWiki, ctx )( { wikiUrl: 'https://example.org/' } );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toBe( formatPayload( {
 			wikiKey: 'example.org',
+			sitename: 'Example Wiki',
+			server: 'https://example.org',
+			articlepath: '/wiki',
+			scriptpath: '/w'
+		} ) );
+		expect( add ).toHaveBeenCalledWith( 'example.org', expect.objectContaining( {
 			sitename: 'Example Wiki',
 			server: 'https://example.org',
 			articlepath: '/wiki',
@@ -64,10 +68,9 @@ describe( 'add-wiki', () => {
 			)
 		);
 
-		const { handleAddWikiTool } = await import( '../../src/tools/add-wiki.js' );
-		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
 		const reconcile = vi.fn();
-		const result = await handleAddWikiTool( server, reconcile, 'http://169.254.169.254/' );
+		const ctx = fakeManagementContext( { reconcile } );
+		const result = await dispatch( addWiki, ctx )( { wikiUrl: 'http://169.254.169.254/' } );
 
 		const envelope = assertStructuredError( result, 'invalid_input' );
 		expect( envelope.message ).toMatch(
@@ -84,14 +87,22 @@ describe( 'add-wiki', () => {
 			articlepath: '/wiki',
 			scriptpath: '/w'
 		} );
-		vi.mocked( wikiService.add ).mockImplementation( () => {
+
+		const reconcile = vi.fn();
+		const add = vi.fn().mockImplementation( () => {
 			throw new DuplicateWikiKeyError( 'example.org' );
 		} );
-
-		const { handleAddWikiTool } = await import( '../../src/tools/add-wiki.js' );
-		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
-		const reconcile = vi.fn();
-		const result = await handleAddWikiTool( server, reconcile, 'https://example.org/' );
+		const ctx = fakeManagementContext( {
+			reconcile,
+			wikis: {
+				getAll: () => ( {} ),
+				get: () => undefined,
+				add,
+				remove: () => {},
+				isManagementAllowed: () => true
+			}
+		} );
+		const result = await dispatch( addWiki, ctx )( { wikiUrl: 'https://example.org/' } );
 
 		const envelope = assertStructuredError( result, 'conflict' );
 		expect( envelope.message ).toBe(
@@ -105,10 +116,9 @@ describe( 'add-wiki', () => {
 			new Error( 'Connection refused' )
 		);
 
-		const { handleAddWikiTool } = await import( '../../src/tools/add-wiki.js' );
-		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
 		const reconcile = vi.fn();
-		const result = await handleAddWikiTool( server, reconcile, 'https://example.org/' );
+		const ctx = fakeManagementContext( { reconcile } );
+		const result = await dispatch( addWiki, ctx )( { wikiUrl: 'https://example.org/' } );
 
 		const envelope = assertStructuredError( result, 'upstream_failure' );
 		expect( envelope.message ).toMatch(
@@ -125,14 +135,22 @@ describe( 'add-wiki', () => {
 			articlepath: '/wiki',
 			scriptpath: '/w'
 		} );
-		vi.mocked( wikiService.add ).mockImplementation( () => {
+
+		const reconcile = vi.fn();
+		const add = vi.fn().mockImplementation( () => {
 			throw new DuplicateWikiKeyError( 'example.org' );
 		} );
-
-		const { handleAddWikiTool } = await import( '../../src/tools/add-wiki.js' );
-		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
-		const reconcile = vi.fn();
-		const result = await handleAddWikiTool( server, reconcile, 'https://example.org/' );
+		const ctx = fakeManagementContext( {
+			reconcile,
+			wikis: {
+				getAll: () => ( {} ),
+				get: () => undefined,
+				add,
+				remove: () => {},
+				isManagementAllowed: () => true
+			}
+		} );
+		const result = await dispatch( addWiki, ctx )( { wikiUrl: 'https://example.org/' } );
 
 		assertStructuredError( result, 'conflict' );
 		expect( reconcile ).not.toHaveBeenCalled();
@@ -143,10 +161,9 @@ describe( 'add-wiki', () => {
 			new SsrfValidationError( 'rejected' )
 		);
 
-		const { handleAddWikiTool } = await import( '../../src/tools/add-wiki.js' );
-		const server = { sendResourceListChanged: vi.fn() } as unknown as Parameters<typeof handleAddWikiTool>[0];
 		const reconcile = vi.fn();
-		const result = await handleAddWikiTool( server, reconcile, 'https://example.org/' );
+		const ctx = fakeManagementContext( { reconcile } );
+		const result = await dispatch( addWiki, ctx )( { wikiUrl: 'https://example.org/' } );
 
 		assertStructuredError( result, 'invalid_input' );
 		expect( reconcile ).not.toHaveBeenCalled();
