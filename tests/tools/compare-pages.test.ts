@@ -1,19 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { z } from 'zod';
+import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
-
-vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
-vi.mock( '../../src/common/wikiService.js', () => ( {
-	wikiService: {
-		getCurrent: vi.fn().mockReturnValue( {
-			key: 'test-wiki',
-			config: { server: 'https://test.wiki', articlepath: '/wiki', scriptpath: '/w' }
-		} )
-	}
-} ) );
-
-import { getMwn } from '../../src/common/mwn.js';
-import { handleComparePagesTool } from '../../src/tools/compare-pages.js';
+import { fakeContext } from '../helpers/fakeContext.js';
+import { comparePages } from '../../src/tools/compare-pages.js';
+import { dispatch } from '../../src/runtime/dispatcher.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
@@ -28,10 +17,6 @@ const PAIRED_CHANGE_HTML = [
 ].join( '' );
 
 describe( 'compare-pages', () => {
-	beforeEach( () => {
-		vi.clearAllMocks();
-	} );
-
 	it( 'returns a full-mode diff between two revisions', async () => {
 		const request = vi.fn().mockResolvedValue( {
 			compare: {
@@ -46,11 +31,12 @@ describe( 'compare-pages', () => {
 				body: PAIRED_CHANGE_HTML
 			}
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
+		const mock = createMockMwn( { request } );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const result = await handleComparePagesTool( {
+		const result = await comparePages.handle( {
 			fromRevision: 42, toRevision: 57
-		} );
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Changed: true' );
@@ -83,11 +69,12 @@ describe( 'compare-pages', () => {
 				torevid: 57, totitle: 'Foo', tosize: 105
 			}
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
+		const mock = createMockMwn( { request } );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const result = await handleComparePagesTool( {
+		const result = await comparePages.handle( {
 			fromRevision: 42, toRevision: 57, includeDiff: false
-		} );
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Changed: true' );
@@ -108,11 +95,12 @@ describe( 'compare-pages', () => {
 				body: ''
 			}
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
+		const mock = createMockMwn( { request } );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const result = await handleComparePagesTool( {
+		const result = await comparePages.handle( {
 			fromTitle: 'Foo', toRevision: 42
-		} );
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Changed: false' );
@@ -128,11 +116,12 @@ describe( 'compare-pages', () => {
 				body: PAIRED_CHANGE_HTML
 			}
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
+		const mock = createMockMwn( { request } );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const result = await handleComparePagesTool( {
+		const result = await comparePages.handle( {
 			fromText: 'my draft', toTitle: 'Foo'
-		} );
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'From:' );
@@ -157,11 +146,12 @@ describe( 'compare-pages', () => {
 				body: PAIRED_CHANGE_HTML
 			}
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
+		const mock = createMockMwn( { request } );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const result = await handleComparePagesTool( {
+		const result = await comparePages.handle( {
 			fromText: 'hello world', toTitle: 'Foo'
-		} );
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		// 'hello world' is 11 bytes in UTF-8.
@@ -170,7 +160,8 @@ describe( 'compare-pages', () => {
 	} );
 
 	it( 'returns validation error when no from* is given', async () => {
-		const result = await handleComparePagesTool( { toRevision: 57 } );
+		const ctx = fakeContext();
+		const result = await comparePages.handle( { toRevision: 57 }, ctx );
 		const envelope = assertStructuredError( result, 'invalid_input' );
 		expect( envelope.message ).toBe(
 			'Must supply exactly one of fromRevision, fromTitle, fromText'
@@ -178,9 +169,10 @@ describe( 'compare-pages', () => {
 	} );
 
 	it( 'returns validation error when multiple from* are given', async () => {
-		const result = await handleComparePagesTool( {
+		const ctx = fakeContext();
+		const result = await comparePages.handle( {
 			fromRevision: 42, fromTitle: 'Foo', toRevision: 57
-		} );
+		}, ctx );
 		const envelope = assertStructuredError( result, 'invalid_input' );
 		expect( envelope.message ).toBe(
 			'Only one of fromRevision, fromTitle, fromText may be supplied'
@@ -188,20 +180,22 @@ describe( 'compare-pages', () => {
 	} );
 
 	it( 'rejects text-vs-text comparison', async () => {
-		const result = await handleComparePagesTool( {
+		const ctx = fakeContext();
+		const result = await comparePages.handle( {
 			fromText: 'a', toText: 'b'
-		} );
+		}, ctx );
 		const envelope = assertStructuredError( result, 'invalid_input' );
 		expect( envelope.message ).toBe(
 			'Cannot compare supplied text against supplied text'
 		);
 	} );
 
-	it( 'maps nosuchrevid errors to a friendly message with code', async () => {
+	it( 'maps nosuchrevid errors to a friendly message with code via dispatcher', async () => {
 		const request = vi.fn().mockRejectedValue( new Error( 'nosuchrevid: There is no revision with ID 99999.' ) );
-		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
+		const mock = createMockMwn( { request } );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const result = await handleComparePagesTool( {
+		const result = await dispatch( comparePages, ctx )( {
 			fromRevision: 99999, toRevision: 57
 		} );
 
@@ -209,11 +203,12 @@ describe( 'compare-pages', () => {
 		expect( envelope.message ).toBe( 'Revision 99999 not found' );
 	} );
 
-	it( 'maps missingtitle errors to a friendly message with code', async () => {
-		const request = vi.fn().mockRejectedValue( new Error( 'missingtitle: The page you specified doesn\'t exist.' ) );
-		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
+	it( 'maps missingtitle errors to a friendly message with code via dispatcher', async () => {
+		const request = vi.fn().mockRejectedValue( new Error( 'missingtitle: Page "Nope" doesn\'t exist.' ) );
+		const mock = createMockMwn( { request } );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const result = await handleComparePagesTool( {
+		const result = await dispatch( comparePages, ctx )( {
 			fromTitle: 'Nope', toTitle: 'Foo'
 		} );
 
@@ -221,11 +216,12 @@ describe( 'compare-pages', () => {
 		expect( envelope.message ).toBe( 'Page "Nope" not found' );
 	} );
 
-	it( 'returns a generic error message for other API failures', async () => {
+	it( 'returns a generic error message for other API failures via dispatcher', async () => {
 		const request = vi.fn().mockRejectedValue( new Error( 'Connection refused' ) );
-		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
+		const mock = createMockMwn( { request } );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const result = await handleComparePagesTool( {
+		const result = await dispatch( comparePages, ctx )( {
 			fromRevision: 42, toRevision: 57
 		} );
 
@@ -236,9 +232,10 @@ describe( 'compare-pages', () => {
 	} );
 
 	it( 'returns validation error when multiple to* are given', async () => {
-		const result = await handleComparePagesTool( {
+		const ctx = fakeContext();
+		const result = await comparePages.handle( {
 			fromRevision: 42, toRevision: 57, toTitle: 'Foo'
-		} );
+		}, ctx );
 		const envelope = assertStructuredError( result, 'invalid_input' );
 		expect( envelope.message ).toBe(
 			'Only one of toRevision, toTitle, toText may be supplied'
@@ -252,11 +249,12 @@ describe( 'compare-pages', () => {
 				torevid: 42, totitle: 'Foo', tosize: 100
 			}
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
+		const mock = createMockMwn( { request } );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const result = await handleComparePagesTool( {
+		const result = await comparePages.handle( {
 			fromTitle: 'Foo', toRevision: 42, includeDiff: false
-		} );
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Changed: false' );
@@ -271,11 +269,12 @@ describe( 'compare-pages', () => {
 				body: ''
 			}
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
+		const mock = createMockMwn( { request } );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const result = await handleComparePagesTool( {
+		const result = await comparePages.handle( {
 			fromRevision: 42, toRevision: 42
-		} );
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Changed: false' );
@@ -284,11 +283,12 @@ describe( 'compare-pages', () => {
 
 	it( 'returns error when API response has no compare field', async () => {
 		const request = vi.fn().mockResolvedValue( {} );
-		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
+		const mock = createMockMwn( { request } );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const result = await handleComparePagesTool( {
+		const result = await comparePages.handle( {
 			fromRevision: 42, toRevision: 57
-		} );
+		}, ctx );
 
 		const envelope = assertStructuredError( result, 'upstream_failure' );
 		expect( envelope.message ).toBe(
@@ -298,9 +298,10 @@ describe( 'compare-pages', () => {
 
 	it( 'parses the correct revid when both revisions are supplied and the to side is missing', async () => {
 		const request = vi.fn().mockRejectedValue( new Error( 'nosuchrevid: There is no revision with ID 99999.' ) );
-		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
+		const mock = createMockMwn( { request } );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const result = await handleComparePagesTool( {
+		const result = await dispatch( comparePages, ctx )( {
 			fromRevision: 42, toRevision: 99999
 		} );
 
@@ -310,9 +311,10 @@ describe( 'compare-pages', () => {
 
 	it( 'parses the correct title when missingtitle message quotes it', async () => {
 		const request = vi.fn().mockRejectedValue( new Error( 'missingtitle: Page "Bar" not found.' ) );
-		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
+		const mock = createMockMwn( { request } );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const result = await handleComparePagesTool( {
+		const result = await dispatch( comparePages, ctx )( {
 			fromTitle: 'Foo', toTitle: 'Bar'
 		} );
 
@@ -337,11 +339,12 @@ describe( 'compare-pages', () => {
 				body: bigDiffHtml
 			}
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
+		const mock = createMockMwn( { request } );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const result = await handleComparePagesTool( {
+		const result = await comparePages.handle( {
 			fromRevision: 42, toRevision: 57
-		} );
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Truncation:' );
@@ -359,11 +362,12 @@ describe( 'compare-pages', () => {
 				diffsize: 99999
 			}
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
+		const mock = createMockMwn( { request } );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const result = await handleComparePagesTool( {
+		const result = await comparePages.handle( {
 			fromRevision: 42, toRevision: 57, includeDiff: false
-		} );
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).not.toContain( 'Truncation:' );
@@ -377,11 +381,12 @@ describe( 'compare-pages', () => {
 				diffsize: 80
 			}
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { request } ) as any );
+		const mock = createMockMwn( { request } );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const result = await handleComparePagesTool( {
+		const result = await comparePages.handle( {
 			fromText: 'hallo world!', toTitle: 'Foo', includeDiff: false
-		} );
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Changed: true' );

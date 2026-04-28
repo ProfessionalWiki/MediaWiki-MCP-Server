@@ -1,21 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { z } from 'zod';
+import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
-
-vi.mock( '../../src/common/mwn.js', () => ( {
-	getMwn: vi.fn()
-} ) );
-
-vi.mock( '../../src/common/wikiService.js', () => ( {
-	wikiService: {
-		getCurrent: vi.fn().mockReturnValue( {
-			key: 'test-wiki',
-			config: { server: 'https://test.wiki', articlepath: '/wiki', scriptpath: '/w' }
-		} )
-	}
-} ) );
-
-import { getMwn } from '../../src/common/mwn.js';
+import { fakeContext } from '../helpers/fakeContext.js';
+import { getPages, BatchContentFormat } from '../../src/tools/get-pages.js';
+import { dispatch } from '../../src/runtime/dispatcher.js';
+import { SectionServiceImpl } from '../../src/services/sectionService.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
@@ -66,14 +54,15 @@ function readPage( title: string, pageid: number, revid: number, content?: strin
 }
 
 describe( 'get-pages', () => {
-	beforeEach( () => {
-		vi.clearAllMocks();
-	} );
-
 	describe( 'validation', () => {
 		it( 'empty titles array returns validation error', async () => {
-			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-			const result = await handleGetPagesTool( [], 'source', false );
+			const ctx = fakeContext();
+			const result = await getPages.handle( {
+				titles: [],
+				content: BatchContentFormat.source,
+				metadata: false,
+				followRedirects: true
+			}, ctx );
 
 			const envelope = assertStructuredError( result, 'invalid_input' );
 			expect( envelope.message ).toContain( 'titles' );
@@ -81,16 +70,26 @@ describe( 'get-pages', () => {
 
 		it( 'more than 50 titles returns validation error', async () => {
 			const titles = Array.from( { length: 51 }, ( _, i ) => `T${ i }` );
-			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-			const result = await handleGetPagesTool( titles, 'source', false );
+			const ctx = fakeContext();
+			const result = await getPages.handle( {
+				titles,
+				content: BatchContentFormat.source,
+				metadata: false,
+				followRedirects: true
+			}, ctx );
 
 			const envelope = assertStructuredError( result, 'invalid_input' );
 			expect( envelope.message ).toContain( '50' );
 		} );
 
 		it( 'content=none + metadata=false returns validation error', async () => {
-			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-			const result = await handleGetPagesTool( [ 'Foo' ], 'none', false );
+			const ctx = fakeContext();
+			const result = await getPages.handle( {
+				titles: [ 'Foo' ],
+				content: BatchContentFormat.none,
+				metadata: false,
+				followRedirects: true
+			}, ctx );
 
 			const envelope = assertStructuredError( result, 'invalid_input' );
 			expect( envelope.message ).toContain( 'metadata must be true' );
@@ -106,15 +105,15 @@ describe( 'get-pages', () => {
 					massQueryPage( 'Module:Infobox/Organization', 3, 103, 'C' )
 				]
 			} ) );
-			vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { massQuery } ) as any );
+			const mock = createMockMwn( { massQuery } );
+			const ctx = fakeContext( { mwn: async () => mock as never } );
 
-			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-			const result = await handleGetPagesTool(
-				[ 'Module:Infobox', 'Module:Infobox/Person', 'Module:Infobox/Organization' ],
-				'source',
-				false,
-				true
-			);
+			const result = await getPages.handle( {
+				titles: [ 'Module:Infobox', 'Module:Infobox/Person', 'Module:Infobox/Organization' ],
+				content: BatchContentFormat.source,
+				metadata: false,
+				followRedirects: true
+			}, ctx );
 
 			expect( massQuery ).toHaveBeenCalledTimes( 1 );
 			expect( massQuery ).toHaveBeenCalledWith(
@@ -147,12 +146,15 @@ describe( 'get-pages', () => {
 					massQueryPage( 'Found2', 2, 102, 'Y' )
 				]
 			} ) );
-			vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { massQuery } ) as any );
+			const mock = createMockMwn( { massQuery } );
+			const ctx = fakeContext( { mwn: async () => mock as never } );
 
-			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-			const result = await handleGetPagesTool(
-				[ 'Found1', 'NotReal', 'Found2' ], 'source', false, true
-			);
+			const result = await getPages.handle( {
+				titles: [ 'Found1', 'NotReal', 'Found2' ],
+				content: BatchContentFormat.source,
+				metadata: false,
+				followRedirects: true
+			}, ctx );
 
 			const text = assertStructuredSuccess( result );
 			const requestedTitles = [ ...text.matchAll( /Requested title: (.+)/g ) ].map( ( m ) => m[ 1 ] );
@@ -167,10 +169,15 @@ describe( 'get-pages', () => {
 					{ pageid: 0, title: 'B', missing: true }
 				]
 			} ) );
-			vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { massQuery } ) as any );
+			const mock = createMockMwn( { massQuery } );
+			const ctx = fakeContext( { mwn: async () => mock as never } );
 
-			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-			const result = await handleGetPagesTool( [ 'A', 'B' ], 'source', false, true );
+			const result = await getPages.handle( {
+				titles: [ 'A', 'B' ],
+				content: BatchContentFormat.source,
+				metadata: false,
+				followRedirects: true
+			}, ctx );
 
 			const text = assertStructuredSuccess( result );
 			expect( text ).toContain( 'Pages: (none)' );
@@ -181,10 +188,15 @@ describe( 'get-pages', () => {
 			const massQuery = vi.fn().mockResolvedValue( massQueryResponse( {
 				pages: [ massQueryPage( 'Foo', 1, 101, 'body' ) ]
 			} ) );
-			vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { massQuery } ) as any );
+			const mock = createMockMwn( { massQuery } );
+			const ctx = fakeContext( { mwn: async () => mock as never } );
 
-			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-			const result = await handleGetPagesTool( [ 'Foo' ], 'source', true, true );
+			const result = await getPages.handle( {
+				titles: [ 'Foo' ],
+				content: BatchContentFormat.source,
+				metadata: true,
+				followRedirects: true
+			}, ctx );
 
 			const text = assertStructuredSuccess( result );
 			expect( text ).toContain( 'Requested title: Foo' );
@@ -200,10 +212,15 @@ describe( 'get-pages', () => {
 			const massQuery = vi.fn().mockResolvedValue( massQueryResponse( {
 				pages: [ massQueryPage( 'Foo', 1, 101 ) ]
 			} ) );
-			vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { massQuery } ) as any );
+			const mock = createMockMwn( { massQuery } );
+			const ctx = fakeContext( { mwn: async () => mock as never } );
 
-			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-			const result = await handleGetPagesTool( [ 'Foo' ], 'none', true, true );
+			const result = await getPages.handle( {
+				titles: [ 'Foo' ],
+				content: BatchContentFormat.none,
+				metadata: true,
+				followRedirects: true
+			}, ctx );
 
 			const text = assertStructuredSuccess( result );
 			const requestedTitles = [ ...text.matchAll( /Requested title: (.+)/g ) ].map( ( m ) => m[ 1 ] );
@@ -216,22 +233,32 @@ describe( 'get-pages', () => {
 			const massQuery = vi.fn().mockResolvedValue( massQueryResponse( {
 				pages: [ massQueryPage( 'Foo', 1, 101, 'body' ) ]
 			} ) );
-			vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { massQuery } ) as any );
+			const mock = createMockMwn( { massQuery } );
+			const ctx = fakeContext( { mwn: async () => mock as never } );
 
-			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-			const result = await handleGetPagesTool( [ 'Foo', 'Foo' ], 'source', false, true );
+			const result = await getPages.handle( {
+				titles: [ 'Foo', 'Foo' ],
+				content: BatchContentFormat.source,
+				metadata: false,
+				followRedirects: true
+			}, ctx );
 
 			const text = assertStructuredSuccess( result );
 			const requestedTitles = [ ...text.matchAll( /Requested title: (.+)/g ) ].map( ( m ) => m[ 1 ] );
 			expect( requestedTitles ).toHaveLength( 1 );
 		} );
 
-		it( 'mwn.massQuery throws → isError with wrapped message', async () => {
+		it( 'mwn.massQuery throws → isError with wrapped message via dispatcher', async () => {
 			const massQuery = vi.fn().mockRejectedValue( new Error( 'API error' ) );
-			vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { massQuery } ) as any );
+			const mock = createMockMwn( { massQuery } );
+			const ctx = fakeContext( { mwn: async () => mock as never } );
 
-			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-			const result = await handleGetPagesTool( [ 'Foo' ], 'source', false, true );
+			const result = await dispatch( getPages, ctx )( {
+				titles: [ 'Foo' ],
+				content: BatchContentFormat.source,
+				metadata: false,
+				followRedirects: true
+			} );
 
 			const envelope = assertStructuredError( result, 'upstream_failure' );
 			expect( envelope.message ).toContain( 'Failed to retrieve pages' );
@@ -243,10 +270,15 @@ describe( 'get-pages', () => {
 				redirects: [ { from: 'Src', to: 'Tgt' } ],
 				pages: [ massQueryPage( 'Tgt', 42, 9001, 'target body' ) ]
 			} ) );
-			vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { massQuery } ) as any );
+			const mock = createMockMwn( { massQuery } );
+			const ctx = fakeContext( { mwn: async () => mock as never } );
 
-			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-			const result = await handleGetPagesTool( [ 'Src' ], 'source', true, true );
+			const result = await getPages.handle( {
+				titles: [ 'Src' ],
+				content: BatchContentFormat.source,
+				metadata: true,
+				followRedirects: true
+			}, ctx );
 
 			const text = assertStructuredSuccess( result );
 			expect( text ).toContain( 'Requested title: Src' );
@@ -260,10 +292,15 @@ describe( 'get-pages', () => {
 				normalized: [ { from: 'foo', to: 'Foo' } ],
 				pages: [ massQueryPage( 'Foo', 1, 101, 'body' ) ]
 			} ) );
-			vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { massQuery } ) as any );
+			const mock = createMockMwn( { massQuery } );
+			const ctx = fakeContext( { mwn: async () => mock as never } );
 
-			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-			const result = await handleGetPagesTool( [ 'foo' ], 'source', true, true );
+			const result = await getPages.handle( {
+				titles: [ 'foo' ],
+				content: BatchContentFormat.source,
+				metadata: true,
+				followRedirects: true
+			}, ctx );
 
 			const text = assertStructuredSuccess( result );
 			expect( text ).toContain( 'Requested title: foo' );
@@ -277,10 +314,15 @@ describe( 'get-pages', () => {
 				redirects: [ { from: 'Main Page', to: 'Target' } ],
 				pages: [ massQueryPage( 'Target', 5, 500, 'target' ) ]
 			} ) );
-			vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { massQuery } ) as any );
+			const mock = createMockMwn( { massQuery } );
+			const ctx = fakeContext( { mwn: async () => mock as never } );
 
-			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-			const result = await handleGetPagesTool( [ 'main page' ], 'source', true, true );
+			const result = await getPages.handle( {
+				titles: [ 'main page' ],
+				content: BatchContentFormat.source,
+				metadata: true,
+				followRedirects: true
+			}, ctx );
 
 			const text = assertStructuredSuccess( result );
 			expect( text ).toContain( 'Requested title: main page' );
@@ -293,10 +335,15 @@ describe( 'get-pages', () => {
 				redirects: [ { from: 'BrokenRedirect', to: 'Ghost' } ],
 				pages: [ { pageid: 0, title: 'Ghost', missing: true } ]
 			} ) );
-			vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { massQuery } ) as any );
+			const mock = createMockMwn( { massQuery } );
+			const ctx = fakeContext( { mwn: async () => mock as never } );
 
-			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-			const result = await handleGetPagesTool( [ 'BrokenRedirect' ], 'source', false, true );
+			const result = await getPages.handle( {
+				titles: [ 'BrokenRedirect' ],
+				content: BatchContentFormat.source,
+				metadata: false,
+				followRedirects: true
+			}, ctx );
 
 			const text = assertStructuredSuccess( result );
 			expect( text ).toContain( 'Pages: (none)' );
@@ -311,12 +358,15 @@ describe( 'get-pages', () => {
 				],
 				pages: [ massQueryPage( 'Target', 1, 101, 'body' ) ]
 			} ) );
-			vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { massQuery } ) as any );
+			const mock = createMockMwn( { massQuery } );
+			const ctx = fakeContext( { mwn: async () => mock as never } );
 
-			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-			const result = await handleGetPagesTool(
-				[ 'Alias1', 'Alias2' ], 'source', true, true
-			);
+			const result = await getPages.handle( {
+				titles: [ 'Alias1', 'Alias2' ],
+				content: BatchContentFormat.source,
+				metadata: true,
+				followRedirects: true
+			}, ctx );
 
 			const text = assertStructuredSuccess( result );
 			const requestedTitles = [ ...text.matchAll( /Requested title: (.+)/g ) ].map( ( m ) => m[ 1 ] );
@@ -329,12 +379,15 @@ describe( 'get-pages', () => {
 			const read = vi.fn().mockResolvedValue( [
 				readPage( 'Main Page', 7, 700, '#REDIRECT [[Target]]' )
 			] );
-			vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { read } ) as any );
+			const mock = createMockMwn( { read } );
+			const ctx = fakeContext( { mwn: async () => mock as never } );
 
-			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-			const result = await handleGetPagesTool(
-				[ 'Main Page' ], 'source', true, false
-			);
+			const result = await getPages.handle( {
+				titles: [ 'Main Page' ],
+				content: BatchContentFormat.source,
+				metadata: true,
+				followRedirects: false
+			}, ctx );
 
 			expect( read ).toHaveBeenCalledTimes( 1 );
 			expect( read ).toHaveBeenCalledWith(
@@ -349,12 +402,17 @@ describe( 'get-pages', () => {
 			expect( text ).not.toContain( 'Redirected from:' );
 		} );
 
-		it( 'mwn.read throws → isError with wrapped message', async () => {
+		it( 'mwn.read throws → isError with wrapped message via dispatcher', async () => {
 			const read = vi.fn().mockRejectedValue( new Error( 'read error' ) );
-			vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { read } ) as any );
+			const mock = createMockMwn( { read } );
+			const ctx = fakeContext( { mwn: async () => mock as never } );
 
-			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-			const result = await handleGetPagesTool( [ 'Foo' ], 'source', false, false );
+			const result = await dispatch( getPages, ctx )( {
+				titles: [ 'Foo' ],
+				content: BatchContentFormat.source,
+				metadata: false,
+				followRedirects: false
+			} );
 
 			const envelope = assertStructuredError( result, 'upstream_failure' );
 			expect( envelope.message ).toContain( 'Failed to retrieve pages' );
@@ -374,12 +432,18 @@ describe( 'get-pages', () => {
 			} ) );
 			const request = vi.fn()
 				.mockResolvedValueOnce( { parse: { sections: [ { line: 'Overview' } ] } } );
-			vi.mocked( getMwn ).mockResolvedValue(
-				createMockMwn( { massQuery, request } ) as any
-			);
+			const mock = createMockMwn( { massQuery, request } );
+			const ctx = fakeContext( {
+				mwn: async () => mock as never,
+				sections: new SectionServiceImpl()
+			} );
 
-			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-			const result = await handleGetPagesTool( [ 'Big', 'Small' ], 'source', false );
+			const result = await getPages.handle( {
+				titles: [ 'Big', 'Small' ],
+				content: BatchContentFormat.source,
+				metadata: false,
+				followRedirects: true
+			}, ctx );
 
 			const text = assertStructuredSuccess( result );
 			expect( text ).toMatch( /Requested title: Big[\s\S]*?Source:\n\nx{50000}\n {2}Truncation:/ );
@@ -422,12 +486,18 @@ describe( 'get-pages', () => {
 					}, 10 );
 				} );
 			} );
-			vi.mocked( getMwn ).mockResolvedValue(
-				createMockMwn( { massQuery, request } ) as any
-			);
+			const mock = createMockMwn( { massQuery, request } );
+			const ctx = fakeContext( {
+				mwn: async () => mock as never,
+				sections: new SectionServiceImpl()
+			} );
 
-			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-			const result = await handleGetPagesTool( [ 'BigA', 'BigB' ], 'source', false );
+			const result = await getPages.handle( {
+				titles: [ 'BigA', 'BigB' ],
+				content: BatchContentFormat.source,
+				metadata: false,
+				followRedirects: true
+			}, ctx );
 
 			const text = assertStructuredSuccess( result );
 			expect( request ).toHaveBeenCalledTimes( 2 );
@@ -443,12 +513,15 @@ describe( 'get-pages', () => {
 				pages: [ massQueryPage( 'Exact', 1, 10, exact ) ]
 			} ) );
 			const request = vi.fn();
-			vi.mocked( getMwn ).mockResolvedValue(
-				createMockMwn( { massQuery, request } ) as any
-			);
+			const mock = createMockMwn( { massQuery, request } );
+			const ctx = fakeContext( { mwn: async () => mock as never } );
 
-			const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-			const result = await handleGetPagesTool( [ 'Exact' ], 'source', false );
+			const result = await getPages.handle( {
+				titles: [ 'Exact' ],
+				content: BatchContentFormat.source,
+				metadata: false,
+				followRedirects: true
+			}, ctx );
 
 			const text = assertStructuredSuccess( result );
 			expect( text ).not.toContain( 'Truncation:' );

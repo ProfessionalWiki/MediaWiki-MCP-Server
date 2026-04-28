@@ -4,8 +4,8 @@ import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server
 
 import { logger } from '../common/logger.js';
 
-import { getPageTool } from './get-page.js';
-import { getPagesTool } from './get-pages.js';
+import { getPage } from './get-page.js';
+import { getPages } from './get-pages.js';
 import { getPageHistory } from './get-page-history.js';
 import { searchPage } from './search-page.js';
 import { setWikiTool } from './set-wiki.js';
@@ -30,7 +30,7 @@ import { getCategoryMembers } from './get-category-members.js';
 import { getRecentChanges } from './get-recent-changes.js';
 import { searchPageByPrefix } from './search-page-by-prefix.js';
 import { parseWikitext } from './parse-wikitext.js';
-import { comparePagesTool } from './compare-pages.js';
+import { comparePages } from './compare-pages.js';
 
 type ToolRegistrar = ( server: McpServer ) => RegisteredTool;
 
@@ -43,28 +43,28 @@ type ToolRegistrar = ( server: McpServer ) => RegisteredTool;
 const standardTools: Tool<any>[] = [
 	deletePage,
 	getFile,
+	getPage,
+	getPages,
 	getRevision,
 	getCategoryMembers,
 	searchPage,
 	searchPageByPrefix,
 	getPageHistory,
 	parseWikitext,
-	getRecentChanges
+	getRecentChanges,
+	comparePages
 ];
 
 // add-wiki, remove-wiki, and set-wiki are registered separately in
 // registerAllTools because each takes a reconcile callback.
 const toolRegistrars: [ string, ToolRegistrar ][] = [
-	[ 'get-page', getPageTool ],
-	[ 'get-pages', getPagesTool ],
 	[ 'update-page', updatePageTool ],
 	[ 'create-page', createPageTool ],
 	[ 'upload-file', uploadFileTool ],
 	[ 'upload-file-from-url', uploadFileFromUrlTool ],
 	[ 'update-file', updateFileTool ],
 	[ 'update-file-from-url', updateFileFromUrlTool ],
-	[ 'undelete-page', undeletePageTool ],
-	[ 'compare-pages', comparePagesTool ]
+	[ 'undelete-page', undeletePageTool ]
 ];
 
 export function registerAllTools(

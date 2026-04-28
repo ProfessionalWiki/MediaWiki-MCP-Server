@@ -1,17 +1,14 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
-import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import type { Mwn } from 'mwn';
-import { getMwn } from '../common/mwn.js';
+import type { Tool } from '../runtime/tool.js';
+import type { ToolContext } from '../runtime/context.js';
 import { getPageUrl } from '../common/utils.js';
 import {
 	truncateByBytes,
 	type TruncationInfo
-} from '../common/truncation.js';
-import { classifyError, errorResult } from '../common/errorMapping.js';
-import { structuredResult } from '../common/structuredResult.js';
+} from '../results/truncation.js';
 
 const MAX_TITLES = 50;
 
@@ -33,38 +30,13 @@ interface PageEntry {
 	truncation?: TruncationInfo;
 }
 
-export function getPagesTool( server: McpServer ): RegisteredTool {
-	return server.registerTool(
-		'get-pages',
-		{
-			description: `Returns multiple wiki pages in one call (wikitext source or metadata only). Suited to reading a cluster of related pages, diffing a page family, or syncing pages to local storage. Accepts up to ${ MAX_TITLES } titles; missing pages are reported inline (not as errors). Each page's content is truncated at 50000 bytes with a trailing marker listing available sections; get-page with section=N fetches a specific section. For a single page or HTML output, use get-page.`,
-			inputSchema: {
-				titles: z.array( z.string() ).describe( `Array of wiki page titles (1..${ MAX_TITLES })` ),
-				content: z.nativeEnum( BatchContentFormat ).optional().default( BatchContentFormat.source ).describe( 'Type of content to return; "none" returns metadata only' ),
-				metadata: z.boolean().optional().default( false ).describe( 'Whether to include metadata (page ID, revision info) in the response' ),
-				followRedirects: z.boolean().optional().default( true ).describe( 'Follow wiki redirects. When true (default), redirect targets are returned with a "Redirected from:" line in the metadata. Set false to fetch redirect pseudo-pages as-is (sync-fidelity).' )
-			},
-			annotations: {
-				title: 'Get pages',
-				readOnlyHint: true,
-				destructiveHint: false,
-				idempotentHint: true,
-				openWorldHint: true
-			} as ToolAnnotations
-		},
-		async ( { titles, content, metadata, followRedirects } ) => handleGetPagesTool(
-			titles, content, metadata, followRedirects
-		)
-	);
-}
-
 interface PageRev {
 	revid?: number;
 	timestamp?: string;
 	contentmodel?: string;
 	content?: string;
 	slots?: {
-		main?: { contentmodel?: string; content?: string };
+		main?: { contentmodel?: string; content?: string; size?: number };
 	};
 }
 
@@ -80,20 +52,12 @@ interface RedirectOrNormalizedEntry {
 	to: string;
 }
 
-interface PageSectionsApi {
-	line?: string;
-}
-
-async function fetchSectionsList( mwn: Mwn, title: string ): Promise<string[]> {
-	const response = await mwn.request( {
-		action: 'parse',
-		page: title,
-		prop: 'sections',
-		formatversion: '2'
-	} );
-	const apiSections: PageSectionsApi[] = response?.parse?.sections ?? [];
-	return [ '', ...apiSections.map( ( s ) => s.line ?? '' ) ];
-}
+const inputSchema = {
+	titles: z.array( z.string() ).describe( `Array of wiki page titles (1..${ MAX_TITLES })` ),
+	content: z.nativeEnum( BatchContentFormat ).optional().default( BatchContentFormat.source ).describe( 'Type of content to return; "none" returns metadata only' ),
+	metadata: z.boolean().optional().default( false ).describe( 'Whether to include metadata (page ID, revision info) in the response' ),
+	followRedirects: z.boolean().optional().default( true ).describe( 'Follow wiki redirects. When true (default), redirect targets are returned with a "Redirected from:" line in the metadata. Set false to fetch redirect pseudo-pages as-is (sync-fidelity).' )
+} as const;
 
 function resolveChain(
 	requested: string,
@@ -113,24 +77,33 @@ function resolveChain(
 	return { resolved: cur, viaRedirect };
 }
 
-export async function handleGetPagesTool(
-	titles: string[],
-	content: BatchContentFormat,
-	metadata: boolean,
-	followRedirects: boolean = true
-): Promise<CallToolResult> {
-	if ( titles.length === 0 ) {
-		return errorResult( 'invalid_input', 'titles must contain at least one entry' );
-	}
-	if ( titles.length > MAX_TITLES ) {
-		return errorResult( 'invalid_input', `titles must contain at most ${ MAX_TITLES } entries` );
-	}
-	if ( content === BatchContentFormat.none && !metadata ) {
-		return errorResult( 'invalid_input', 'When content is set to "none", metadata must be true' );
-	}
+export const getPages: Tool<typeof inputSchema> = {
+	name: 'get-pages',
+	description: `Returns multiple wiki pages in one call (wikitext source or metadata only). Suited to reading a cluster of related pages, diffing a page family, or syncing pages to local storage. Accepts up to ${ MAX_TITLES } titles; missing pages are reported inline (not as errors). Each page's content is truncated at 50000 bytes with a trailing marker listing available sections; get-page with section=N fetches a specific section. For a single page or HTML output, use get-page.`,
+	inputSchema,
+	annotations: {
+		title: 'Get pages',
+		readOnlyHint: true,
+		destructiveHint: false,
+		idempotentHint: true,
+		openWorldHint: true
+	} as ToolAnnotations,
 
-	try {
-		const mwn = await getMwn();
+	async handle(
+		{ titles, content, metadata, followRedirects },
+		ctx: ToolContext
+	): Promise<CallToolResult> {
+		if ( titles.length === 0 ) {
+			return ctx.format.invalidInput( 'titles must contain at least one entry' );
+		}
+		if ( titles.length > MAX_TITLES ) {
+			return ctx.format.invalidInput( `titles must contain at most ${ MAX_TITLES } entries` );
+		}
+		if ( content === BatchContentFormat.none && !metadata ) {
+			return ctx.format.invalidInput( 'When content is set to "none", metadata must be true' );
+		}
+
+		const mwn = await ctx.mwn();
 		const needsSource = content === BatchContentFormat.source;
 		const rvprop = needsSource ?
 			'ids|timestamp|contentmodel|content' :
@@ -172,11 +145,9 @@ export async function handleGetPagesTool(
 				for ( const page of pages ) {
 					const revs = page.revisions;
 					if ( revs ) {
-						for ( const rev of revs ) {
-							if ( rev.slots?.main ) {
-								Object.assign( rev, rev.slots.main );
-							}
-						}
+						page.revisions = revs.map(
+							( rev ) => ctx.revision.normalise( rev ) as PageRev
+						);
 					}
 					byResolvedTitle.set( page.title, page );
 				}
@@ -265,7 +236,7 @@ export async function handleGetPagesTool(
 
 		if ( pendingTruncations.length > 0 ) {
 			const sectionLists = await Promise.all(
-				pendingTruncations.map( ( p ) => fetchSectionsList( mwn, p.title ) )
+				pendingTruncations.map( ( p ) => ctx.sections.list( mwn, p.title ) )
 			);
 			pendingTruncations.forEach( ( p, i ) => {
 				const info: TruncationInfo = {
@@ -281,12 +252,9 @@ export async function handleGetPagesTool(
 			} );
 		}
 
-		return structuredResult( {
+		return ctx.format.ok( {
 			pages: entries,
 			...( missing.length > 0 ? { missing } : {} )
 		} );
-	} catch ( error ) {
-		const { category, code } = classifyError( error );
-		return errorResult( category, `Failed to retrieve pages: ${ ( error as Error ).message }`, code );
 	}
-}
+};

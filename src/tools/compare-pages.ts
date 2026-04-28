@@ -1,23 +1,11 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
-import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { getMwn } from '../common/mwn.js';
+import type { Tool } from '../runtime/tool.js';
+import type { ToolContext } from '../runtime/context.js';
 import { inlineDiffToText } from '../common/diffFormat.js';
-import { truncateByBytes } from '../common/truncation.js';
-import { classifyError, errorResult } from '../common/errorMapping.js';
-import { structuredResult } from '../common/structuredResult.js';
-
-interface ComparePagesArgs {
-	fromRevision?: number;
-	fromTitle?: string;
-	fromText?: string;
-	toRevision?: number;
-	toTitle?: string;
-	toText?: string;
-	includeDiff?: boolean;
-}
+import { truncateByBytes } from '../results/truncation.js';
 
 interface CompareResponse {
 	fromrevid?: number;
@@ -34,31 +22,25 @@ interface CompareResponse {
 
 type Side = 'from' | 'to';
 
-export function comparePagesTool( server: McpServer ): RegisteredTool {
-	return server.registerTool(
-		'compare-pages',
-		{
-			description: 'Returns the changes between two versions of a wiki page as a compact text diff. Each side accepts a revision ID, page title (latest revision), or supplied wikitext; text-vs-text is rejected. Only the changes are returned over the wire. For the full text of both sides, fetch with get-page instead. If a title or revision ID does not exist, an error is returned. Set includeDiff=false for a cheap change-detection response that skips diff rendering and returns just the change flag, revision metadata, and size delta. Diff output is truncated at 50000 bytes with a trailing marker; a narrower revision range or includeDiff=false avoids truncation.',
-			inputSchema: {
-				fromRevision: z.number().int().positive().optional().describe( 'Revision ID for the "from" side' ),
-				fromTitle: z.string().optional().describe( 'Wiki page title for the "from" side (latest revision is used)' ),
-				fromText: z.string().optional().describe( 'Supplied wikitext for the "from" side' ),
-				toRevision: z.number().int().positive().optional().describe( 'Revision ID for the "to" side' ),
-				toTitle: z.string().optional().describe( 'Wiki page title for the "to" side (latest revision is used)' ),
-				toText: z.string().optional().describe( 'Supplied wikitext for the "to" side' ),
-				includeDiff: z.boolean().optional().describe( 'Include the diff body (default true). Set false for a cheap change-detection response.' )
-			},
-			annotations: {
-				title: 'Compare pages',
-				readOnlyHint: true,
-				destructiveHint: false,
-				idempotentHint: true,
-				openWorldHint: true
-			} as ToolAnnotations
-		},
-		async ( args ) => handleComparePagesTool( args as ComparePagesArgs )
-	);
-}
+const inputSchema = {
+	fromRevision: z.number().int().positive().optional().describe( 'Revision ID for the "from" side' ),
+	fromTitle: z.string().optional().describe( 'Wiki page title for the "from" side (latest revision is used)' ),
+	fromText: z.string().optional().describe( 'Supplied wikitext for the "from" side' ),
+	toRevision: z.number().int().positive().optional().describe( 'Revision ID for the "to" side' ),
+	toTitle: z.string().optional().describe( 'Wiki page title for the "to" side (latest revision is used)' ),
+	toText: z.string().optional().describe( 'Supplied wikitext for the "to" side' ),
+	includeDiff: z.boolean().optional().describe( 'Include the diff body (default true). Set false for a cheap change-detection response.' )
+} as const;
+
+type ComparePagesArgs = {
+	fromRevision?: number;
+	fromTitle?: string;
+	fromText?: string;
+	toRevision?: number;
+	toTitle?: string;
+	toText?: string;
+	includeDiff?: boolean;
+};
 
 function countSide( side: Side, args: ComparePagesArgs ): number {
 	return [
@@ -109,38 +91,47 @@ function detectChanged( compare: CompareResponse, diffText: string ): boolean {
 	return ( compare.fromsize ?? 0 ) !== ( compare.tosize ?? 0 );
 }
 
-export async function handleComparePagesTool(
-	args: ComparePagesArgs
-): Promise<CallToolResult> {
-	const fromError = validateSide( 'from', args );
-	if ( fromError ) {
-		return errorResult( 'invalid_input', fromError );
-	}
-	const toError = validateSide( 'to', args );
-	if ( toError ) {
-		return errorResult( 'invalid_input', toError );
-	}
-	if ( args.fromText !== undefined && args.toText !== undefined ) {
-		return errorResult( 'invalid_input', 'Cannot compare supplied text against supplied text' );
-	}
+export const comparePages: Tool<typeof inputSchema> = {
+	name: 'compare-pages',
+	description: 'Returns the changes between two versions of a wiki page as a compact text diff. Each side accepts a revision ID, page title (latest revision), or supplied wikitext; text-vs-text is rejected. Only the changes are returned over the wire. For the full text of both sides, fetch with get-page instead. If a title or revision ID does not exist, an error is returned. Set includeDiff=false for a cheap change-detection response that skips diff rendering and returns just the change flag, revision metadata, and size delta. Diff output is truncated at 50000 bytes with a trailing marker; a narrower revision range or includeDiff=false avoids truncation.',
+	inputSchema,
+	annotations: {
+		title: 'Compare pages',
+		readOnlyHint: true,
+		destructiveHint: false,
+		idempotentHint: true,
+		openWorldHint: true
+	} as ToolAnnotations,
 
-	const includeDiff = args.includeDiff ?? true;
+	async handle( args, ctx: ToolContext ): Promise<CallToolResult> {
+		const fromError = validateSide( 'from', args );
+		if ( fromError ) {
+			return ctx.format.invalidInput( fromError );
+		}
+		const toError = validateSide( 'to', args );
+		if ( toError ) {
+			return ctx.format.invalidInput( toError );
+		}
+		if ( args.fromText !== undefined && args.toText !== undefined ) {
+			return ctx.format.invalidInput( 'Cannot compare supplied text against supplied text' );
+		}
 
-	const params: Record<string, string | number> = {
-		action: 'compare',
-		prop: includeDiff ? 'ids|title|size|timestamp|diff' : 'ids|title|size|diffsize',
-		formatversion: '2',
-		...buildSideParams( 'from', args ),
-		...buildSideParams( 'to', args )
-	};
+		const includeDiff = args.includeDiff ?? true;
 
-	try {
-		const mwn = await getMwn();
+		const params: Record<string, string | number> = {
+			action: 'compare',
+			prop: includeDiff ? 'ids|title|size|timestamp|diff' : 'ids|title|size|diffsize',
+			formatversion: '2',
+			...buildSideParams( 'from', args ),
+			...buildSideParams( 'to', args )
+		};
+
+		const mwn = await ctx.mwn();
 		const response = await mwn.request( params );
 		const compare = response.compare as CompareResponse | undefined;
 
 		if ( !compare ) {
-			return errorResult( 'upstream_failure', 'Failed to compare pages: no compare result returned' );
+			return ctx.format.error( 'upstream_failure', 'Failed to compare pages: no compare result returned' );
 		}
 
 		const diffText = compare.body ? inlineDiffToText( compare.body ) : '';
@@ -193,34 +184,6 @@ export async function handleComparePagesTool(
 			}
 		}
 
-		return structuredResult( payload );
-	} catch ( error ) {
-		const { category, code } = classifyError( error );
-		const msg = ( error as Error ).message;
-		if ( code === 'nosuchrevid' ) {
-			const idMatch = msg.match( /\b(\d+)\b/ );
-			let id: string | undefined = idMatch?.[ 1 ];
-			if ( id === undefined && args.fromRevision !== undefined ) {
-				id = String( args.fromRevision );
-			}
-			if ( id === undefined && args.toRevision !== undefined ) {
-				id = String( args.toRevision );
-			}
-			return errorResult(
-				'not_found',
-				id !== undefined ? `Revision ${ id } not found` : 'Revision not found',
-				code
-			);
-		}
-		if ( code === 'missingtitle' ) {
-			const titleMatch = msg.match( /["'`]([^"'`]+)["'`]/ );
-			const title = titleMatch?.[ 1 ] ?? args.fromTitle ?? args.toTitle;
-			return errorResult(
-				'not_found',
-				title !== undefined ? `Page "${ title }" not found` : 'Page not found',
-				code
-			);
-		}
-		return errorResult( category, `Failed to compare pages: ${ msg }`, code );
+		return ctx.format.ok( payload );
 	}
-}
+};

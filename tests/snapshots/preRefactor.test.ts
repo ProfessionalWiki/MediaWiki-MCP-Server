@@ -105,7 +105,7 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	// ------------------------------------------------------------------
 
 	it( 'get-page happy path', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			read: vi.fn().mockResolvedValue( {
 				pageid: 1,
 				title: 'Test Page',
@@ -118,18 +118,28 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			} )
 		} );
 
-		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
-		const result = await handleGetPageTool( 'Test Page', 'source' as any, false );
+		const { getPage } = await import( '../../src/tools/get-page.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( getPage, ctx )( {
+			title: 'Test Page',
+			content: 'source' as any,
+			metadata: false
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
 	it( 'get-page error path (missingtitle)', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			read: vi.fn().mockRejectedValue( createMockMwnError( 'missingtitle' ) )
 		} );
 
-		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
-		const result = await handleGetPageTool( 'Missing', 'source' as any, false );
+		const { getPage } = await import( '../../src/tools/get-page.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( getPage, ctx )( {
+			title: 'Missing',
+			content: 'source' as any,
+			metadata: false
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
@@ -138,7 +148,7 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	// ------------------------------------------------------------------
 
 	it( 'get-pages happy path', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			massQuery: vi.fn().mockResolvedValue( [ {
 				query: {
 					pages: [ {
@@ -159,18 +169,30 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			} ] )
 		} );
 
-		const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-		const result = await handleGetPagesTool( [ 'Foo' ], 'source' as any, false, true );
+		const { getPages } = await import( '../../src/tools/get-pages.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( getPages, ctx )( {
+			titles: [ 'Foo' ],
+			content: 'source' as any,
+			metadata: false,
+			followRedirects: true
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
 	it( 'get-pages error path (upstream_failure)', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			massQuery: vi.fn().mockRejectedValue( createMockMwnError( 'internal_api_error' ) )
 		} );
 
-		const { handleGetPagesTool } = await import( '../../src/tools/get-pages.js' );
-		const result = await handleGetPagesTool( [ 'Foo' ], 'source' as any, false, true );
+		const { getPages } = await import( '../../src/tools/get-pages.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( getPages, ctx )( {
+			titles: [ 'Foo' ],
+			content: 'source' as any,
+			metadata: false,
+			followRedirects: true
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
@@ -520,7 +542,7 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			'</table>'
 		].join( '' );
 
-		setMwn( {
+		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				compare: {
 					fromrevid: 42,
@@ -536,8 +558,9 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			} )
 		} );
 
-		const { handleComparePagesTool } = await import( '../../src/tools/compare-pages.js' );
-		const result = await handleComparePagesTool( {
+		const { comparePages } = await import( '../../src/tools/compare-pages.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( comparePages, ctx )( {
 			fromRevision: 42,
 			toRevision: 57
 		} );
@@ -545,14 +568,15 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	} );
 
 	it( 'compare-pages error path (nosuchrevid)', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			request: vi.fn().mockRejectedValue(
 				new Error( 'nosuchrevid: There is no revision with ID 99999.' )
 			)
 		} );
 
-		const { handleComparePagesTool } = await import( '../../src/tools/compare-pages.js' );
-		const result = await handleComparePagesTool( {
+		const { comparePages } = await import( '../../src/tools/compare-pages.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( comparePages, ctx )( {
 			fromRevision: 99999,
 			toRevision: 57
 		} );
