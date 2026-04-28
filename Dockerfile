@@ -16,7 +16,7 @@ FROM node:lts-alpine
 
 LABEL maintainer="Professional Wiki"
 LABEL org.opencontainers.image.description="Model Context Protocol (MCP) server for MediaWiki"
-LABEL org.opencontainers.image.version="0.7.0"
+LABEL org.opencontainers.image.version="0.8.0"
 
 WORKDIR /app
 

@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-04-28
+
 ### Added
 
 - `update-file` tool for uploading a new revision of an existing file from local disk. (#304)
@@ -81,5 +83,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - Smithery integration.
 
-[Unreleased]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.6.5...v0.7.0
