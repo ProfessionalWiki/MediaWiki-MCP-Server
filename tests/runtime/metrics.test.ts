@@ -17,8 +17,7 @@ describe( 'metrics module — disabled state', () => {
 	} );
 
 	it( 'recorders are no-ops before initMetrics', () => {
-		expect( () =>
-			recordToolCall( { tool: 't', wiki: 'w', outcome: 'success', durationMs: 1, upstreamStatus: undefined } )
+		expect( () => recordToolCall( { tool: 't', wiki: 'w', outcome: 'success', durationMs: 1, upstreamStatus: undefined } )
 		).not.toThrow();
 		expect( () => recordReadyFailure() ).not.toThrow();
 		expect( () => setSessionsProvider( () => 0 ) ).not.toThrow();
