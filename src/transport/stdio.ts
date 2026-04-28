@@ -7,6 +7,7 @@ import { logger } from '../runtime/logger.js';
 import { createServer } from '../server.js';
 import { emitStartupBanner } from '../runtime/banner.js';
 import { createToolContext } from '../runtime/createContext.js';
+import { registerShutdownHandlers } from '../runtime/shutdown.js';
 
 async function main(): Promise<void> {
 	emitStartupBanner( { transport: 'stdio' } );
@@ -15,6 +16,13 @@ async function main(): Promise<void> {
 	const server = createServer( ctx );
 
 	await server.connect( transport );
+	// Stdio has no in-flight queue, so grace doesn't apply — log graceMs: 0
+	// to make that explicit in the shutdown event.
+	registerShutdownHandlers( {
+		transport: 'stdio',
+		graceMs: 0,
+		stdioTransport: transport
+	} );
 }
 
 main().catch( ( error ) => {

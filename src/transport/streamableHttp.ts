@@ -25,6 +25,7 @@ import { wikiRegistry, wikiSelection, mwnProvider } from '../wikis/state.js';
 import { createServer } from '../server.js';
 import { emitStartupBanner } from '../runtime/banner.js';
 import { createToolContext } from '../runtime/createContext.js';
+import { registerShutdownHandlers, resolveShutdownGrace } from '../runtime/shutdown.js';
 
 export async function withRequestContext<T>(
 	runtimeToken: string | undefined,
@@ -97,6 +98,23 @@ export type SessionEntry = {
 };
 
 export type SessionRegistry = { [ sessionId: string ]: SessionEntry };
+
+export interface InFlightCounter {
+	readonly middleware: RequestHandler;
+	readonly count: () => number;
+}
+
+export function createInFlightCounter(): InFlightCounter {
+	let n = 0;
+	const middleware: RequestHandler = ( _req, res, next ) => {
+		n++;
+		res.on( 'close', () => {
+			n--;
+		} );
+		next();
+	};
+	return { middleware, count: () => n };
+}
 
 function sendSessionBearerMismatch( res: Response ): void {
 	res.status( 401 ).json( {
@@ -331,6 +349,9 @@ const sessions: SessionRegistry = {};
 const sessionRequestHandler = createSessionRequestHandler( sessions );
 const ctx = createToolContext( { logger } );
 
+const inFlight = createInFlightCounter();
+app.use( '/mcp', inFlight.middleware );
+
 app.post( '/mcp', createMcpPostHandler(
 	sessions,
 	() => createServer( ctx ),
@@ -348,6 +369,14 @@ mountReadyEndpoint( app );
 mountMetricsEndpoint( app );
 setSessionsProvider( () => Object.keys( sessions ).length );
 
-app.listen( port, host, () => {
+const httpServer = app.listen( port, host, () => {
 	logger.info( `MCP Streamable HTTP Server listening on ${ host }:${ port }` );
+} );
+
+registerShutdownHandlers( {
+	transport: 'http',
+	graceMs: resolveShutdownGrace( process.env ),
+	httpServer,
+	sessions,
+	inFlight
 } );

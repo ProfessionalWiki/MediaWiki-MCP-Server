@@ -39,6 +39,7 @@ import request from 'supertest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 /* eslint-enable n/no-missing-import */
 import {
+	createInFlightCounter,
 	createMcpPostHandler,
 	createSessionRequestHandler,
 	extractBearerToken,
@@ -402,5 +403,46 @@ describe( 'withRequestContext', () => {
 			expect( getRuntimeToken() ).toBeUndefined();
 			expect( getSessionId() ).toBe( 'sess-only' );
 		} );
+	} );
+} );
+
+describe( 'createInFlightCounter', () => {
+	function buildApp(): Express {
+		const app = express();
+		const inFlight = createInFlightCounter();
+		app.use( '/mcp', inFlight.middleware );
+		app.post( '/mcp', ( _req, res ) => {
+			res.json( { count: inFlight.count() } );
+		} );
+		app.get( '/count', ( _req, res ) => res.json( { count: inFlight.count() } ) );
+		return app;
+	}
+
+	it( 'is 1 during the request and 0 after', async () => {
+		const app = buildApp();
+		const mid = await request( app ).post( '/mcp' ).send( {} );
+		expect( mid.body.count ).toBe( 1 );
+
+		const after = await request( app ).get( '/count' );
+		expect( after.body.count ).toBe( 0 );
+	} );
+
+	it( 'decrements when the client aborts (res close without finish)', async () => {
+		const app = express();
+		const inFlight = createInFlightCounter();
+		app.use( '/mcp', inFlight.middleware );
+		app.post( '/mcp', ( _req, res ) => {
+			res.destroy();
+		} );
+
+		await request( app ).post( '/mcp' ).send( {} ).catch( () => undefined );
+		await new Promise( ( r ) => setImmediate( r ) );
+		expect( inFlight.count() ).toBe( 0 );
+	} );
+
+	it( 'each factory call has its own counter', () => {
+		const a = createInFlightCounter();
+		const b = createInFlightCounter();
+		expect( a.count ).not.toBe( b.count );
 	} );
 } );
