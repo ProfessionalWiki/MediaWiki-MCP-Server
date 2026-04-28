@@ -216,7 +216,7 @@ describe( 'resolveHttpConfig', () => {
 			expect( resolveHttpConfig().maxRequestBody ).toBe( '2mb' );
 		} );
 
-		it.each( [ 'potato', '1md', '--', '5 mibibytes' ] )(
+		it.each( [ 'potato', '1md', '--', '5 mibibytes', '.5mb' ] )(
 			'falls back to 1mb when MCP_MAX_REQUEST_BODY=%s is malformed',
 			( value ) => {
 				vi.stubEnv( 'MCP_MAX_REQUEST_BODY', value );
