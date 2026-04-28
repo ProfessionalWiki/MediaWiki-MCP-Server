@@ -105,6 +105,7 @@ export function emitToolCall<TArgs>( opts: EmitToolCallOptions<TArgs> ): void {
 	const level = levelFor( opts.outcome );
 	const targetValue = safeTarget( opts.target, opts.args );
 	const truncated = opts.outcome === 'success' ? detectTruncation( opts.result ) : false;
+	const durationMs = Math.round( performance.now() - opts.started );
 	// Snake-case keys are required by the structured log schema.
 	const data: Record<string, unknown> = {
 		event: 'tool_call',
@@ -112,7 +113,7 @@ export function emitToolCall<TArgs>( opts: EmitToolCallOptions<TArgs> ): void {
 		wiki: opts.wikiKey,
 		outcome: opts.outcome,
 		// eslint-disable-next-line camelcase
-		duration_ms: Math.round( performance.now() - opts.started ),
+		duration_ms: durationMs,
 		caller: hashCaller( opts.runtimeToken ),
 		truncated
 	};
@@ -136,7 +137,7 @@ export function emitToolCall<TArgs>( opts: EmitToolCallOptions<TArgs> ): void {
 		tool: opts.toolName,
 		wiki: opts.wikiKey,
 		outcome: opts.outcome,
-		durationMs: Math.round( performance.now() - opts.started ),
+		durationMs,
 		upstreamStatus: opts.upstreamStatus
 	} );
 }
