@@ -372,6 +372,52 @@ describe( 'origin validation (transport-level)', () => {
 	} );
 } );
 
+describe( 'request body size cap', () => {
+	function buildApp( limit: string ): Express {
+		const app = express();
+		app.use( express.json( { limit } ) );
+		app.use( payloadTooLargeHandler( limit ) );
+		app.post( '/mcp', ( req, res ) => {
+			res.status( 200 ).json( { ok: true, length: JSON.stringify( req.body ).length } );
+		} );
+		return app;
+	}
+
+	function jsonRpcEnvelope( payloadBytes: number ): Record<string, unknown> {
+		return {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'tools/call',
+			params: {
+				name: 'update-page',
+				arguments: { wikitext: 'x'.repeat( payloadBytes ) }
+			}
+		};
+	}
+
+	it( 'accepts a body well under the configured cap', async () => {
+		const res = await request( buildApp( '200kb' ) )
+			.post( '/mcp' )
+			.set( 'Content-Type', 'application/json' )
+			.send( jsonRpcEnvelope( 50 * 1024 ) );
+		expect( res.status ).toBe( 200 );
+		expect( res.body?.ok ).toBe( true );
+	} );
+
+	it( 'returns a JSON-RPC 413 when the body exceeds the configured cap', async () => {
+		const res = await request( buildApp( '50kb' ) )
+			.post( '/mcp' )
+			.set( 'Content-Type', 'application/json' )
+			.send( jsonRpcEnvelope( 200 * 1024 ) );
+		expect( res.status ).toBe( 413 );
+		expect( res.headers[ 'content-type' ] ).toMatch( /application\/json/ );
+		expect( res.body?.jsonrpc ).toBe( '2.0' );
+		expect( res.body?.id ).toBeNull();
+		expect( typeof res.body?.error?.code ).toBe( 'number' );
+		expect( res.body?.error?.message ).toMatch( /50kb/ );
+	} );
+} );
+
 describe( 'payloadTooLargeHandler', () => {
 	it( 'sends a JSON-RPC 413 when err.type is entity.too.large', () => {
 		const handler = payloadTooLargeHandler( '1mb' );

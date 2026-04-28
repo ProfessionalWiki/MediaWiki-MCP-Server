@@ -331,7 +331,7 @@ export function mountReadyEndpoint( app: express.Express ): void {
 	} );
 }
 
-const { host, port, allowedHosts, allowedOrigins } = resolveHttpConfig();
+const { host, port, allowedHosts, allowedOrigins, maxRequestBody, warnings } = resolveHttpConfig();
 const guard = evaluateBearerGuard( wikiRegistry.getAll(), process.env );
 if ( guard.kind === 'block' ) {
 	logger.error(
@@ -353,12 +353,19 @@ if ( guard.kind === 'override' ) {
 		'This deployment cannot attribute writes to individual callers.'
 	);
 }
+for ( const warning of warnings ) {
+	logger.warning( warning );
+}
 // Emit the process-level startup banner before any HTTP request
 // can spin up a per-session McpServer.
-emitStartupBanner( { transport: 'http', http: { host, port, allowedHosts, allowedOrigins } } );
+emitStartupBanner( {
+	transport: 'http',
+	http: { host, port, allowedHosts, allowedOrigins, maxRequestBody }
+} );
 
 const app = express();
-app.use( express.json() );
+app.use( express.json( { limit: maxRequestBody } ) );
+app.use( payloadTooLargeHandler( maxRequestBody ) );
 
 const hostValidation = resolveMcpHostValidation( host, allowedHosts );
 if ( hostValidation ) {
