@@ -44,6 +44,7 @@ import {
 	createSessionRequestHandler,
 	extractBearerToken,
 	hashBearer,
+	payloadTooLargeHandler,
 	resolveMcpHostValidation,
 	type SessionRegistry,
 	verifySessionBearer,
@@ -368,6 +369,61 @@ describe( 'origin validation (transport-level)', () => {
 			.set( 'Accept', 'application/json, text/event-stream' )
 			.send( initializeBody );
 		expect( res.status ).not.toBe( 403 );
+	} );
+} );
+
+describe( 'payloadTooLargeHandler', () => {
+	it( 'sends a JSON-RPC 413 when err.type is entity.too.large', () => {
+		const handler = payloadTooLargeHandler( '1mb' );
+		const next = vi.fn();
+		const tooLargeErr = Object.assign( new Error( 'too large' ), { type: 'entity.too.large' } );
+		const json = vi.fn();
+		const status = vi.fn( () => ( { json } ) );
+		const res = { status };
+		handler(
+			tooLargeErr,
+			{} as never,
+			res as never,
+			next as never
+		);
+		expect( next ).not.toHaveBeenCalled();
+		expect( status ).toHaveBeenCalledWith( 413 );
+		expect( json ).toHaveBeenCalledWith( {
+			jsonrpc: '2.0',
+			error: {
+				code: -32000,
+				message: 'Request body exceeds the configured maximum size of 1mb'
+			},
+			id: null
+		} );
+	} );
+
+	it( 'forwards non-413 errors to the next handler', () => {
+		const handler = payloadTooLargeHandler( '1mb' );
+		const next = vi.fn();
+		const otherErr = new Error( 'unrelated' );
+		const res = { status: vi.fn(), json: vi.fn() };
+		handler(
+			otherErr,
+			{} as never,
+			res as never,
+			next as never
+		);
+		expect( next ).toHaveBeenCalledWith( otherErr );
+		expect( res.status ).not.toHaveBeenCalled();
+		expect( res.json ).not.toHaveBeenCalled();
+	} );
+
+	it( 'forwards a non-error-shaped value (string) to next', () => {
+		const handler = payloadTooLargeHandler( '1mb' );
+		const next = vi.fn();
+		handler(
+			'oops' as never,
+			{} as never,
+			{} as never,
+			next as never
+		);
+		expect( next ).toHaveBeenCalledWith( 'oops' );
 	} );
 } );
 

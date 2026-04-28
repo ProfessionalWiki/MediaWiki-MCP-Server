@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
-import express, { type RequestHandler, type Request, type Response } from 'express';
+import express, {
+	type ErrorRequestHandler,
+	type RequestHandler,
+	type Request,
+	type Response
+} from 'express';
 /* eslint-disable n/no-missing-import */
 import {
 	hostHeaderValidation,
@@ -211,6 +216,29 @@ export function createSessionRequestHandler( sessions: SessionRegistry ): Reques
 			sessionId,
 			() => entry.transport.handleRequest( req, res )
 		);
+	};
+}
+
+// body-parser raises a PayloadTooLargeError with `type === 'entity.too.large'`
+// when the request body exceeds the configured limit. Without this handler the
+// default Express error page returns an HTML blob, which an MCP client cannot
+// parse — so we shape it as a JSON-RPC error.
+export function payloadTooLargeHandler( limit: string ): ErrorRequestHandler {
+	return ( err, _req, res, next ) => {
+		const tooLarge = typeof err === 'object' && err !== null &&
+			( err as { type?: unknown } ).type === 'entity.too.large';
+		if ( !tooLarge ) {
+			next( err );
+			return;
+		}
+		res.status( 413 ).json( {
+			jsonrpc: '2.0',
+			error: {
+				code: -32000,
+				message: `Request body exceeds the configured maximum size of ${ limit }`
+			},
+			id: null
+		} );
 	};
 }
 
