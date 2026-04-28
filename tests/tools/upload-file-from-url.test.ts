@@ -1,33 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { z } from 'zod';
+import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 import { createMockMwnError } from '../helpers/mock-mwn-error.js';
-
-vi.mock( '../../src/common/mwn.js', () => ( {
-	getMwn: vi.fn()
-} ) );
-
-vi.mock( '../../src/common/wikiService.js', () => ( {
-	wikiService: {
-		getCurrent: vi.fn().mockReturnValue( {
-			key: 'test-wiki',
-			config: { server: 'https://test.wiki', articlepath: '/wiki', scriptpath: '/w' }
-		} )
-	}
-} ) );
-
-import { getMwn } from '../../src/common/mwn.js';
-import { formatPayload } from '../../src/common/formatPayload.js';
+import { fakeContext } from '../helpers/fakeContext.js';
+import { uploadFileFromUrl } from '../../src/tools/upload-file-from-url.js';
+import { dispatch } from '../../src/runtime/dispatcher.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
 
 describe( 'upload-file-from-url', () => {
-	beforeEach( () => {
-		vi.clearAllMocks();
-	} );
-
 	it( 'returns a structured payload on success', async () => {
 		const mock = createMockMwn( {
 			uploadFromUrl: vi.fn().mockResolvedValue( {
@@ -39,21 +21,18 @@ describe( 'upload-file-from-url', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as unknown as Awaited<ReturnType<typeof getMwn>> );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleUploadFileFromUrlTool } = await import( '../../src/tools/upload-file-from-url.js' );
-		const result = await handleUploadFileFromUrlTool(
-			'https://source.example/cat.jpg',
-			'File:Cat.jpg',
-			'A cat.'
-		);
+		const result = await uploadFileFromUrl.handle( {
+			url: 'https://source.example/cat.jpg',
+			title: 'File:Cat.jpg',
+			text: 'A cat.'
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
-		expect( text ).toBe( formatPayload( {
-			filename: 'Cat.jpg',
-			pageUrl: 'https://test.wiki/wiki/File:Cat.jpg',
-			fileUrl: 'https://test.wiki/images/Cat.jpg'
-		} ) );
+		expect( text ).toContain( 'Filename: Cat.jpg' );
+		expect( text ).toContain( 'Page URL: https://test.wiki/wiki/File:Cat.jpg' );
+		expect( text ).toContain( 'File URL: https://test.wiki/images/Cat.jpg' );
 	} );
 
 	it( 'surfaces copyuploaddisabled as invalid_input with a remedy hint', async () => {
@@ -65,37 +44,57 @@ describe( 'upload-file-from-url', () => {
 				)
 			)
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as unknown as Awaited<ReturnType<typeof getMwn>> );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleUploadFileFromUrlTool } = await import( '../../src/tools/upload-file-from-url.js' );
-		const result = await handleUploadFileFromUrlTool(
-			'https://source.example/cat.jpg',
-			'File:Cat.jpg',
-			'A cat.'
-		);
+		const result = await uploadFileFromUrl.handle( {
+			url: 'https://source.example/cat.jpg',
+			title: 'File:Cat.jpg',
+			text: 'A cat.'
+		}, ctx );
 
 		const envelope = assertStructuredError( result, 'invalid_input', 'copyuploaddisabled' );
-		expect( envelope.message ).toMatch(
-			/Upload by URL is disabled/
-		);
+		expect( envelope.message ).toMatch( /Upload by URL is disabled/ );
 	} );
 
-	it( 'categorises generic upstream failures as upstream_failure', async () => {
+	it( 'dispatches generic upstream failures with the standard verb prefix', async () => {
 		const mock = createMockMwn( {
 			uploadFromUrl: vi.fn().mockRejectedValue( new Error( 'Connection refused' ) )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as unknown as Awaited<ReturnType<typeof getMwn>> );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleUploadFileFromUrlTool } = await import( '../../src/tools/upload-file-from-url.js' );
-		const result = await handleUploadFileFromUrlTool(
-			'https://source.example/cat.jpg',
-			'File:Cat.jpg',
-			'A cat.'
-		);
+		const result = await dispatch( uploadFileFromUrl, ctx )( {
+			url: 'https://source.example/cat.jpg',
+			title: 'File:Cat.jpg',
+			text: 'A cat.'
+		} );
 
 		const envelope = assertStructuredError( result, 'upstream_failure' );
-		expect( envelope.message ).toMatch(
-			/Failed to upload file: Connection refused/
-		);
+		expect( envelope.message ).toMatch( /Failed to upload file: Connection refused/ );
+	} );
+
+	it( 'forwards configured tags via ctx.edit.applyTags', async () => {
+		const mock = createMockMwn( {
+			uploadFromUrl: vi.fn().mockResolvedValue( {
+				result: 'Success',
+				filename: 'Cat.jpg'
+			} )
+		} );
+		const ctx = fakeContext( {
+			mwn: async () => mock as never,
+			edit: {
+				submit: vi.fn() as never,
+				submitUpload: vi.fn() as never,
+				applyTags: ( o: object ) => ( { ...o, tags: 'mcp-server' } )
+			}
+		} );
+
+		await uploadFileFromUrl.handle( {
+			url: 'https://source.example/cat.jpg',
+			title: 'File:Cat.jpg',
+			text: 'A cat.'
+		}, ctx );
+
+		const params = mock.uploadFromUrl.mock.calls[ 0 ][ 3 ];
+		expect( params ).toHaveProperty( 'tags', 'mcp-server' );
 	} );
 } );

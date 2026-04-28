@@ -588,7 +588,7 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	// ------------------------------------------------------------------
 
 	it( 'create-page happy path', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			create: vi.fn().mockResolvedValue( {
 				result: 'Success',
 				pageid: 10,
@@ -600,18 +600,30 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			} )
 		} );
 
-		const { handleCreatePageTool } = await import( '../../src/tools/create-page.js' );
-		const result = await handleCreatePageTool( 'Hello', 'New Page', 'test', 'wikitext' );
+		const { createPage } = await import( '../../src/tools/create-page.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( createPage, ctx )( {
+			source: 'Hello',
+			title: 'New Page',
+			comment: 'test',
+			contentModel: 'wikitext'
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
 	it( 'create-page error path (articleexists)', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			create: vi.fn().mockRejectedValue( createMockMwnError( 'articleexists' ) )
 		} );
 
-		const { handleCreatePageTool } = await import( '../../src/tools/create-page.js' );
-		const result = await handleCreatePageTool( 'Hello', 'Existing Page', 'comment', 'wikitext' );
+		const { createPage } = await import( '../../src/tools/create-page.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( createPage, ctx )( {
+			source: 'Hello',
+			title: 'Existing Page',
+			comment: 'comment',
+			contentModel: 'wikitext'
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
@@ -620,7 +632,7 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	// ------------------------------------------------------------------
 
 	it( 'update-page happy path', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				edit: {
 					result: 'Success',
@@ -635,8 +647,20 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			getCsrfToken: vi.fn().mockResolvedValue( 'csrf-token' )
 		} );
 
-		const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
-		const result = await handleUpdatePageTool( {
+		const { updatePage } = await import( '../../src/tools/update-page.js' );
+		const ctx = fakeContext( {
+			mwn: async () => mock as never,
+			edit: {
+				submit: vi.fn().mockImplementation(
+					async ( _m: never, params: Record<string, unknown> ) => mock.request(
+						{ ...params, token: 'csrf-token', formatversion: '2' }
+					)
+				) as never,
+				submitUpload: vi.fn() as never,
+				applyTags: ( o: object ) => ( { ...o } )
+			}
+		} );
+		const result = await dispatch( updatePage, ctx )( {
 			title: 'My Page',
 			source: 'Updated content',
 			latestId: 41,
@@ -646,13 +670,25 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	} );
 
 	it( 'update-page error path (missingtitle)', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			request: vi.fn().mockRejectedValue( createMockMwnError( 'missingtitle' ) ),
 			getCsrfToken: vi.fn().mockResolvedValue( 'csrf-token' )
 		} );
 
-		const { handleUpdatePageTool } = await import( '../../src/tools/update-page.js' );
-		const result = await handleUpdatePageTool( {
+		const { updatePage } = await import( '../../src/tools/update-page.js' );
+		const ctx = fakeContext( {
+			mwn: async () => mock as never,
+			edit: {
+				submit: vi.fn().mockImplementation(
+					async ( _m: never, params: Record<string, unknown> ) => mock.request(
+						{ ...params, token: 'csrf-token', formatversion: '2' }
+					)
+				) as never,
+				submitUpload: vi.fn() as never,
+				applyTags: ( o: object ) => ( { ...o } )
+			}
+		} );
+		const result = await dispatch( updatePage, ctx )( {
 			title: 'Does Not Exist',
 			source: 'content',
 			latestId: 1
@@ -698,7 +734,7 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	// ------------------------------------------------------------------
 
 	it( 'undelete-page happy path', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			undelete: vi.fn().mockResolvedValue( {
 				title: 'Restored Page',
 				reason: 'oops',
@@ -706,18 +742,23 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			} )
 		} );
 
-		const { handleUndeletePageTool } = await import( '../../src/tools/undelete-page.js' );
-		const result = await handleUndeletePageTool( 'Restored Page', 'oops' );
+		const { undeletePage } = await import( '../../src/tools/undelete-page.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( undeletePage, ctx )( {
+			title: 'Restored Page',
+			comment: 'oops'
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
 	it( 'undelete-page error path (permissiondenied)', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			undelete: vi.fn().mockRejectedValue( createMockMwnError( 'permissiondenied' ) )
 		} );
 
-		const { handleUndeletePageTool } = await import( '../../src/tools/undelete-page.js' );
-		const result = await handleUndeletePageTool( 'Protected' );
+		const { undeletePage } = await import( '../../src/tools/undelete-page.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( undeletePage, ctx )( { title: 'Protected' } );
 		expect( result ).toMatchSnapshot();
 	} );
 
@@ -727,7 +768,7 @@ describe( 'pre-refactor MCP response snapshots', () => {
 
 	it( 'upload-file happy path', async () => {
 		vi.mocked( assertAllowedPath ).mockResolvedValue( '/home/user/uploads/cat.jpg' );
-		setMwn( {
+		const mock = createMockMwn( {
 			upload: vi.fn().mockResolvedValue( {
 				result: 'Success',
 				filename: 'Cat.jpg',
@@ -738,27 +779,49 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			} )
 		} );
 
-		const { handleUploadFileTool } = await import( '../../src/tools/upload-file.js' );
-		const result = await handleUploadFileTool(
-			'/home/user/uploads/cat.jpg',
-			'File:Cat.jpg',
-			'A cat.'
-		);
+		const { uploadFile } = await import( '../../src/tools/upload-file.js' );
+		const ctx = fakeContext( {
+			mwn: async () => mock as never,
+			edit: {
+				submit: vi.fn() as never,
+				submitUpload: vi.fn().mockImplementation(
+					async ( m: { upload: ( ...args: unknown[] ) => unknown }, fp, t, txt, p ) => m.upload( fp, t, txt, p )
+				) as never,
+				applyTags: ( o: object ) => ( { ...o } )
+			},
+			uploadDirs: { list: () => [ '/home/user/uploads' ] }
+		} );
+		const result = await dispatch( uploadFile, ctx )( {
+			filepath: '/home/user/uploads/cat.jpg',
+			title: 'File:Cat.jpg',
+			text: 'A cat.'
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
 	it( 'upload-file error path (permissiondenied)', async () => {
 		vi.mocked( assertAllowedPath ).mockResolvedValue( '/home/user/uploads/cat.jpg' );
-		setMwn( {
+		const mock = createMockMwn( {
 			upload: vi.fn().mockRejectedValue( createMockMwnError( 'permissiondenied' ) )
 		} );
 
-		const { handleUploadFileTool } = await import( '../../src/tools/upload-file.js' );
-		const result = await handleUploadFileTool(
-			'/home/user/uploads/cat.jpg',
-			'File:Cat.jpg',
-			'A cat.'
-		);
+		const { uploadFile } = await import( '../../src/tools/upload-file.js' );
+		const ctx = fakeContext( {
+			mwn: async () => mock as never,
+			edit: {
+				submit: vi.fn() as never,
+				submitUpload: vi.fn().mockImplementation(
+					async ( m: { upload: ( ...args: unknown[] ) => unknown }, fp, t, txt, p ) => m.upload( fp, t, txt, p )
+				) as never,
+				applyTags: ( o: object ) => ( { ...o } )
+			},
+			uploadDirs: { list: () => [ '/home/user/uploads' ] }
+		} );
+		const result = await dispatch( uploadFile, ctx )( {
+			filepath: '/home/user/uploads/cat.jpg',
+			title: 'File:Cat.jpg',
+			text: 'A cat.'
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
@@ -767,7 +830,7 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	// ------------------------------------------------------------------
 
 	it( 'upload-file-from-url happy path', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			uploadFromUrl: vi.fn().mockResolvedValue( {
 				result: 'Success',
 				filename: 'Cat.jpg',
@@ -778,26 +841,28 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			} )
 		} );
 
-		const { handleUploadFileFromUrlTool } = await import( '../../src/tools/upload-file-from-url.js' );
-		const result = await handleUploadFileFromUrlTool(
-			'https://source.example/cat.jpg',
-			'File:Cat.jpg',
-			'A cat.'
-		);
+		const { uploadFileFromUrl } = await import( '../../src/tools/upload-file-from-url.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( uploadFileFromUrl, ctx )( {
+			url: 'https://source.example/cat.jpg',
+			title: 'File:Cat.jpg',
+			text: 'A cat.'
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
 	it( 'upload-file-from-url error path (permissiondenied)', async () => {
-		setMwn( {
+		const mock = createMockMwn( {
 			uploadFromUrl: vi.fn().mockRejectedValue( createMockMwnError( 'permissiondenied' ) )
 		} );
 
-		const { handleUploadFileFromUrlTool } = await import( '../../src/tools/upload-file-from-url.js' );
-		const result = await handleUploadFileFromUrlTool(
-			'https://source.example/cat.jpg',
-			'File:Cat.jpg',
-			'A cat.'
-		);
+		const { uploadFileFromUrl } = await import( '../../src/tools/upload-file-from-url.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( uploadFileFromUrl, ctx )( {
+			url: 'https://source.example/cat.jpg',
+			title: 'File:Cat.jpg',
+			text: 'A cat.'
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
@@ -808,7 +873,7 @@ describe( 'pre-refactor MCP response snapshots', () => {
 	it( 'update-file happy path', async () => {
 		vi.mocked( assertAllowedPath ).mockResolvedValue( '/home/user/uploads/cat.jpg' );
 		vi.mocked( assertFileExists ).mockResolvedValue( undefined );
-		setMwn( {
+		const mock = createMockMwn( {
 			upload: vi.fn().mockResolvedValue( {
 				result: 'Success',
 				filename: 'Cat.jpg',
@@ -819,27 +884,49 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			} )
 		} );
 
-		const { handleUpdateFileTool } = await import( '../../src/tools/update-file.js' );
-		const result = await handleUpdateFileTool(
-			'/home/user/uploads/cat.jpg',
-			'File:Cat.jpg',
-			'New colour pass'
-		);
+		const { updateFile } = await import( '../../src/tools/update-file.js' );
+		const ctx = fakeContext( {
+			mwn: async () => mock as never,
+			edit: {
+				submit: vi.fn() as never,
+				submitUpload: vi.fn().mockImplementation(
+					async ( m: { upload: ( ...args: unknown[] ) => unknown }, fp, t, txt, p ) => m.upload( fp, t, txt, p )
+				) as never,
+				applyTags: ( o: object ) => ( { ...o } )
+			},
+			uploadDirs: { list: () => [ '/home/user/uploads' ] }
+		} );
+		const result = await dispatch( updateFile, ctx )( {
+			filepath: '/home/user/uploads/cat.jpg',
+			title: 'File:Cat.jpg',
+			comment: 'New colour pass'
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
 	it( 'update-file error path (permissiondenied)', async () => {
 		vi.mocked( assertAllowedPath ).mockResolvedValue( '/home/user/uploads/cat.jpg' );
 		vi.mocked( assertFileExists ).mockResolvedValue( undefined );
-		setMwn( {
+		const mock = createMockMwn( {
 			upload: vi.fn().mockRejectedValue( createMockMwnError( 'permissiondenied' ) )
 		} );
 
-		const { handleUpdateFileTool } = await import( '../../src/tools/update-file.js' );
-		const result = await handleUpdateFileTool(
-			'/home/user/uploads/cat.jpg',
-			'File:Cat.jpg'
-		);
+		const { updateFile } = await import( '../../src/tools/update-file.js' );
+		const ctx = fakeContext( {
+			mwn: async () => mock as never,
+			edit: {
+				submit: vi.fn() as never,
+				submitUpload: vi.fn().mockImplementation(
+					async ( m: { upload: ( ...args: unknown[] ) => unknown }, fp, t, txt, p ) => m.upload( fp, t, txt, p )
+				) as never,
+				applyTags: ( o: object ) => ( { ...o } )
+			},
+			uploadDirs: { list: () => [ '/home/user/uploads' ] }
+		} );
+		const result = await dispatch( updateFile, ctx )( {
+			filepath: '/home/user/uploads/cat.jpg',
+			title: 'File:Cat.jpg'
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
@@ -849,7 +936,7 @@ describe( 'pre-refactor MCP response snapshots', () => {
 
 	it( 'update-file-from-url happy path', async () => {
 		vi.mocked( assertFileExists ).mockResolvedValue( undefined );
-		setMwn( {
+		const mock = createMockMwn( {
 			uploadFromUrl: vi.fn().mockResolvedValue( {
 				result: 'Success',
 				filename: 'Cat.jpg',
@@ -860,26 +947,28 @@ describe( 'pre-refactor MCP response snapshots', () => {
 			} )
 		} );
 
-		const { handleUpdateFileFromUrlTool } = await import( '../../src/tools/update-file-from-url.js' );
-		const result = await handleUpdateFileFromUrlTool(
-			'https://example.com/cat.jpg',
-			'File:Cat.jpg',
-			'Higher resolution'
-		);
+		const { updateFileFromUrl } = await import( '../../src/tools/update-file-from-url.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( updateFileFromUrl, ctx )( {
+			url: 'https://example.com/cat.jpg',
+			title: 'File:Cat.jpg',
+			comment: 'Higher resolution'
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 
 	it( 'update-file-from-url error path (permissiondenied)', async () => {
 		vi.mocked( assertFileExists ).mockResolvedValue( undefined );
-		setMwn( {
+		const mock = createMockMwn( {
 			uploadFromUrl: vi.fn().mockRejectedValue( createMockMwnError( 'permissiondenied' ) )
 		} );
 
-		const { handleUpdateFileFromUrlTool } = await import( '../../src/tools/update-file-from-url.js' );
-		const result = await handleUpdateFileFromUrlTool(
-			'https://example.com/cat.jpg',
-			'File:Cat.jpg'
-		);
+		const { updateFileFromUrl } = await import( '../../src/tools/update-file-from-url.js' );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
+		const result = await dispatch( updateFileFromUrl, ctx )( {
+			url: 'https://example.com/cat.jpg',
+			title: 'File:Cat.jpg'
+		} );
 		expect( result ).toMatchSnapshot();
 	} );
 

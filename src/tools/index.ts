@@ -16,16 +16,16 @@ import { dispatch } from '../runtime/dispatcher.js';
 import { register } from '../runtime/register.js';
 import { addWikiTool } from './add-wiki.js';
 import { removeWikiTool } from './remove-wiki.js';
-import { updatePageTool } from './update-page.js';
+import { updatePage } from './update-page.js';
 import { getFile } from './get-file.js';
-import { createPageTool } from './create-page.js';
-import { uploadFileTool } from './upload-file.js';
-import { uploadFileFromUrlTool } from './upload-file-from-url.js';
-import { updateFileTool } from './update-file.js';
-import { updateFileFromUrlTool } from './update-file-from-url.js';
+import { createPage } from './create-page.js';
+import { uploadFile } from './upload-file.js';
+import { uploadFileFromUrl } from './upload-file-from-url.js';
+import { updateFile } from './update-file.js';
+import { updateFileFromUrl } from './update-file-from-url.js';
 import { deletePage } from './delete-page.js';
 import { getRevision } from './get-revision.js';
-import { undeletePageTool } from './undelete-page.js';
+import { undeletePage } from './undelete-page.js';
 import { getCategoryMembers } from './get-category-members.js';
 import { getRecentChanges } from './get-recent-changes.js';
 import { searchPageByPrefix } from './search-page-by-prefix.js';
@@ -41,6 +41,7 @@ type ToolRegistrar = ( server: McpServer ) => RegisteredTool;
 // when each tool's handler is wrapped.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const standardTools: Tool<any>[] = [
+	createPage,
 	deletePage,
 	getFile,
 	getPage,
@@ -52,20 +53,18 @@ const standardTools: Tool<any>[] = [
 	getPageHistory,
 	parseWikitext,
 	getRecentChanges,
-	comparePages
+	comparePages,
+	undeletePage,
+	updatePage,
+	uploadFile,
+	uploadFileFromUrl,
+	updateFile,
+	updateFileFromUrl
 ];
 
 // add-wiki, remove-wiki, and set-wiki are registered separately in
 // registerAllTools because each takes a reconcile callback.
-const toolRegistrars: [ string, ToolRegistrar ][] = [
-	[ 'update-page', updatePageTool ],
-	[ 'create-page', createPageTool ],
-	[ 'upload-file', uploadFileTool ],
-	[ 'upload-file-from-url', uploadFileFromUrlTool ],
-	[ 'update-file', updateFileTool ],
-	[ 'update-file-from-url', updateFileFromUrlTool ],
-	[ 'undelete-page', undeletePageTool ]
-];
+const toolRegistrars: [ string, ToolRegistrar ][] = [];
 
 export function registerAllTools(
 	server: McpServer,
