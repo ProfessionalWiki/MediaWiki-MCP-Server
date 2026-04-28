@@ -150,7 +150,7 @@ describe('wrapMwnErrors', () => {
 			inner: vi.fn().mockResolvedValue('ok'),
 			outer() {
 				// oxlint-disable-next-line typescript/no-explicit-any
-			return (this as any).inner();
+				return (this as any).inner();
 			},
 		};
 		const wrapped = wrapMwnErrors(target) as typeof target;

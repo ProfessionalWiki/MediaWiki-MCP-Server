@@ -49,7 +49,7 @@ describe('get-category-members', () => {
 			{
 				category: 'Foo',
 				// oxlint-disable-next-line typescript/no-explicit-any
-			types: ['page', 'file'] as any,
+				types: ['page', 'file'] as any,
 				namespaces: [0, 6],
 				limit: 100,
 				continueFrom: 'page|DOE|123',
