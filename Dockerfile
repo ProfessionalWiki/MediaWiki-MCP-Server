@@ -14,9 +14,14 @@ RUN npm ci && npm run build
 # ----- Production Stage -----
 FROM node:lts-alpine
 
-LABEL maintainer="Professional Wiki"
-LABEL org.opencontainers.image.description="Model Context Protocol (MCP) server for MediaWiki"
-LABEL org.opencontainers.image.version="0.8.0"
+ARG GIT_SHA=unknown
+LABEL org.opencontainers.image.title="MediaWiki MCP Server" \
+      org.opencontainers.image.description="Model Context Protocol (MCP) server for MediaWiki" \
+      org.opencontainers.image.authors="Professional Wiki" \
+      org.opencontainers.image.url="https://professional.wiki/en/mediawiki-mcp-server" \
+      org.opencontainers.image.source="https://github.com/ProfessionalWiki/MediaWiki-MCP-Server" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.revision="${GIT_SHA}"
 
 WORKDIR /app
 
@@ -30,7 +35,7 @@ COPY package.json package-lock.json ./
 COPY server.json ./
 
 # Install only production dependencies
-RUN npm install --production --ignore-scripts
+RUN npm ci --omit=dev --ignore-scripts
 
 # Use a non-root user for security
 RUN addgroup -S nodejs \

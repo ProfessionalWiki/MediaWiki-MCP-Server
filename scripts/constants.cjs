@@ -14,7 +14,6 @@ module.exports = {
 	SERVER_JSON_PATH: path.join( ROOT_DIR, 'server.json' ),
 	MANIFEST_JSON_PATH: path.join( ROOT_DIR, 'mcpb', MANIFEST_FILE ),
 	GEMINI_EXTENSION_JSON_PATH: path.join( ROOT_DIR, 'gemini-extension.json' ),
-	DOCKERFILE_PATH: path.join( ROOT_DIR, 'Dockerfile' ),
 	CHANGELOG_PATH: path.join( ROOT_DIR, 'CHANGELOG.md' ),
 	MCPB_BUNDLE_PATH: path.join( ROOT_DIR, MCPB_FILE )
 };
