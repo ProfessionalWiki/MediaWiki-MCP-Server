@@ -92,3 +92,65 @@ docker run --rm -p 8080:8080 \
 ```
 
 The image sets `MCP_TRANSPORT=http`, `PORT=8080`, and `MCP_BIND=0.0.0.0` (needed for container port forwarding), runs as a non-root user, and exposes `/health` for orchestration probes. No image is published; build from source.
+
+## Observability
+
+Every stderr line is a JSON object. Each line has `ts` (ISO-8601 UTC) and `level` (RFC 5424 severity). Prose lines add `message`; structured events add `event` instead.
+
+### Tool calls
+
+Every tool invocation emits one line:
+
+```json
+{"ts":"...","level":"info","event":"tool_call","tool":"get-page","wiki":"example.org","target":"Main Page","outcome":"success","duration_ms":142,"caller":"sha256:7f2a4c1d9e0b","session_id":"f4e1d2c3b4a5","upstream_status":200,"truncated":false}
+```
+
+Fields you'll filter on:
+
+- **`outcome`** — `success` or one of seven error categories: `not_found`, `permission_denied`, `invalid_input`, `conflict`, `authentication`, `rate_limited`, `upstream_failure`.
+- **`level`** — `info` for `success`, `error` for `upstream_failure`, `warning` for everything else. A `level=error` alert catches server-side failures without firing on client mistakes like a typo'd page title.
+- **`caller`** — `sha256:` plus the first 12 hex chars of SHA-256 of the bearer token, or the literal string `anonymous`. Stable per token within a process; never the raw token.
+- **`session_id`** — first 12 hex chars of the MCP session UUID. Omitted on stdio, which has no session concept.
+- **`target`** — a single identifier extracted from the tool's input (typically a page title, search query, or URL). Omitted for tools without one: `get-pages`, `compare-pages`, `set-wiki`, `parse-wikitext`, `get-recent-changes`.
+
+`tool_call` lines go to stderr only; they are never forwarded to the connected MCP client.
+
+### Startup banner
+
+One line on server boot — a snapshot of the effective configuration that's safe to paste into a support ticket:
+
+```json
+{"ts":"...","level":"info","event":"startup","version":"0.7.0","transport":"http","host":"0.0.0.0","port":8080,"auth_shape":"bearer-passthrough","default_wiki":"example.org","wikis":["example.org"],"allow_wiki_management":false,"allowed_hosts":["wiki.example.org"],"allowed_origins":["https://wiki.example.org"],"upload_dirs_configured":false}
+```
+
+- **`auth_shape`** — `anonymous`, `static-credential`, or `bearer-passthrough`.
+- **`host`, `port`, `allowed_hosts`, `allowed_origins`** — HTTP transport only. The two allowlists are also omitted when not configured.
+- **`upload_dirs_configured`** — `true` when `uploadDirs` (config) or `MCP_UPLOAD_DIRS` (env) is set. The actual paths are not logged.
+
+Tokens, usernames, and passwords never appear.
+
+### Health vs readiness
+
+- **`GET /health`** — liveness. Returns `200 { "status": "ok" }` whenever the process is responsive. Wire this into your orchestrator's restart policy.
+- **`GET /ready`** — readiness. Probes the default wiki via `action=query&meta=siteinfo` with a 3-second timeout and 5-second result cache. Wire this into traffic-shedding policy.
+
+`/ready` response shape — 200 OK:
+
+```json
+{ "status": "ready", "wiki": "example.org", "checked_at": "..." }
+```
+
+503 Service Unavailable:
+
+```json
+{ "status": "not_ready", "wiki": "example.org", "reason": "...", "checked_at": "..." }
+```
+
+### Tailing logs
+
+Pipe stderr through `jq` or `humanlog` for live reading:
+
+```bash
+docker logs -f mediawiki-mcp-server | jq -R 'fromjson? // empty'
+docker logs -f mediawiki-mcp-server | humanlog
+```

@@ -28,6 +28,7 @@ export const getPageHistory: Tool<typeof inputSchema> = {
 		openWorldHint: true
 	} as ToolAnnotations,
 	failureVerb: 'retrieve page history',
+	target: ( a ) => a.title,
 
 	async handle(
 		{ title, olderThan, newerThan, filter },

@@ -32,6 +32,7 @@ export const getPage: Tool<typeof inputSchema> = {
 		openWorldHint: true
 	} as ToolAnnotations,
 	failureVerb: 'retrieve page data',
+	target: ( a ) => a.title,
 
 	async handle(
 		{ title, content, metadata, section },

@@ -3,11 +3,12 @@ import { structuredResult } from '../../src/results/response.js';
 import { formatPayload } from '../../src/results/format.js';
 
 // structuredResult renders the payload via formatPayload and rides the result
-// in content[0].text. There is no structuredContent and no env-var toggle.
+// in content[0].text. It also sets structuredContent to the original payload
+// so instrumentation can read the typed shape without parsing the rendered text.
 describe( 'structuredResult', () => {
-	it( 'emits content-only text and no structuredContent', () => {
+	it( 'emits formatted text and sets structuredContent to the original payload', () => {
 		const result = structuredResult( { pageId: 42, title: 'Foo' } );
-		expect( result.structuredContent ).toBeUndefined();
+		expect( result.structuredContent ).toEqual( { pageId: 42, title: 'Foo' } );
 		expect( result.content ).toHaveLength( 1 );
 		expect( result.content![ 0 ].type ).toBe( 'text' );
 		expect( ( result.content![ 0 ] as { text: string } ).text ).toBe(

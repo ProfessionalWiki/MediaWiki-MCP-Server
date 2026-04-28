@@ -25,6 +25,7 @@ export const searchPage: Tool<typeof inputSchema> = {
 		openWorldHint: true
 	} as ToolAnnotations,
 	failureVerb: 'retrieve search data',
+	target: ( a ) => a.query,
 
 	async handle( { query, limit }, ctx: ToolContext ): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();

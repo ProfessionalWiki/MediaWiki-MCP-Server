@@ -26,6 +26,7 @@ export const createPage: Tool<typeof inputSchema> = {
 		openWorldHint: true
 	} as ToolAnnotations,
 	failureVerb: 'create page',
+	target: ( a ) => a.title,
 
 	async handle(
 		{ source, title, comment, contentModel },

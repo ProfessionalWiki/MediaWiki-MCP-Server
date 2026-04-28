@@ -36,3 +36,17 @@ export function evaluateBearerGuard(
 	}
 	return { kind: 'block', wikis: offenders };
 }
+
+export type AuthShape = 'anonymous' | 'static-credential' | 'bearer-passthrough';
+export type Transport = 'stdio' | 'http';
+
+export function classifyAuthShape(
+	wikis: Readonly<Record<string, WikiConfig>>,
+	transport: Transport
+): AuthShape {
+	const anyStatic = Object.values( wikis ).some( hasStaticCredentials );
+	if ( anyStatic ) {
+		return 'static-credential';
+	}
+	return transport === 'http' ? 'bearer-passthrough' : 'anonymous';
+}

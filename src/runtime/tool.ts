@@ -14,6 +14,13 @@ export interface Tool<TSchema extends ZodRawShape, TCtx extends ToolContext = To
 	 * "Failed to <verb>: <message>". Falls back to `name` if omitted.
 	 */
 	readonly failureVerb?: string;
+	/**
+	 * Extracts a single identifier from the tool's input args (typically a page
+	 * title, search query, or URL) for the `target` field of the `tool_call`
+	 * telemetry event. Omitted for tools that don't have a single canonical
+	 * subject (e.g. get-pages, compare-pages, set-wiki).
+	 */
+	readonly target?: ( args: z.infer<z.ZodObject<TSchema>> ) => string;
 	readonly handle: (
 		args: z.infer<z.ZodObject<TSchema>>,
 		ctx: TCtx

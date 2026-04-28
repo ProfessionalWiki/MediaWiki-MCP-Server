@@ -72,6 +72,7 @@ export const updatePage: Tool<typeof inputSchema> = {
 		openWorldHint: true
 	} as ToolAnnotations,
 	failureVerb: 'update page',
+	target: ( a ) => a.title,
 
 	async handle( args, ctx: ToolContext ): Promise<CallToolResult> {
 		const validationError = validateArgs( args );

@@ -43,6 +43,7 @@ export const getCategoryMembers: Tool<typeof inputSchema> = {
 		openWorldHint: true
 	} as ToolAnnotations,
 	failureVerb: 'retrieve category members',
+	target: ( a ) => a.category,
 
 	async handle(
 		{ category, types, namespaces, limit, continueFrom },

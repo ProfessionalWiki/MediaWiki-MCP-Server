@@ -27,6 +27,7 @@ export const uploadFileFromUrl: Tool<typeof inputSchema> = {
 		openWorldHint: true
 	} as ToolAnnotations,
 	failureVerb: 'upload file',
+	target: ( a ) => a.title,
 
 	async handle(
 		{ url, title, text, comment },

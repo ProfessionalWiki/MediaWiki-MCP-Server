@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runtimeTokenStore, getRuntimeToken } from '../../src/transport/requestContext.js';
+import { runtimeTokenStore, getRuntimeToken, getSessionId } from '../../src/transport/requestContext.js';
 
 describe( 'requestContext', () => {
 
@@ -47,4 +47,57 @@ describe( 'requestContext', () => {
 		expect( results ).toContain( 'b:token-b' );
 	} );
 
+} );
+
+describe( 'getSessionId', () => {
+	it( 'returns undefined outside any store context', () => {
+		expect( getSessionId() ).toBeUndefined();
+	} );
+
+	it( 'returns the session id provided to the store', () => {
+		runtimeTokenStore.run( { sessionId: 'abc123' }, () => {
+			expect( getSessionId() ).toBe( 'abc123' );
+		} );
+	} );
+
+	it( 'is independent of runtimeToken', () => {
+		runtimeTokenStore.run( { runtimeToken: 't', sessionId: 's' }, () => {
+			expect( getRuntimeToken() ).toBe( 't' );
+			expect( getSessionId() ).toBe( 's' );
+		} );
+	} );
+
+	it( 'returns undefined when only runtimeToken is set', () => {
+		runtimeTokenStore.run( { runtimeToken: 't' }, () => {
+			expect( getSessionId() ).toBeUndefined();
+		} );
+	} );
+
+	it( 'inner run overrides outer session id', () => {
+		runtimeTokenStore.run( { sessionId: 'outer' }, () => {
+			expect( getSessionId() ).toBe( 'outer' );
+			runtimeTokenStore.run( { sessionId: 'inner' }, () => {
+				expect( getSessionId() ).toBe( 'inner' );
+			} );
+			expect( getSessionId() ).toBe( 'outer' );
+		} );
+	} );
+
+	it( 'isolates concurrent session ids', async () => {
+		const results: string[] = [];
+
+		await Promise.all( [
+			runtimeTokenStore.run( { sessionId: 'session-a' }, async () => {
+				await new Promise( ( resolve ) => setTimeout( resolve, 10 ) );
+				results.push( `a:${ getSessionId() }` );
+			} ),
+			runtimeTokenStore.run( { sessionId: 'session-b' }, async () => {
+				await new Promise( ( resolve ) => setTimeout( resolve, 5 ) );
+				results.push( `b:${ getSessionId() }` );
+			} )
+		] );
+
+		expect( results ).toContain( 'a:session-a' );
+		expect( results ).toContain( 'b:session-b' );
+	} );
 } );

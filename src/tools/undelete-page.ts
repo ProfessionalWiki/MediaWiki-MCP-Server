@@ -25,6 +25,7 @@ export const undeletePage: Tool<typeof inputSchema> = {
 		openWorldHint: true
 	} as ToolAnnotations,
 	failureVerb: 'undelete page',
+	target: ( a ) => a.title,
 
 	async handle( { title, comment }, ctx: ToolContext ): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();

@@ -20,7 +20,10 @@ export function structuredResult<T>( data: T ): CallToolResult {
 	return {
 		content: [
 			{ type: 'text', text: formatPayload( data ) } as TextContent
-		]
+		],
+		// structuredContent mirrors the typed payload so the dispatcher can detect
+		// truncation via the `truncation` field without reparsing the rendered text.
+		structuredContent: data as Record<string, unknown>
 	};
 }
 

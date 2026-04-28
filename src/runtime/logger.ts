@@ -4,8 +4,8 @@ import type { LoggingLevel } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 
 // Eight RFC 5424 severity levels, in the order LoggingLevelSchema declares them.
-// Used both for the human-readable stderr prefix and the LoggingMessageNotification
-// the SDK forwards to clients.
+// Used both for the level field in the JSON stderr line and the
+// LoggingMessageNotification the SDK forwards to clients.
 export type LogLevel = LoggingLevel;
 
 export type LogContext = Record<string, unknown>;
@@ -31,12 +31,27 @@ export function getRegisteredServerCount(): number {
 	return servers.size;
 }
 
-function formatStderrLine( level: LogLevel, message: string, data?: LogContext ): string {
-	const prefix = level === 'info' ? '' : `${ level }: `;
-	if ( data === undefined ) {
-		return `${ prefix }${ message }`;
+const RESERVED_KEYS = new Set<string>( [ 'ts', 'level', 'message' ] );
+
+function buildLogObject(
+	level: LogLevel,
+	message: string,
+	data?: LogContext
+): Record<string, unknown> {
+	const obj: Record<string, unknown> = {};
+	if ( data !== undefined ) {
+		for ( const [ key, value ] of Object.entries( data ) ) {
+			if ( !RESERVED_KEYS.has( key ) ) {
+				obj[ key ] = value;
+			}
+		}
 	}
-	return `${ prefix }${ message } ${ JSON.stringify( data ) }`;
+	obj.ts = new Date().toISOString();
+	obj.level = level;
+	if ( message !== '' ) {
+		obj.message = message;
+	}
+	return obj;
 }
 
 // Best-effort handler. The SDK already filters by per-session setLevel and skips
@@ -44,8 +59,17 @@ function formatStderrLine( level: LogLevel, message: string, data?: LogContext )
 // operator. Failing here would be unhelpful noise.
 const swallowNotificationError = (): undefined => undefined;
 
+// Emits a structured event to stderr only, bypassing the MCP
+// sendLoggingMessage broadcast. Used for operator-facing telemetry
+// (e.g. tool_call events) that must not leak to connected clients.
+export function emitTelemetryEvent( level: LogLevel, data: LogContext ): void {
+	const line = buildLogObject( level, '', data );
+	process.stderr.write( JSON.stringify( line ) + '\n' );
+}
+
 function emit( level: LogLevel, message: string, data?: LogContext ): void {
-	process.stderr.write( formatStderrLine( level, message, data ) + '\n' );
+	const line = buildLogObject( level, message, data );
+	process.stderr.write( JSON.stringify( line ) + '\n' );
 
 	if ( servers.size === 0 ) {
 		return;

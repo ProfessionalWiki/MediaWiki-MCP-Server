@@ -26,6 +26,7 @@ export const getRevision: Tool<typeof inputSchema> = {
 		openWorldHint: true
 	} as ToolAnnotations,
 	failureVerb: 'retrieve revision data',
+	target: ( a ) => String( a.revisionId ),
 
 	async handle( { revisionId, content, metadata }, ctx: ToolContext ): Promise<CallToolResult> {
 		if ( content === ContentFormat.none && !metadata ) {

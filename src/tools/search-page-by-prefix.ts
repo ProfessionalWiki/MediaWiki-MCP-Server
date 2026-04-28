@@ -30,6 +30,7 @@ export const searchPageByPrefix: Tool<typeof inputSchema> = {
 		openWorldHint: true
 	} as ToolAnnotations,
 	failureVerb: 'retrieve search data',
+	target: ( a ) => a.prefix,
 
 	async handle( { prefix, limit, namespace }, ctx: ToolContext ): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();

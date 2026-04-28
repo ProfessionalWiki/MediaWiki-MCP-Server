@@ -4,13 +4,14 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 /* eslint-enable n/no-missing-import */
 import { logger } from '../runtime/logger.js';
-import { createServer } from '../server.js';
+import { createServer, emitStartupBanner } from '../server.js';
 import { createToolContext } from '../runtime/createContext.js';
 
 async function main(): Promise<void> {
+	emitStartupBanner( { transport: 'stdio' } );
 	const transport = new StdioServerTransport();
 	const ctx = createToolContext( { logger } );
-	const server = createServer( ctx );
+	const server = createServer( ctx, { transport: 'stdio' } );
 
 	await server.connect( transport );
 }

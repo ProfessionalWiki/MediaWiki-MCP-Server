@@ -45,8 +45,13 @@ import {
 	hashBearer,
 	resolveMcpHostValidation,
 	type SessionRegistry,
-	verifySessionBearer
+	verifySessionBearer,
+	withRequestContext
 } from '../../src/transport/streamableHttp.js';
+import {
+	getRuntimeToken,
+	getSessionId
+} from '../../src/transport/requestContext.js';
 
 function req( authorization: string | undefined ): Request {
 	return { headers: { authorization } } as unknown as Request;
@@ -362,5 +367,40 @@ describe( 'origin validation (transport-level)', () => {
 			.set( 'Accept', 'application/json, text/event-stream' )
 			.send( initializeBody );
 		expect( res.status ).not.toBe( 403 );
+	} );
+} );
+
+describe( 'withRequestContext', () => {
+	it( 'propagates bearer token and session id into the async store', async () => {
+		let observedToken: string | undefined;
+		let observedSession: string | undefined;
+		await withRequestContext( 'tok123', 'sess123', async () => {
+			observedToken = getRuntimeToken();
+			observedSession = getSessionId();
+		} );
+		expect( observedToken ).toBe( 'tok123' );
+		expect( observedSession ).toBe( 'sess123' );
+	} );
+
+	it( 'omits both when neither is supplied', async () => {
+		let observedToken: string | undefined;
+		let observedSession: string | undefined;
+		await withRequestContext( undefined, undefined, async () => {
+			observedToken = getRuntimeToken();
+			observedSession = getSessionId();
+		} );
+		expect( observedToken ).toBeUndefined();
+		expect( observedSession ).toBeUndefined();
+	} );
+
+	it( 'allows token without session and vice versa', async () => {
+		await withRequestContext( 'tok-only', undefined, async () => {
+			expect( getRuntimeToken() ).toBe( 'tok-only' );
+			expect( getSessionId() ).toBeUndefined();
+		} );
+		await withRequestContext( undefined, 'sess-only', async () => {
+			expect( getRuntimeToken() ).toBeUndefined();
+			expect( getSessionId() ).toBe( 'sess-only' );
+		} );
 	} );
 } );

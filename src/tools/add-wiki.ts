@@ -24,6 +24,7 @@ export const addWiki: Tool<typeof inputSchema, ManagementContext> = {
 		openWorldHint: true
 	} as ToolAnnotations,
 	failureVerb: 'add wiki',
+	target: ( a ) => a.wikiUrl,
 
 	async handle( { wikiUrl }, ctx: ManagementContext ): Promise<CallToolResult> {
 		let wikiInfo;
