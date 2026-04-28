@@ -93,6 +93,9 @@ async function runDrain(
 			// Stop accepting new connections. The close callback isn't awaited
 			// because drain is gated on inFlight.count(), not on socket lifetime.
 			deps.httpServer.close();
+			// Node 18.2+ exposes closeIdleConnections, which lets keep-alive
+			// idle sockets close so the listener can finish closing during the
+			// grace window. Feature-detected so older runtimes still build.
 			const idleCloser = (
 				deps.httpServer as unknown as { closeIdleConnections?: () => void }
 			).closeIdleConnections;
@@ -101,7 +104,11 @@ async function runDrain(
 			}
 		}
 		if ( deps.sessions ) {
-			for ( const id of Object.keys( deps.sessions ) ) {
+			// Snapshot the ids before iterating: transport.onclose deletes its
+			// own entry from the registry, which would skip the next entry if
+			// we iterated the live object directly.
+			const sessionIds = Object.keys( deps.sessions );
+			for ( const id of sessionIds ) {
 				try {
 					await deps.sessions[ id ].transport.close();
 					sessionsClosed++;
@@ -150,6 +157,10 @@ async function waitForDrain(
 	if ( !inFlight ) {
 		return false;
 	}
+	// "0" means no /mcp request has reached the in-flight middleware yet —
+	// not "no socket activity at all". A request mid-Express-routing isn't
+	// counted, but it's a sub-millisecond window that closeIdleConnections
+	// handles.
 	if ( inFlight.count() === 0 ) {
 		return false;
 	}

@@ -198,4 +198,6 @@ The server registers `SIGTERM` and `SIGINT` handlers in both the HTTP and stdio 
 
 A second `SIGTERM` or `SIGINT` during drain forces an immediate exit with code `1`, so an operator can escape a hung shutdown with a second Ctrl-C or follow-up signal.
 
-This makes `docker stop`, Kubernetes pod termination, and `systemctl stop` behave correctly: the orchestrator's default `SIGTERM` triggers a drain rather than a hard kill, and the orchestrator's escalation to `SIGKILL` after its own timeout still works as the backstop.
+The stdio transport closes its single transport on the same signals; `MCP_SHUTDOWN_GRACE_MS` is logged as `0` since stdio has no per-call queue to drain.
+
+This makes `docker stop`, Kubernetes pod termination, and `systemctl stop` behave correctly: the orchestrator's default `SIGTERM` triggers a drain rather than a hard kill, and the orchestrator's escalation to `SIGKILL` after its own timeout still works as the backstop. Keep `MCP_SHUTDOWN_GRACE_MS` ≤ the orchestrator's own grace (Docker's default is 10s, Kubernetes' `terminationGracePeriodSeconds` defaults to 30s) — otherwise the drain never finishes before the orchestrator escalates to `SIGKILL`.
