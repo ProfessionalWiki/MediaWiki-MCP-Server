@@ -79,9 +79,11 @@ Hosted-use notes:
 Build and run the image locally:
 
 ```bash
-docker build -t mediawiki-mcp-server .
+docker build --build-arg GIT_SHA=$(git rev-parse HEAD) -t mediawiki-mcp-server .
 docker run --rm -p 8080:8080 -v "$(pwd)/config.json:/app/config.json:ro" mediawiki-mcp-server
 ```
+
+The `GIT_SHA` build arg populates the `org.opencontainers.image.revision` label so `docker inspect` reports which commit the image was built from. Omit it for ad-hoc builds; the label defaults to `unknown`.
 
 For public deployments, set both the Host-header and Origin allowlists:
 

@@ -1,4 +1,4 @@
-# Production build context — keep in sync with .mcpbignore and "files" in package.json.
+# Production build context — when adding or removing a production-relevant path, review .mcpbignore and "files" in package.json.
 # This is an allow-list: anything not !-prefixed is excluded from the build context.
 /*
 !/src

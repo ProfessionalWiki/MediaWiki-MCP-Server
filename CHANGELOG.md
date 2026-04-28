@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Changed
 
-- Added `.dockerignore`. The Docker build context is now an allow-list (`src/`, `package.json`, `package-lock.json`, `tsconfig.json`, `server.json`) instead of the entire repository.
+- The Docker build context is now an allow-list (`src/`, `package.json`, `package-lock.json`, `tsconfig.json`, `server.json`) instead of the entire repository, configured via a new `.dockerignore`.
 - Reworked Docker image labels to follow OCI image-spec: dropped the deprecated `maintainer` label and the hand-maintained `image.version`; added `image.title`, `image.url`, `image.source`, `image.licenses`, and a per-build `image.revision` populated from a `GIT_SHA` build arg.
 - The production image now installs dependencies with `npm ci --omit=dev` instead of `npm install --production`. Builds fail if `package-lock.json` and `package.json` are out of sync.
 - `npm version` no longer touches `Dockerfile`. The `image.version` label it used to keep in sync has been removed; `scripts/sync-version.cjs` continues to update `server.json`, `mcpb/manifest.json`, and `gemini-extension.json`.

@@ -1,4 +1,4 @@
-# Production artifact contents — keep in sync with .dockerignore and "files" in package.json.
+# Production artifact contents — when adding or removing a production-relevant path, review .dockerignore and "files" in package.json.
 # Allow-list: only ship runtime, metadata, README, LICENSE.
 # Mirrors the npm tarball contents (`files` in package.json plus npm's
 # auto-included README and LICENSE).
