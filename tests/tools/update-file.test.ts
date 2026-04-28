@@ -1,23 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
+import { fakeContext } from '../helpers/fakeContext.js';
 
-vi.mock( '../../src/common/mwn.js', () => ( {
-	getMwn: vi.fn()
-} ) );
-
-vi.mock( '../../src/common/wikiService.js', () => ( {
-	wikiService: {
-		getCurrent: vi.fn().mockReturnValue( {
-			key: 'test-wiki',
-			config: { server: 'https://test.wiki', articlepath: '/wiki', scriptpath: '/w' }
-		} ),
-		getUploadDirs: vi.fn().mockReturnValue( [ '/home/user/uploads' ] )
-	}
-} ) );
-
-vi.mock( '../../src/common/uploadGuard.js', async () => {
-	const actual = await vi.importActual<typeof import( '../../src/common/uploadGuard.js' )>(
-		'../../src/common/uploadGuard.js'
+vi.mock( '../../src/transport/uploadGuard.js', async () => {
+	const actual = await vi.importActual<typeof import( '../../src/transport/uploadGuard.js' )>(
+		'../../src/transport/uploadGuard.js'
 	);
 	return {
 		...actual,
@@ -25,9 +12,9 @@ vi.mock( '../../src/common/uploadGuard.js', async () => {
 	};
 } );
 
-vi.mock( '../../src/common/fileExistence.js', async () => {
-	const actual = await vi.importActual<typeof import( '../../src/common/fileExistence.js' )>(
-		'../../src/common/fileExistence.js'
+vi.mock( '../../src/transport/fileExistence.js', async () => {
+	const actual = await vi.importActual<typeof import( '../../src/transport/fileExistence.js' )>(
+		'../../src/transport/fileExistence.js'
 	);
 	return {
 		...actual,
@@ -35,14 +22,32 @@ vi.mock( '../../src/common/fileExistence.js', async () => {
 	};
 } );
 
-import { getMwn } from '../../src/common/mwn.js';
-import { assertAllowedPath, UploadValidationError } from '../../src/common/uploadGuard.js';
-import { assertFileExists, FileNotFoundError } from '../../src/common/fileExistence.js';
-import { formatPayload } from '../../src/common/formatPayload.js';
+import { assertAllowedPath, UploadValidationError } from '../../src/transport/uploadGuard.js';
+import { assertFileExists, FileNotFoundError } from '../../src/transport/fileExistence.js';
+import { updateFile } from '../../src/tools/update-file.js';
+import { dispatch } from '../../src/runtime/dispatcher.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
+
+function ctxWith( opts: {
+	mwn?: ReturnType<typeof createMockMwn>;
+	submitUpload?: ReturnType<typeof vi.fn>;
+} = {} ) {
+	const mwn = opts.mwn ?? createMockMwn();
+	const submitUpload = opts.submitUpload ?? vi.fn();
+	const ctx = fakeContext( {
+		mwn: async () => mwn as never,
+		edit: {
+			submit: vi.fn() as never,
+			submitUpload: submitUpload as never,
+			applyTags: ( o: object ) => ( { ...o } )
+		},
+		uploadDirs: { list: () => [ '/home/user/uploads' ] }
+	} );
+	return { mwn, submitUpload, ctx };
+}
 
 describe( 'update-file', () => {
 	beforeEach( () => {
@@ -53,64 +58,69 @@ describe( 'update-file', () => {
 		vi.mocked( assertAllowedPath ).mockRejectedValue(
 			new UploadValidationError( '"/etc/passwd" is not allowed' )
 		);
-		const mock = createMockMwn( { upload: vi.fn() } );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const { submitUpload, ctx } = ctxWith();
 
-		const { handleUpdateFileTool } = await import( '../../src/tools/update-file.js' );
-		const result = await handleUpdateFileTool( '/etc/passwd', 'File:Shadow' );
+		const result = await updateFile.handle( {
+			filepath: '/etc/passwd',
+			title: 'File:Shadow'
+		}, ctx );
 
 		const envelope = assertStructuredError( result, 'invalid_input' );
 		expect( envelope.message ).toMatch( /Failed to update file:.*not allowed/ );
 		expect( assertFileExists ).not.toHaveBeenCalled();
-		expect( mock.upload ).not.toHaveBeenCalled();
+		expect( submitUpload ).not.toHaveBeenCalled();
 	} );
 
-	it( 'returns upstream_failure for unexpected guard errors, skips upload', async () => {
+	it( 'lets unexpected guard errors fall through to the dispatcher', async () => {
 		vi.mocked( assertAllowedPath ).mockRejectedValue( new Error( 'Connection refused' ) );
-		const mock = createMockMwn( { upload: vi.fn() } );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const { submitUpload, ctx } = ctxWith();
 
-		const { handleUpdateFileTool } = await import( '../../src/tools/update-file.js' );
-		const result = await handleUpdateFileTool( '/home/user/uploads/x.jpg', 'File:X' );
+		const result = await dispatch( updateFile, ctx )( {
+			filepath: '/home/user/uploads/x.jpg',
+			title: 'File:X'
+		} );
 
 		assertStructuredError( result, 'upstream_failure' );
-		expect( mock.upload ).not.toHaveBeenCalled();
+		expect( submitUpload ).not.toHaveBeenCalled();
 	} );
 
 	it( 'returns not_found with routing hint when the file does not exist', async () => {
 		vi.mocked( assertAllowedPath ).mockResolvedValue( '/var/lib/uploads/cat.jpg' );
 		vi.mocked( assertFileExists ).mockRejectedValue( new FileNotFoundError( 'Cat.jpg' ) );
-		const mock = createMockMwn( { upload: vi.fn() } );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const { submitUpload, ctx } = ctxWith();
 
-		const { handleUpdateFileTool } = await import( '../../src/tools/update-file.js' );
-		const result = await handleUpdateFileTool( '/home/user/uploads/cat.jpg', 'Cat.jpg' );
+		const result = await updateFile.handle( {
+			filepath: '/home/user/uploads/cat.jpg',
+			title: 'Cat.jpg'
+		}, ctx );
 
 		const envelope = assertStructuredError( result, 'not_found' );
 		expect( envelope.message ).toMatch( /Cat\.jpg/ );
 		expect( envelope.message ).toMatch( /upload-file\b/ );
-		expect( mock.upload ).not.toHaveBeenCalled();
+		expect( submitUpload ).not.toHaveBeenCalled();
 	} );
 
-	it( 'calls mwn.upload with ignorewarnings: true and the formatted comment', async () => {
+	it( 'calls submitUpload with ignorewarnings: true and the formatted comment', async () => {
 		vi.mocked( assertAllowedPath ).mockResolvedValue( '/var/lib/uploads/cat.jpg' );
 		vi.mocked( assertFileExists ).mockResolvedValue( undefined );
-		const mock = createMockMwn( {
-			upload: vi.fn().mockResolvedValue( {
-				result: 'Success',
-				filename: 'Cat.jpg',
-				imageinfo: {
-					descriptionurl: 'https://test.wiki/wiki/File:Cat.jpg',
-					url: 'https://test.wiki/images/Cat.jpg'
-				}
-			} )
+		const submitUpload = vi.fn().mockResolvedValue( {
+			result: 'Success',
+			filename: 'Cat.jpg',
+			imageinfo: {
+				descriptionurl: 'https://test.wiki/wiki/File:Cat.jpg',
+				url: 'https://test.wiki/images/Cat.jpg'
+			}
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const { mwn, ctx } = ctxWith( { submitUpload } );
 
-		const { handleUpdateFileTool } = await import( '../../src/tools/update-file.js' );
-		await handleUpdateFileTool( '/home/user/uploads/cat.jpg', 'File:Cat.jpg', 'New colour pass' );
+		await updateFile.handle( {
+			filepath: '/home/user/uploads/cat.jpg',
+			title: 'File:Cat.jpg',
+			comment: 'New colour pass'
+		}, ctx );
 
-		expect( mock.upload ).toHaveBeenCalledWith(
+		expect( submitUpload ).toHaveBeenCalledWith(
+			mwn,
 			'/var/lib/uploads/cat.jpg',
 			'File:Cat.jpg',
 			'',
@@ -124,45 +134,37 @@ describe( 'update-file', () => {
 	it( 'returns the same structured payload as upload-file on success', async () => {
 		vi.mocked( assertAllowedPath ).mockResolvedValue( '/var/lib/uploads/cat.jpg' );
 		vi.mocked( assertFileExists ).mockResolvedValue( undefined );
-		const mock = createMockMwn( {
-			upload: vi.fn().mockResolvedValue( {
-				result: 'Success',
-				filename: 'Cat.jpg',
-				imageinfo: {
-					descriptionurl: 'https://test.wiki/wiki/File:Cat.jpg',
-					url: 'https://test.wiki/images/Cat.jpg'
-				}
-			} )
+		const submitUpload = vi.fn().mockResolvedValue( {
+			result: 'Success',
+			filename: 'Cat.jpg',
+			imageinfo: {
+				descriptionurl: 'https://test.wiki/wiki/File:Cat.jpg',
+				url: 'https://test.wiki/images/Cat.jpg'
+			}
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const { ctx } = ctxWith( { submitUpload } );
 
-		const { handleUpdateFileTool } = await import( '../../src/tools/update-file.js' );
-		const result = await handleUpdateFileTool(
-			'/home/user/uploads/cat.jpg',
-			'File:Cat.jpg'
-		);
+		const result = await updateFile.handle( {
+			filepath: '/home/user/uploads/cat.jpg',
+			title: 'File:Cat.jpg'
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
-		expect( text ).toBe( formatPayload( {
-			filename: 'Cat.jpg',
-			pageUrl: 'https://test.wiki/wiki/File:Cat.jpg',
-			fileUrl: 'https://test.wiki/images/Cat.jpg'
-		} ) );
+		expect( text ).toContain( 'Filename: Cat.jpg' );
+		expect( text ).toContain( 'Page URL: https://test.wiki/wiki/File:Cat.jpg' );
+		expect( text ).toContain( 'File URL: https://test.wiki/images/Cat.jpg' );
 	} );
 
-	it( 'maps generic mwn.upload errors to upstream_failure', async () => {
+	it( 'dispatches generic upstream errors with the standard verb prefix', async () => {
 		vi.mocked( assertAllowedPath ).mockResolvedValue( '/var/lib/uploads/cat.jpg' );
 		vi.mocked( assertFileExists ).mockResolvedValue( undefined );
-		const mock = createMockMwn( {
-			upload: vi.fn().mockRejectedValue( new Error( 'Boom' ) )
-		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const submitUpload = vi.fn().mockRejectedValue( new Error( 'Boom' ) );
+		const { ctx } = ctxWith( { submitUpload } );
 
-		const { handleUpdateFileTool } = await import( '../../src/tools/update-file.js' );
-		const result = await handleUpdateFileTool(
-			'/home/user/uploads/cat.jpg',
-			'File:Cat.jpg'
-		);
+		const result = await dispatch( updateFile, ctx )( {
+			filepath: '/home/user/uploads/cat.jpg',
+			title: 'File:Cat.jpg'
+		} );
 
 		const envelope = assertStructuredError( result, 'upstream_failure' );
 		expect( envelope.message ).toMatch( /Failed to update file: Boom/ );
@@ -172,30 +174,27 @@ describe( 'update-file', () => {
 		vi.mocked( assertAllowedPath ).mockResolvedValue( '/var/lib/uploads/cat.jpg' );
 		vi.mocked( assertFileExists ).mockResolvedValue( undefined );
 		const err = Object.assign( new Error( 'You cannot reupload' ), { code: 'permissiondenied' } );
-		const mock = createMockMwn( {
-			upload: vi.fn().mockRejectedValue( err )
-		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const submitUpload = vi.fn().mockRejectedValue( err );
+		const { ctx } = ctxWith( { submitUpload } );
 
-		const { handleUpdateFileTool } = await import( '../../src/tools/update-file.js' );
-		const result = await handleUpdateFileTool(
-			'/home/user/uploads/cat.jpg',
-			'File:Cat.jpg'
-		);
+		const result = await dispatch( updateFile, ctx )( {
+			filepath: '/home/user/uploads/cat.jpg',
+			title: 'File:Cat.jpg'
+		} );
 
 		assertStructuredError( result, 'permission_denied' );
 	} );
 
-	it( 'forwards the configured uploadDirs allowlist to the path guard', async () => {
+	it( 'forwards ctx.uploadDirs.list() to the path guard', async () => {
 		vi.mocked( assertAllowedPath ).mockResolvedValue( '/home/user/uploads/x.jpg' );
 		vi.mocked( assertFileExists ).mockResolvedValue( undefined );
-		const mock = createMockMwn( {
-			upload: vi.fn().mockResolvedValue( { result: 'Success' } )
-		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const submitUpload = vi.fn().mockResolvedValue( { result: 'Success' } );
+		const { ctx } = ctxWith( { submitUpload } );
 
-		const { handleUpdateFileTool } = await import( '../../src/tools/update-file.js' );
-		await handleUpdateFileTool( '/home/user/uploads/x.jpg', 'File:X' );
+		await updateFile.handle( {
+			filepath: '/home/user/uploads/x.jpg',
+			title: 'File:X'
+		}, ctx );
 
 		expect( assertAllowedPath ).toHaveBeenCalledWith(
 			'/home/user/uploads/x.jpg',

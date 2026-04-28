@@ -1,13 +1,10 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
-import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { getMwn } from '../common/mwn.js';
-import type { TruncationInfo } from '../common/truncation.js';
-import { instrumentToolCall } from './instrument.js';
-import { classifyError, errorResult } from '../common/errorMapping.js';
-import { structuredResult } from '../common/structuredResult.js';
+import type { Tool } from '../runtime/tool.js';
+import type { ToolContext } from '../runtime/context.js';
+import type { TruncationInfo } from '../results/truncation.js';
 
 interface AllPagesEntry {
 	pageid: number;
@@ -15,39 +12,28 @@ interface AllPagesEntry {
 	title: string;
 }
 
-export function searchPageByPrefixTool( server: McpServer ): RegisteredTool {
-	return server.registerTool(
-		'search-page-by-prefix',
-		{
-			description: 'Returns wiki page titles beginning with a given prefix (suited to autocomplete and title lookup). Only titles are returned — no snippets, sizes, or IDs. Accepts up to 500 titles per call (default 10); additional matches beyond the cap are flagged in the response. For full-text content search, use search-page.',
-			inputSchema: {
-				prefix: z.string().describe( 'Wiki page title prefix' ),
-				limit: z.number().int().min( 1 ).max( 500 ).optional().describe( 'Maximum number of results to return' ),
-				namespace: z.number().int().nonnegative().optional().describe( 'Namespace ID to restrict the search to' )
-			},
-			annotations: {
-				title: 'Search page by prefix',
-				readOnlyHint: true,
-				destructiveHint: false,
-				idempotentHint: true,
-				openWorldHint: true
-			} as ToolAnnotations
-		},
-		instrumentToolCall(
-			'search-page-by-prefix',
-			async ( { prefix, limit, namespace } ) => (
-				handleSearchPageByPrefixTool( prefix, limit, namespace )
-			),
-			( a ) => a.prefix
-		)
-	);
-}
+const inputSchema = {
+	prefix: z.string().describe( 'Wiki page title prefix' ),
+	limit: z.number().int().min( 1 ).max( 500 ).optional().describe( 'Maximum number of results to return' ),
+	namespace: z.number().int().nonnegative().optional().describe( 'Namespace ID to restrict the search to' )
+} as const;
 
-export async function handleSearchPageByPrefixTool(
-	prefix: string, limit?: number, namespace?: number
-): Promise<CallToolResult> {
-	try {
-		const mwn = await getMwn();
+export const searchPageByPrefix: Tool<typeof inputSchema> = {
+	name: 'search-page-by-prefix',
+	description: 'Returns wiki page titles beginning with a given prefix (suited to autocomplete and title lookup). Only titles are returned — no snippets, sizes, or IDs. Accepts up to 500 titles per call (default 10); additional matches beyond the cap are flagged in the response. For full-text content search, use search-page.',
+	inputSchema,
+	annotations: {
+		title: 'Search page by prefix',
+		readOnlyHint: true,
+		destructiveHint: false,
+		idempotentHint: true,
+		openWorldHint: true
+	} as ToolAnnotations,
+	failureVerb: 'retrieve search data',
+	target: ( a ) => a.prefix,
+
+	async handle( { prefix, limit, namespace }, ctx: ToolContext ): Promise<CallToolResult> {
+		const mwn = await ctx.mwn();
 
 		const params: Record<string, string | number | boolean> = {
 			action: 'query',
@@ -73,7 +59,7 @@ export async function handleSearchPageByPrefixTool(
 			narrowHint: 'narrow the prefix or raise limit (max 500)'
 		} : null;
 
-		return structuredResult( {
+		return ctx.format.ok( {
 			results: pages.map( ( p ) => ( {
 				title: p.title,
 				pageId: p.pageid,
@@ -81,8 +67,5 @@ export async function handleSearchPageByPrefixTool(
 			} ) ),
 			...( truncation !== null ? { truncation } : {} )
 		} );
-	} catch ( error ) {
-		const { category, code } = classifyError( error );
-		return errorResult( category, `Failed to retrieve search data: ${ ( error as Error ).message }`, code );
 	}
-}
+};

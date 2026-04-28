@@ -4,8 +4,7 @@ import {
 	assertStructuredSuccess,
 	assertStructuredError
 } from './structuredResult.js';
-import { structuredResult } from '../../src/common/structuredResult.js';
-import { errorResult } from '../../src/common/errorMapping.js';
+import { structuredResult, errorResult } from '../../src/results/response.js';
 
 describe( 'assertStructuredSuccess', () => {
 	it( 'returns the rendered text on a valid payload', () => {

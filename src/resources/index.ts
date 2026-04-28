@@ -3,26 +3,29 @@ import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Resource } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { wikiService } from '../common/wikiService.js';
-import { WIKI_RESOURCE_URI_PREFIX } from '../common/constants.js';
-import { getMwn } from '../common/mwn.js';
+import type { ToolContext } from '../runtime/context.js';
+import type { WikiConfig, PublicWikiConfig } from '../config/loadConfig.js';
+import { WIKI_RESOURCE_URI_PREFIX } from '../runtime/constants.js';
+import { licenseCache } from '../wikis/state.js';
+import type { LicenseInfo } from '../wikis/licenseCache.js';
 
-type LicenseInfo = { url: string; title: string };
-
-const licenseCache = new Map<string, LicenseInfo>();
-
-export function removeLicenseCache( wikiKey: string ): void {
-	licenseCache.delete( wikiKey );
+function sanitize( wikiConfig: Readonly<WikiConfig> ): PublicWikiConfig {
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	const { token: _token, username: _username, password: _password, ...publicConfig } = wikiConfig;
+	return publicConfig;
 }
 
-async function getLicenseInfo( wikiKey: string ): Promise<LicenseInfo | undefined> {
+async function getLicenseInfo(
+	ctx: ToolContext,
+	wikiKey: string
+): Promise<LicenseInfo | undefined> {
 	const cached = licenseCache.get( wikiKey );
 	if ( cached ) {
 		return cached;
 	}
 
 	try {
-		const mwn = await getMwn( wikiKey );
+		const mwn = await ctx.mwn( wikiKey );
 		const response = await mwn.request( {
 			action: 'query',
 			meta: 'siteinfo',
@@ -42,12 +45,12 @@ async function getLicenseInfo( wikiKey: string ): Promise<LicenseInfo | undefine
 	return undefined;
 }
 
-export function registerAllResources( server: McpServer ): void {
+export function registerAllResources( server: McpServer, ctx: ToolContext ): void {
 	const resourceTemplate = new ResourceTemplate(
 		`${ WIKI_RESOURCE_URI_PREFIX }{wikiKey}`,
 		{
 			list: () => {
-				const allWikis = wikiService.getAll();
+				const allWikis = ctx.wikis.getAll();
 				const resources: Resource[] = [];
 				for ( const wikiKey in allWikis ) {
 					const wikiConfig = allWikis[ wikiKey ];
@@ -65,16 +68,16 @@ export function registerAllResources( server: McpServer ): void {
 
 	server.resource( 'wikis', resourceTemplate, async ( uri, variables ) => {
 		const wikiKey = variables.wikiKey as string;
-		const wikiConfig = wikiService.get( wikiKey );
+		const wikiConfig = ctx.wikis.get( wikiKey );
 
 		if ( !wikiConfig ) {
 			return { contents: [] };
 		}
 
-		const sanitized = wikiService.sanitize( wikiConfig );
+		const sanitized = sanitize( wikiConfig );
 		const result: Record<string, unknown> = { ...sanitized };
 
-		const license = await getLicenseInfo( wikiKey );
+		const license = await getLicenseInfo( ctx, wikiKey );
 		if ( license ) {
 			result.license = license;
 		}

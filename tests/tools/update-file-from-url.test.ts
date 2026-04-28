@@ -1,22 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
+import { fakeContext } from '../helpers/fakeContext.js';
 
-vi.mock( '../../src/common/mwn.js', () => ( {
-	getMwn: vi.fn()
-} ) );
-
-vi.mock( '../../src/common/wikiService.js', () => ( {
-	wikiService: {
-		getCurrent: vi.fn().mockReturnValue( {
-			key: 'test-wiki',
-			config: { server: 'https://test.wiki', articlepath: '/wiki', scriptpath: '/w' }
-		} )
-	}
-} ) );
-
-vi.mock( '../../src/common/fileExistence.js', async () => {
-	const actual = await vi.importActual<typeof import( '../../src/common/fileExistence.js' )>(
-		'../../src/common/fileExistence.js'
+vi.mock( '../../src/transport/fileExistence.js', async () => {
+	const actual = await vi.importActual<typeof import( '../../src/transport/fileExistence.js' )>(
+		'../../src/transport/fileExistence.js'
 	);
 	return {
 		...actual,
@@ -24,9 +12,9 @@ vi.mock( '../../src/common/fileExistence.js', async () => {
 	};
 } );
 
-import { getMwn } from '../../src/common/mwn.js';
-import { assertFileExists, FileNotFoundError } from '../../src/common/fileExistence.js';
-import { formatPayload } from '../../src/common/formatPayload.js';
+import { assertFileExists, FileNotFoundError } from '../../src/transport/fileExistence.js';
+import { updateFileFromUrl } from '../../src/tools/update-file-from-url.js';
+import { dispatch } from '../../src/runtime/dispatcher.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
@@ -40,15 +28,12 @@ describe( 'update-file-from-url', () => {
 	it( 'returns not_found with routing hint when the file does not exist', async () => {
 		vi.mocked( assertFileExists ).mockRejectedValue( new FileNotFoundError( 'Cat.jpg' ) );
 		const mock = createMockMwn( { uploadFromUrl: vi.fn() } );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleUpdateFileFromUrlTool } = await import(
-			'../../src/tools/update-file-from-url.js'
-		);
-		const result = await handleUpdateFileFromUrlTool(
-			'https://example.com/cat.jpg',
-			'Cat.jpg'
-		);
+		const result = await updateFileFromUrl.handle( {
+			url: 'https://example.com/cat.jpg',
+			title: 'Cat.jpg'
+		}, ctx );
 
 		const envelope = assertStructuredError( result, 'not_found' );
 		expect( envelope.message ).toMatch( /Cat\.jpg/ );
@@ -68,16 +53,13 @@ describe( 'update-file-from-url', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleUpdateFileFromUrlTool } = await import(
-			'../../src/tools/update-file-from-url.js'
-		);
-		await handleUpdateFileFromUrlTool(
-			'https://example.com/cat.jpg',
-			'File:Cat.jpg',
-			'Higher resolution'
-		);
+		await updateFileFromUrl.handle( {
+			url: 'https://example.com/cat.jpg',
+			title: 'File:Cat.jpg',
+			comment: 'Higher resolution'
+		}, ctx );
 
 		expect( mock.uploadFromUrl ).toHaveBeenCalledWith(
 			'https://example.com/cat.jpg',
@@ -102,22 +84,17 @@ describe( 'update-file-from-url', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleUpdateFileFromUrlTool } = await import(
-			'../../src/tools/update-file-from-url.js'
-		);
-		const result = await handleUpdateFileFromUrlTool(
-			'https://example.com/cat.jpg',
-			'File:Cat.jpg'
-		);
+		const result = await updateFileFromUrl.handle( {
+			url: 'https://example.com/cat.jpg',
+			title: 'File:Cat.jpg'
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
-		expect( text ).toBe( formatPayload( {
-			filename: 'Cat.jpg',
-			pageUrl: 'https://test.wiki/wiki/File:Cat.jpg',
-			fileUrl: 'https://test.wiki/images/Cat.jpg'
-		} ) );
+		expect( text ).toContain( 'Filename: Cat.jpg' );
+		expect( text ).toContain( 'Page URL: https://test.wiki/wiki/File:Cat.jpg' );
+		expect( text ).toContain( 'File URL: https://test.wiki/images/Cat.jpg' );
 	} );
 
 	it( 'maps copyuploaddisabled errors to invalid_input with the routing hint', async () => {
@@ -127,35 +104,29 @@ describe( 'update-file-from-url', () => {
 				new Error( 'copyuploaddisabled: Upload by URL is disabled on this wiki.' )
 			)
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleUpdateFileFromUrlTool } = await import(
-			'../../src/tools/update-file-from-url.js'
-		);
-		const result = await handleUpdateFileFromUrlTool(
-			'https://example.com/cat.jpg',
-			'File:Cat.jpg'
-		);
+		const result = await updateFileFromUrl.handle( {
+			url: 'https://example.com/cat.jpg',
+			title: 'File:Cat.jpg'
+		}, ctx );
 
 		const envelope = assertStructuredError( result, 'invalid_input' );
 		expect( envelope.code ).toBe( 'copyuploaddisabled' );
 		expect( envelope.message ).toMatch( /Download the file locally.*update-file\b/ );
 	} );
 
-	it( 'maps generic upload errors to upstream_failure', async () => {
+	it( 'dispatches generic upload errors with the standard verb prefix', async () => {
 		vi.mocked( assertFileExists ).mockResolvedValue( undefined );
 		const mock = createMockMwn( {
 			uploadFromUrl: vi.fn().mockRejectedValue( new Error( 'Boom' ) )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleUpdateFileFromUrlTool } = await import(
-			'../../src/tools/update-file-from-url.js'
-		);
-		const result = await handleUpdateFileFromUrlTool(
-			'https://example.com/cat.jpg',
-			'File:Cat.jpg'
-		);
+		const result = await dispatch( updateFileFromUrl, ctx )( {
+			url: 'https://example.com/cat.jpg',
+			title: 'File:Cat.jpg'
+		} );
 
 		const envelope = assertStructuredError( result, 'upstream_failure' );
 		expect( envelope.message ).toMatch( /Failed to update file: Boom/ );
@@ -167,16 +138,36 @@ describe( 'update-file-from-url', () => {
 		const mock = createMockMwn( {
 			uploadFromUrl: vi.fn().mockRejectedValue( err )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleUpdateFileFromUrlTool } = await import(
-			'../../src/tools/update-file-from-url.js'
-		);
-		const result = await handleUpdateFileFromUrlTool(
-			'https://example.com/cat.jpg',
-			'File:Cat.jpg'
-		);
+		const result = await dispatch( updateFileFromUrl, ctx )( {
+			url: 'https://example.com/cat.jpg',
+			title: 'File:Cat.jpg'
+		} );
 
 		assertStructuredError( result, 'permission_denied' );
+	} );
+
+	it( 'forwards configured tags via ctx.edit.applyTags', async () => {
+		vi.mocked( assertFileExists ).mockResolvedValue( undefined );
+		const mock = createMockMwn( {
+			uploadFromUrl: vi.fn().mockResolvedValue( { result: 'Success', filename: 'Cat.jpg' } )
+		} );
+		const ctx = fakeContext( {
+			mwn: async () => mock as never,
+			edit: {
+				submit: vi.fn() as never,
+				submitUpload: vi.fn() as never,
+				applyTags: ( o: object ) => ( { ...o, tags: 'mcp-server' } )
+			}
+		} );
+
+		await updateFileFromUrl.handle( {
+			url: 'https://example.com/cat.jpg',
+			title: 'File:Cat.jpg'
+		}, ctx );
+
+		const params = mock.uploadFromUrl.mock.calls[ 0 ][ 3 ];
+		expect( params ).toHaveProperty( 'tags', 'mcp-server' );
 	} );
 } );

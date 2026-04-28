@@ -1,84 +1,51 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
-import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import type { Mwn } from 'mwn';
-import { getMwn } from '../common/mwn.js';
-import { instrumentToolCall } from './instrument.js';
-import { getPageUrl } from '../common/utils.js';
-import { ContentFormat } from '../common/contentFormat.js';
+import type { Tool } from '../runtime/tool.js';
+import type { ToolContext } from '../runtime/context.js';
+import { getPageUrl } from '../wikis/utils.js';
+import { ContentFormat } from '../results/contentFormat.js';
 import {
 	truncateByBytes,
 	type TruncationInfo
-} from '../common/truncation.js';
-import { classifyError, errorResult } from '../common/errorMapping.js';
-import { structuredResult } from '../common/structuredResult.js';
+} from '../results/truncation.js';
 
-export function getPageTool( server: McpServer ): RegisteredTool {
-	return server.registerTool(
-		'get-page',
-		{
-			description: 'Returns a single wiki page (wikitext source, rendered HTML, or metadata only). If the title does not exist, an error is returned. Use metadata=true to retrieve the revision ID (for edit-conflict detection), page size, and section outline. Set content="none" to fetch only metadata. Large content is truncated at 50000 bytes with a trailing marker listing available sections; a follow-up call with section=N fetches a specific section. For more than one page at a time, use get-pages. For a specific historical revision, use get-revision.',
-			inputSchema: {
-				title: z.string().describe( 'Wiki page title' ),
-				content: z.nativeEnum( ContentFormat ).optional().default( ContentFormat.source ).describe( 'Type of content to return' ),
-				metadata: z.boolean().optional().default( false ).describe(
-					'Whether to include metadata (page ID, revision info, size, section outline) in the response'
-				),
-				section: z.number().int().nonnegative().optional().describe( 'Section number (0 = lead; 1..N = heading sections). Narrows content to one section.' )
-			},
-			annotations: {
-				title: 'Get page',
-				readOnlyHint: true,
-				destructiveHint: false,
-				idempotentHint: true,
-				openWorldHint: true
-			} as ToolAnnotations
-		},
-		instrumentToolCall(
-			'get-page',
-			async ( { title, content, metadata, section } ) => (
-				handleGetPageTool( title, content, metadata, section )
-			),
-			( a ) => a.title
-		)
-	);
-}
+const inputSchema = {
+	title: z.string().describe( 'Wiki page title' ),
+	content: z.nativeEnum( ContentFormat ).optional().default( ContentFormat.source ).describe( 'Type of content to return' ),
+	metadata: z.boolean().optional().default( false ).describe(
+		'Whether to include metadata (page ID, revision info, size, section outline) in the response'
+	),
+	section: z.number().int().nonnegative().optional().describe( 'Section number (0 = lead; 1..N = heading sections). Narrows content to one section.' )
+} as const;
 
-interface PageSectionsApi {
-	line?: string;
-}
+export const getPage: Tool<typeof inputSchema> = {
+	name: 'get-page',
+	description: 'Returns a single wiki page (wikitext source, rendered HTML, or metadata only). If the title does not exist, an error is returned. Use metadata=true to retrieve the revision ID (for edit-conflict detection), page size, and section outline. Set content="none" to fetch only metadata. Large content is truncated at 50000 bytes with a trailing marker listing available sections; a follow-up call with section=N fetches a specific section. For more than one page at a time, use get-pages. For a specific historical revision, use get-revision.',
+	inputSchema,
+	annotations: {
+		title: 'Get page',
+		readOnlyHint: true,
+		destructiveHint: false,
+		idempotentHint: true,
+		openWorldHint: true
+	} as ToolAnnotations,
+	failureVerb: 'retrieve page data',
+	target: ( a ) => a.title,
 
-async function fetchSectionsList( mwn: Mwn, title: string ): Promise<string[]> {
-	const response = await mwn.request( {
-		action: 'parse',
-		page: title,
-		prop: 'sections',
-		formatversion: '2'
-	} );
-	const apiSections: PageSectionsApi[] = response?.parse?.sections ?? [];
-	// MediaWiki's prop=sections returns only heading sections; prepend a slot
-	// for the lead so indices align with MediaWiki's rvsection convention
-	// (0 = lead, 1..N = headings).
-	return [ '', ...apiSections.map( ( s ) => s.line ?? '' ) ];
-}
+	async handle(
+		{ title, content, metadata, section },
+		ctx: ToolContext
+	): Promise<CallToolResult> {
+		if ( content === ContentFormat.none && !metadata ) {
+			return ctx.format.invalidInput( 'When content is set to "none", metadata must be true' );
+		}
+		if ( section !== undefined && content === ContentFormat.none ) {
+			return ctx.format.invalidInput( 'section is not compatible with content="none"' );
+		}
 
-export async function handleGetPageTool(
-	title: string,
-	content: ContentFormat,
-	metadata: boolean,
-	section?: number
-): Promise<CallToolResult> {
-	if ( content === ContentFormat.none && !metadata ) {
-		return errorResult( 'invalid_input', 'When content is set to "none", metadata must be true' );
-	}
-	if ( section !== undefined && content === ContentFormat.none ) {
-		return errorResult( 'invalid_input', 'section is not compatible with content="none"' );
-	}
-
-	try {
-		const mwn = await getMwn();
+		const mwn = await ctx.mwn();
 
 		const payload: {
 			pageId?: number;
@@ -112,13 +79,13 @@ export async function handleGetPageTool(
 			const page = await mwn.read( title, readParams );
 
 			if ( page.missing ) {
-				return errorResult( 'not_found', `Page "${ title }" not found` );
+				return ctx.format.notFound( `Page "${ title }" not found` );
 			}
 
 			const rev = page.revisions?.[ 0 ];
 
 			if ( metadata ) {
-				sections = await fetchSectionsList( mwn, title );
+				sections = await ctx.sections.list( mwn, title );
 			}
 
 			if ( metadata || content === ContentFormat.none ) {
@@ -141,7 +108,7 @@ export async function handleGetPageTool(
 				payload.source = truncated.text;
 				if ( truncated.truncated ) {
 					if ( sections === undefined ) {
-						sections = await fetchSectionsList( mwn, title );
+						sections = await ctx.sections.list( mwn, title );
 					}
 					payload.truncation = {
 						reason: 'content-truncated',
@@ -184,7 +151,7 @@ export async function handleGetPageTool(
 
 				if ( truncated.truncated ) {
 					if ( sections === undefined ) {
-						sections = await fetchSectionsList( mwn, title );
+						sections = await ctx.sections.list( mwn, title );
 					}
 					payload.truncation = {
 						reason: 'content-truncated',
@@ -199,9 +166,6 @@ export async function handleGetPageTool(
 			}
 		}
 
-		return structuredResult( payload );
-	} catch ( error ) {
-		const { category, code } = classifyError( error );
-		return errorResult( category, `Failed to retrieve page data: ${ ( error as Error ).message }`, code );
+		return ctx.format.ok( payload );
 	}
-}
+};

@@ -1,26 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { z } from 'zod';
 
-vi.mock( '../../src/common/wikiService.js', async () => {
-	const actual = await vi.importActual<typeof import( '../../src/common/wikiService.js' )>(
-		'../../src/common/wikiService.js'
-	);
-	return {
-		...actual,
-		wikiService: {
-			get: vi.fn(),
-			setCurrent: vi.fn(),
-			getCurrent: vi.fn()
-		}
-	};
-} );
-
-import { wikiService } from '../../src/common/wikiService.js';
-import { formatPayload } from '../../src/common/formatPayload.js';
+import type { WikiConfig } from '../../src/config/loadConfig.js';
+import { formatPayload } from '../../src/results/format.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
+import { fakeManagementContext } from '../helpers/fakeContext.js';
+import { setWiki } from '../../src/tools/set-wiki.js';
+import { dispatch } from '../../src/runtime/dispatcher.js';
+
+function wikiConfig( overrides: Partial<WikiConfig> = {} ): WikiConfig {
+	return {
+		sitename: 'Example',
+		server: 'https://example.org',
+		articlepath: '/wiki',
+		scriptpath: '/w',
+		...overrides
+	} as WikiConfig;
+}
 
 describe( 'set-wiki', () => {
 	beforeEach( () => {
@@ -28,21 +26,28 @@ describe( 'set-wiki', () => {
 	} );
 
 	it( 'switches the active wiki and returns the new config', async () => {
-		vi.mocked( wikiService.get ).mockReturnValue( {
-			sitename: 'Example',
-			server: 'https://example.org'
-		} as ReturnType<typeof wikiService.get> );
-		vi.mocked( wikiService.getCurrent ).mockReturnValue( {
-			key: 'example.org',
-			config: {
-				sitename: 'Example',
-				server: 'https://example.org'
-			} as ReturnType<typeof wikiService.getCurrent>[ 'config' ]
+		const reconcile = vi.fn();
+		const setCurrent = vi.fn();
+		let currentKey = 'default';
+		const ctx = fakeManagementContext( {
+			reconcile,
+			wikis: {
+				getAll: () => ( {} ),
+				get: () => wikiConfig(),
+				add: () => {},
+				remove: () => {},
+				isManagementAllowed: () => true
+			},
+			selection: {
+				getCurrent: () => ( { key: currentKey, config: wikiConfig() } ),
+				setCurrent: ( key: string ) => {
+					setCurrent( key );
+					currentKey = key;
+				},
+				reset: () => {}
+			}
 		} );
-
-		const onActiveWikiChanged = vi.fn();
-		const { handleSetWikiTool } = await import( '../../src/tools/set-wiki.js' );
-		const result = await handleSetWikiTool( 'mcp://wikis/example.org', onActiveWikiChanged );
+		const result = await dispatch( setWiki, ctx )( { uri: 'mcp://wikis/example.org' } );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toBe( formatPayload( {
@@ -50,22 +55,28 @@ describe( 'set-wiki', () => {
 			sitename: 'Example',
 			server: 'https://example.org'
 		} ) );
-		expect( vi.mocked( wikiService.setCurrent ) ).toHaveBeenCalledWith( 'example.org' );
-		expect( onActiveWikiChanged ).toHaveBeenCalledTimes( 1 );
+		expect( setCurrent ).toHaveBeenCalledWith( 'example.org' );
+		expect( reconcile ).toHaveBeenCalledTimes( 1 );
 	} );
 
 	it( 'returns invalid_input for a malformed URI', async () => {
-		const { handleSetWikiTool } = await import( '../../src/tools/set-wiki.js' );
-		const result = await handleSetWikiTool( 'not-a-valid-uri', vi.fn() );
+		const ctx = fakeManagementContext();
+		const result = await dispatch( setWiki, ctx )( { uri: 'not-a-valid-uri' } );
 
 		assertStructuredError( result, 'invalid_input' );
 	} );
 
 	it( 'returns invalid_input when the wiki is not registered', async () => {
-		vi.mocked( wikiService.get ).mockReturnValue( undefined );
-
-		const { handleSetWikiTool } = await import( '../../src/tools/set-wiki.js' );
-		const result = await handleSetWikiTool( 'mcp://wikis/unknown.example.org', vi.fn() );
+		const ctx = fakeManagementContext( {
+			wikis: {
+				getAll: () => ( {} ),
+				get: () => undefined,
+				add: () => {},
+				remove: () => {},
+				isManagementAllowed: () => true
+			}
+		} );
+		const result = await dispatch( setWiki, ctx )( { uri: 'mcp://wikis/unknown.example.org' } );
 
 		const envelope = assertStructuredError( result, 'invalid_input' );
 		expect( envelope.message ).toMatch(

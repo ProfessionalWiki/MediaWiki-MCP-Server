@@ -1,42 +1,27 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { z } from 'zod';
+import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
-import { formatPayload } from '../../src/common/formatPayload.js';
-
-vi.mock( '../../src/common/mwn.js', () => ( {
-	getMwn: vi.fn()
-} ) );
-
-vi.mock( '../../src/common/wikiService.js', () => ( {
-	wikiService: {
-		getCurrent: vi.fn().mockReturnValue( {
-			key: 'test-wiki',
-			config: { server: 'https://test.wiki', articlepath: '/wiki', scriptpath: '/w' }
-		} )
-	}
-} ) );
-
-import { getMwn } from '../../src/common/mwn.js';
+import { fakeContext } from '../helpers/fakeContext.js';
+import { parseWikitext } from '../../src/tools/parse-wikitext.js';
+import { dispatch } from '../../src/runtime/dispatcher.js';
+import { formatPayload } from '../../src/results/format.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
 
 describe( 'parse-wikitext', () => {
-	beforeEach( () => {
-		vi.clearAllMocks();
-	} );
-
 	it( 'returns HTML for parsed wikitext', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
 				parse: { text: '<p>Hello</p>', parsewarnings: [] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
-		const result = await handleParseWikitextTool( "'''Hello'''", undefined, true );
+		const result = await parseWikitext.handle(
+			{ wikitext: "'''Hello'''", applyPreSaveTransform: true },
+			ctx
+		);
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'HTML: <p>Hello</p>' );
@@ -51,10 +36,12 @@ describe( 'parse-wikitext', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
-		const result = await handleParseWikitextTool( 'anything', undefined, true );
+		const result = await parseWikitext.handle(
+			{ wikitext: 'anything', applyPreSaveTransform: true },
+			ctx
+		);
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Parse warnings:\n- Unclosed tag\n- Bad template' );
@@ -66,10 +53,12 @@ describe( 'parse-wikitext', () => {
 				parse: { text: '<p>x</p>', parsewarnings: [] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
-		await handleParseWikitextTool( 'x', undefined, true );
+		await parseWikitext.handle(
+			{ wikitext: 'x', applyPreSaveTransform: true },
+			ctx
+		);
 
 		expect( mock.request ).toHaveBeenCalledWith( expect.objectContaining( {
 			action: 'parse',
@@ -86,10 +75,12 @@ describe( 'parse-wikitext', () => {
 				parse: { text: '<p>x</p>', parsewarnings: [] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
-		await handleParseWikitextTool( 'x', 'Custom Title', true );
+		await parseWikitext.handle(
+			{ wikitext: 'x', title: 'Custom Title', applyPreSaveTransform: true },
+			ctx
+		);
 
 		expect( mock.request ).toHaveBeenCalledWith( expect.objectContaining( {
 			title: 'Custom Title'
@@ -102,24 +93,28 @@ describe( 'parse-wikitext', () => {
 				parse: { text: '<p>x</p>', parsewarnings: [] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
-		await handleParseWikitextTool( 'x', undefined, false );
+		await parseWikitext.handle(
+			{ wikitext: 'x', applyPreSaveTransform: false },
+			ctx
+		);
 
 		expect( mock.request ).toHaveBeenCalledWith( expect.objectContaining( {
 			pst: false
 		} ) );
 	} );
 
-	it( 'wraps mwn errors as isError with message', async () => {
+	it( 'wraps mwn errors as isError with message via dispatcher', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockRejectedValue( new Error( 'Network down' ) )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
-		const result = await handleParseWikitextTool( 'x', undefined, true );
+		const result = await dispatch( parseWikitext, ctx )( {
+			wikitext: 'x',
+			applyPreSaveTransform: true
+		} );
 
 		const envelope = assertStructuredError( result, 'upstream_failure' );
 		expect( envelope.message ).toBe(
@@ -140,10 +135,12 @@ describe( 'parse-wikitext', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
-		const result = await handleParseWikitextTool( 'x', undefined, true );
+		const result = await parseWikitext.handle(
+			{ wikitext: 'x', applyPreSaveTransform: true },
+			ctx
+		);
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Categories:' );
@@ -165,10 +162,12 @@ describe( 'parse-wikitext', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
-		const result = await handleParseWikitextTool( 'x', undefined, true );
+		const result = await parseWikitext.handle(
+			{ wikitext: 'x', applyPreSaveTransform: true },
+			ctx
+		);
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Links:' );
@@ -191,10 +190,12 @@ describe( 'parse-wikitext', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
-		const result = await handleParseWikitextTool( 'x', undefined, true );
+		const result = await parseWikitext.handle(
+			{ wikitext: 'x', applyPreSaveTransform: true },
+			ctx
+		);
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Templates:' );
@@ -214,10 +215,12 @@ describe( 'parse-wikitext', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
-		const result = await handleParseWikitextTool( 'x', undefined, true );
+		const result = await parseWikitext.handle(
+			{ wikitext: 'x', applyPreSaveTransform: true },
+			ctx
+		);
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'External links:\n- https://example.org\n- https://example.com/page' );
@@ -233,10 +236,12 @@ describe( 'parse-wikitext', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
-		const result = await handleParseWikitextTool( 'x', 'Custom Title', true );
+		const result = await parseWikitext.handle(
+			{ wikitext: 'x', title: 'Custom Title', applyPreSaveTransform: true },
+			ctx
+		);
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Display title: <i>Custom Display</i>' );
@@ -252,10 +257,12 @@ describe( 'parse-wikitext', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
-		const result = await handleParseWikitextTool( 'x', undefined, true );
+		const result = await parseWikitext.handle(
+			{ wikitext: 'x', applyPreSaveTransform: true },
+			ctx
+		);
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).not.toContain( 'Display title:' );
@@ -275,10 +282,12 @@ describe( 'parse-wikitext', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
-		const result = await handleParseWikitextTool( 'x', undefined, true );
+		const result = await parseWikitext.handle(
+			{ wikitext: 'x', applyPreSaveTransform: true },
+			ctx
+		);
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toBe( formatPayload( { html: '<p>x</p>' } ) );
@@ -295,10 +304,12 @@ describe( 'parse-wikitext', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
-		const result = await handleParseWikitextTool( 'x', undefined, true );
+		const result = await parseWikitext.handle(
+			{ wikitext: 'x', applyPreSaveTransform: true },
+			ctx
+		);
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toMatch( /HTML:\n\n<p>x+/ );
@@ -318,10 +329,12 @@ describe( 'parse-wikitext', () => {
 				parse: { text: exact, parsewarnings: [] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleParseWikitextTool } = await import( '../../src/tools/parse-wikitext.js' );
-		const result = await handleParseWikitextTool( 'x', undefined, true );
+		const result = await parseWikitext.handle(
+			{ wikitext: 'x', applyPreSaveTransform: true },
+			ctx
+		);
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toMatch( /HTML:\n\ny{50000}/ );

@@ -1,24 +1,10 @@
 import { z } from 'zod';
 /* eslint-disable n/no-missing-import */
-import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
-import { getMwn } from '../common/mwn.js';
-import { wikiService } from '../common/wikiService.js';
-import { instrumentToolCall } from './instrument.js';
-import { getPageUrl, formatEditComment } from '../common/utils.js';
-import { classifyError, errorResult } from '../common/errorMapping.js';
-import { structuredResult } from '../common/structuredResult.js';
-
-interface UpdatePageArgs {
-	title: string;
-	source: string;
-	latestId?: number;
-	comment?: string;
-	section?: number | 'new';
-	mode?: 'append' | 'prepend';
-	sectionTitle?: string;
-}
+import type { Tool } from '../runtime/tool.js';
+import type { ToolContext } from '../runtime/context.js';
+import { getPageUrl, formatEditComment } from '../wikis/utils.js';
 
 interface ApiEditResponse {
 	result?: string;
@@ -29,99 +15,80 @@ interface ApiEditResponse {
 	contentmodel?: string;
 }
 
-export function updatePageTool( server: McpServer ): RegisteredTool {
-	return server.registerTool(
-		'update-page',
-		{
-			description: 'Replaces the existing content of a wiki page and returns the new revision ID. Fails if the page does not exist; for new pages, use create-page. Pass latestId (obtained from get-page with metadata=true) to enable edit-conflict detection: if the page has been edited since that revision, the update is rejected rather than silently clobbering concurrent changes. For large pages, three modifiers avoid shipping the full source: section=N edits one section (pairs with get-page section=N for reads), section=\'new\' adds a new heading section, and mode=\'append\' or \'prepend\' sends a delta. Each call is a separate revision; for chains of mode=\'append\' calls, re-fetching latestId between calls confirms the previous chunk landed before the next.',
-			inputSchema: {
-				title: z.string().describe( 'Wiki page title' ),
-				source: z.string().describe( 'The content to write, in the existing page\'s content model. Interpreted as the full page by default; as the given section\'s content when section is set; or as a delta (appended or prepended) when mode is set.' ),
-				latestId: z.number().int().positive().optional().describe( 'Base revision ID for edit-conflict detection; obtain from get-page with metadata=true. If omitted, the update is applied without conflict detection.' ),
-				comment: z.string().optional().describe( 'Summary of the edit' ),
-				// eslint-disable-next-line es-x/no-set-prototype-union -- z.union, not Set.prototype.union
-				section: z.union( [
-					z.number().int().nonnegative(),
-					z.literal( 'new' )
-				] ).optional().describe( 'Section to edit: 0 (lead), 1..N (existing heading sections), or \'new\' to append a new heading section.' ),
-				mode: z.enum( [ 'append', 'prepend' ] ).optional().describe( 'Adds source to the existing content instead of replacing it: \'append\' to the end, \'prepend\' to the start.' ),
-				sectionTitle: z.string().optional().describe( 'Heading for a new section; required when section=\'new\', rejected otherwise.' )
-			},
-			annotations: {
-				title: 'Update page',
-				readOnlyHint: false,
-				destructiveHint: true,
-				idempotentHint: true,
-				openWorldHint: true
-			} as ToolAnnotations
-		},
-		instrumentToolCall(
-			'update-page',
-			async ( args ) => handleUpdatePageTool( args as UpdatePageArgs ),
-			( a ) => a.title
-		)
-	);
-}
+const inputSchema = {
+	title: z.string().describe( 'Wiki page title' ),
+	source: z.string().describe( 'The content to write, in the existing page\'s content model. Interpreted as the full page by default; as the given section\'s content when section is set; or as a delta (appended or prepended) when mode is set.' ),
+	latestId: z.number().int().positive().optional().describe( 'Base revision ID for edit-conflict detection; obtain from get-page with metadata=true. If omitted, the update is applied without conflict detection.' ),
+	comment: z.string().optional().describe( 'Summary of the edit' ),
+	// eslint-disable-next-line es-x/no-set-prototype-union -- z.union, not Set.prototype.union
+	section: z.union( [
+		z.number().int().nonnegative(),
+		z.literal( 'new' )
+	] ).optional().describe( 'Section to edit: 0 (lead), 1..N (existing heading sections), or \'new\' to append a new heading section.' ),
+	mode: z.enum( [ 'append', 'prepend' ] ).optional().describe( 'Adds source to the existing content instead of replacing it: \'append\' to the end, \'prepend\' to the start.' ),
+	sectionTitle: z.string().optional().describe( 'Heading for a new section; required when section=\'new\', rejected otherwise.' )
+} as const;
 
-export async function handleUpdatePageTool(
-	args: UpdatePageArgs
-): Promise<CallToolResult> {
-	const { title, source, latestId, comment, section, mode, sectionTitle } = args;
+type UpdatePageArgs = z.infer<z.ZodObject<typeof inputSchema>>;
 
+function validateArgs( { section, mode, sectionTitle }: UpdatePageArgs ): string | undefined {
 	if ( section === 'new' && mode !== undefined ) {
-		return errorResult( 'invalid_input', 'mode is not compatible with section=\'new\'' );
+		return 'mode is not compatible with section=\'new\'';
 	}
 	if ( section === 'new' && sectionTitle === undefined ) {
-		return errorResult( 'invalid_input', 'sectionTitle is required when section=\'new\'' );
+		return 'sectionTitle is required when section=\'new\'';
 	}
 	if ( sectionTitle !== undefined && section !== 'new' ) {
-		return errorResult( 'invalid_input', 'sectionTitle is only valid when section=\'new\'' );
+		return 'sectionTitle is only valid when section=\'new\'';
 	}
+	return undefined;
+}
 
-	try {
-		const mwn = await getMwn();
-		const token = await mwn.getCsrfToken();
+function buildEditParams(
+	{ title, source, latestId, comment, section, mode, sectionTitle }: UpdatePageArgs
+): Record<string, string | number | boolean> {
+	const sourceField = mode === 'append' ? 'appendtext' : mode === 'prepend' ? 'prependtext' : 'text';
+	return {
+		action: 'edit',
+		title,
+		summary: formatEditComment( 'update-page', comment ),
+		nocreate: true,
+		[ sourceField ]: source,
+		...( latestId !== undefined ? { baserevid: latestId } : {} ),
+		...( section !== undefined ? { section: String( section ) } : {} ),
+		...( sectionTitle !== undefined ? { sectiontitle: sectionTitle } : {} )
+	};
+}
 
-		const params: Record<string, string | number | boolean | string[]> = {
-			action: 'edit',
-			title,
-			summary: formatEditComment( 'update-page', comment ),
-			nocreate: true,
-			token,
-			formatversion: '2'
-		};
-		if ( mode === 'append' ) {
-			params.appendtext = source;
-		} else if ( mode === 'prepend' ) {
-			params.prependtext = source;
-		} else {
-			params.text = source;
+export const updatePage: Tool<typeof inputSchema> = {
+	name: 'update-page',
+	description: 'Replaces the existing content of a wiki page and returns the new revision ID. Fails if the page does not exist; for new pages, use create-page. Pass latestId (obtained from get-page with metadata=true) to enable edit-conflict detection: if the page has been edited since that revision, the update is rejected rather than silently clobbering concurrent changes. For large pages, three modifiers avoid shipping the full source: section=N edits one section (pairs with get-page section=N for reads), section=\'new\' adds a new heading section, and mode=\'append\' or \'prepend\' sends a delta. Each call is a separate revision; for chains of mode=\'append\' calls, re-fetching latestId between calls confirms the previous chunk landed before the next.',
+	inputSchema,
+	annotations: {
+		title: 'Update page',
+		readOnlyHint: false,
+		destructiveHint: true,
+		idempotentHint: true,
+		openWorldHint: true
+	} as ToolAnnotations,
+	failureVerb: 'update page',
+	target: ( a ) => a.title,
+
+	async handle( args, ctx: ToolContext ): Promise<CallToolResult> {
+		const validationError = validateArgs( args );
+		if ( validationError ) {
+			return ctx.format.invalidInput( validationError );
 		}
-		if ( latestId !== undefined ) {
-			params.baserevid = latestId;
-		}
 
-		const { config } = wikiService.getCurrent();
-		if ( config.tags !== null && config.tags !== undefined ) {
-			params.tags = config.tags;
-		}
-
-		if ( section !== undefined ) {
-			params.section = String( section );
-		}
-		if ( sectionTitle !== undefined ) {
-			params.sectiontitle = sectionTitle;
-		}
-
-		const response = await mwn.request( params );
-		const edit = response?.edit as ApiEditResponse | undefined;
-
+		const mwn = await ctx.mwn();
+		const response = await ctx.edit.submit( mwn, buildEditParams( args ) ) as
+			{ edit?: ApiEditResponse } | undefined;
+		const edit = response?.edit;
 		if ( !edit || edit.result !== 'Success' ) {
-			return errorResult( 'upstream_failure', `Failed to update page: ${ JSON.stringify( edit ?? response ) }` );
+			return ctx.format.error( 'upstream_failure', `Failed to update page: ${ JSON.stringify( edit ?? response ) }` );
 		}
-
-		const resolvedTitle = edit.title ?? title;
-		return structuredResult( {
+		const resolvedTitle = edit.title ?? args.title;
+		return ctx.format.ok( {
 			pageId: edit.pageid,
 			title: resolvedTitle,
 			latestRevisionId: edit.newrevid,
@@ -129,13 +96,5 @@ export async function handleUpdatePageTool(
 			contentModel: edit.contentmodel,
 			url: getPageUrl( resolvedTitle )
 		} );
-	} catch ( error ) {
-		const { category, code } = classifyError( error );
-		const msg = ( error as Error ).message;
-		if ( code === 'nosuchsection' ) {
-			const label = section === undefined ? 'unknown' : String( section );
-			return errorResult( 'not_found', `Section ${ label } does not exist`, code );
-		}
-		return errorResult( category, `Failed to update page: ${ msg }`, code );
 	}
-}
+};

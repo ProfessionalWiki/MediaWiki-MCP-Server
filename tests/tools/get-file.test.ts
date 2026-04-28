@@ -1,27 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { z } from 'zod';
+import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
-import { formatPayload } from '../../src/common/formatPayload.js';
-
-vi.mock( '../../src/common/mwn.js', () => ( { getMwn: vi.fn() } ) );
-vi.mock( '../../src/common/wikiService.js', () => ( {
-	wikiService: {
-		getCurrent: vi.fn().mockReturnValue( {
-			key: 'test-wiki',
-			config: { server: 'https://test.wiki', articlepath: '/wiki', scriptpath: '/w' }
-		} )
-	}
-} ) );
-
-import { getMwn } from '../../src/common/mwn.js';
+import { fakeContext } from '../helpers/fakeContext.js';
+import { getFile } from '../../src/tools/get-file.js';
+import { dispatch } from '../../src/runtime/dispatcher.js';
+import { formatPayload } from '../../src/results/format.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
 
 describe( 'get-file', () => {
-	beforeEach( () => { vi.clearAllMocks(); } );
-
 	it( 'returns file info using action=query&prop=imageinfo', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockResolvedValue( {
@@ -43,10 +31,9 @@ describe( 'get-file', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetFileTool } = await import( '../../src/tools/get-file.js' );
-		const result = await handleGetFileTool( 'Example.png' );
+		const result = await getFile.handle( { title: 'Example.png' }, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toBe( formatPayload( {
@@ -72,23 +59,21 @@ describe( 'get-file', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetFileTool } = await import( '../../src/tools/get-file.js' );
-		const result = await handleGetFileTool( 'Missing.png' );
+		const result = await getFile.handle( { title: 'Missing.png' }, ctx );
 
 		const envelope = assertStructuredError( result, 'not_found' );
 		expect( envelope.message ).toContain( 'not found' );
 	} );
 
-	it( 'returns error on API failure', async () => {
+	it( 'returns error on API failure via dispatcher', async () => {
 		const mock = createMockMwn( {
 			request: vi.fn().mockRejectedValue( new Error( 'API error' ) )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetFileTool } = await import( '../../src/tools/get-file.js' );
-		const result = await handleGetFileTool( 'Example.png' );
+		const result = await dispatch( getFile, ctx )( { title: 'Example.png' } );
 
 		const envelope = assertStructuredError( result, 'upstream_failure' );
 		expect( envelope.message ).toContain( 'API error' );

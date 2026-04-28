@@ -1,31 +1,16 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { z } from 'zod';
+import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
-
-vi.mock( '../../src/common/mwn.js', () => ( {
-	getMwn: vi.fn()
-} ) );
-
-vi.mock( '../../src/common/wikiService.js', () => ( {
-	wikiService: {
-		getCurrent: vi.fn().mockReturnValue( {
-			key: 'test-wiki',
-			config: { server: 'https://test.wiki', articlepath: '/wiki', scriptpath: '/w' }
-		} )
-	}
-} ) );
-
-import { getMwn } from '../../src/common/mwn.js';
+import { fakeContext } from '../helpers/fakeContext.js';
+import { getPage } from '../../src/tools/get-page.js';
+import { dispatch } from '../../src/runtime/dispatcher.js';
+import { ContentFormat } from '../../src/results/contentFormat.js';
+import { SectionServiceImpl } from '../../src/services/sectionService.js';
 import {
 	assertStructuredError,
 	assertStructuredSuccess
 } from '../helpers/structuredResult.js';
 
 describe( 'get-page', () => {
-	beforeEach( () => {
-		vi.clearAllMocks();
-	} );
-
 	it( 'returns page source using mwn.read()', async () => {
 		const mock = createMockMwn( {
 			read: vi.fn().mockResolvedValue( {
@@ -39,10 +24,13 @@ describe( 'get-page', () => {
 				} ]
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
-		const result = await handleGetPageTool( 'Test Page', 'source', false );
+		const result = await getPage.handle( {
+			title: 'Test Page',
+			content: ContentFormat.source,
+			metadata: false
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Source: Hello world' );
@@ -57,10 +45,13 @@ describe( 'get-page', () => {
 				parse: { text: '<p>Hello</p>' }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
-		const result = await handleGetPageTool( 'Test Page', 'html', false );
+		const result = await getPage.handle( {
+			title: 'Test Page',
+			content: ContentFormat.html,
+			metadata: false
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'HTML: <p>Hello</p>' );
@@ -79,10 +70,16 @@ describe( 'get-page', () => {
 			} ),
 			request: vi.fn().mockResolvedValue( { parse: { sections: [] } } )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( {
+			mwn: async () => mock as never,
+			sections: new SectionServiceImpl()
+		} );
 
-		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
-		const result = await handleGetPageTool( 'Test Page', 'none', true );
+		const result = await getPage.handle( {
+			title: 'Test Page',
+			content: ContentFormat.none,
+			metadata: true
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Page ID: 1' );
@@ -101,10 +98,13 @@ describe( 'get-page', () => {
 				missing: true
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
-		const result = await handleGetPageTool( 'Missing Page', 'source', false );
+		const result = await getPage.handle( {
+			title: 'Missing Page',
+			content: ContentFormat.source,
+			metadata: false
+		}, ctx );
 
 		const envelope = assertStructuredError( result, 'not_found' );
 		expect( envelope.message ).toContain( 'not found' );
@@ -124,24 +124,33 @@ describe( 'get-page', () => {
 			} ),
 			request: vi.fn().mockResolvedValue( { parse: { sections: [] } } )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( {
+			mwn: async () => mock as never,
+			sections: new SectionServiceImpl()
+		} );
 
-		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
-		const result = await handleGetPageTool( 'Test Page', 'source', true );
+		const result = await getPage.handle( {
+			title: 'Test Page',
+			content: ContentFormat.source,
+			metadata: true
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Page ID: 1' );
 		expect( text ).toContain( 'Source: Hello world' );
 	} );
 
-	it( 'returns error on mwn failure', async () => {
+	it( 'returns error on mwn failure via dispatcher', async () => {
 		const mock = createMockMwn( {
 			read: vi.fn().mockRejectedValue( new Error( 'API error' ) )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
-		const result = await handleGetPageTool( 'Test Page', 'source', false );
+		const result = await dispatch( getPage, ctx )( {
+			title: 'Test Page',
+			content: ContentFormat.source,
+			metadata: false
+		} );
 
 		const envelope = assertStructuredError( result, 'upstream_failure' );
 		expect( envelope.message ).toContain( 'API error' );
@@ -159,10 +168,14 @@ describe( 'get-page', () => {
 			} ]
 		} );
 		const mock = createMockMwn( { read } );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
-		const result = await handleGetPageTool( 'Test Page', 'source', false, 2 );
+		const result = await getPage.handle( {
+			title: 'Test Page',
+			content: ContentFormat.source,
+			metadata: false,
+			section: 2
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Source: Section body' );
@@ -176,10 +189,14 @@ describe( 'get-page', () => {
 			parse: { text: '<p>Section HTML</p>' }
 		} );
 		const mock = createMockMwn( { request } );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
-		const result = await handleGetPageTool( 'Test Page', 'html', false, 1 );
+		const result = await getPage.handle( {
+			title: 'Test Page',
+			content: ContentFormat.html,
+			metadata: false,
+			section: 1
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'HTML: <p>Section HTML</p>' );
@@ -191,8 +208,14 @@ describe( 'get-page', () => {
 	} );
 
 	it( 'rejects section with content="none"', async () => {
-		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
-		const result = await handleGetPageTool( 'Test Page', 'none', true, 2 );
+		const ctx = fakeContext();
+
+		const result = await getPage.handle( {
+			title: 'Test Page',
+			content: ContentFormat.none,
+			metadata: true,
+			section: 2
+		}, ctx );
 
 		const envelope = assertStructuredError( result, 'invalid_input' );
 		expect( envelope.message ).toContain( 'section is not compatible with content="none"' );
@@ -213,10 +236,18 @@ describe( 'get-page', () => {
 		const request = vi.fn().mockResolvedValue( {
 			parse: { sections: [ { line: 'History' } ] }
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( createMockMwn( { read, request } ) as any );
+		const mock = createMockMwn( { read, request } );
+		const ctx = fakeContext( {
+			mwn: async () => mock as never,
+			sections: new SectionServiceImpl()
+		} );
 
-		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
-		const result = await handleGetPageTool( 'Test Page', 'source', true, 1 );
+		const result = await getPage.handle( {
+			title: 'Test Page',
+			content: ContentFormat.source,
+			metadata: true,
+			section: 1
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Size: 98765' );
@@ -238,10 +269,16 @@ describe( 'get-page', () => {
 			} ),
 			request: vi.fn().mockResolvedValue( { parse: { sections: [] } } )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( {
+			mwn: async () => mock as never,
+			sections: new SectionServiceImpl()
+		} );
 
-		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
-		const result = await handleGetPageTool( 'No Size', 'none', true );
+		const result = await getPage.handle( {
+			title: 'No Size',
+			content: ContentFormat.none,
+			metadata: true
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).not.toContain( 'Size:' );
@@ -268,10 +305,16 @@ describe( 'get-page', () => {
 				}
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( {
+			mwn: async () => mock as never,
+			sections: new SectionServiceImpl()
+		} );
 
-		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
-		const result = await handleGetPageTool( 'Test Page', 'none', true );
+		const result = await getPage.handle( {
+			title: 'Test Page',
+			content: ContentFormat.none,
+			metadata: true
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toContain( 'Size: 12345' );
@@ -295,10 +338,16 @@ describe( 'get-page', () => {
 				parse: { sections: [ { line: 'History' } ] }
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( {
+			mwn: async () => mock as never,
+			sections: new SectionServiceImpl()
+		} );
 
-		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
-		const result = await handleGetPageTool( 'Big', 'source', false );
+		const result = await getPage.handle( {
+			title: 'Big',
+			content: ContentFormat.source,
+			metadata: false
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		// Source body is ~50000 chars, rendered as long-string block after Source: label.
@@ -326,10 +375,13 @@ describe( 'get-page', () => {
 				} ]
 			} )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( { mwn: async () => mock as never } );
 
-		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
-		const result = await handleGetPageTool( 'Exact', 'source', false );
+		const result = await getPage.handle( {
+			title: 'Exact',
+			content: ContentFormat.source,
+			metadata: false
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( text ).toMatch( /Source:\n\ny{50000}/ );
@@ -342,10 +394,16 @@ describe( 'get-page', () => {
 			.mockResolvedValueOnce( { parse: { text: bigHtml } } )
 			.mockResolvedValueOnce( { parse: { sections: [ { line: 'Heading' } ] } } );
 		const mock = createMockMwn( { request } );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( {
+			mwn: async () => mock as never,
+			sections: new SectionServiceImpl()
+		} );
 
-		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
-		const result = await handleGetPageTool( 'Huge', 'html', false );
+		const result = await getPage.handle( {
+			title: 'Huge',
+			content: ContentFormat.html,
+			metadata: false
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		// Truncated HTML is rendered as long-string block.
@@ -373,10 +431,16 @@ describe( 'get-page', () => {
 				.mockResolvedValueOnce( { parse: { sections: [] } } )
 				.mockResolvedValueOnce( { parse: { text: '<p>Hello</p>' } } )
 		} );
-		vi.mocked( getMwn ).mockResolvedValue( mock as any );
+		const ctx = fakeContext( {
+			mwn: async () => mock as never,
+			sections: new SectionServiceImpl()
+		} );
 
-		const { handleGetPageTool } = await import( '../../src/tools/get-page.js' );
-		const result = await handleGetPageTool( 'Test Page', 'html', true );
+		const result = await getPage.handle( {
+			title: 'Test Page',
+			content: ContentFormat.html,
+			metadata: true
+		}, ctx );
 
 		const text = assertStructuredSuccess( result );
 		expect( mock.read ).toHaveBeenCalledTimes( 1 );

@@ -5,7 +5,7 @@ import type { CallToolResult, TextContent } from '@modelcontextprotocol/sdk/type
 import {
 	ErrorEnvelopeSchema,
 	type ErrorEnvelope
-} from '../../src/common/schemas.js';
+} from '../../src/results/schemas.js';
 
 // Tool responses ride entirely in content[0].text. Successful responses carry
 // the typed payload as labelled prose (formatPayload) and also set

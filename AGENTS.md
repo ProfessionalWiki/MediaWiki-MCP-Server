@@ -4,11 +4,17 @@ Project context for AI coding agents working on this repo. For human users, star
 
 ## Repo layout
 
-- `src/tools/` — one file per MCP tool (`handleXxxTool` handler + schema + registration).
-- `src/common/` — `mwn` wrapper, `wikiService`, config loading and substitution.
+- `src/tools/` — one file per MCP tool (descriptor + handler + registration).
+- `src/runtime/` — context, dispatcher, register, reconcile, logger, constants.
+- `src/wikis/` — wiki registry, selection, mwn provider, discovery, error sanitiser.
+- `src/transport/` — stdio and streamable HTTP entry points, SSRF/upload guards, request context, low-level HTTP helpers.
+- `src/config/` — `config.json` loader and substitution.
+- `src/services/` — section, edit, revision, response services consumed via `ToolContext`.
+- `src/results/` — response shaping (truncation, format, schemas).
+- `src/errors/` — error classifier + per-tool special cases.
 - `src/resources/` — MCP resources exposing `mcp://wikis/{wikiKey}`.
-- `src/server.ts`, `src/stdio.ts`, `src/streamableHttp.ts`, `src/index.ts` — entry points and transports.
-- `tests/` — vitest suites; shared helpers in `tests/helpers/`.
+- `src/server.ts`, `src/index.ts` — server factory and bootstrap.
+- `tests/` — vitest suites mirroring the source tree; shared helpers in `tests/helpers/`.
 
 ## Commands
 
@@ -24,7 +30,7 @@ See [docs/tool-conventions.md](docs/tool-conventions.md) for tool design stance,
 
 ## Tool handlers
 
-`handleXxxTool` functions must be exported from `src/tools/<name>.ts` so unit tests can import them.
+Each tool exports a typed descriptor (`name`, `description`, `inputSchema`, `annotations`, `handle`) from `src/tools/<name>.ts`. Tests import the descriptor and route through `dispatch( descriptor, ctx )` — see `tests/helpers/fakeContext.ts`.
 
 ## Adding or changing tools
 
@@ -37,7 +43,7 @@ Pure-internal refactors that don't change tool surface or behaviour don't need e
 
 ## Testing
 
-Unit tests mock `getMwn` and `wikiService` **before** importing the handler under test. Use `createMockMwn()` from `tests/helpers/mock-mwn.ts`. See [docs/testing.md](docs/testing.md) for the full pattern, MCP Inspector CLI examples, and the bot-password setup required to exercise authenticated tools against a local wiki.
+Tool tests build a `ToolContext` via `fakeContext()` from `tests/helpers/fakeContext.ts` and dispatch through `dispatch( descriptor, ctx )`. Provide an `mwn` factory (typically `createMockMwn()` from `tests/helpers/mock-mwn.ts`) and override only the slices the test exercises. See [docs/testing.md](docs/testing.md) for the full pattern, MCP Inspector CLI examples, and the bot-password setup required to exercise authenticated tools against a local wiki.
 
 ## Releasing
 
