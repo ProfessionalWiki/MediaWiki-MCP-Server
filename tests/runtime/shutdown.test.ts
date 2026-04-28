@@ -30,6 +30,7 @@ describe( 'resolveShutdownGrace', () => {
 
 	it( 'accepts zero (immediate exit, no drain wait)', () => {
 		expect( resolveShutdownGrace( { MCP_SHUTDOWN_GRACE_MS: '0' } ) ).toBe( 0 );
+		expect( warningLines() ).toHaveLength( 0 );
 	} );
 
 	it.each( [
@@ -42,6 +43,9 @@ describe( 'resolveShutdownGrace', () => {
 		expect( resolveShutdownGrace( { MCP_SHUTDOWN_GRACE_MS: v } ) ).toBe( 10_000 );
 		const lines = warningLines();
 		expect( lines ).toHaveLength( 1 );
-		expect( lines[ 0 ] ).toContain( v );
+		// For non-empty values the raw string is preserved in the log line.
+		// For the empty-string case, we verify the variable name appears instead,
+		// because toContain('') is always true and provides no signal.
+		expect( lines[ 0 ] ).toContain( v !== '' ? v : 'MCP_SHUTDOWN_GRACE_MS' );
 	} );
 } );
