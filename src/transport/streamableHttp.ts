@@ -274,9 +274,12 @@ export function mountReadyEndpoint( app: express.Express ): void {
 	app.get( '/ready', async ( _req, res ) => {
 		if ( !readyCache || Date.now() >= readyCache.expiresAt ) {
 			readyCache = await probeDefaultWiki();
-		}
-		if ( readyCache.httpStatus !== 200 ) {
-			recordReadyFailure();
+			// Count distinct probe failures, not cached replays — K8s readiness
+			// probes that fire every second would otherwise inflate the counter
+			// 5x against a 5s cache for the same underlying outage.
+			if ( readyCache.httpStatus !== 200 ) {
+				recordReadyFailure();
+			}
 		}
 		res.status( readyCache.httpStatus ).json( readyCache.payload );
 	} );

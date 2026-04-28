@@ -133,11 +133,19 @@ export function emitToolCall<TArgs>( opts: EmitToolCallOptions<TArgs> ): void {
 		data.error_message = opts.errorMessage;
 	}
 	emitTelemetryEvent( level, data );
-	recordToolCall( {
-		tool: opts.toolName,
-		wiki: opts.wikiKey,
-		outcome: opts.outcome,
-		durationMs,
-		upstreamStatus: opts.upstreamStatus
-	} );
+	// Telemetry must never break tool calls — the dispatcher does not wrap
+	// emitToolCall in its own try/catch, so an unexpected throw from the
+	// metrics path would propagate up and fail the call. The stderr line
+	// above has already flushed, so we still have an operator-visible record.
+	try {
+		recordToolCall( {
+			tool: opts.toolName,
+			wiki: opts.wikiKey,
+			outcome: opts.outcome,
+			durationMs,
+			upstreamStatus: opts.upstreamStatus
+		} );
+	} catch {
+		// swallow
+	}
 }

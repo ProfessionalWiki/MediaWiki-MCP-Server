@@ -92,6 +92,20 @@ describe( 'GET /metrics — enabled', () => {
 		expect( metrics.text ).toMatch( /mcp_ready_failures_total 1/ );
 	} );
 
+	it( 'mcp_ready_failures_total does not double-count cached 503 replays', async () => {
+		mockRequest.mockRejectedValue( new Error( 'upstream down' ) );
+		const app = makeApp();
+		// Two consecutive probes within the cache TTL — second hits the cache
+		// and must not re-increment the counter.
+		const first = await request( app ).get( '/ready' );
+		const second = await request( app ).get( '/ready' );
+		expect( first.status ).toBe( 503 );
+		expect( second.status ).toBe( 503 );
+		expect( mockRequest ).toHaveBeenCalledTimes( 1 );
+		const metrics = await request( app ).get( '/metrics' );
+		expect( metrics.text ).toMatch( /mcp_ready_failures_total 1/ );
+	} );
+
 	it( 'mcp_active_sessions reads the configured provider', async () => {
 		const app = makeApp();
 		setSessionsProvider( () => 4 );

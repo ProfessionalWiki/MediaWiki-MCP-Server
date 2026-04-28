@@ -160,7 +160,7 @@ Exposed series:
 
 The endpoint is **unauthenticated**. Bind reverse-proxy access to your scrape network only — most Kubernetes-style deployments expose `/metrics` on a separate port or path that isn't routable from the public ingress.
 
-Cardinality scales as `tools × wikis × outcomes` for `mcp_tool_calls_total`. Typical deployments stay in the low thousands of series, well within typical Prometheus ingest budgets.
+Cardinality scales as `tools × wikis × outcomes` for `mcp_tool_calls_total`. Typical deployments stay in the low thousands of series, well within typical Prometheus ingest budgets. If you enable `allowWikiManagement`, treat the `wiki` label set as monotonically growing — `add-wiki` / `remove-wiki` cycles never shrink the cardinality of historical series.
 
 ### Tailing logs
 
