@@ -309,7 +309,7 @@ const ctx = createToolContext( { logger } );
 
 app.post( '/mcp', createMcpPostHandler(
 	sessions,
-	() => createServer( ctx, { transport: 'http', http: { host, port, allowedHosts, allowedOrigins } } ),
+	() => createServer( ctx ),
 	{ allowedOrigins }
 ) );
 app.get( '/mcp', sessionRequestHandler );

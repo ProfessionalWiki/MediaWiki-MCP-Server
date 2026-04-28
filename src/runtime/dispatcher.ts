@@ -29,9 +29,11 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext =
 			if ( result.isError ) {
 				const text = ( result.content[ 0 ] as { text?: string } | undefined )?.text;
 				const env = parseEnvelope( text );
-				if ( env.category ) {
-					outcome = env.category;
-				}
+				// Fall back to upstream_failure when the envelope is missing or
+				// unparseable rather than letting outcome stay 'success' — that
+				// would emit a misleading info-level telemetry line on a result
+				// that's flagged as an error.
+				outcome = env.category ?? 'upstream_failure';
 				if ( env.message ) {
 					errorMessage = env.message;
 				}

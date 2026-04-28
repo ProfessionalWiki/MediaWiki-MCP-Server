@@ -12,7 +12,7 @@ async function main(): Promise<void> {
 	emitStartupBanner( { transport: 'stdio' } );
 	const transport = new StdioServerTransport();
 	const ctx = createToolContext( { logger } );
-	const server = createServer( ctx, { transport: 'stdio' } );
+	const server = createServer( ctx );
 
 	await server.connect( transport );
 }

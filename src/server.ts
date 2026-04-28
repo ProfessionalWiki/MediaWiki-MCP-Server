@@ -7,7 +7,6 @@ import { registerAllTools } from './tools/index.js';
 import { registerAllResources } from './resources/index.js';
 import { reconcileTools } from './runtime/reconcile.js';
 import type { ToolContext } from './runtime/context.js';
-import type { CreateServerOptions } from './runtime/banner.js';
 
 // https://github.com/nodejs/node/issues/51347#issuecomment-2111337854
 const serverInfo = createRequire( import.meta.url )( '../server.json' ) as {
@@ -24,7 +23,7 @@ Writes, deletes, and uploads use the caller's \`Authorization: Bearer\` token wh
 
 Tool errors fall into seven categories: \`not_found\`, \`permission_denied\`, \`invalid_input\`, \`conflict\`, \`authentication\`, \`rate_limited\`, and \`upstream_failure\`. Reads that exceed a per-call cap return a truncation marker describing what was returned and how to fetch the rest.`;
 
-export const createServer = ( ctx: ToolContext, _opts?: CreateServerOptions ): McpServer => {
+export const createServer = ( ctx: ToolContext ): McpServer => {
 	const server = new McpServer(
 		{
 			name: SERVER_NAME,
