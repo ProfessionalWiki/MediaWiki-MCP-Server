@@ -9,7 +9,7 @@ import { getPagesTool } from './get-pages.js';
 import { getPageHistoryTool } from './get-page-history.js';
 import { searchPageTool } from './search-page.js';
 import { setWikiTool } from './set-wiki.js';
-import type { Reconcile } from './reconcile.js';
+import type { Reconcile } from '../runtime/reconcile.js';
 import { addWikiTool } from './add-wiki.js';
 import { removeWikiTool } from './remove-wiki.js';
 import { updatePageTool } from './update-page.js';

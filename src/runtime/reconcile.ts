@@ -2,7 +2,7 @@
 import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 /* eslint-enable n/no-missing-import */
 import type { WikiConfig } from '../common/config.js';
-import { wikiService } from '../common/wikiService.js';
+import { wikiRegistry, wikiSelection } from '../wikis/state.js';
 
 export type Reconcile = () => void;
 
@@ -16,9 +16,9 @@ const WRITE_TOOL_NAMES: readonly string[] = [
 ];
 
 export function reconcileTools( tools: Map<string, RegisteredTool> ): void {
-	const activeWiki = wikiService.getCurrent().config;
-	const wikiCount = Object.keys( wikiService.getAll() ).length;
-	const allowManagement = wikiService.isWikiManagementAllowed();
+	const activeWiki = wikiSelection.getCurrent().config;
+	const wikiCount = Object.keys( wikiRegistry.getAll() ).length;
+	const allowManagement = wikiRegistry.isManagementAllowed();
 
 	applyReadOnlyRule( tools, activeWiki );
 	applyWikiSetRule( tools, wikiCount, allowManagement );

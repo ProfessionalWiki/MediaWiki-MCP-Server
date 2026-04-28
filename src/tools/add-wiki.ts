@@ -8,7 +8,7 @@ import { discoverWiki } from '../common/wikiDiscovery.js';
 import { classifyError, errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
 import { SsrfValidationError } from '../common/ssrfGuard.js';
-import type { Reconcile } from './reconcile.js';
+import type { Reconcile } from '../runtime/reconcile.js';
 
 export function addWikiTool( server: McpServer, reconcile: Reconcile ): RegisteredTool {
 	return server.registerTool(

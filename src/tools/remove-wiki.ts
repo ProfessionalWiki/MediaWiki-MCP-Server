@@ -9,7 +9,7 @@ import { removeLicenseCache } from '../resources/index.js';
 import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../common/wikiResource.js';
 import { errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
-import type { Reconcile } from './reconcile.js';
+import type { Reconcile } from '../runtime/reconcile.js';
 
 export function removeWikiTool( server: McpServer, reconcile: Reconcile ): RegisteredTool {
 	return server.registerTool(

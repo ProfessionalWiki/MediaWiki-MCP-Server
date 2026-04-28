@@ -3,17 +3,19 @@ import { describe, it, expect, vi } from 'vitest';
 import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 /* eslint-enable n/no-missing-import */
 import type { WikiConfig } from '../../src/common/config.js';
-import { reconcileTools } from '../../src/tools/reconcile.js';
+import { reconcileTools } from '../../src/runtime/reconcile.js';
 
-vi.mock( '../../src/common/wikiService.js', () => ( {
-	wikiService: {
-		getCurrent: vi.fn(),
+vi.mock( '../../src/wikis/state.js', () => ( {
+	wikiRegistry: {
 		getAll: vi.fn(),
-		isWikiManagementAllowed: vi.fn()
+		isManagementAllowed: vi.fn()
+	},
+	wikiSelection: {
+		getCurrent: vi.fn()
 	}
 } ) );
 
-import { wikiService } from '../../src/common/wikiService.js';
+import { wikiRegistry, wikiSelection } from '../../src/wikis/state.js';
 
 const WRITE_TOOL_NAMES = [
 	'create-page',
@@ -76,12 +78,12 @@ function setup( {
 	wikis: Record<string, WikiConfig>;
 	allowManagement: boolean;
 } ): void {
-	vi.mocked( wikiService.getCurrent ).mockReturnValue( {
+	vi.mocked( wikiSelection.getCurrent ).mockReturnValue( {
 		key: Object.keys( wikis ).find( ( k ) => wikis[ k ] === activeWiki ) ?? 'a',
 		config: activeWiki
 	} );
-	vi.mocked( wikiService.getAll ).mockReturnValue( wikis );
-	vi.mocked( wikiService.isWikiManagementAllowed ).mockReturnValue( allowManagement );
+	vi.mocked( wikiRegistry.getAll ).mockReturnValue( wikis );
+	vi.mocked( wikiRegistry.isManagementAllowed ).mockReturnValue( allowManagement );
 }
 
 describe( 'reconcileTools — applyReadOnlyRule', () => {

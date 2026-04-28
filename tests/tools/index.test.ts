@@ -5,7 +5,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 /* eslint-enable n/no-missing-import */
 import type { WikiConfig } from '../../src/common/config.js';
-import { reconcileTools } from '../../src/tools/reconcile.js';
+import { reconcileTools } from '../../src/runtime/reconcile.js';
 
 const wikiA: WikiConfig = {
 	sitename: 'Writeable',
@@ -47,7 +47,28 @@ vi.mock( '../../src/common/wikiService.js', () => ( {
 	}
 } ) );
 
+vi.mock( '../../src/wikis/state.js', () => ( {
+	wikiRegistry: {
+		getAll: vi.fn( () => wikiStore.byKey ),
+		get: vi.fn( ( key: string ) => wikiStore.byKey[ key ] ),
+		isManagementAllowed: vi.fn()
+	},
+	wikiSelection: {
+		getCurrent: vi.fn( () => ( {
+			key: Object.keys( wikiStore.byKey ).find( ( k ) => wikiStore.byKey[ k ] === wikiStore.current ) ?? 'a',
+			config: wikiStore.current
+		} ) ),
+		setCurrent: vi.fn( ( key: string ) => {
+			if ( !wikiStore.byKey[ key ] ) {
+				throw new Error( `Wiki "${ key }" not found` );
+			}
+			wikiStore.current = wikiStore.byKey[ key ];
+		} )
+	}
+} ) );
+
 import { wikiService } from '../../src/common/wikiService.js';
+import { wikiRegistry } from '../../src/wikis/state.js';
 import { registerAllTools } from '../../src/tools/index.js';
 
 const WRITE_TOOLS = [
@@ -89,6 +110,7 @@ describe( 'registerAllTools — wiki management gating', () => {
 
 	it( 'lists add-wiki and remove-wiki when wiki management is allowed', async () => {
 		vi.mocked( wikiService.isWikiManagementAllowed ).mockReturnValue( true );
+		vi.mocked( wikiRegistry.isManagementAllowed ).mockReturnValue( true );
 		const { client } = await connectClientAndServer();
 
 		const { tools } = await client.listTools();
@@ -101,6 +123,7 @@ describe( 'registerAllTools — wiki management gating', () => {
 
 	it( 'omits add-wiki and remove-wiki but keeps set-wiki when management is disallowed and 2+ wikis are configured', async () => {
 		vi.mocked( wikiService.isWikiManagementAllowed ).mockReturnValue( false );
+		vi.mocked( wikiRegistry.isManagementAllowed ).mockReturnValue( false );
 		const { client } = await connectClientAndServer();
 
 		const { tools } = await client.listTools();
@@ -114,6 +137,7 @@ describe( 'registerAllTools — wiki management gating', () => {
 
 	it( 'hides set-wiki, add-wiki, and remove-wiki on the hosted single-wiki shape (1 wiki + management disallowed)', async () => {
 		vi.mocked( wikiService.isWikiManagementAllowed ).mockReturnValue( false );
+		vi.mocked( wikiRegistry.isManagementAllowed ).mockReturnValue( false );
 		const originalByKey = wikiStore.byKey;
 		wikiStore.byKey = { a: wikiA };
 		try {
@@ -133,6 +157,7 @@ describe( 'registerAllTools — wiki management gating', () => {
 
 	it( 'rejects calls to add-wiki with a disabled error when wiki management is disallowed', async () => {
 		vi.mocked( wikiService.isWikiManagementAllowed ).mockReturnValue( false );
+		vi.mocked( wikiRegistry.isManagementAllowed ).mockReturnValue( false );
 		const { client } = await connectClientAndServer();
 
 		const result = await client.callTool( {
@@ -147,6 +172,7 @@ describe( 'registerAllTools — wiki management gating', () => {
 
 	it( 'shows set-wiki and remove-wiki when 2 wikis are configured and management is allowed', async () => {
 		vi.mocked( wikiService.isWikiManagementAllowed ).mockReturnValue( true );
+		vi.mocked( wikiRegistry.isManagementAllowed ).mockReturnValue( true );
 		const { client } = await connectClientAndServer();
 
 		const names = ( await client.listTools() ).tools.map( ( t ) => t.name );
@@ -157,6 +183,7 @@ describe( 'registerAllTools — wiki management gating', () => {
 
 	it( 'hides set-wiki and remove-wiki when only 1 wiki is configured and management is allowed', async () => {
 		vi.mocked( wikiService.isWikiManagementAllowed ).mockReturnValue( true );
+		vi.mocked( wikiRegistry.isManagementAllowed ).mockReturnValue( true );
 		const originalByKey = wikiStore.byKey;
 		wikiStore.byKey = { a: wikiA };
 		try {
@@ -176,6 +203,7 @@ describe( 'registerAllTools — per-wiki readOnly', () => {
 	beforeEach( () => {
 		vi.clearAllMocks();
 		vi.mocked( wikiService.isWikiManagementAllowed ).mockReturnValue( true );
+		vi.mocked( wikiRegistry.isManagementAllowed ).mockReturnValue( true );
 		wikiStore.current = wikiA;
 	} );
 

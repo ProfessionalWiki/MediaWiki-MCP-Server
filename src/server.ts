@@ -5,7 +5,8 @@ import { createRequire } from 'node:module';
 import { registerServer, unregisterServer } from './common/logger.js';
 import { registerAllTools } from './tools/index.js';
 import { registerAllResources } from './resources/index.js';
-import { reconcileTools } from './tools/reconcile.js';
+import { reconcileTools } from './runtime/reconcile.js';
+import type { ToolContext } from './runtime/context.js';
 
 // USER_AGENT lives in a leaf module so wiki/mwn code can import it without
 // transitively pulling in tools/* (which would create a wikiService ↔ tools
@@ -27,7 +28,8 @@ Writes, deletes, and uploads use the caller's \`Authorization: Bearer\` token wh
 
 Tool errors fall into seven categories: \`not_found\`, \`permission_denied\`, \`invalid_input\`, \`conflict\`, \`authentication\`, \`rate_limited\`, and \`upstream_failure\`. Reads that exceed a per-call cap return a truncation marker describing what was returned and how to fetch the rest.`;
 
-export const createServer = (): McpServer => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const createServer = ( _ctx: ToolContext ): McpServer => {
 	const server = new McpServer(
 		{
 			name: SERVER_NAME,

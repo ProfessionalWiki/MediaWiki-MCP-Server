@@ -4,7 +4,7 @@ import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 /* eslint-enable n/no-missing-import */
 import { wikiService } from '../common/wikiService.js';
-import type { Reconcile } from './reconcile.js';
+import type { Reconcile } from '../runtime/reconcile.js';
 import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../common/wikiResource.js';
 import { errorResult } from '../common/errorMapping.js';
 import { structuredResult } from '../common/structuredResult.js';
