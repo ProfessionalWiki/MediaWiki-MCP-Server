@@ -172,10 +172,6 @@ describe('logger', () => {
 	});
 
 	describe('MCP_LOG_LEVEL threshold', () => {
-		afterEach(() => {
-			vi.unstubAllEnvs();
-		});
-
 		it('drops below-threshold stderr writes', () => {
 			vi.stubEnv('MCP_LOG_LEVEL', 'warning');
 			logger.info('should be filtered');
