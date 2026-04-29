@@ -42,8 +42,8 @@
 	"scripts": {
 		"start": "node dist/index.js",
 		"start:http": "MCP_TRANSPORT=http node dist/index.js",
-		"dev": "tsc --watch",
-		"build": "tsc",
+		"dev": "tsgo --watch",
+		"build": "tsgo",
 		"fmt": "oxfmt src tests scripts",
 		"fmt:check": "oxfmt --check src tests scripts",
 		"test": "vitest run",
@@ -52,9 +52,9 @@
 		"validate:server-json": "node scripts/validate-server-json.cjs",
 		"preflight": "npm ci && npm run lint && npm run fmt:check && npm run validate:server-json && npm run test && npm run build && npm run bundle -- --clean",
 		"prepare": "lefthook install",
-		"inspector": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest node dist/index.js\"",
-		"inspector:http": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest\" \"MCP_TRANSPORT=http node dist/index.js\"",
-		"mcpjam": "concurrently --kill-others \"tsc --watch\" \"npx -y @mcpjam/inspector@latest node $(pwd)/dist/index.js\"",
+		"inspector": "concurrently --kill-others \"tsgo --watch\" \"npx -y @modelcontextprotocol/inspector@latest node dist/index.js\"",
+		"inspector:http": "concurrently --kill-others \"tsgo --watch\" \"npx -y @modelcontextprotocol/inspector@latest\" \"MCP_TRANSPORT=http node dist/index.js\"",
+		"mcpjam": "concurrently --kill-others \"tsgo --watch\" \"npx -y @mcpjam/inspector@latest node $(pwd)/dist/index.js\"",
 		"bundle": "npm run build && node scripts/bundle.cjs",
 		"preversion": "npm run preflight",
 		"version": "node scripts/sync-version.cjs && node scripts/promote-changelog.cjs && git add server.json mcpb/manifest.json gemini-extension.json CHANGELOG.md"
@@ -74,6 +74,7 @@
 		"@types/node": "^25.0.2",
 		"@types/node-fetch": "^2.6.12",
 		"@types/supertest": "^7.2.0",
+		"@typescript/native-preview": "beta",
 		"ajv": "^8.17.1",
 		"ajv-formats": "^3.0.1",
 		"concurrently": "^9.1.2",
@@ -81,7 +82,7 @@
 		"oxfmt": "^0.47.0",
 		"oxlint": "^1.62.0",
 		"supertest": "^7.2.2",
-		"typescript": "^6.0.2",
+		"typescript": "npm:@typescript/typescript6@^6",
 		"vitest": "^4.1.1"
 	}
 }
