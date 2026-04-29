@@ -107,9 +107,9 @@ export const updatePage: Tool<typeof inputSchema> = {
 		}
 
 		const mwn = await ctx.mwn();
-		const response = (await ctx.edit.submit(mwn, buildEditParams(args))) as
-			| { edit?: ApiEditResponse }
-			| undefined;
+		const response =
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
+			(await ctx.edit.submit(mwn, buildEditParams(args))) as { edit?: ApiEditResponse } | undefined;
 		const edit = response?.edit;
 		if (!edit || edit.result !== 'Success') {
 			return ctx.format.error(

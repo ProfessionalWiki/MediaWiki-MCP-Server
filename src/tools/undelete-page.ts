@@ -36,6 +36,7 @@ export const undeletePage: Tool<typeof inputSchema> = {
 		);
 
 		return ctx.format.ok({
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
 			title: data.title as string,
 			restored: true as const,
 			revisionCount: data.revisions,

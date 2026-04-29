@@ -25,6 +25,7 @@ export function register<TSchema extends ZodRawShape, TCtx extends ToolContext>(
 		// `ZodRawShape` constraint from zod is the same shape as the SDK's
 		// `ZodRawShapeCompat` (Record<string, AnySchema>) — TypeScript just
 		// can't unify them through the generic boundary.
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- generic boundary; MCP SDK's ToolCallback can't be unified with our typed handler
 		handler as unknown as ToolCallback<TSchema>,
 	);
 }

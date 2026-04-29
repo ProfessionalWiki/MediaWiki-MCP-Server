@@ -186,6 +186,7 @@ export const comparePages: Tool<typeof inputSchema> = {
 			...buildSideParams('from', args),
 			...buildSideParams('to', args),
 		});
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
 		const compare = response.compare as CompareResponse | undefined;
 		if (!compare) {
 			return ctx.format.error(

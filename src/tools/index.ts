@@ -1,5 +1,6 @@
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 
+import { errorMessage } from '../errors/isErrnoException.js';
 import { logger } from '../runtime/logger.js';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext, ManagementContext } from '../runtime/context.js';
@@ -71,7 +72,7 @@ export function registerAllTools(
 		try {
 			registered.set(tool.name, register(server, tool, dispatch(tool, ctx)));
 		} catch (error) {
-			logger.error('Error registering tool', { error: (error as Error).message });
+			logger.error('Error registering tool', { error: errorMessage(error) });
 		}
 	}
 
@@ -80,7 +81,7 @@ export function registerAllTools(
 		try {
 			registered.set(tool.name, register(server, tool, dispatch(tool, mgmtCtx)));
 		} catch (error) {
-			logger.error('Error registering tool', { error: (error as Error).message });
+			logger.error('Error registering tool', { error: errorMessage(error) });
 		}
 	}
 

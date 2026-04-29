@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Changed
 
+- Resolved the type-aware lint warnings deferred from the TypeScript 7 upgrade. Tests are no longer subject to the type-assertion rules, and source code is tightened to satisfy them. Published packages are unaffected.
 - Build, watch, and type-check now run on the TypeScript 7 native compiler. Editors continue to use the TypeScript 6 language service. Published packages are unaffected.
 - Lint now runs type-aware checks and catches a class of bugs that syntactic lint misses: unawaited Promises, unbound class methods used as callbacks, and stringifying objects without a meaningful `toString`. Additional non-blocking warnings on type-assertion smells remain and will be tackled in a follow-up.
 - The Docker build context is now an allow-list (`src/`, `package.json`, `package-lock.json`, `tsconfig.json`, `server.json`) instead of the entire repository, configured via a new `.dockerignore`.

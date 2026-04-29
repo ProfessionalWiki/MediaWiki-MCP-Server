@@ -156,13 +156,16 @@ async function fetchPages(
 			continue;
 		}
 		type Alias = { from: string; to: string };
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
 		for (const entry of (query.normalized ?? []) as Alias[]) {
 			result.aliasTo.set(entry.from, entry.to);
 		}
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
 		for (const entry of (query.redirects ?? []) as Alias[]) {
 			result.aliasTo.set(entry.from, entry.to);
 			result.redirectFrom.add(entry.from);
 		}
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
 		for (const page of (query.pages ?? []) as ApiPageLike[]) {
 			result.byResolvedTitle.set(page.title, normalisePage(page, ctx));
 		}

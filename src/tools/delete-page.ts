@@ -35,6 +35,7 @@ export const deletePage: Tool<typeof inputSchema> = {
 			options,
 		);
 		return ctx.format.ok({
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
 			title: data.title as string,
 			deleted: true as const,
 			logId: data.logid,

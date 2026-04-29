@@ -38,14 +38,34 @@ export interface ParsedEnvelope {
 	message?: string;
 }
 
+/**
+ * Narrows an unknown JSON value to a ParsedEnvelope. Both fields are
+ * optional, so the predicate verifies "object shape with compatibly-typed
+ * fields if present" rather than enforcing any required key. Unknown
+ * `category` strings still pass through; downstream callers compare them
+ * against the ErrorCategory union and ignore mismatches.
+ */
+function isParsedEnvelope(obj: unknown): obj is ParsedEnvelope {
+	if (obj === null || typeof obj !== 'object') {
+		return false;
+	}
+	if ('category' in obj && obj.category !== undefined && typeof obj.category !== 'string') {
+		return false;
+	}
+	if ('message' in obj && obj.message !== undefined && typeof obj.message !== 'string') {
+		return false;
+	}
+	return true;
+}
+
 export function parseEnvelope(text: string | undefined): ParsedEnvelope {
 	if (!text) {
 		return {};
 	}
 	try {
-		const obj = JSON.parse(text);
-		if (obj && typeof obj === 'object') {
-			return obj as ParsedEnvelope;
+		const obj: unknown = JSON.parse(text);
+		if (isParsedEnvelope(obj)) {
+			return obj;
 		}
 	} catch {
 		// leave empty

@@ -30,6 +30,7 @@ export class EditServiceImpl implements EditService {
 		if (tags !== null && tags !== undefined) {
 			fullParams.tags = tags;
 		}
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn ApiParams shape; we assemble fullParams to match the typed contract
 		return mwn.request(fullParams as ApiParams);
 	}
 

@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
 import { logger } from '../runtime/logger.js';
+import { isErrnoException, errorMessage } from '../errors/isErrnoException.js';
 
 export interface WikiConfig {
 	/**
@@ -183,7 +184,7 @@ function runExec(raw: unknown, wikiKey: string, fieldName: SecretFieldName): str
 		throw new Error(`Config error: ${path}.exec.args must be an array of strings`);
 	}
 	const command = exec.command;
-	const args = (exec.args as string[] | undefined) ?? [];
+	const args = exec.args ?? [];
 
 	let stdout: string;
 	try {
@@ -193,28 +194,26 @@ function runExec(raw: unknown, wikiKey: string, fieldName: SecretFieldName): str
 			stdio: ['ignore', 'pipe', 'pipe'],
 		});
 	} catch (err: unknown) {
-		const e = err as NodeJS.ErrnoException & {
-			signal?: string;
-			status?: number | null;
-			stderr?: Buffer | string;
-		};
-		if (e.code === 'ENOENT') {
+		if (!isErrnoException(err)) {
+			throw err;
+		}
+		if (err.code === 'ENOENT') {
 			throw new Error(`Config error: failed to fetch ${path}: command "${command}" not found`);
 		}
-		if (e.signal === 'SIGTERM' || e.code === 'ETIMEDOUT') {
+		if (err.signal === 'SIGTERM' || err.code === 'ETIMEDOUT') {
 			throw new Error(
 				`Config error: failed to fetch ${path}: command "${command}" timed out after 10s`,
 			);
 		}
-		if (typeof e.status === 'number' && e.status !== 0) {
-			const stderrText = e.stderr
-				? (Buffer.isBuffer(e.stderr) ? e.stderr.toString('utf-8') : e.stderr).slice(0, 200)
+		if (typeof err.status === 'number' && err.status !== 0) {
+			const stderrText = err.stderr
+				? (Buffer.isBuffer(err.stderr) ? err.stderr.toString('utf-8') : err.stderr).slice(0, 200)
 				: '';
 			throw new Error(
-				`Config error: failed to fetch ${path}: command "${command}" exited with status ${e.status}. stderr: ${stderrText}`,
+				`Config error: failed to fetch ${path}: command "${command}" exited with status ${err.status}. stderr: ${stderrText}`,
 			);
 		}
-		throw new Error(`Config error: failed to fetch ${path}: ${e.message ?? 'unknown error'}`);
+		throw new Error(`Config error: failed to fetch ${path}: ${err.message}`);
 	}
 
 	const trimmed = stdout.replace(/\r?\n+$/, '');
@@ -264,7 +263,7 @@ function resolveUploadDirs(rawFromConfig: unknown): readonly string[] {
 			canonical = fs.realpathSync(raw);
 		} catch (err) {
 			throw new Error(
-				`Config error: upload directory "${raw}" cannot be resolved (${(err as Error).message}). Ensure the directory exists before starting the server.`,
+				`Config error: upload directory "${raw}" cannot be resolved (${errorMessage(err)}). Ensure the directory exists before starting the server.`,
 			);
 		}
 		if (!canonicalised.includes(canonical)) {
@@ -278,6 +277,7 @@ function resolveWiki(raw: unknown, wikiKey: string): WikiConfig {
 	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
 		throw new Error(`Config error: wikis.${wikiKey} must be an object`);
 	}
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; ajv-validated WikiConfig parsing is a separate follow-up
 	const src = raw as Record<string, unknown>;
 	const resolved: Record<string, unknown> = {};
 	for (const [fieldKey, fieldValue] of Object.entries(src)) {
@@ -290,6 +290,7 @@ function resolveWiki(raw: unknown, wikiKey: string): WikiConfig {
 	if (resolved.readOnly !== undefined && typeof resolved.readOnly !== 'boolean') {
 		throw new Error(`Config error: wikis.${wikiKey}.readOnly must be a boolean`);
 	}
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; ajv-validated WikiConfig parsing is a separate follow-up
 	return resolved as unknown as WikiConfig;
 }
 
@@ -297,6 +298,7 @@ function resolveConfig(parsed: unknown): Config {
 	if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
 		throw new Error('Config error: config.json must be an object');
 	}
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; ajv-validated WikiConfig parsing is a separate follow-up
 	const p = parsed as Record<string, unknown>;
 	const defaultWiki = typeof p.defaultWiki === 'string' ? replaceEnvVars(p.defaultWiki) : '';
 	const allowWikiManagement =

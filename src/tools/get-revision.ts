@@ -75,6 +75,7 @@ export const getRevision: Tool<typeof inputSchema> = {
 				formatversion: '2',
 			});
 
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
 			const page = response.query?.pages?.[0] as ApiPage | undefined;
 			const rev: ApiRevision | undefined = page?.revisions?.[0];
 
