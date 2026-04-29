@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Breaking changes
+
+- Bumped `engines.node` to `>=22.12.0` (was `>=18`). Downstream consumers pinned to Node 18 or 20 must upgrade. Required by the oxlint runtime.
+
 ### Added
 
 - Optional `GET /metrics` Prometheus endpoint on the HTTP transport, enabled with `MCP_METRICS=true`. Exposes tool-call counters, duration histograms, upstream status totals, active sessions, and readiness-probe failures.
@@ -18,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - Reworked Docker image labels to follow OCI image-spec: dropped the deprecated `maintainer` label and the hand-maintained `image.version`; added `image.title`, `image.url`, `image.source`, `image.licenses`, and a per-build `image.revision` populated from a `GIT_SHA` build arg.
 - The production image now installs dependencies with `npm ci --omit=dev` instead of `npm install --production`. Builds fail if `package-lock.json` and `package.json` are out of sync.
 - `npm version` no longer touches `Dockerfile`. The `image.version` label it used to keep in sync has been removed; `scripts/sync-version.cjs` continues to update `server.json`, `mcpb/manifest.json`, and `gemini-extension.json`.
+- Replaced ESLint and `eslint-config-wikimedia` with oxlint and oxfmt. Coding-style settings live in `.oxlintrc.json` and `.oxfmtrc.json`. Code reformatted to `useTabs: true`, `singleQuote: true`, otherwise oxfmt defaults (trailing commas everywhere, no spaces inside parens or brackets, default print width).
 
 ### Removed
 

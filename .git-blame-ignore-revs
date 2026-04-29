@@ -1,0 +1,6 @@
+# Format-only commits to skip from `git blame`.
+# Configure your local git: git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub honours this file automatically in its blame UI.
+
+# oxfmt reformat across the entire codebase
+8aca6b052e61ccd4c57207b05eace3bc6c08bb6c
