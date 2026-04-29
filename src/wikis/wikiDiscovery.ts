@@ -47,6 +47,7 @@ async function fetchWikiInfoFromApi(
 	} catch (error) {
 		logger.error('Error fetching wiki info', {
 			baseUrl,
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- caught error from fetch helper; trusted Error subtype at this boundary
 			error: (error as Error).message,
 		});
 		return null;
@@ -96,6 +97,7 @@ function extractScriptPathFromSearchForm(htmlContent: string, wikiServer: string
 			}
 		} catch (error) {
 			logger.warning('Error extracting script path from search form', {
+				// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- caught error from URL parsing; trusted Error subtype at this boundary
 				error: (error as Error).message,
 			});
 		}

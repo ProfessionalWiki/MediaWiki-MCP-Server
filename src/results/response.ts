@@ -14,11 +14,12 @@ export interface ResponseFormatter {
 	truncationMarker(info: TruncationInfo): string;
 }
 
-export function structuredResult<T>(data: T): CallToolResult {
+export function structuredResult(data: unknown): CallToolResult {
 	return {
 		content: [{ type: 'text', text: formatPayload(data) } as TextContent],
 		// structuredContent mirrors the typed payload so the dispatcher can detect
 		// truncation via the `truncation` field without reparsing the rendered text.
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP structuredContent shape; constructed from typed inputs
 		structuredContent: data as Record<string, unknown>,
 	};
 }
@@ -78,6 +79,10 @@ export class ResponseFormatterImpl implements ResponseFormatter {
 				return `More results available. Returned ${info.returnedCount} ${info.itemNoun}. To fetch the next segment, call ${info.toolName} again with ${info.continueWith.param}=${info.continueWith.value}.`;
 			case 'capped-no-continuation':
 				return `Result capped at ${info.limit} ${info.itemNoun}. Additional ${info.itemNoun} may exist — ${info.narrowHint}`;
+			default: {
+				const _exhaustive: never = info;
+				return _exhaustive;
+			}
 		}
 	}
 }

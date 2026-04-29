@@ -58,6 +58,7 @@ export function registerAllResources(server: McpServer, ctx: ToolContext): void 
 	});
 
 	server.resource('wikis', resourceTemplate, async (uri, variables) => {
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP ResourceTemplate variables typed as string|string[]; URI template guarantees a single string
 		const wikiKey = variables.wikiKey as string;
 		const wikiConfig = ctx.wikis.get(wikiKey);
 

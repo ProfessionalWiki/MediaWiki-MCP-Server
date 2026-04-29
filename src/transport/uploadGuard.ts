@@ -27,6 +27,7 @@ export async function assertAllowedPath(
 	try {
 		resolved = await realpath(filepath);
 	} catch (err) {
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node fs error shape; classified by errno code
 		if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
 			throw new UploadValidationError(
 				`file not found at "${filepath}". Verify the path exists and is inside an allowed upload directory.`,

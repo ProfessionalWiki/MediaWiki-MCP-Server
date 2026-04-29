@@ -62,6 +62,7 @@ async function fetchCore(
 	}
 
 	// response is always assigned inside the loop (loop runs at least once).
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- definite-assignment via the loop's at-least-once invariant; TS can't prove it
 	const finalResponse = response as Response;
 	if (!finalResponse.ok) {
 		const errorBody = await finalResponse.text().catch(() => 'Could not read error response body');
@@ -77,6 +78,7 @@ export async function makeApiRequest<T>(url: string, params?: Record<string, str
 		params,
 		headers: { Accept: 'application/json' },
 	});
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- HTTP response body; trusted JSON envelope at this boundary
 	return (await response.json()) as T;
 }
 

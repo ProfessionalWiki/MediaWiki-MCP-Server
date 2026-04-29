@@ -6,6 +6,13 @@ function isRecord(x: unknown): x is Record<string, unknown> {
 	return x !== null && typeof x === 'object';
 }
 
+function isThenable(x: unknown): x is Promise<unknown> {
+	if (x === null || typeof x !== 'object') return false;
+	if (!('then' in x) || typeof x.then !== 'function') return false;
+	if (!('catch' in x) || typeof x.catch !== 'function') return false;
+	return true;
+}
+
 function redactHeadersObject(obj: unknown): void {
 	if (!isRecord(obj)) {
 		return;
@@ -44,6 +51,7 @@ function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
 	return (
 		value !== null &&
 		typeof value === 'object' &&
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- predicate body's required cast to inspect Symbol.asyncIterator
 		typeof (value as AsyncIterable<unknown>)[Symbol.asyncIterator] === 'function'
 	);
 }
@@ -82,12 +90,11 @@ export function wrapMwnErrors<T extends object>(target: T, token?: string): T {
 			}
 			return function (this: unknown, ...args: unknown[]): unknown {
 				try {
-					const result = (value as (...a: unknown[]) => unknown).apply(
-						this === receiver ? obj : this,
-						args,
-					);
-					if (result && typeof (result as Promise<unknown>).then === 'function') {
-						return (result as Promise<unknown>).catch((err: unknown) => {
+					const result =
+						// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Reflect.get returns unknown; the trapped property is the original function
+						(value as (...a: unknown[]) => unknown).apply(this === receiver ? obj : this, args);
+					if (isThenable(result)) {
+						return result.catch((err: unknown) => {
 							redactAuthorizationHeader(err, token);
 							throw err;
 						});

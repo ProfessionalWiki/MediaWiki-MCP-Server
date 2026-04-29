@@ -51,6 +51,7 @@ export const updateFileFromUrl: Tool<typeof inputSchema> = {
 		try {
 			data = await mwn.uploadFromUrl(url, title, '', params);
 		} catch (error) {
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- caught error from mwn; trusted Error subtype at this boundary
 			const errorMessage = (error as Error).message;
 			// Mirror upload-file-from-url: redirect the model away from retrying via URL when
 			// the wiki has copyuploads disabled. Routing hint points at the update-file (local)

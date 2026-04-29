@@ -277,6 +277,7 @@ function resolveWiki(raw: unknown, wikiKey: string): WikiConfig {
 	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
 		throw new Error(`Config error: wikis.${wikiKey} must be an object`);
 	}
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; ajv-validated WikiConfig parsing is a separate follow-up
 	const src = raw as Record<string, unknown>;
 	const resolved: Record<string, unknown> = {};
 	for (const [fieldKey, fieldValue] of Object.entries(src)) {
@@ -289,6 +290,7 @@ function resolveWiki(raw: unknown, wikiKey: string): WikiConfig {
 	if (resolved.readOnly !== undefined && typeof resolved.readOnly !== 'boolean') {
 		throw new Error(`Config error: wikis.${wikiKey}.readOnly must be a boolean`);
 	}
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; ajv-validated WikiConfig parsing is a separate follow-up
 	return resolved as unknown as WikiConfig;
 }
 
@@ -296,6 +298,7 @@ function resolveConfig(parsed: unknown): Config {
 	if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
 		throw new Error('Config error: config.json must be an object');
 	}
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; ajv-validated WikiConfig parsing is a separate follow-up
 	const p = parsed as Record<string, unknown>;
 	const defaultWiki = typeof p.defaultWiki === 'string' ? replaceEnvVars(p.defaultWiki) : '';
 	const allowWikiManagement =

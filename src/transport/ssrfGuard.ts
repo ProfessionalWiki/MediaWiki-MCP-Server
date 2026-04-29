@@ -91,7 +91,12 @@ function assertAddressIsUnicast(address: string, urlString: string): void {
 		);
 	}
 
-	if (parsed.kind() === 'ipv6' && (parsed as ipaddr.IPv6).isIPv4MappedAddress()) {
+	if (
+		parsed.kind() === 'ipv6' &&
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by parsed.kind() === 'ipv6'; ipaddr.js doesn't expose a type predicate
+		(parsed as ipaddr.IPv6).isIPv4MappedAddress()
+	) {
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by parsed.kind() === 'ipv6'; ipaddr.js doesn't expose a type predicate
 		parsed = (parsed as ipaddr.IPv6).toIPv4Address();
 	}
 
@@ -103,6 +108,7 @@ function assertAddressIsUnicast(address: string, urlString: string): void {
 	}
 
 	if (parsed.kind() === 'ipv6') {
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by parsed.kind() === 'ipv6'; ipaddr.js doesn't expose a type predicate
 		const extraMatch = ipaddr.subnetMatch(parsed as ipaddr.IPv6, EXTRA_BLOCKED_V6, 'unicast');
 		if (extraMatch !== 'unicast') {
 			throw new SsrfValidationError(

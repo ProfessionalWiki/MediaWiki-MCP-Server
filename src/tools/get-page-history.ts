@@ -76,6 +76,7 @@ export const getPageHistory: Tool<typeof inputSchema> = {
 		}
 
 		const response = await mwn.request(params);
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
 		const page = response.query?.pages?.[0] as ApiPage | undefined;
 
 		if (page?.missing) {

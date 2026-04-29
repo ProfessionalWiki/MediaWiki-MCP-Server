@@ -71,6 +71,7 @@ export function registerAllTools(
 		try {
 			registered.set(tool.name, register(server, tool, dispatch(tool, ctx)));
 		} catch (error) {
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- caught error from McpServer.tool; trusted Error subtype at this boundary
 			logger.error('Error registering tool', { error: (error as Error).message });
 		}
 	}
@@ -80,6 +81,7 @@ export function registerAllTools(
 		try {
 			registered.set(tool.name, register(server, tool, dispatch(tool, mgmtCtx)));
 		} catch (error) {
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- caught error from McpServer.tool; trusted Error subtype at this boundary
 			logger.error('Error registering tool', { error: (error as Error).message });
 		}
 	}

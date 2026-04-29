@@ -39,6 +39,7 @@ export const createPage: Tool<typeof inputSchema> = {
 		const mwn = await ctx.mwn();
 		const baseOptions: ApiEditPageParams = {};
 		if (contentModel !== undefined) {
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- input is validated against ApiEditPageParams.contentmodel via the inputSchema enum
 			baseOptions.contentmodel = contentModel as ApiEditPageParams['contentmodel'];
 		}
 		const options = ctx.edit.applyTags<ApiEditPageParams>(baseOptions);

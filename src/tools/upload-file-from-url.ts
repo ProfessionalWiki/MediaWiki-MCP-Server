@@ -39,6 +39,7 @@ export const uploadFileFromUrl: Tool<typeof inputSchema> = {
 		try {
 			data = await mwn.uploadFromUrl(url, title, text, params);
 		} catch (error) {
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- caught error from mwn; trusted Error subtype at this boundary
 			const errorMessage = (error as Error).message;
 			// Prevent the LLM from attempting to find an existing image on the wiki
 			// after failing to upload by URL.

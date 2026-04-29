@@ -139,6 +139,7 @@ export function createMcpPostHandler(
 ): RequestHandler {
 	const { allowedOrigins } = options;
 	return async (req, res) => {
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Express headers are string|string[]|undefined; MCP transport sends a single header
 		const sessionId = req.headers['mcp-session-id'] as string | undefined;
 		const bearer = extractBearerToken(req);
 		let transport: StreamableHTTPServerTransport;
@@ -193,6 +194,7 @@ export function createMcpPostHandler(
 
 export function createSessionRequestHandler(sessions: SessionRegistry): RequestHandler {
 	return async (req, res) => {
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Express headers are string|string[]|undefined; MCP transport sends a single header
 		const sessionId = req.headers['mcp-session-id'] as string | undefined;
 		if (!sessionId || !sessions[sessionId]) {
 			res.status(400).send('Invalid or missing session ID');
@@ -218,6 +220,7 @@ export function payloadTooLargeHandler(limit: string): ErrorRequestHandler {
 		const tooLarge =
 			typeof err === 'object' &&
 			err !== null &&
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- predicate body's required cast to inspect body-parser PayloadTooLargeError
 			(err as { type?: unknown }).type === 'entity.too.large';
 		if (!tooLarge) {
 			next(err);
