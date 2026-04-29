@@ -1,4 +1,5 @@
 import type { ErrorCategory } from './classifyError.js';
+import { errorMessage } from './isErrnoException.js';
 
 export interface SpecialCaseResult {
 	category: ErrorCategory;
@@ -34,7 +35,7 @@ const overrides: Record<string, Override> = {
 		if (!appliesTo('nosuchsection', toolName)) {
 			return null;
 		}
-		const msg = (err as Error).message ?? '';
+		const msg = errorMessage(err, '');
 		const sectionMatch = pickFromMessage(msg, /section[^\d]*(\d+)/i);
 		const label = sectionMatch ?? 'unknown';
 		return {
@@ -47,7 +48,7 @@ const overrides: Record<string, Override> = {
 		if (!appliesTo('nosuchrevid', toolName)) {
 			return null;
 		}
-		const msg = (err as Error).message ?? '';
+		const msg = errorMessage(err, '');
 		const idMatch = pickFromMessage(msg, /\b(\d+)\b/);
 		return {
 			category: 'not_found',
@@ -59,7 +60,7 @@ const overrides: Record<string, Override> = {
 		if (!appliesTo('missingtitle', toolName)) {
 			return null;
 		}
-		const msg = (err as Error).message ?? '';
+		const msg = errorMessage(err, '');
 		const titleMatch = pickFromMessage(msg, /["'`]([^"'`]+)["'`]/);
 		return {
 			category: 'not_found',
@@ -74,7 +75,7 @@ export function applySpecialCase(
 	classified: { category: ErrorCategory; code?: string },
 	err: unknown,
 ): { category: ErrorCategory; code: string | undefined; message: string } {
-	const defaultMessage = (err as Error).message ?? 'Unknown error';
+	const defaultMessage = errorMessage(err);
 	if (classified.code && overrides[classified.code]) {
 		const result = overrides[classified.code](err, { toolName, defaultMessage });
 		if (result) {

@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { Tool } from './tool.js';
 import type { ToolContext } from './context.js';
 import { applySpecialCase } from '../errors/specialCases.js';
+import { errorMessage } from '../errors/isErrnoException.js';
 import { getRuntimeToken, getSessionId } from '../transport/requestContext.js';
 import {
 	emitToolCall,
@@ -18,7 +19,7 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext =
 	return async (args) => {
 		const started = performance.now();
 		let outcome: ToolOutcome = 'success';
-		let errorMessage: string | undefined;
+		let errorText: string | undefined;
 		let upstreamStatus: number | undefined;
 		let result: CallToolResult;
 
@@ -33,7 +34,7 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext =
 				// that's flagged as an error.
 				outcome = env.category ?? 'upstream_failure';
 				if (env.message) {
-					errorMessage = env.message;
+					errorText = env.message;
 				}
 			}
 		} catch (err) {
@@ -46,13 +47,13 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext =
 			// If a special case produced a tailored message (e.g. "Section X does not exist"),
 			// use it verbatim. Otherwise prepend the standard "Failed to <verb>: " prefix to
 			// the raw error message — matching today's per-tool conventions.
-			const rawMessage = (err as Error).message ?? 'Unknown error';
+			const rawMessage = errorMessage(err);
 			const tailored = overridden.message !== rawMessage;
 			const verb = tool.failureVerb ?? tool.name;
 			const finalMessage = tailored
 				? overridden.message
 				: `Failed to ${verb}: ${overridden.message}`;
-			errorMessage = finalMessage;
+			errorText = finalMessage;
 
 			ctx.logger.error('Tool failed', {
 				tool: tool.name,
@@ -70,7 +71,7 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext =
 			result,
 			outcome,
 			upstreamStatus,
-			errorMessage,
+			errorMessage: errorText,
 			runtimeToken: getRuntimeToken(),
 			sessionId: getSessionId(),
 			wikiKey: ctx.selection.getCurrent().key,
