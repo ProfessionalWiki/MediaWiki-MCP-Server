@@ -38,11 +38,13 @@ describe('startup banner', () => {
 	let stderrSpy: ReturnType<typeof vi.spyOn>;
 
 	beforeEach(() => {
+		vi.stubEnv('MCP_LOG_LEVEL', 'debug');
 		stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 	});
 
 	afterEach(() => {
 		stderrSpy.mockRestore();
+		vi.unstubAllEnvs();
 	});
 
 	it('emits exactly one startup event for stdio', () => {

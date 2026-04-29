@@ -23,6 +23,7 @@ describe('loadConfigFromFile', () => {
 
 	beforeEach(() => {
 		vi.resetModules();
+		vi.stubEnv('MCP_LOG_LEVEL', 'debug');
 		stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 	});
 

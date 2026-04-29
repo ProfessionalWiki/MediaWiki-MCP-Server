@@ -156,12 +156,14 @@ describe('emitToolCall', () => {
 	let stderrSpy: ReturnType<typeof vi.spyOn>;
 
 	beforeEach(() => {
+		vi.stubEnv('MCP_LOG_LEVEL', 'debug');
 		stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 	});
 
 	afterEach(() => {
 		stderrSpy.mockRestore();
 		clearRegisteredServers();
+		vi.unstubAllEnvs();
 	});
 
 	it('emits a success line with tool, outcome, duration_ms and integer rounding', () => {
