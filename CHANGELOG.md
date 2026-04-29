@@ -16,10 +16,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `SIGTERM` and `SIGINT` now drain in-flight `/mcp` calls and close active StreamableHTTP sessions before exit, with a structured `event: "shutdown"` / `event: "shutdown_complete"` pair on stderr. Configurable via `MCP_SHUTDOWN_GRACE_MS` (default `10000`). Stdio transport closes its single transport on the same signals.
 - `MCP_MAX_REQUEST_BODY` env var (default `1mb`) caps HTTP request body size, replacing body-parser's silent 100 kB default that was rejecting long-form wikitext edits. Oversize requests return a JSON-RPC 413; the resolved value appears in the startup banner.
 - Published Docker image at `ghcr.io/professionalwiki/mediawiki-mcp-server`. Multi-arch (`linux/amd64`, `linux/arm64`); release builds carry SLSA provenance, SPDX SBOM, and a cosign keyless signature; edge builds (`master` tip) carry attestations only. Tag conventions and verification command in [`docs/deployment.md`](docs/deployment.md).
-- Git hooks via lefthook. Installed automatically by `npm install`. Pre-commit auto-formats staged files with oxfmt and verifies oxlint cleanliness; pre-push runs `tsc --noEmit` and the vitest suite. Configured in `lefthook.yml`.
+- Git hooks via lefthook. Installed automatically by `npm install`. Pre-commit auto-formats staged files with oxfmt and verifies oxlint cleanliness; pre-push runs `tsgo --noEmit` and the vitest suite. Configured in `lefthook.yml`.
 
 ### Changed
 
+- Build, watch, and type-check now run on the TypeScript 7 native compiler. Editors continue to use the TypeScript 6 language service. Published packages are unaffected.
+- Lint now runs type-aware checks and catches a class of bugs that syntactic lint misses: unawaited Promises, unbound class methods used as callbacks, and stringifying objects without a meaningful `toString`. Additional non-blocking warnings on type-assertion smells remain and will be tackled in a follow-up.
 - The Docker build context is now an allow-list (`src/`, `package.json`, `package-lock.json`, `tsconfig.json`, `server.json`) instead of the entire repository, configured via a new `.dockerignore`.
 - Reworked Docker image labels to follow OCI image-spec: dropped the deprecated `maintainer` label and the hand-maintained `image.version`; added `image.title`, `image.url`, `image.source`, `image.licenses`, and a per-build `image.revision` populated from a `GIT_SHA` build arg.
 - The production image now installs dependencies with `npm ci --omit=dev` instead of `npm install --production`. Builds fail if `package-lock.json` and `package.json` are out of sync.
@@ -31,6 +33,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Removed
 
 - `.npmignore`. The `files` field in `package.json` already controls npm tarball contents.
+
+### Fixed
+
+- Markdown payload formatter no longer renders class instances and other non-plain objects as the bare `[object Object]`.
+- `scripts/validate-server-json.cjs` now exits with status 1 on validation failure instead of leaving an unhandled rejection.
 
 ## [0.8.0] - 2026-04-28
 

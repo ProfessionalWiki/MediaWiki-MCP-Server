@@ -5,11 +5,17 @@
 		"correctness": "error",
 		"suspicious": "warn"
 	},
+	"options": {
+		"typeAware": true
+	},
 	"rules": {
 		"no-new": "off",
 		"no-shadow": "off",
 		"no-underscore-dangle": "off",
 		"preserve-caught-error": "off",
+		"typescript/no-floating-promises": "error",
+		"typescript/no-misused-promises": "error",
+		"typescript/await-thenable": "error",
 		"typescript/no-explicit-any": "warn"
 	},
 	"overrides": [

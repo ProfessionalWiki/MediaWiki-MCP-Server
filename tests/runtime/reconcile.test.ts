@@ -76,11 +76,14 @@ function setup({
 	wikis: Record<string, WikiConfig>;
 	allowManagement: boolean;
 }): void {
+	// oxlint-disable-next-line typescript/unbound-method -- vitest mock, bound at call time
 	vi.mocked(wikiSelection.getCurrent).mockReturnValue({
 		key: Object.keys(wikis).find((k) => wikis[k] === activeWiki) ?? 'a',
 		config: activeWiki,
 	});
+	// oxlint-disable-next-line typescript/unbound-method -- vitest mock, bound at call time
 	vi.mocked(wikiRegistry.getAll).mockReturnValue(wikis);
+	// oxlint-disable-next-line typescript/unbound-method -- vitest mock, bound at call time
 	vi.mocked(wikiRegistry.isManagementAllowed).mockReturnValue(allowManagement);
 }
 
