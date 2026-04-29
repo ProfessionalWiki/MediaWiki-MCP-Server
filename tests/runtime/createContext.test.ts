@@ -10,7 +10,7 @@ describe('createToolContext', () => {
 		expect(ctx.selection).toBeDefined();
 		expect(ctx.uploadDirs).toBeDefined();
 		expect(ctx.wikiCache).toBeDefined();
-		expect(ctx.wikiCache.invalidate).toBeTypeOf('function');
+		expect(typeof ctx.wikiCache.invalidate).toBe('function');
 		expect(ctx.sections).toBeDefined();
 		expect(ctx.edit).toBeDefined();
 		expect(ctx.revision).toBeDefined();

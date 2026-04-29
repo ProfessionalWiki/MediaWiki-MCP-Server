@@ -6,7 +6,7 @@ const Ajv = require('ajv');
 const addFormats = require('ajv-formats');
 const { SERVER_JSON_PATH } = require('./constants.cjs');
 
-(async () => {
+async function main() {
 	console.log('\nValidating server.json...');
 	const serverJson = JSON.parse(fs.readFileSync(SERVER_JSON_PATH, 'utf8'));
 
@@ -42,4 +42,9 @@ const { SERVER_JSON_PATH } = require('./constants.cjs');
 		console.error(`Error validating server.json: ${e.message}`);
 		process.exitCode = 1;
 	}
-})();
+}
+
+main().catch((err) => {
+	console.error(`Unexpected error validating server.json: ${err?.message ?? err}`);
+	process.exitCode = 1;
+});

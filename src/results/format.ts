@@ -75,7 +75,7 @@ function renderValue(value: unknown, indent: string): string {
 	if (isPlainObject(value)) {
 		return renderObject(value, indent);
 	}
-	return String(value);
+	return stringifyUnknown(value);
 }
 
 function renderObject(obj: Record<string, unknown>, indent: string): string {
@@ -112,7 +112,7 @@ function renderField(label: string, value: unknown, indent: string): string {
 	if (isPlainObject(value)) {
 		return `${prefix}\n${renderObject(value, indent + '  ')}`;
 	}
-	return `${prefix} ${String(value)}`;
+	return `${prefix} ${stringifyUnknown(value)}`;
 }
 
 function renderArray(arr: unknown[], indent: string): string {
@@ -146,7 +146,30 @@ function renderArray(arr: unknown[], indent: string): string {
 					: first;
 				return [`${itemIndent}${firstStripped}`, ...rest].join('\n');
 			}
-			return `${itemIndent}${String(item)}`;
+			return `${itemIndent}${stringifyUnknown(item)}`;
 		})
 		.join('\n');
+}
+
+// Last-resort renderer for values that are not null/undefined/string/number/
+// boolean/array/plain-object — typically class instances or other exotic
+// shapes that slip into a payload typed as `unknown`. JSON.stringify avoids
+// the bare `[object Object]` that `String()` would produce; if the value
+// still can't be serialised (e.g., a circular reference or a BigInt), fall
+// back to its constructor name so the output stays diagnostic rather than
+// throwing or printing nothing useful.
+function stringifyUnknown(value: unknown): string {
+	try {
+		const json = JSON.stringify(value);
+		if (json !== undefined) {
+			return json;
+		}
+	} catch {
+		// fall through to constructor-name fallback
+	}
+	const ctor =
+		typeof value === 'object' && value !== null
+			? (value.constructor?.name ?? 'Object')
+			: typeof value;
+	return `[${ctor}]`;
 }

@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Changed
 
 - Build, watch, and type-check now run on `tsgo` (the Go-based TypeScript 7 compiler) via `@typescript/native-preview@beta`. The `typescript` devDependency is aliased to `@typescript/typescript6` so editors continue to load the TypeScript 6 language service. Published packages are unaffected.
+- oxlint now runs type-aware rules via `oxlint-tsgolint`. New `correctness: error` rules catch a class of latent type-aware bugs: unawaited Promises, unbound class methods passed as callbacks, and stringifying objects without a meaningful `toString`. A new `tsconfig.lint.json` extends `tsconfig.json` so lint covers both `src/` and `tests/`; the build still sees only `src/`. The pass also surfaces ~350 non-blocking warnings under `no-unsafe-type-assertion`, `no-unnecessary-type-assertion`, and a few related rules; those are tracked as a separate type-safety cleanup and do not gate CI.
 - The Docker build context is now an allow-list (`src/`, `package.json`, `package-lock.json`, `tsconfig.json`, `server.json`) instead of the entire repository, configured via a new `.dockerignore`.
 - Reworked Docker image labels to follow OCI image-spec: dropped the deprecated `maintainer` label and the hand-maintained `image.version`; added `image.title`, `image.url`, `image.source`, `image.licenses`, and a per-build `image.revision` populated from a `GIT_SHA` build arg.
 - The production image now installs dependencies with `npm ci --omit=dev` instead of `npm install --production`. Builds fail if `package-lock.json` and `package.json` are out of sync.
@@ -32,6 +33,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Removed
 
 - `.npmignore`. The `files` field in `package.json` already controls npm tarball contents.
+
+### Fixed
+
+- Markdown payload formatter no longer renders unrecognised values as the bare `[object Object]` produced by `String()`. `src/results/format.ts` now serialises class instances and other non-plain objects via `JSON.stringify`, falling back to a constructor-name tag when serialisation isn't possible. Surfaced by the type-aware lint pass; previously this was reachable for any payload whose shape strayed from the JSON-only contract the formatter assumed.
+- `scripts/validate-server-json.cjs` no longer leaks an unhandled rejection if the top-level async IIFE throws synchronously. The script now defines an explicit `main()` and attaches a `.catch` that prints the error and sets `process.exitCode = 1`, matching the inner `try/catch` already in place around the schema fetch.
 
 ## [0.8.0] - 2026-04-28
 
