@@ -180,13 +180,14 @@ function buildPageEntry(
 	args: GetPagesArgs,
 	entryIndex: number,
 	pending: PendingTruncation[],
+	ctx: ToolContext,
 ): PageEntry {
 	const rev = page.revisions?.[0];
 	const entry: PageEntry = {
 		requestedTitle: requested,
 		pageId: page.pageid,
 		title: page.title,
-		url: getPageUrl(page.title),
+		url: getPageUrl(page.title, ctx.selection),
 		...(viaRedirect ? { redirectedFrom: requested } : {}),
 		...(args.metadata
 			? {
@@ -237,6 +238,7 @@ async function applyTruncations(
 function assembleEntries(
 	args: GetPagesArgs,
 	fetched: FetchResult,
+	ctx: ToolContext,
 ): { entries: PageEntry[]; missing: string[]; pending: PendingTruncation[] } {
 	const entries: PageEntry[] = [];
 	const emitted = new Set<string>();
@@ -259,7 +261,7 @@ function assembleEntries(
 			continue;
 		}
 		emitted.add(page.title);
-		entries.push(buildPageEntry(requested, page, viaRedirect, args, entries.length, pending));
+		entries.push(buildPageEntry(requested, page, viaRedirect, args, entries.length, pending, ctx));
 	}
 	return { entries, missing, pending };
 }
@@ -289,7 +291,7 @@ export const getPages: Tool<typeof inputSchema> = {
 				? 'ids|timestamp|contentmodel|content'
 				: 'ids|timestamp|contentmodel';
 		const fetched = await fetchPages(mwn, ctx, args, rvprop);
-		const { entries, missing, pending } = assembleEntries(args, fetched);
+		const { entries, missing, pending } = assembleEntries(args, fetched, ctx);
 		await applyTruncations(mwn, ctx, entries, pending);
 
 		return ctx.format.ok({

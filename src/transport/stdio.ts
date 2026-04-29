@@ -6,11 +6,22 @@ import { createServer } from '../server.js';
 import { emitStartupBanner } from '../runtime/banner.js';
 import { createToolContext } from '../runtime/createContext.js';
 import { registerShutdownHandlers } from '../runtime/shutdown.js';
+import { loadConfigFromFile } from '../config/loadConfig.js';
+import { createAppState } from '../wikis/state.js';
 
 async function main(): Promise<void> {
-	emitStartupBanner({ transport: 'stdio' });
+	const config = loadConfigFromFile();
+	const state = createAppState(config);
+	emitStartupBanner(
+		{ transport: 'stdio' },
+		{
+			wikiRegistry: state.wikiRegistry,
+			wikiSelection: state.wikiSelection,
+			uploadDirs: state.uploadDirs,
+		},
+	);
 	const transport = new StdioServerTransport();
-	const ctx = createToolContext({ logger });
+	const ctx = createToolContext({ logger, state });
 	const server = createServer(ctx);
 
 	await server.connect(transport);

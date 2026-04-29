@@ -2,28 +2,42 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const mockRequest = vi.fn();
 
-vi.mock('../../src/wikis/state.js', () => ({
-	wikiRegistry: {
-		getAll: () => ({}),
-		get: () => undefined,
-		add: () => {},
-		remove: () => {},
-		isManagementAllowed: () => false,
-	},
-	wikiSelection: {
-		getCurrent: () => ({ key: 'example.org', config: {} }),
-		setCurrent: () => {},
-		reset: () => {},
-	},
-	uploadDirs: { list: () => [] },
-	mwnProvider: {
-		get: async () => ({ request: mockRequest }),
-		invalidate: () => {},
-	},
-	licenseCache: {
-		get: () => undefined,
-		set: () => {},
-		delete: () => {},
+// Two mock layers are needed and they serve different purposes:
+//
+// 1. The vi.mock() calls below intercept module imports so that the top-level
+//    bootstrap in streamableHttp.ts (loadConfigFromFile, evaluateBearerGuard,
+//    emitStartupBanner, app.listen) can run on import without needing a real
+//    config.json or a reachable wiki. These keep the *module's own* state
+//    benign so importing it doesn't crash.
+//
+// 2. The mockWikiSelection and mockMwnProvider objects below are passed
+//    explicitly to mountReadyEndpoint() in each test's makeApp(). The tests
+//    create their own express app independent of the module-level one, so
+//    these inline mocks are what actually drive the test logic. Do not
+//    collapse the two layers — they target different code paths.
+
+vi.mock('../../src/config/loadConfig.js', () => ({
+	loadConfigFromFile: () => ({
+		defaultWiki: 'example.org',
+		wikis: {
+			'example.org': {
+				sitename: 'Example',
+				server: 'https://example.org',
+				articlepath: '/wiki',
+				scriptpath: '/w',
+				token: null,
+				username: null,
+				password: null,
+			},
+		},
+		uploadDirs: [],
+	}),
+}));
+
+vi.mock('../../src/wikis/mwnProvider.js', () => ({
+	MwnProviderImpl: class {
+		get = async () => ({ request: mockRequest });
+		invalidate = () => {};
 	},
 }));
 
@@ -35,11 +49,33 @@ import {
 	__resetReadyCacheForTesting,
 } from '../../src/transport/streamableHttp.js';
 import { __resetMetricsForTesting, setSessionsProvider } from '../../src/runtime/metrics.js';
+import type { WikiSelection } from '../../src/wikis/wikiSelection.js';
+import type { MwnProvider } from '../../src/wikis/mwnProvider.js';
+import type { WikiConfig } from '../../src/config/loadConfig.js';
+
+const exampleWikiConfig: WikiConfig = {
+	sitename: 'Example',
+	server: 'https://example.org',
+	articlepath: '/wiki',
+	scriptpath: '/w',
+};
+
+const mockWikiSelection: WikiSelection = {
+	getCurrent: () => ({ key: 'example.org', config: exampleWikiConfig }),
+	setCurrent: () => {},
+	reset: () => {},
+};
+
+const mockMwnProvider: MwnProvider = {
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Mwn has 100+ methods; tests only use request().
+	get: async () => ({ request: mockRequest }) as never,
+	invalidate: () => {},
+};
 
 function makeApp(): express.Express {
 	const app = express();
 	mountMetricsEndpoint(app);
-	mountReadyEndpoint(app);
+	mountReadyEndpoint(app, { wikiSelection: mockWikiSelection, mwnProvider: mockMwnProvider });
 	return app;
 }
 

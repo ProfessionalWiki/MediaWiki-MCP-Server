@@ -3,6 +3,7 @@ import type { WikiRegistry } from '../wikis/wikiRegistry.js';
 import type { WikiSelection } from '../wikis/wikiSelection.js';
 import type { UploadDirs } from '../wikis/uploadDirs.js';
 import type { WikiCache } from '../wikis/wikiCache.js';
+import type { LicenseCache } from '../wikis/licenseCache.js';
 import type { SectionService } from '../services/sectionService.js';
 import type { EditService } from '../services/editService.js';
 import type { RevisionNormalizer } from '../services/revisionNormalize.js';
@@ -16,6 +17,7 @@ export interface ToolContext {
 	readonly selection: WikiSelection;
 	readonly uploadDirs: UploadDirs;
 	readonly wikiCache: WikiCache;
+	readonly licenseCache: LicenseCache;
 	readonly sections: SectionService;
 	readonly edit: EditService;
 	readonly revision: RevisionNormalizer;

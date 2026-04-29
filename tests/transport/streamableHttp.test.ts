@@ -1,35 +1,27 @@
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('../../src/wikis/state.js', () => ({
-	wikiRegistry: {
-		getAll: () => ({}),
-		get: () => undefined,
-		add: () => {},
-		remove: () => {},
-		isManagementAllowed: () => true,
-	},
-	wikiSelection: {
-		getCurrent: () => ({
-			key: 'test',
-			config: {
+vi.mock('../../src/config/loadConfig.js', () => ({
+	loadConfigFromFile: () => ({
+		defaultWiki: 'test',
+		wikis: {
+			test: {
 				sitename: 'Test',
 				server: 'https://test.example',
 				articlepath: '/wiki',
 				scriptpath: '/w',
+				token: null,
+				username: null,
+				password: null,
 			},
-		}),
-		setCurrent: () => {},
-		reset: () => {},
-	},
-	uploadDirs: { list: () => [] },
-	mwnProvider: {
-		get: () => Promise.reject(new Error('mwn not available in tests')),
-		invalidate: () => {},
-	},
-	licenseCache: {
-		get: () => undefined,
-		set: () => {},
-		delete: () => {},
+		},
+		uploadDirs: [],
+	}),
+}));
+
+vi.mock('../../src/wikis/mwnProvider.js', () => ({
+	MwnProviderImpl: class {
+		get = () => Promise.reject(new Error('mwn not available in tests'));
+		invalidate = () => {};
 	},
 }));
 

@@ -56,7 +56,7 @@ export const createPage: Tool<typeof inputSchema> = {
 			latestRevisionId: result.newrevid,
 			latestRevisionTimestamp: result.newtimestamp,
 			contentModel: result.contentmodel,
-			url: getPageUrl(result.title),
+			url: getPageUrl(result.title, ctx.selection),
 		});
 	},
 };

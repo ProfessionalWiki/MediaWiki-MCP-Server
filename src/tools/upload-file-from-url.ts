@@ -61,7 +61,7 @@ export const uploadFileFromUrl: Tool<typeof inputSchema> = {
 		const filename = data.filename ?? title.replace(/^File:/, '');
 		return ctx.format.ok({
 			filename,
-			pageUrl: imageinfo?.descriptionurl ?? getPageUrl(`File:${filename}`),
+			pageUrl: imageinfo?.descriptionurl ?? getPageUrl(`File:${filename}`, ctx.selection),
 			...(imageinfo?.url !== undefined ? { fileUrl: imageinfo.url } : {}),
 		});
 	},

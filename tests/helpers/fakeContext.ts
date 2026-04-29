@@ -34,6 +34,11 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 		},
 		uploadDirs: { list: () => [] },
 		wikiCache: { invalidate: throws('wikiCache.invalidate') as never },
+		licenseCache: {
+			get: () => undefined,
+			set: () => {},
+			delete: () => {},
+		},
 		sections: { list: throws('sections.list') as never },
 		edit: {
 			submit: throws('edit.submit') as never,
