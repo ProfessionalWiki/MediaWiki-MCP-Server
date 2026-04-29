@@ -34,6 +34,22 @@
           "default": "50000"
         },
         {
+          "name": "MCP_LOG_LEVEL",
+          "description": "Minimum severity for logger output (stderr telemetry and sendLoggingMessage broadcast). Invalid values fail loudly on first log call.",
+          "choices": [
+            "debug",
+            "info",
+            "notice",
+            "warning",
+            "error",
+            "critical",
+            "alert",
+            "emergency",
+            "silent"
+          ],
+          "default": "debug"
+        },
+        {
           "name": "MCP_MAX_REQUEST_BODY",
           "description": "Maximum HTTP request body size on the StreamableHTTP transport. Accepts size strings like 1mb or 512kb.",
           "default": "1mb"
@@ -89,6 +105,22 @@
           "description": "Byte cap for content bodies (wikitext, rendered HTML, diffs) returned by get-page, get-pages, parse-wikitext, and compare-pages. Oversized bodies are truncated with a trailing marker.",
           "format": "number",
           "default": "50000"
+        },
+        {
+          "name": "MCP_LOG_LEVEL",
+          "description": "Minimum severity for logger output (stderr telemetry and sendLoggingMessage broadcast). Invalid values fail loudly on first log call.",
+          "choices": [
+            "debug",
+            "info",
+            "notice",
+            "warning",
+            "error",
+            "critical",
+            "alert",
+            "emergency",
+            "silent"
+          ],
+          "default": "debug"
         },
         {
           "name": "MCP_MAX_REQUEST_BODY",
