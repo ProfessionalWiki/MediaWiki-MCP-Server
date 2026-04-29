@@ -1,0 +1,19 @@
+pre-commit:
+  parallel: true
+  jobs:
+    - name: oxfmt
+      glob: '{src,tests,scripts}/**/*.{ts,tsx,js,cjs,mjs}'
+      run: npx oxfmt {staged_files}
+      stage_fixed: true
+
+    - name: oxlint
+      run: npx oxlint
+
+pre-push:
+  parallel: true
+  jobs:
+    - name: tsc
+      run: npx tsc --noEmit
+
+    - name: vitest
+      run: npm test

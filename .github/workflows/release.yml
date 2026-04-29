@@ -11,6 +11,8 @@ jobs:
     permissions:
       contents: write # For creating release
       id-token: write # For npm provenance and MCP registry OIDC
+    env:
+      LEFTHOOK: '0' # Skip lefthook hooks; this job commits and pushes from CI
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
