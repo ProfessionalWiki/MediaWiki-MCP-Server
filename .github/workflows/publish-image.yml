@@ -59,7 +59,7 @@ jobs:
           provenance: mode=max
 
       - if: startsWith(github.ref, 'refs/tags/v')
-        uses: sigstore/cosign-installer@v4
+        uses: sigstore/cosign-installer@v4.1.1
 
       - if: startsWith(github.ref, 'refs/tags/v')
         run: cosign sign --yes ghcr.io/professionalwiki/mediawiki-mcp-server@${{ steps.build.outputs.digest }}
