@@ -2,30 +2,33 @@ const REDACTED = '[REDACTED]';
 
 const SENSITIVE_HEADER_PATTERN = /^(?:proxy-)?authorization$/i;
 
+function isRecord(x: unknown): x is Record<string, unknown> {
+	return x !== null && typeof x === 'object';
+}
+
 function redactHeadersObject(obj: unknown): void {
-	if (!obj || typeof obj !== 'object') {
+	if (!isRecord(obj)) {
 		return;
 	}
-	const headers = (obj as Record<string, unknown>).headers;
-	if (!headers || typeof headers !== 'object') {
+	const headers = obj.headers;
+	if (!isRecord(headers)) {
 		return;
 	}
 	for (const key of Object.keys(headers)) {
 		if (SENSITIVE_HEADER_PATTERN.test(key)) {
-			(headers as Record<string, unknown>)[key] = REDACTED;
+			headers[key] = REDACTED;
 		}
 	}
 }
 
 export function redactAuthorizationHeader(err: unknown, token?: string): void {
-	if (!(err instanceof Error)) {
+	if (!(err instanceof Error) || !isRecord(err)) {
 		return;
 	}
-	const e = err as unknown as Record<string, unknown>;
-	redactHeadersObject(e.request);
-	redactHeadersObject(e.config);
-	if (e.response && typeof e.response === 'object') {
-		redactHeadersObject((e.response as Record<string, unknown>).config);
+	redactHeadersObject(err.request);
+	redactHeadersObject(err.config);
+	if (isRecord(err.response)) {
+		redactHeadersObject(err.response.config);
 	}
 	// replaceAll with a string pattern does literal (non-regex) replacement —
 	// do not "refactor" this to a RegExp, which would misbehave on special chars in the token.

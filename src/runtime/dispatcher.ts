@@ -26,7 +26,11 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext =
 		try {
 			result = await tool.handle(args, ctx);
 			if (result.isError) {
-				const text = (result.content[0] as { text?: string } | undefined)?.text;
+				const first = result.content[0];
+				const text =
+					first !== undefined && 'text' in first && typeof first.text === 'string'
+						? first.text
+						: undefined;
 				const env = parseEnvelope(text);
 				// Fall back to upstream_failure when the envelope is missing or
 				// unparseable rather than letting outcome stay 'success' — that

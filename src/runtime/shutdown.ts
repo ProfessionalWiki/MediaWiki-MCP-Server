@@ -47,6 +47,15 @@ export interface ShutdownDeps {
 
 const DEFAULT_POLL_MS = 50;
 
+function hasCloseIdleConnections(server: unknown): server is { closeIdleConnections: () => void } {
+	return (
+		server !== null &&
+		typeof server === 'object' &&
+		'closeIdleConnections' in server &&
+		typeof server.closeIdleConnections === 'function'
+	);
+}
+
 export function registerShutdownHandlers(deps: ShutdownDeps): void {
 	const proc = deps.process ?? process;
 	let draining = false;
@@ -94,10 +103,8 @@ async function runDrain(
 			// Node 18.2+ exposes closeIdleConnections, which lets keep-alive
 			// idle sockets close so the listener can finish closing during the
 			// grace window. Feature-detected so older runtimes still build.
-			const idleCloser = (deps.httpServer as unknown as { closeIdleConnections?: () => void })
-				.closeIdleConnections;
-			if (typeof idleCloser === 'function') {
-				idleCloser.call(deps.httpServer);
+			if (hasCloseIdleConnections(deps.httpServer)) {
+				deps.httpServer.closeIdleConnections();
 			}
 		}
 		if (deps.sessions) {
