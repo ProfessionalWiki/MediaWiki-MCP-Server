@@ -1,3 +1,4 @@
+import { errorMessage } from '../errors/isErrnoException.js';
 import { makeApiRequest, fetchPageHtml } from '../transport/httpFetch.js';
 import { assertPublicDestination } from '../transport/ssrfGuard.js';
 import { logger } from '../runtime/logger.js';
@@ -47,8 +48,7 @@ async function fetchWikiInfoFromApi(
 	} catch (error) {
 		logger.error('Error fetching wiki info', {
 			baseUrl,
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- caught error from fetch helper; trusted Error subtype at this boundary
-			error: (error as Error).message,
+			error: errorMessage(error),
 		});
 		return null;
 	}
@@ -97,8 +97,7 @@ function extractScriptPathFromSearchForm(htmlContent: string, wikiServer: string
 			}
 		} catch (error) {
 			logger.warning('Error extracting script path from search form', {
-				// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- caught error from URL parsing; trusted Error subtype at this boundary
-				error: (error as Error).message,
+				error: errorMessage(error),
 			});
 		}
 	}

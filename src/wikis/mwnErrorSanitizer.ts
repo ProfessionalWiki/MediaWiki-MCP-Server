@@ -29,6 +29,8 @@ function redactHeadersObject(obj: unknown): void {
 }
 
 export function redactAuthorizationHeader(err: unknown, token?: string): void {
+	// `isRecord( err )` is redundant at runtime (every Error instance is an object)
+	// but lets TS narrow `err` to `Error & Record<string, unknown>` for property indexing below.
 	if (!(err instanceof Error) || !isRecord(err)) {
 		return;
 	}

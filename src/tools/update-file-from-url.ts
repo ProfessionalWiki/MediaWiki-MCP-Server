@@ -4,6 +4,7 @@ import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { ApiUploadResponse } from 'mwn';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
+import { errorMessage } from '../errors/isErrnoException.js';
 import { assertFileExists, FileNotFoundError } from '../transport/fileExistence.js';
 import { formatEditComment, getPageUrl } from '../wikis/utils.js';
 
@@ -51,12 +52,11 @@ export const updateFileFromUrl: Tool<typeof inputSchema> = {
 		try {
 			data = await mwn.uploadFromUrl(url, title, '', params);
 		} catch (error) {
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- caught error from mwn; trusted Error subtype at this boundary
-			const errorMessage = (error as Error).message;
+			const errorText = errorMessage(error);
 			// Mirror upload-file-from-url: redirect the model away from retrying via URL when
 			// the wiki has copyuploads disabled. Routing hint points at the update-file (local)
 			// sibling for this tool's update intent.
-			if (errorMessage.includes('copyuploaddisabled')) {
+			if (errorText.includes('copyuploaddisabled')) {
 				return ctx.format.error(
 					'invalid_input',
 					'Upload by URL is disabled on this wiki. Download the file locally, then use update-file with the local file path.',
