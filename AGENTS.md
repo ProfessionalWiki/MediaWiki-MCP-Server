@@ -23,6 +23,7 @@ Project context for AI coding agents working on this repo. For human users, star
 - `npm run lint` — oxlint.
 - `npm run fmt` / `npm run fmt:check` — oxfmt (write / dry-run).
 - `npm run preflight` — full gate (install, lint, fmt check, validate `server.json`, test, build, bundle). Run before a release.
+- Git hooks: `lefthook` auto-installs on `npm install`. Pre-commit runs `oxfmt` (auto-fix on staged files) + `oxlint`. Pre-push runs `tsc --noEmit` + the test suite. Bypass with `--no-verify`.
 - `npm run inspector` — watch-mode build + MCP Inspector UI for interactive debugging.
 
 ## Tool conventions

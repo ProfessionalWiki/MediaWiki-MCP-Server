@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `SIGTERM` and `SIGINT` now drain in-flight `/mcp` calls and close active StreamableHTTP sessions before exit, with a structured `event: "shutdown"` / `event: "shutdown_complete"` pair on stderr. Configurable via `MCP_SHUTDOWN_GRACE_MS` (default `10000`). Stdio transport closes its single transport on the same signals.
 - `MCP_MAX_REQUEST_BODY` env var (default `1mb`) caps HTTP request body size, replacing body-parser's silent 100 kB default that was rejecting long-form wikitext edits. Oversize requests return a JSON-RPC 413; the resolved value appears in the startup banner.
 - Published Docker image at `ghcr.io/professionalwiki/mediawiki-mcp-server`. Multi-arch (`linux/amd64`, `linux/arm64`); release builds carry SLSA provenance, SPDX SBOM, and a cosign keyless signature; edge builds (`master` tip) carry attestations only. Tag conventions and verification command in [`docs/deployment.md`](docs/deployment.md).
+- Git hooks via lefthook. Installed automatically by `npm install`. Pre-commit auto-formats staged files with oxfmt and verifies oxlint cleanliness; pre-push runs `tsc --noEmit` and the vitest suite. Configured in `lefthook.yml`.
 
 ### Changed
 
