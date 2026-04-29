@@ -2,6 +2,20 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const mockRequest = vi.fn();
 
+// Two mock layers are needed and they serve different purposes:
+//
+// 1. The vi.mock() calls below intercept module imports so that the top-level
+//    bootstrap in streamableHttp.ts (loadConfigFromFile, evaluateBearerGuard,
+//    emitStartupBanner, app.listen) can run on import without needing a real
+//    config.json or a reachable wiki. These keep the *module's own* state
+//    benign so importing it doesn't crash.
+//
+// 2. The mockWikiSelection and mockMwnProvider objects below are passed
+//    explicitly to mountReadyEndpoint() in each test's makeApp(). The tests
+//    create their own express app independent of the module-level one, so
+//    these inline mocks are what actually drive the test logic. Do not
+//    collapse the two layers — they target different code paths.
+
 vi.mock('../../src/config/loadConfig.js', () => ({
 	loadConfigFromFile: () => ({
 		defaultWiki: 'example.org',
@@ -34,24 +48,32 @@ import {
 	__resetReadyCacheForTesting,
 	__probeDefaultWikiForTesting,
 } from '../../src/transport/streamableHttp.js';
+import type { WikiSelection } from '../../src/wikis/wikiSelection.js';
+import type { MwnProvider } from '../../src/wikis/mwnProvider.js';
+import type { WikiConfig } from '../../src/config/loadConfig.js';
 
-const mockWikiSelection = {
-	getCurrent: () => ({ key: 'example.org', config: {} }),
+const exampleWikiConfig: WikiConfig = {
+	sitename: 'Example',
+	server: 'https://example.org',
+	articlepath: '/wiki',
+	scriptpath: '/w',
+};
+
+const mockWikiSelection: WikiSelection = {
+	getCurrent: () => ({ key: 'example.org', config: exampleWikiConfig }),
 	setCurrent: () => {},
 	reset: () => {},
 };
 
-const mockMwnProvider = {
-	get: async () => ({ request: mockRequest }),
+const mockMwnProvider: MwnProvider = {
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Mwn has 100+ methods; tests only use request().
+	get: async () => ({ request: mockRequest }) as never,
 	invalidate: () => {},
 };
 
 function makeApp() {
 	const app = express();
-	mountReadyEndpoint(app, {
-		wikiSelection: mockWikiSelection as never,
-		mwnProvider: mockMwnProvider as never,
-	});
+	mountReadyEndpoint(app, { wikiSelection: mockWikiSelection, mwnProvider: mockMwnProvider });
 	return app;
 }
 
@@ -100,10 +122,7 @@ describe('/ready', () => {
 		vi.useFakeTimers();
 		mockRequest.mockReturnValue(new Promise(() => undefined));
 
-		const probePromise = __probeDefaultWikiForTesting(
-			mockWikiSelection as never,
-			mockMwnProvider as never,
-		);
+		const probePromise = __probeDefaultWikiForTesting(mockWikiSelection, mockMwnProvider);
 		await vi.advanceTimersByTimeAsync(3001);
 		const entry = await probePromise;
 

@@ -1,16 +1,26 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { emitStartupBanner } from '../../src/runtime/banner.js';
+import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
+import type { WikiSelection } from '../../src/wikis/wikiSelection.js';
+import type { WikiConfig } from '../../src/config/loadConfig.js';
 
-const mockWikiRegistry = {
-	getAll: () => ({ 'a.example': { sitename: 'A', server: 'https://a' } }),
+const baseWikiConfig: WikiConfig = {
+	sitename: 'A',
+	server: 'https://a',
+	articlepath: '/wiki',
+	scriptpath: '/w',
+};
+
+const mockWikiRegistry: WikiRegistry = {
+	getAll: () => ({ 'a.example': baseWikiConfig }),
 	get: () => undefined,
 	add: () => {},
 	remove: () => {},
 	isManagementAllowed: () => false,
 };
 
-const mockWikiSelection = {
-	getCurrent: () => ({ key: 'a.example', config: {} }),
+const mockWikiSelection: WikiSelection = {
+	getCurrent: () => ({ key: 'a.example', config: baseWikiConfig }),
 	setCurrent: () => {},
 	reset: () => {},
 };
@@ -39,8 +49,8 @@ describe('startup banner', () => {
 		emitStartupBanner(
 			{ transport: 'stdio' },
 			{
-				wikiRegistry: mockWikiRegistry as never,
-				wikiSelection: mockWikiSelection as never,
+				wikiRegistry: mockWikiRegistry,
+				wikiSelection: mockWikiSelection,
 				uploadDirs: mockUploadDirs,
 			},
 		);
@@ -75,8 +85,8 @@ describe('startup banner', () => {
 				},
 			},
 			{
-				wikiRegistry: mockWikiRegistry as never,
-				wikiSelection: mockWikiSelection as never,
+				wikiRegistry: mockWikiRegistry,
+				wikiSelection: mockWikiSelection,
 				uploadDirs: mockUploadDirs,
 			},
 		);
@@ -100,8 +110,8 @@ describe('startup banner', () => {
 				http: { host: '127.0.0.1', port: 3000, maxRequestBody: '1mb' },
 			},
 			{
-				wikiRegistry: mockWikiRegistry as never,
-				wikiSelection: mockWikiSelection as never,
+				wikiRegistry: mockWikiRegistry,
+				wikiSelection: mockWikiSelection,
 				uploadDirs: mockUploadDirs,
 			},
 		);
@@ -115,9 +125,9 @@ describe('startup banner', () => {
 	});
 
 	it('classifies static-credential and never logs the token value', () => {
-		const staticRegistry = {
+		const staticRegistry: WikiRegistry = {
 			getAll: () => ({
-				'a.example': { sitename: 'A', server: 'https://a', token: 'SUPER-SECRET' },
+				'a.example': { ...baseWikiConfig, token: 'SUPER-SECRET' },
 			}),
 			get: () => undefined,
 			add: () => {},
@@ -128,8 +138,8 @@ describe('startup banner', () => {
 		emitStartupBanner(
 			{ transport: 'stdio' },
 			{
-				wikiRegistry: staticRegistry as never,
-				wikiSelection: mockWikiSelection as never,
+				wikiRegistry: staticRegistry,
+				wikiSelection: mockWikiSelection,
 				uploadDirs: mockUploadDirs,
 			},
 		);
