@@ -76,7 +76,58 @@ Hosted-use notes:
 
 ## Docker
 
-Build and run the image locally:
+The image is published at `ghcr.io/professionalwiki/mediawiki-mcp-server`. Pull and run it:
+
+```bash
+docker pull ghcr.io/professionalwiki/mediawiki-mcp-server:latest
+docker run --rm -p 8080:8080 -v "$(pwd)/config.json:/app/config.json:ro" \
+  ghcr.io/professionalwiki/mediawiki-mcp-server:latest
+```
+
+### Tag conventions
+
+Each release publishes the following tags (examples shown for `0.8.0`; substitute the release you want):
+
+| Tag | Tracks | Use for |
+|---|---|---|
+| `0.8.0` | A specific patch release | Reproducible builds |
+| `0.8` | Latest patch in `0.8` | Auto-pickup of patch releases |
+| `0` | Latest release in `0.x` | Auto-pickup until the next major |
+| `latest` | Most recent stable release | Trying it out, dev environments |
+| `edge` | Tip of `master` | Tracking unreleased changes; no stability promise |
+| `@sha256:<digest>` | Immutable digest | **Recommended for production** |
+
+Production deployments should pin to a digest rather than a tag — tags are mutable and a `latest` reference can change underneath you.
+
+### Verify image signature
+
+Release builds (anything with a semver tag) are signed via [cosign](https://github.com/sigstore/cosign) keyless signing using GitHub's OIDC identity. Verify before deploying:
+
+```bash
+cosign verify ghcr.io/professionalwiki/mediawiki-mcp-server@<digest> \
+  --certificate-identity-regexp 'https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/.github/workflows/publish-image.yml@.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Edge images are not cosign-signed but still carry SBOM and SLSA provenance attestations. Verify them with `cosign verify-attestation` or `gh attestation verify`.
+
+### Public deployments
+
+Set both the Host-header and Origin allowlists:
+
+```bash
+docker run --rm -p 8080:8080 \
+  -e MCP_ALLOWED_HOSTS=wiki.example.org \
+  -e MCP_ALLOWED_ORIGINS=https://wiki.example.org \
+  -v "$(pwd)/config.json:/app/config.json:ro" \
+  ghcr.io/professionalwiki/mediawiki-mcp-server:latest
+```
+
+The image sets `MCP_TRANSPORT=http`, `PORT=8080`, and `MCP_BIND=0.0.0.0` — `MCP_BIND` is set so container port forwarding reaches the listener, since `127.0.0.1` (the host-default) is per-netns and unreachable from the bridge network. It runs as a non-root user and exposes `/health` and `/ready` for orchestration probes.
+
+### Build from source
+
+For local hacking or to customize the image:
 
 ```bash
 docker build --build-arg GIT_SHA=$(git rev-parse HEAD) -t mediawiki-mcp-server .
@@ -84,18 +135,6 @@ docker run --rm -p 8080:8080 -v "$(pwd)/config.json:/app/config.json:ro" mediawi
 ```
 
 The `GIT_SHA` build arg populates the `org.opencontainers.image.revision` label so `docker inspect` reports which commit the image was built from. Omit it for ad-hoc builds; the label defaults to `unknown`.
-
-For public deployments, set both the Host-header and Origin allowlists:
-
-```bash
-docker run --rm -p 8080:8080 \
-  -e MCP_ALLOWED_HOSTS=wiki.example.org \
-  -e MCP_ALLOWED_ORIGINS=https://wiki.example.org \
-  -v "$(pwd)/config.json:/app/config.json:ro" \
-  mediawiki-mcp-server
-```
-
-The image sets `MCP_TRANSPORT=http`, `PORT=8080`, and `MCP_BIND=0.0.0.0` (needed for container port forwarding), runs as a non-root user, and exposes `/health` for orchestration probes. No image is published; build from source.
 
 ## Observability
 

@@ -287,7 +287,7 @@ See the [Gemini CLI extensions documentation](https://github.com/google-gemini/g
 
 ## Deployment
 
-Running the server as a remote HTTP endpoint for other users has its own configuration requirements — see [docs/deployment.md](docs/deployment.md).
+Running the server as a remote HTTP endpoint for other users has its own configuration requirements — see [docs/deployment.md](docs/deployment.md). A pre-built image is published at `ghcr.io/professionalwiki/mediawiki-mcp-server`.
 
 ### Logs
 

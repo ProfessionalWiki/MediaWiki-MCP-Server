@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - Optional `GET /metrics` Prometheus endpoint on the HTTP transport, enabled with `MCP_METRICS=true`. Exposes tool-call counters, duration histograms, upstream status totals, active sessions, and readiness-probe failures.
 - `SIGTERM` and `SIGINT` now drain in-flight `/mcp` calls and close active StreamableHTTP sessions before exit, with a structured `event: "shutdown"` / `event: "shutdown_complete"` pair on stderr. Configurable via `MCP_SHUTDOWN_GRACE_MS` (default `10000`). Stdio transport closes its single transport on the same signals.
 - `MCP_MAX_REQUEST_BODY` env var (default `1mb`) caps HTTP request body size, replacing body-parser's silent 100 kB default that was rejecting long-form wikitext edits. Oversize requests return a JSON-RPC 413; the resolved value appears in the startup banner.
+- Published Docker image at `ghcr.io/professionalwiki/mediawiki-mcp-server`. Multi-arch (`linux/amd64`, `linux/arm64`); release builds carry SLSA provenance, SPDX SBOM, and a cosign keyless signature; edge builds (`master` tip) carry attestations only. Tag conventions and verification command in [`docs/deployment.md`](docs/deployment.md).
 
 ### Changed
 
@@ -23,6 +24,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - The production image now installs dependencies with `npm ci --omit=dev` instead of `npm install --production`. Builds fail if `package-lock.json` and `package.json` are out of sync.
 - `npm version` no longer touches `Dockerfile`. The `image.version` label it used to keep in sync has been removed; `scripts/sync-version.cjs` continues to update `server.json`, `mcpb/manifest.json`, and `gemini-extension.json`.
 - Replaced ESLint and `eslint-config-wikimedia` with oxlint and oxfmt. Coding-style settings live in `.oxlintrc.json` and `.oxfmtrc.json`. Code reformatted to `useTabs: true`, `singleQuote: true`, otherwise oxfmt defaults (trailing commas everywhere, no spaces inside parens or brackets, default print width).
+- Pinned the Dockerfile base image to a specific `node:lts-alpine` digest. Dependabot's new `docker` ecosystem entry tracks digest updates and opens PRs when Alpine/Node publish new images, so base-image patches reach published builds via auditable git history rather than silent rebuilds.
+- The Docker builder stage now installs dependencies with `npm ci --ignore-scripts`, matching the production stage. Stops third-party postinstall scripts from running during the build that the SLSA provenance attestation vouches for.
 
 ### Removed
 
