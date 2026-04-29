@@ -48,7 +48,7 @@ function currentThreshold(): number {
 	if (raw === undefined || raw === '') {
 		return LEVEL_RANK.debug;
 	}
-	if (!(raw in LEVEL_RANK)) {
+	if (!Object.hasOwn(LEVEL_RANK, raw)) {
 		const valid = Object.keys(LEVEL_RANK).join(', ');
 		throw new Error(`Invalid MCP_LOG_LEVEL "${raw}". Valid values: ${valid}.`);
 	}

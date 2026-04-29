@@ -209,6 +209,11 @@ describe('logger', () => {
 			);
 		});
 
+		it('throws on prototype-chain keys like toString', () => {
+			vi.stubEnv('MCP_LOG_LEVEL', 'toString');
+			expect(() => logger.info('x')).toThrow(/MCP_LOG_LEVEL.*toString/s);
+		});
+
 		it('does not broadcast to registered servers when below threshold', () => {
 			vi.stubEnv('MCP_LOG_LEVEL', 'warning');
 			const fake = fakeServer();
