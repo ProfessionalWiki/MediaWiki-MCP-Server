@@ -183,7 +183,7 @@ function runExec(raw: unknown, wikiKey: string, fieldName: SecretFieldName): str
 		throw new Error(`Config error: ${path}.exec.args must be an array of strings`);
 	}
 	const command = exec.command;
-	const args = (exec.args as string[] | undefined) ?? [];
+	const args = exec.args ?? [];
 
 	let stdout: string;
 	try {
