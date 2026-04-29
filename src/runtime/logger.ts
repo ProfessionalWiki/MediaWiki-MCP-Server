@@ -43,16 +43,20 @@ const LEVEL_RANK: Record<LogLevel | 'silent', number> = {
 	silent: 8,
 };
 
+function isThresholdKey(raw: string): raw is keyof typeof LEVEL_RANK {
+	return Object.hasOwn(LEVEL_RANK, raw);
+}
+
 function currentThreshold(): number {
 	const raw = process.env.MCP_LOG_LEVEL;
 	if (raw === undefined || raw === '') {
 		return LEVEL_RANK.debug;
 	}
-	if (!Object.hasOwn(LEVEL_RANK, raw)) {
+	if (!isThresholdKey(raw)) {
 		const valid = Object.keys(LEVEL_RANK).join(', ');
 		throw new Error(`Invalid MCP_LOG_LEVEL "${raw}". Valid values: ${valid}.`);
 	}
-	return LEVEL_RANK[raw as LogLevel | 'silent'];
+	return LEVEL_RANK[raw];
 }
 
 function buildLogObject(
