@@ -18,7 +18,6 @@ const { SERVER_JSON_PATH } = require( './constants.cjs' );
 	}
 
 	try {
-		// eslint-disable-next-line n/no-unsupported-features/node-builtins
 		const response = await fetch( schemaUrl );
 		if ( !response.ok ) {
 			throw new Error( `Failed to fetch schema from ${ schemaUrl }: ${ response.status } ${ response.statusText }` );

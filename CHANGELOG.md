@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Breaking changes
 
-- Bumped `engines.node` to `>=22.12.0` (was `>=18`). Downstream consumers pinned to Node 18 or 20 must upgrade. Required by the oxlint runtime.
+- Bumped `engines.node` to `>=22.12.0` (was `>=18`). Downstream consumers pinned to Node 18 or 20 must upgrade. Node 20 reached EOL in April 2026; Node 22 LTS (supported through April 2027) is the new minimum. oxlint itself supports `^20.19.0 || >=22.12.0`; we chose Node 22 as the floor to stay on a supported LTS line.
 
 ### Added
 
