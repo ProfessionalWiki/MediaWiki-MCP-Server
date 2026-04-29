@@ -48,7 +48,10 @@ const mockMwnProvider = {
 
 function makeApp() {
 	const app = express();
-	mountReadyEndpoint(app, { wikiSelection: mockWikiSelection as never, mwnProvider: mockMwnProvider as never });
+	mountReadyEndpoint(app, {
+		wikiSelection: mockWikiSelection as never,
+		mwnProvider: mockMwnProvider as never,
+	});
 	return app;
 }
 

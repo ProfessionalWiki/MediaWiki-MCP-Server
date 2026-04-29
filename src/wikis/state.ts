@@ -15,10 +15,7 @@ export interface AppState {
 }
 
 export function createAppState(config: Config): AppState {
-	const wikiRegistry = new WikiRegistryImpl(
-		config.wikis,
-		config.allowWikiManagement !== false,
-	);
+	const wikiRegistry = new WikiRegistryImpl(config.wikis, config.allowWikiManagement !== false);
 	const wikiSelection = new WikiSelectionImpl(config.defaultWiki, wikiRegistry);
 	const uploadDirs = new UploadDirsImpl(config.uploadDirs);
 	const mwnProvider = new MwnProviderImpl(wikiRegistry, wikiSelection, getRuntimeToken);
