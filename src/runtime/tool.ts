@@ -1,7 +1,5 @@
-/* eslint-disable n/no-missing-import */
 import type { ZodRawShape, z } from 'zod';
 import type { ToolAnnotations, CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-/* eslint-enable n/no-missing-import */
 import type { ToolContext } from './context.js';
 
 export interface Tool<TSchema extends ZodRawShape, TCtx extends ToolContext = ToolContext> {
@@ -20,9 +18,6 @@ export interface Tool<TSchema extends ZodRawShape, TCtx extends ToolContext = To
 	 * telemetry event. Omitted for tools that don't have a single canonical
 	 * subject (e.g. get-pages, compare-pages, set-wiki).
 	 */
-	readonly target?: ( args: z.infer<z.ZodObject<TSchema>> ) => string;
-	readonly handle: (
-		args: z.infer<z.ZodObject<TSchema>>,
-		ctx: TCtx
-	) => Promise<CallToolResult>;
+	readonly target?: (args: z.infer<z.ZodObject<TSchema>>) => string;
+	readonly handle: (args: z.infer<z.ZodObject<TSchema>>, ctx: TCtx) => Promise<CallToolResult>;
 }

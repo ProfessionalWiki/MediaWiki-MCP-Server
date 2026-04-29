@@ -1,7 +1,7 @@
 import type { Mwn } from 'mwn';
 
 export interface SectionService {
-	list( mwn: Mwn, title: string ): Promise<string[]>;
+	list(mwn: Mwn, title: string): Promise<string[]>;
 }
 
 interface PageSectionsApi {
@@ -9,11 +9,14 @@ interface PageSectionsApi {
 }
 
 export class SectionServiceImpl implements SectionService {
-	public async list( mwn: Mwn, title: string ): Promise<string[]> {
-		const response = await mwn.request( {
-			action: 'parse', page: title, prop: 'sections', formatversion: '2'
-		} ) as { parse?: { sections?: PageSectionsApi[] } } | undefined;
+	public async list(mwn: Mwn, title: string): Promise<string[]> {
+		const response = (await mwn.request({
+			action: 'parse',
+			page: title,
+			prop: 'sections',
+			formatversion: '2',
+		})) as { parse?: { sections?: PageSectionsApi[] } } | undefined;
 		const apiSections: PageSectionsApi[] = response?.parse?.sections ?? [];
-		return [ '', ...apiSections.map( ( s ) => s.line ?? '' ) ];
+		return ['', ...apiSections.map((s) => s.line ?? '')];
 	}
 }

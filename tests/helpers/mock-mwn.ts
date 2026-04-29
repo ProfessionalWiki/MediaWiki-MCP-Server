@@ -20,7 +20,7 @@ export interface MockMwn {
 	cookieJar: null;
 }
 
-export function createMockMwn( overrides: Partial<MockMwn> = {} ): MockMwn {
+export function createMockMwn(overrides: Partial<MockMwn> = {}): MockMwn {
 	return {
 		read: vi.fn(),
 		create: vi.fn(),
@@ -36,9 +36,9 @@ export function createMockMwn( overrides: Partial<MockMwn> = {} ): MockMwn {
 		getPagesByPrefix: vi.fn(),
 		getCsrfToken: vi.fn(),
 		Category: {
-			members: vi.fn()
+			members: vi.fn(),
 		},
 		cookieJar: null,
-		...overrides
+		...overrides,
 	};
 }

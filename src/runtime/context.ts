@@ -11,7 +11,7 @@ import type { ErrorClassifier } from '../errors/classifyError.js';
 import type { Logger } from './logger.js';
 
 export interface ToolContext {
-	readonly mwn: ( wikiKey?: string ) => Promise<Mwn>;
+	readonly mwn: (wikiKey?: string) => Promise<Mwn>;
 	readonly wikis: WikiRegistry;
 	readonly selection: WikiSelection;
 	readonly uploadDirs: UploadDirs;

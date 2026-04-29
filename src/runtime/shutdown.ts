@@ -1,22 +1,20 @@
 import type { Server as HttpServer } from 'node:http';
-/* eslint-disable n/no-missing-import */
 import type { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-/* eslint-enable n/no-missing-import */
 import { emitTelemetryEvent, logger } from './logger.js';
 
 const DEFAULT_GRACE_MS = 10_000;
 const MAX_GRACE_MS = 600_000;
 
-export function resolveShutdownGrace( env: NodeJS.ProcessEnv ): number {
+export function resolveShutdownGrace(env: NodeJS.ProcessEnv): number {
 	const raw = env.MCP_SHUTDOWN_GRACE_MS;
-	if ( raw === undefined ) {
+	if (raw === undefined) {
 		return DEFAULT_GRACE_MS;
 	}
-	const n = Number( raw );
-	if ( raw === '' || !Number.isInteger( n ) || n < 0 || n > MAX_GRACE_MS ) {
+	const n = Number(raw);
+	if (raw === '' || !Number.isInteger(n) || n < 0 || n > MAX_GRACE_MS) {
 		logger.warning(
-			`Ignoring invalid MCP_SHUTDOWN_GRACE_MS=${ JSON.stringify( raw ) }; ` +
-			`expected an integer between 0 and ${ MAX_GRACE_MS }. Using default ${ DEFAULT_GRACE_MS }ms.`
+			`Ignoring invalid MCP_SHUTDOWN_GRACE_MS=${JSON.stringify(raw)}; ` +
+				`expected an integer between 0 and ${MAX_GRACE_MS}. Using default ${DEFAULT_GRACE_MS}ms.`,
 		);
 		return DEFAULT_GRACE_MS;
 	}
@@ -27,9 +25,12 @@ export interface InFlightCounterReader {
 	readonly count: () => number;
 }
 
-export type ShutdownSessionRegistry = Record<string, {
-	readonly transport: Pick<StreamableHTTPServerTransport, 'close'>;
-}>;
+export type ShutdownSessionRegistry = Record<
+	string,
+	{
+		readonly transport: Pick<StreamableHTTPServerTransport, 'close'>;
+	}
+>;
 
 export type StdioCloseable = { close(): Promise<void> | void };
 
@@ -46,78 +47,74 @@ export interface ShutdownDeps {
 
 const DEFAULT_POLL_MS = 50;
 
-export function registerShutdownHandlers( deps: ShutdownDeps ): void {
+export function registerShutdownHandlers(deps: ShutdownDeps): void {
 	const proc = deps.process ?? process;
 	let draining = false;
 
-	const handler = ( signal: 'SIGTERM' | 'SIGINT' ): void => {
-		if ( draining ) {
-			proc.exit( 1 );
+	const handler = (signal: 'SIGTERM' | 'SIGINT'): void => {
+		if (draining) {
+			proc.exit(1);
 			return;
 		}
 		draining = true;
-		runDrain( signal, deps, proc ).catch( () => {
+		runDrain(signal, deps, proc).catch(() => {
 			// runDrain swallows its own errors; this catch is a belt-and-braces
 			// guard so the unhandled rejection never reaches Node's default handler.
-		} );
+		});
 	};
 
-	proc.on( 'SIGTERM', () => handler( 'SIGTERM' ) );
-	proc.on( 'SIGINT', () => handler( 'SIGINT' ) );
+	proc.on('SIGTERM', () => handler('SIGTERM'));
+	proc.on('SIGINT', () => handler('SIGINT'));
 }
 
 async function runDrain(
 	signal: 'SIGTERM' | 'SIGINT',
 	deps: ShutdownDeps,
-	proc: NodeJS.Process
+	proc: NodeJS.Process,
 ): Promise<void> {
 	const start = Date.now();
 	const inFlightAtSignal = deps.inFlight?.count() ?? 0;
-	const sessionsAtSignal = deps.sessions ? Object.keys( deps.sessions ).length : 0;
+	const sessionsAtSignal = deps.sessions ? Object.keys(deps.sessions).length : 0;
 
-	emitTelemetryEvent( 'info', {
+	emitTelemetryEvent('info', {
 		event: 'shutdown',
 		signal,
 		transport: deps.transport,
-		// eslint-disable-next-line camelcase
 		grace_ms: deps.graceMs,
-		// eslint-disable-next-line camelcase
 		in_flight_at_signal: inFlightAtSignal,
-		// eslint-disable-next-line camelcase
-		sessions_at_signal: sessionsAtSignal
-	} );
+		sessions_at_signal: sessionsAtSignal,
+	});
 
 	let sessionsClosed = 0;
-	if ( deps.transport === 'http' ) {
-		if ( deps.httpServer ) {
+	if (deps.transport === 'http') {
+		if (deps.httpServer) {
 			// Stop accepting new connections. The close callback isn't awaited
 			// because drain is gated on inFlight.count(), not on socket lifetime.
 			deps.httpServer.close();
 			// Node 18.2+ exposes closeIdleConnections, which lets keep-alive
 			// idle sockets close so the listener can finish closing during the
 			// grace window. Feature-detected so older runtimes still build.
-			const idleCloser = (
-				deps.httpServer as unknown as { closeIdleConnections?: () => void }
-			).closeIdleConnections;
-			if ( typeof idleCloser === 'function' ) {
-				idleCloser.call( deps.httpServer );
+			const idleCloser = (deps.httpServer as unknown as { closeIdleConnections?: () => void })
+				.closeIdleConnections;
+			if (typeof idleCloser === 'function') {
+				idleCloser.call(deps.httpServer);
 			}
 		}
-		if ( deps.sessions ) {
+		if (deps.sessions) {
 			// Snapshot the ids before iterating: transport.onclose deletes its
 			// own entry from the registry, which would skip the next entry if
 			// we iterated the live object directly.
-			const sessionIds = Object.keys( deps.sessions );
-			for ( const id of sessionIds ) {
+			const sessionIds = Object.keys(deps.sessions);
+			for (const id of sessionIds) {
 				try {
-					await deps.sessions[ id ].transport.close();
+					await deps.sessions[id].transport.close();
 					sessionsClosed++;
 				} catch {
 					// Ignore: a session that fails to close cleanly should not block drain.
 				}
 			}
 		}
-	} else if ( deps.stdioTransport ) {
+	} else if (deps.stdioTransport) {
 		try {
 			await deps.stdioTransport.close();
 		} catch {
@@ -128,48 +125,44 @@ async function runDrain(
 	const graceExceeded = await waitForDrain(
 		deps.inFlight,
 		deps.graceMs,
-		deps.pollIntervalMs ?? DEFAULT_POLL_MS
+		deps.pollIntervalMs ?? DEFAULT_POLL_MS,
 	);
 
-	const drained = inFlightAtSignal - ( deps.inFlight?.count() ?? 0 );
-	emitTelemetryEvent( 'info', {
+	const drained = inFlightAtSignal - (deps.inFlight?.count() ?? 0);
+	emitTelemetryEvent('info', {
 		event: 'shutdown_complete',
 		signal,
 		transport: deps.transport,
-		// eslint-disable-next-line camelcase
 		in_flight_drained: drained,
-		// eslint-disable-next-line camelcase
 		sessions_closed: sessionsClosed,
-		// eslint-disable-next-line camelcase
 		grace_exceeded: graceExceeded,
-		// eslint-disable-next-line camelcase
-		duration_ms: Date.now() - start
-	} );
+		duration_ms: Date.now() - start,
+	});
 
-	proc.exit( graceExceeded ? 1 : 0 );
+	proc.exit(graceExceeded ? 1 : 0);
 }
 
 async function waitForDrain(
 	inFlight: InFlightCounterReader | undefined,
 	graceMs: number,
-	pollMs: number
+	pollMs: number,
 ): Promise<boolean> {
-	if ( !inFlight ) {
+	if (!inFlight) {
 		return false;
 	}
 	// "0" means no /mcp request has reached the in-flight middleware yet —
 	// not "no socket activity at all". A request mid-Express-routing isn't
 	// counted, but it's a sub-millisecond window that closeIdleConnections
 	// handles.
-	if ( inFlight.count() === 0 ) {
+	if (inFlight.count() === 0) {
 		return false;
 	}
 	const deadline = Date.now() + graceMs;
-	while ( Date.now() < deadline ) {
-		await new Promise( ( r ) => {
-			setTimeout( r, pollMs );
-		} );
-		if ( inFlight.count() === 0 ) {
+	while (Date.now() < deadline) {
+		await new Promise((r) => {
+			setTimeout(r, pollMs);
+		});
+		if (inFlight.count() === 0) {
 			return false;
 		}
 	}

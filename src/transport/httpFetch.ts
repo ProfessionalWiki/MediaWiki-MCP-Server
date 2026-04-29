@@ -10,82 +10,79 @@ async function fetchCore(
 		params?: Record<string, string>;
 		headers?: Record<string, string>;
 		method?: string;
-	}
+	},
 ): Promise<Response> {
 	let url = baseUrl;
 
-	if ( url.startsWith( '//' ) ) {
+	if (url.startsWith('//')) {
 		url = 'https:' + url;
 	}
 
-	if ( options?.params ) {
-		const queryString = new URLSearchParams( options.params ).toString();
-		if ( queryString ) {
-			url = `${ url }?${ queryString }`;
+	if (options?.params) {
+		const queryString = new URLSearchParams(options.params).toString();
+		if (queryString) {
+			url = `${url}?${queryString}`;
 		}
 	}
 
 	const requestHeaders: Record<string, string> = {
-		'User-Agent': USER_AGENT
+		'User-Agent': USER_AGENT,
 	};
 
-	if ( options?.headers ) {
-		Object.assign( requestHeaders, options.headers );
+	if (options?.headers) {
+		Object.assign(requestHeaders, options.headers);
 	}
 
 	let currentUrl = url;
 	let response: Response | undefined;
-	for ( let hop = 0; hop <= MAX_REDIRECTS; hop++ ) {
-		const addresses = await assertPublicDestination( currentUrl );
-		const agent = buildPinnedAgent( currentUrl, addresses );
-		response = await fetch( currentUrl, {
+	for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+		const addresses = await assertPublicDestination(currentUrl);
+		const agent = buildPinnedAgent(currentUrl, addresses);
+		response = await fetch(currentUrl, {
 			headers: requestHeaders,
 			method: options?.method || 'GET',
 			redirect: 'manual',
-			agent
-		} );
+			agent,
+		});
 
-		if ( response.status < 300 || response.status >= 400 ) {
+		if (response.status < 300 || response.status >= 400) {
 			break;
 		}
 
-		const location = response.headers.get( 'location' );
-		if ( !location ) {
+		const location = response.headers.get('location');
+		if (!location) {
 			break;
 		}
 
-		if ( hop === MAX_REDIRECTS ) {
-			throw new Error( `Too many redirects (>${ MAX_REDIRECTS }) starting from ${ url }` );
+		if (hop === MAX_REDIRECTS) {
+			throw new Error(`Too many redirects (>${MAX_REDIRECTS}) starting from ${url}`);
 		}
 
-		currentUrl = new URL( location, currentUrl ).toString();
+		currentUrl = new URL(location, currentUrl).toString();
 	}
 
 	// response is always assigned inside the loop (loop runs at least once).
 	const finalResponse = response as Response;
-	if ( !finalResponse.ok ) {
-		const errorBody = await finalResponse.text().catch( () => 'Could not read error response body' );
+	if (!finalResponse.ok) {
+		const errorBody = await finalResponse.text().catch(() => 'Could not read error response body');
 		throw new Error(
-			`HTTP error! status: ${ finalResponse.status } for URL: ${ finalResponse.url }. Response: ${ errorBody }`
+			`HTTP error! status: ${finalResponse.status} for URL: ${finalResponse.url}. Response: ${errorBody}`,
 		);
 	}
 	return finalResponse;
 }
 
-export async function makeApiRequest<T>(
-	url: string,
-	params?: Record<string, string>
-): Promise<T> {
-	const response = await fetchCore( url, {
+export async function makeApiRequest<T>(url: string, params?: Record<string, string>): Promise<T> {
+	const response = await fetchCore(url, {
 		params,
-		headers: { Accept: 'application/json' }
-	} );
-	return ( await response.json() ) as T;
+		headers: { Accept: 'application/json' },
+	});
+	return (await response.json()) as T;
 }
 
-export async function fetchPageHtml( url: string ): Promise<string | null> {
+export async function fetchPageHtml(url: string): Promise<string | null> {
 	try {
-		const response = await fetchCore( url );
+		const response = await fetchCore(url);
 		return await response.text();
 	} catch {
 		return null;

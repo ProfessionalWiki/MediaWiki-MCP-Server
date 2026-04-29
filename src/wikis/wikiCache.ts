@@ -7,17 +7,17 @@ import type { LicenseCache } from './licenseCache.js';
  */
 export interface WikiCache {
 	/** Drops every cache entry keyed by `wikiKey`. */
-	invalidate( wikiKey: string ): void;
+	invalidate(wikiKey: string): void;
 }
 
 export class WikiCacheImpl implements WikiCache {
 	public constructor(
 		private readonly mwnProvider: Pick<MwnProvider, 'invalidate'>,
-		private readonly licenseCache: Pick<LicenseCache, 'delete'>
+		private readonly licenseCache: Pick<LicenseCache, 'delete'>,
 	) {}
 
-	public invalidate( wikiKey: string ): void {
-		this.mwnProvider.invalidate( wikiKey );
-		this.licenseCache.delete( wikiKey );
+	public invalidate(wikiKey: string): void {
+		this.mwnProvider.invalidate(wikiKey);
+		this.licenseCache.delete(wikiKey);
 	}
 }

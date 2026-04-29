@@ -1,0 +1,22 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": ["typescript", "node"],
+	"categories": {
+		"correctness": "error",
+		"suspicious": "warn"
+	},
+	"rules": {
+		"no-new": "off",
+		"no-shadow": "off",
+		"no-underscore-dangle": "off",
+		"preserve-caught-error": "off",
+		"typescript/no-explicit-any": "warn"
+	},
+	"overrides": [
+		{
+			"files": ["scripts/**"],
+			"rules": {
+			}
+		}
+	]
+}

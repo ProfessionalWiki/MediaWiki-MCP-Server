@@ -4,12 +4,13 @@
  */
 export function createMockMwnError(
 	code: string,
-	message?: string
+	message?: string,
 ): Error & { code: string; info?: string } {
-	const err = new Error(
-		message ?? `${ code }: mock MediaWiki error`
-	) as Error & { code: string; info?: string };
+	const err = new Error(message ?? `${code}: mock MediaWiki error`) as Error & {
+		code: string;
+		info?: string;
+	};
 	err.code = code;
-	err.info = message ?? `mock info for ${ code }`;
+	err.info = message ?? `mock info for ${code}`;
 	return err;
 }

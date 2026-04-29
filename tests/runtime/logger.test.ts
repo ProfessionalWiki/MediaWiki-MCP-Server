@@ -1,9 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-/* eslint-disable n/no-missing-import */
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-/* eslint-enable n/no-missing-import */
 import {
 	clearRegisteredServers,
 	getRegisteredServerCount,
@@ -11,7 +9,7 @@ import {
 	registerServer,
 	unregisterServer,
 	type LogContext,
-	type LogLevel
+	type LogLevel,
 } from '../../src/runtime/logger.js';
 
 interface FakeServer {
@@ -20,203 +18,203 @@ interface FakeServer {
 
 function fakeServer(): FakeServer {
 	return {
-		sendLoggingMessage: vi.fn().mockResolvedValue( undefined )
+		sendLoggingMessage: vi.fn().mockResolvedValue(undefined),
 	};
 }
 
-function asMcpServer( fake: FakeServer ): McpServer {
+function asMcpServer(fake: FakeServer): McpServer {
 	return fake as unknown as McpServer;
 }
 
-describe( 'logger', () => {
+describe('logger', () => {
 	let stderrSpy: ReturnType<typeof vi.spyOn>;
 
-	beforeEach( () => {
-		stderrSpy = vi.spyOn( process.stderr, 'write' ).mockImplementation( () => true );
-	} );
+	beforeEach(() => {
+		stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+	});
 
-	afterEach( () => {
+	afterEach(() => {
 		clearRegisteredServers();
 		stderrSpy.mockRestore();
-	} );
+	});
 
-	describe( 'stderr output (JSON per line)', () => {
+	describe('stderr output (JSON per line)', () => {
 		function lastJson(): Record<string, unknown> {
 			const calls = stderrSpy.mock.calls;
-			expect( calls.length ).toBeGreaterThan( 0 );
-			const raw = String( calls[ calls.length - 1 ][ 0 ] );
-			expect( raw.endsWith( '\n' ) ).toBe( true );
-			return JSON.parse( raw.slice( 0, -1 ) ) as Record<string, unknown>;
+			expect(calls.length).toBeGreaterThan(0);
+			const raw = String(calls[calls.length - 1][0]);
+			expect(raw.endsWith('\n')).toBe(true);
+			return JSON.parse(raw.slice(0, -1)) as Record<string, unknown>;
 		}
 
-		it( 'emits a JSON line with ts, level, and message at info', () => {
-			logger.info( 'listening on 127.0.0.1:3000' );
+		it('emits a JSON line with ts, level, and message at info', () => {
+			logger.info('listening on 127.0.0.1:3000');
 			const obj = lastJson();
-			expect( obj.level ).toBe( 'info' );
-			expect( obj.message ).toBe( 'listening on 127.0.0.1:3000' );
-			expect( obj.ts ).toMatch( /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/ );
-		} );
+			expect(obj.level).toBe('info');
+			expect(obj.message).toBe('listening on 127.0.0.1:3000');
+			expect(obj.ts).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+		});
 
-		it( 'records the level field for non-info levels', () => {
-			logger.warning( 'plaintext credential' );
-			expect( lastJson().level ).toBe( 'warning' );
-		} );
+		it('records the level field for non-info levels', () => {
+			logger.warning('plaintext credential');
+			expect(lastJson().level).toBe('warning');
+		});
 
-		it( 'merges data fields at the top level', () => {
-			logger.error( 'tool registration failed', { tool: 'get-page', error: 'boom' } );
+		it('merges data fields at the top level', () => {
+			logger.error('tool registration failed', { tool: 'get-page', error: 'boom' });
 			const obj = lastJson();
-			expect( obj.message ).toBe( 'tool registration failed' );
-			expect( obj.tool ).toBe( 'get-page' );
-			expect( obj.error ).toBe( 'boom' );
-		} );
+			expect(obj.message).toBe('tool registration failed');
+			expect(obj.tool).toBe('get-page');
+			expect(obj.error).toBe('boom');
+		});
 
-		it( 'omits the message field when message is empty', () => {
-			logger.info( '', { event: 'tool_call', tool: 'get-page' } );
+		it('omits the message field when message is empty', () => {
+			logger.info('', { event: 'tool_call', tool: 'get-page' });
 			const obj = lastJson();
-			expect( 'message' in obj ).toBe( false );
-			expect( obj.event ).toBe( 'tool_call' );
-			expect( obj.tool ).toBe( 'get-page' );
-		} );
+			expect('message' in obj).toBe(false);
+			expect(obj.event).toBe('tool_call');
+			expect(obj.tool).toBe('get-page');
+		});
 
-		it( 'overrides reserved keys (ts, level, message) supplied via data', () => {
-			logger.info( 'real', { ts: 'fake', level: 'fake', message: 'fake', other: 'kept' } );
+		it('overrides reserved keys (ts, level, message) supplied via data', () => {
+			logger.info('real', { ts: 'fake', level: 'fake', message: 'fake', other: 'kept' });
 			const obj = lastJson();
-			expect( obj.message ).toBe( 'real' );
-			expect( obj.level ).toBe( 'info' );
-			expect( obj.ts ).toMatch( /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/ );
-			expect( obj.other ).toBe( 'kept' );
-		} );
+			expect(obj.message).toBe('real');
+			expect(obj.level).toBe('info');
+			expect(obj.ts).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+			expect(obj.other).toBe('kept');
+		});
 
-		it.each<[LogLevel]>( [
-			[ 'debug' ], [ 'info' ], [ 'notice' ], [ 'warning' ],
-			[ 'error' ], [ 'critical' ], [ 'alert' ], [ 'emergency' ]
-		] )( '%s emits the matching level field', ( level ) => {
-			logger[ level ]( 'x' );
-			expect( lastJson().level ).toBe( level );
-		} );
-	} );
+		it.each<[LogLevel]>([
+			['debug'],
+			['info'],
+			['notice'],
+			['warning'],
+			['error'],
+			['critical'],
+			['alert'],
+			['emergency'],
+		])('%s emits the matching level field', (level) => {
+			logger[level]('x');
+			expect(lastJson().level).toBe(level);
+		});
+	});
 
-	describe( 'server registration', () => {
-		it( 'broadcasts to a registered server', () => {
+	describe('server registration', () => {
+		it('broadcasts to a registered server', () => {
 			const fake = fakeServer();
-			registerServer( asMcpServer( fake ) );
+			registerServer(asMcpServer(fake));
 
-			logger.warning( 'session bearer mismatch', { sessionId: 'abc' } );
+			logger.warning('session bearer mismatch', { sessionId: 'abc' });
 
-			expect( fake.sendLoggingMessage ).toHaveBeenCalledTimes( 1 );
-			expect( fake.sendLoggingMessage ).toHaveBeenCalledWith( {
+			expect(fake.sendLoggingMessage).toHaveBeenCalledTimes(1);
+			expect(fake.sendLoggingMessage).toHaveBeenCalledWith({
 				level: 'warning',
 				logger: 'mediawiki-mcp-server',
-				data: { message: 'session bearer mismatch', sessionId: 'abc' }
-			} );
-		} );
+				data: { message: 'session bearer mismatch', sessionId: 'abc' },
+			});
+		});
 
-		it( 'broadcasts to every registered server', () => {
+		it('broadcasts to every registered server', () => {
 			const fakeA = fakeServer();
 			const fakeB = fakeServer();
-			registerServer( asMcpServer( fakeA ) );
-			registerServer( asMcpServer( fakeB ) );
+			registerServer(asMcpServer(fakeA));
+			registerServer(asMcpServer(fakeB));
 
-			logger.info( 'hello' );
+			logger.info('hello');
 
-			expect( fakeA.sendLoggingMessage ).toHaveBeenCalledTimes( 1 );
-			expect( fakeB.sendLoggingMessage ).toHaveBeenCalledTimes( 1 );
-		} );
+			expect(fakeA.sendLoggingMessage).toHaveBeenCalledTimes(1);
+			expect(fakeB.sendLoggingMessage).toHaveBeenCalledTimes(1);
+		});
 
-		it( 'stops sending to a server after it is unregistered', () => {
+		it('stops sending to a server after it is unregistered', () => {
 			const fake = fakeServer();
-			registerServer( asMcpServer( fake ) );
-			unregisterServer( asMcpServer( fake ) );
+			registerServer(asMcpServer(fake));
+			unregisterServer(asMcpServer(fake));
 
-			logger.info( 'after unregister' );
+			logger.info('after unregister');
 
-			expect( fake.sendLoggingMessage ).not.toHaveBeenCalled();
-		} );
+			expect(fake.sendLoggingMessage).not.toHaveBeenCalled();
+		});
 
-		it( 'is a no-op when no servers are registered (stderr only)', () => {
-			logger.info( 'startup line' );
+		it('is a no-op when no servers are registered (stderr only)', () => {
+			logger.info('startup line');
 			// No throw, stderr still written
-			expect( stderrSpy ).toHaveBeenCalled();
-		} );
+			expect(stderrSpy).toHaveBeenCalled();
+		});
 
-		it( 'omits the data payload key when no context is supplied', () => {
+		it('omits the data payload key when no context is supplied', () => {
 			const fake = fakeServer();
-			registerServer( asMcpServer( fake ) );
+			registerServer(asMcpServer(fake));
 
-			logger.info( 'plain' );
+			logger.info('plain');
 
-			const params = fake.sendLoggingMessage.mock.calls[ 0 ][ 0 ] as {
+			const params = fake.sendLoggingMessage.mock.calls[0][0] as {
 				data: LogContext;
 			};
-			expect( params.data ).toEqual( { message: 'plain' } );
-		} );
-	} );
+			expect(params.data).toEqual({ message: 'plain' });
+		});
+	});
 
-	describe( 'fault tolerance', () => {
-		it( 'swallows rejections from sendLoggingMessage so logging never throws', async () => {
+	describe('fault tolerance', () => {
+		it('swallows rejections from sendLoggingMessage so logging never throws', async () => {
 			const fake = fakeServer();
-			fake.sendLoggingMessage.mockRejectedValueOnce( new Error( 'transport closed' ) );
-			registerServer( asMcpServer( fake ) );
+			fake.sendLoggingMessage.mockRejectedValueOnce(new Error('transport closed'));
+			registerServer(asMcpServer(fake));
 
-			expect( () => logger.error( 'boom' ) ).not.toThrow();
+			expect(() => logger.error('boom')).not.toThrow();
 			// Allow microtask to flush so the .catch handler runs.
-			await new Promise( ( resolve ) => setImmediate( resolve ) );
-		} );
-	} );
-} );
+			await new Promise((resolve) => setImmediate(resolve));
+		});
+	});
+});
 
 // Mirrors the registration pattern from createServer() in src/server.ts so the
 // test exercises the same onclose-wrapping path used in production.
 function buildRegisteredServer(): McpServer {
 	const server = new McpServer(
 		{ name: 'logger-integration-test', version: '0.0.0' },
-		{ capabilities: { logging: {} } }
+		{ capabilities: { logging: {} } },
 	);
-	registerServer( server );
+	registerServer(server);
 	const previousOnClose = server.server.onclose;
 	server.server.onclose = (): void => {
-		unregisterServer( server );
+		unregisterServer(server);
 		previousOnClose?.();
 	};
 	return server;
 }
 
-describe( 'logger registry lifecycle (integration)', () => {
-	afterEach( () => {
+describe('logger registry lifecycle (integration)', () => {
+	afterEach(() => {
 		clearRegisteredServers();
-	} );
+	});
 
-	it( 'unregisters the server when its transport closes via the client', async () => {
+	it('unregisters the server when its transport closes via the client', async () => {
 		const server = buildRegisteredServer();
-		const client = new Client( { name: 'logger-test-client', version: '0.0.0' } );
-		const [ clientTransport, serverTransport ] = InMemoryTransport.createLinkedPair();
+		const client = new Client({ name: 'logger-test-client', version: '0.0.0' });
+		const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
-		await Promise.all( [
-			server.connect( serverTransport ),
-			client.connect( clientTransport )
-		] );
+		await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
 
-		expect( getRegisteredServerCount() ).toBe( 1 );
+		expect(getRegisteredServerCount()).toBe(1);
 
 		await client.close();
 
-		expect( getRegisteredServerCount() ).toBe( 0 );
-	} );
+		expect(getRegisteredServerCount()).toBe(0);
+	});
 
-	it( 'unregisters the server when the server itself closes the transport', async () => {
+	it('unregisters the server when the server itself closes the transport', async () => {
 		const server = buildRegisteredServer();
-		const client = new Client( { name: 'logger-test-client', version: '0.0.0' } );
-		const [ clientTransport, serverTransport ] = InMemoryTransport.createLinkedPair();
+		const client = new Client({ name: 'logger-test-client', version: '0.0.0' });
+		const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
-		await Promise.all( [
-			server.connect( serverTransport ),
-			client.connect( clientTransport )
-		] );
+		await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
 
-		expect( getRegisteredServerCount() ).toBe( 1 );
+		expect(getRegisteredServerCount()).toBe(1);
 
 		await server.close();
 
-		expect( getRegisteredServerCount() ).toBe( 0 );
-	} );
-} );
+		expect(getRegisteredServerCount()).toBe(0);
+	});
+});

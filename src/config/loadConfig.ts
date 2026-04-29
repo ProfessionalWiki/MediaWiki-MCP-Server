@@ -83,7 +83,7 @@ export const defaultConfig: Config = {
 			articlepath: '/wiki',
 			scriptpath: '/w',
 			token: null,
-			private: false
+			private: false,
 		},
 		'localhost:8080': {
 			sitename: 'Local MediaWiki Docker',
@@ -91,38 +91,38 @@ export const defaultConfig: Config = {
 			articlepath: '/wiki',
 			scriptpath: '/w',
 			token: null,
-			private: false
-		}
-	}
+			private: false,
+		},
+	},
 };
 
-const SECRET_FIELDS = [ 'token', 'username', 'password' ] as const;
-type SecretFieldName = typeof SECRET_FIELDS[ number ];
+const SECRET_FIELDS = ['token', 'username', 'password'] as const;
+type SecretFieldName = (typeof SECRET_FIELDS)[number];
 
-function isSecretField( name: string ): name is SecretFieldName {
-	return ( SECRET_FIELDS as readonly string[] ).includes( name );
+function isSecretField(name: string): name is SecretFieldName {
+	return (SECRET_FIELDS as readonly string[]).includes(name);
 }
 
 const configPath = process.env.CONFIG || 'config.json';
 
-function replaceEnvVars( value: string ): string {
-	return value.replace( /\$\{([^}]+)\}/g, ( match, envVar: string ) => {
-		const envValue = process.env[ envVar ];
+function replaceEnvVars(value: string): string {
+	return value.replace(/\$\{([^}]+)\}/g, (match, envVar: string) => {
+		const envValue = process.env[envVar];
 		return envValue !== undefined ? envValue : match;
-	} );
+	});
 }
 
-function replaceEnvVarsInObject( obj: unknown ): unknown {
-	if ( typeof obj === 'string' ) {
-		return replaceEnvVars( obj );
+function replaceEnvVarsInObject(obj: unknown): unknown {
+	if (typeof obj === 'string') {
+		return replaceEnvVars(obj);
 	}
-	if ( Array.isArray( obj ) ) {
-		return obj.map( ( item ) => replaceEnvVarsInObject( item ) );
+	if (Array.isArray(obj)) {
+		return obj.map((item) => replaceEnvVarsInObject(item));
 	}
-	if ( obj !== null && typeof obj === 'object' ) {
+	if (obj !== null && typeof obj === 'object') {
 		const result: Record<string, unknown> = {};
-		for ( const [ key, value ] of Object.entries( obj ) ) {
-			result[ key ] = replaceEnvVarsInObject( value );
+		for (const [key, value] of Object.entries(obj)) {
+			result[key] = replaceEnvVarsInObject(value);
 		}
 		return result;
 	}
@@ -132,204 +132,192 @@ function replaceEnvVarsInObject( obj: unknown ): unknown {
 function resolveSecretField(
 	raw: unknown,
 	wikiKey: string,
-	fieldName: SecretFieldName
+	fieldName: SecretFieldName,
 ): string | null | undefined {
-	if ( raw === null || raw === undefined ) {
+	if (raw === null || raw === undefined) {
 		return raw;
 	}
-	if ( typeof raw === 'string' ) {
-		if ( raw.includes( '${' ) ) {
-			const substituted = replaceEnvVars( raw );
-			const unresolved = substituted.match( /\$\{([^}]+)\}/ );
-			if ( unresolved ) {
+	if (typeof raw === 'string') {
+		if (raw.includes('${')) {
+			const substituted = replaceEnvVars(raw);
+			const unresolved = substituted.match(/\$\{([^}]+)\}/);
+			if (unresolved) {
 				throw new Error(
-					`Config error: environment variable "${ unresolved[ 1 ] }" referenced by wikis.${ wikiKey }.${ fieldName } is not set`
+					`Config error: environment variable "${unresolved[1]}" referenced by wikis.${wikiKey}.${fieldName} is not set`,
 				);
 			}
 			return substituted;
 		}
-		if ( raw !== '' ) {
+		if (raw !== '') {
 			logger.warning(
-				`wikis.${ wikiKey }.${ fieldName } contains a plaintext credential. Prefer \${VAR} or an {exec: …} object. See README.`
+				`wikis.${wikiKey}.${fieldName} contains a plaintext credential. Prefer \${VAR} or an {exec: …} object. See README.`,
 			);
 		}
 		return raw;
 	}
-	if ( typeof raw === 'object' && !Array.isArray( raw ) ) {
-		return runExec( raw, wikiKey, fieldName );
+	if (typeof raw === 'object' && !Array.isArray(raw)) {
+		return runExec(raw, wikiKey, fieldName);
 	}
 	throw new Error(
-		`Config error: wikis.${ wikiKey }.${ fieldName } must be a string, null, or an {exec: …} object`
+		`Config error: wikis.${wikiKey}.${fieldName} must be a string, null, or an {exec: …} object`,
 	);
 }
 
-function runExec( raw: unknown, wikiKey: string, fieldName: SecretFieldName ): string {
-	const path = `wikis.${ wikiKey }.${ fieldName }`;
-	if ( typeof raw !== 'object' || raw === null ) {
-		throw new Error(
-			`Config error: ${ path } must be a string, null, or an {exec: …} object`
-		);
+function runExec(raw: unknown, wikiKey: string, fieldName: SecretFieldName): string {
+	const path = `wikis.${wikiKey}.${fieldName}`;
+	if (typeof raw !== 'object' || raw === null) {
+		throw new Error(`Config error: ${path} must be a string, null, or an {exec: …} object`);
 	}
 	const src = raw as { exec?: unknown };
-	if ( typeof src.exec !== 'object' || src.exec === null || Array.isArray( src.exec ) ) {
-		throw new Error(
-			`Config error: ${ path } must be a string, null, or an {exec: …} object`
-		);
+	if (typeof src.exec !== 'object' || src.exec === null || Array.isArray(src.exec)) {
+		throw new Error(`Config error: ${path} must be a string, null, or an {exec: …} object`);
 	}
 	const exec = src.exec as { command?: unknown; args?: unknown };
-	if ( typeof exec.command !== 'string' || exec.command === '' ) {
-		throw new Error( `Config error: ${ path }.exec.command must be a non-empty string` );
+	if (typeof exec.command !== 'string' || exec.command === '') {
+		throw new Error(`Config error: ${path}.exec.command must be a non-empty string`);
 	}
 	if (
 		exec.args !== undefined &&
-		(
-			!Array.isArray( exec.args ) ||
-			!exec.args.every( ( a ) => typeof a === 'string' )
-		)
+		(!Array.isArray(exec.args) || !exec.args.every((a) => typeof a === 'string'))
 	) {
-		throw new Error( `Config error: ${ path }.exec.args must be an array of strings` );
+		throw new Error(`Config error: ${path}.exec.args must be an array of strings`);
 	}
 	const command = exec.command;
-	const args = ( exec.args as string[] | undefined ) ?? [];
+	const args = (exec.args as string[] | undefined) ?? [];
 
 	let stdout: string;
 	try {
-		stdout = execFileSync( command, args, {
+		stdout = execFileSync(command, args, {
 			timeout: 10_000,
 			encoding: 'utf-8',
-			stdio: [ 'ignore', 'pipe', 'pipe' ]
-		} );
-	} catch ( err: unknown ) {
+			stdio: ['ignore', 'pipe', 'pipe'],
+		});
+	} catch (err: unknown) {
 		const e = err as NodeJS.ErrnoException & {
 			signal?: string;
 			status?: number | null;
 			stderr?: Buffer | string;
 		};
-		if ( e.code === 'ENOENT' ) {
+		if (e.code === 'ENOENT') {
+			throw new Error(`Config error: failed to fetch ${path}: command "${command}" not found`);
+		}
+		if (e.signal === 'SIGTERM' || e.code === 'ETIMEDOUT') {
 			throw new Error(
-				`Config error: failed to fetch ${ path }: command "${ command }" not found`
+				`Config error: failed to fetch ${path}: command "${command}" timed out after 10s`,
 			);
 		}
-		if ( e.signal === 'SIGTERM' || e.code === 'ETIMEDOUT' ) {
+		if (typeof e.status === 'number' && e.status !== 0) {
+			const stderrText = e.stderr
+				? (Buffer.isBuffer(e.stderr) ? e.stderr.toString('utf-8') : e.stderr).slice(0, 200)
+				: '';
 			throw new Error(
-				`Config error: failed to fetch ${ path }: command "${ command }" timed out after 10s`
+				`Config error: failed to fetch ${path}: command "${command}" exited with status ${e.status}. stderr: ${stderrText}`,
 			);
 		}
-		if ( typeof e.status === 'number' && e.status !== 0 ) {
-			const stderrText = e.stderr ?
-				( Buffer.isBuffer( e.stderr ) ? e.stderr.toString( 'utf-8' ) : e.stderr ).slice( 0, 200 ) :
-				'';
-			throw new Error(
-				`Config error: failed to fetch ${ path }: command "${ command }" exited with status ${ e.status }. stderr: ${ stderrText }`
-			);
-		}
-		throw new Error(
-			`Config error: failed to fetch ${ path }: ${ e.message ?? 'unknown error' }`
-		);
+		throw new Error(`Config error: failed to fetch ${path}: ${e.message ?? 'unknown error'}`);
 	}
 
-	const trimmed = stdout.replace( /\r?\n+$/, '' );
-	if ( trimmed === '' ) {
+	const trimmed = stdout.replace(/\r?\n+$/, '');
+	if (trimmed === '') {
 		throw new Error(
-			`Config error: failed to fetch ${ path }: command "${ command }" produced no output`
+			`Config error: failed to fetch ${path}: command "${command}" produced no output`,
 		);
 	}
 	return trimmed;
 }
 
-function resolveUploadDirs( rawFromConfig: unknown ): readonly string[] {
+function resolveUploadDirs(rawFromConfig: unknown): readonly string[] {
 	const fromConfig: string[] = [];
-	if ( rawFromConfig !== undefined ) {
-		if ( !Array.isArray( rawFromConfig ) ) {
-			throw new Error( 'Config error: uploadDirs must be an array of strings' );
+	if (rawFromConfig !== undefined) {
+		if (!Array.isArray(rawFromConfig)) {
+			throw new Error('Config error: uploadDirs must be an array of strings');
 		}
-		for ( const entry of rawFromConfig ) {
-			if ( typeof entry !== 'string' ) {
-				throw new Error( 'Config error: uploadDirs entries must be strings' );
+		for (const entry of rawFromConfig) {
+			if (typeof entry !== 'string') {
+				throw new Error('Config error: uploadDirs entries must be strings');
 			}
-			if ( !path.isAbsolute( entry ) ) {
-				throw new Error( `Config error: uploadDirs entry "${ entry }" must be absolute` );
+			if (!path.isAbsolute(entry)) {
+				throw new Error(`Config error: uploadDirs entry "${entry}" must be absolute`);
 			}
-			fromConfig.push( entry );
+			fromConfig.push(entry);
 		}
 	}
 
 	const envRaw = process.env.MCP_UPLOAD_DIRS;
 	const fromEnv: string[] = [];
-	if ( envRaw ) {
-		for ( const entry of envRaw.split( ':' ) ) {
-			if ( entry === '' ) {
+	if (envRaw) {
+		for (const entry of envRaw.split(':')) {
+			if (entry === '') {
 				continue;
 			}
-			if ( !path.isAbsolute( entry ) ) {
-				throw new Error( `Config error: MCP_UPLOAD_DIRS entry "${ entry }" must be absolute` );
+			if (!path.isAbsolute(entry)) {
+				throw new Error(`Config error: MCP_UPLOAD_DIRS entry "${entry}" must be absolute`);
 			}
-			fromEnv.push( entry );
+			fromEnv.push(entry);
 		}
 	}
 
 	const canonicalised: string[] = [];
-	for ( const raw of [ ...fromEnv, ...fromConfig ] ) {
+	for (const raw of [...fromEnv, ...fromConfig]) {
 		let canonical: string;
 		try {
-			canonical = fs.realpathSync( raw );
-		} catch ( err ) {
+			canonical = fs.realpathSync(raw);
+		} catch (err) {
 			throw new Error(
-				`Config error: upload directory "${ raw }" cannot be resolved (${ ( err as Error ).message }). Ensure the directory exists before starting the server.`
+				`Config error: upload directory "${raw}" cannot be resolved (${(err as Error).message}). Ensure the directory exists before starting the server.`,
 			);
 		}
-		if ( !canonicalised.includes( canonical ) ) {
-			canonicalised.push( canonical );
+		if (!canonicalised.includes(canonical)) {
+			canonicalised.push(canonical);
 		}
 	}
 	return canonicalised;
 }
 
-function resolveWiki( raw: unknown, wikiKey: string ): WikiConfig {
-	if ( typeof raw !== 'object' || raw === null || Array.isArray( raw ) ) {
-		throw new Error( `Config error: wikis.${ wikiKey } must be an object` );
+function resolveWiki(raw: unknown, wikiKey: string): WikiConfig {
+	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+		throw new Error(`Config error: wikis.${wikiKey} must be an object`);
 	}
 	const src = raw as Record<string, unknown>;
 	const resolved: Record<string, unknown> = {};
-	for ( const [ fieldKey, fieldValue ] of Object.entries( src ) ) {
-		if ( isSecretField( fieldKey ) ) {
-			resolved[ fieldKey ] = resolveSecretField( fieldValue, wikiKey, fieldKey );
+	for (const [fieldKey, fieldValue] of Object.entries(src)) {
+		if (isSecretField(fieldKey)) {
+			resolved[fieldKey] = resolveSecretField(fieldValue, wikiKey, fieldKey);
 		} else {
-			resolved[ fieldKey ] = replaceEnvVarsInObject( fieldValue );
+			resolved[fieldKey] = replaceEnvVarsInObject(fieldValue);
 		}
 	}
-	if ( resolved.readOnly !== undefined && typeof resolved.readOnly !== 'boolean' ) {
-		throw new Error(
-			`Config error: wikis.${ wikiKey }.readOnly must be a boolean`
-		);
+	if (resolved.readOnly !== undefined && typeof resolved.readOnly !== 'boolean') {
+		throw new Error(`Config error: wikis.${wikiKey}.readOnly must be a boolean`);
 	}
 	return resolved as unknown as WikiConfig;
 }
 
-function resolveConfig( parsed: unknown ): Config {
-	if ( typeof parsed !== 'object' || parsed === null || Array.isArray( parsed ) ) {
-		throw new Error( 'Config error: config.json must be an object' );
+function resolveConfig(parsed: unknown): Config {
+	if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+		throw new Error('Config error: config.json must be an object');
 	}
 	const p = parsed as Record<string, unknown>;
-	const defaultWiki = typeof p.defaultWiki === 'string' ? replaceEnvVars( p.defaultWiki ) : '';
-	const allowWikiManagement = typeof p.allowWikiManagement === 'boolean' ? p.allowWikiManagement : undefined;
-	const uploadDirs = resolveUploadDirs( p.uploadDirs );
+	const defaultWiki = typeof p.defaultWiki === 'string' ? replaceEnvVars(p.defaultWiki) : '';
+	const allowWikiManagement =
+		typeof p.allowWikiManagement === 'boolean' ? p.allowWikiManagement : undefined;
+	const uploadDirs = resolveUploadDirs(p.uploadDirs);
 	const rawWikis = p.wikis;
-	if ( typeof rawWikis !== 'object' || rawWikis === null || Array.isArray( rawWikis ) ) {
+	if (typeof rawWikis !== 'object' || rawWikis === null || Array.isArray(rawWikis)) {
 		return { defaultWiki, wikis: {}, allowWikiManagement, uploadDirs };
 	}
 	const wikis: Record<string, WikiConfig> = {};
-	for ( const [ key, rawWiki ] of Object.entries( rawWikis ) ) {
-		wikis[ key ] = resolveWiki( rawWiki, key );
+	for (const [key, rawWiki] of Object.entries(rawWikis)) {
+		wikis[key] = resolveWiki(rawWiki, key);
 	}
 	return { defaultWiki, wikis, allowWikiManagement, uploadDirs };
 }
 
 export function loadConfigFromFile(): Config {
-	if ( !fs.existsSync( configPath ) ) {
-		return { ...defaultConfig, uploadDirs: resolveUploadDirs( undefined ) };
+	if (!fs.existsSync(configPath)) {
+		return { ...defaultConfig, uploadDirs: resolveUploadDirs(undefined) };
 	}
-	const rawData = fs.readFileSync( configPath, 'utf-8' );
-	const parsed = JSON.parse( rawData );
-	return resolveConfig( parsed );
+	const rawData = fs.readFileSync(configPath, 'utf-8');
+	const parsed = JSON.parse(rawData);
+	return resolveConfig(parsed);
 }

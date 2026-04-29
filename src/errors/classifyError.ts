@@ -8,7 +8,7 @@ export type ErrorCategory =
 	| 'authentication';
 
 export interface ErrorClassifier {
-	classify( err: unknown ): { category: ErrorCategory; code?: string };
+	classify(err: unknown): { category: ErrorCategory; code?: string };
 }
 
 const MW_CODE_TO_CATEGORY: Record<string, ErrorCategory> = {
@@ -49,39 +49,39 @@ const MW_CODE_TO_CATEGORY: Record<string, ErrorCategory> = {
 	// rate_limited
 	ratelimited: 'rate_limited',
 	// upstream_failure (explicit; unknown codes also fall through here)
-	readonly: 'upstream_failure'
+	readonly: 'upstream_failure',
 };
 
 // mwn sometimes surfaces codes only inside the error message, not on .code.
 // These patterns infer a canonical code from the message, which then routes
 // through MW_CODE_TO_CATEGORY.
-const MESSAGE_FALLBACK_PATTERNS: readonly ( readonly [ RegExp, string ] )[] = [
-	[ /\bmissingtitle\b/i, 'missingtitle' ],
-	[ /\bnosuchrevid\b/i, 'nosuchrevid' ],
-	[ /\bnosuchsection\b/i, 'nosuchsection' ],
-	[ /\beditconflict\b/i, 'editconflict' ],
-	[ /\bratelimited\b/i, 'ratelimited' ]
+const MESSAGE_FALLBACK_PATTERNS: readonly (readonly [RegExp, string])[] = [
+	[/\bmissingtitle\b/i, 'missingtitle'],
+	[/\bnosuchrevid\b/i, 'nosuchrevid'],
+	[/\bnosuchsection\b/i, 'nosuchsection'],
+	[/\beditconflict\b/i, 'editconflict'],
+	[/\bratelimited\b/i, 'ratelimited'],
 ];
 
-export function classifyError( err: unknown ): { category: ErrorCategory; code?: string } {
-	if ( err !== null && typeof err === 'object' ) {
-		const code = ( err as { code?: unknown } ).code;
-		if ( typeof code === 'string' ) {
-			const mapped = MW_CODE_TO_CATEGORY[ code ];
-			if ( mapped ) {
+export function classifyError(err: unknown): { category: ErrorCategory; code?: string } {
+	if (err !== null && typeof err === 'object') {
+		const code = (err as { code?: unknown }).code;
+		if (typeof code === 'string') {
+			const mapped = MW_CODE_TO_CATEGORY[code];
+			if (mapped) {
 				return { category: mapped, code };
 			}
-			if ( /^internal_api_error_/.test( code ) ) {
+			if (/^internal_api_error_/.test(code)) {
 				return { category: 'upstream_failure', code };
 			}
 		}
-		const message = ( err as { message?: unknown } ).message;
-		if ( typeof code !== 'string' && typeof message === 'string' ) {
-			for ( const [ pattern, inferredCode ] of MESSAGE_FALLBACK_PATTERNS ) {
-				if ( pattern.test( message ) ) {
+		const message = (err as { message?: unknown }).message;
+		if (typeof code !== 'string' && typeof message === 'string') {
+			for (const [pattern, inferredCode] of MESSAGE_FALLBACK_PATTERNS) {
+				if (pattern.test(message)) {
 					return {
-						category: MW_CODE_TO_CATEGORY[ inferredCode ],
-						code: inferredCode
+						category: MW_CODE_TO_CATEGORY[inferredCode],
+						code: inferredCode,
 					};
 				}
 			}
@@ -91,7 +91,7 @@ export function classifyError( err: unknown ): { category: ErrorCategory; code?:
 }
 
 export class ErrorClassifierImpl implements ErrorClassifier {
-	public classify( err: unknown ): { category: ErrorCategory; code?: string } {
-		return classifyError( err );
+	public classify(err: unknown): { category: ErrorCategory; code?: string } {
+		return classifyError(err);
 	}
 }

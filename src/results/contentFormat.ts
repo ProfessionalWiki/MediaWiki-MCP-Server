@@ -1,5 +1,5 @@
 export enum ContentFormat {
 	source = 'source',
 	html = 'html',
-	none = 'none'
+	none = 'none',
 }

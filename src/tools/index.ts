@@ -1,6 +1,4 @@
-/* eslint-disable n/no-missing-import */
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
-/* eslint-enable n/no-missing-import */
 
 import { logger } from '../runtime/logger.js';
 import type { Tool } from '../runtime/tool.js';
@@ -36,7 +34,7 @@ import { setWiki } from './set-wiki.js';
 // is invariant in `TSchema`, so `Tool<never>` and `Tool<ZodRawShape>` both
 // fail this assignment. The dispatcher's own generic re-narrows TSchema
 // when each tool's handler is wrapped.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// oxlint-disable-next-line typescript/no-explicit-any
 export const standardTools: Tool<any>[] = [
 	getPage,
 	getPages,
@@ -56,37 +54,33 @@ export const standardTools: Tool<any>[] = [
 	uploadFile,
 	uploadFileFromUrl,
 	updateFile,
-	updateFileFromUrl
+	updateFileFromUrl,
 ];
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const managementTools: Tool<any, ManagementContext>[] = [
-	addWiki,
-	removeWiki,
-	setWiki
-];
+// oxlint-disable-next-line typescript/no-explicit-any
+export const managementTools: Tool<any, ManagementContext>[] = [addWiki, removeWiki, setWiki];
 
 export function registerAllTools(
 	server: McpServer,
 	reconcile: Reconcile,
-	ctx: ToolContext
+	ctx: ToolContext,
 ): Map<string, RegisteredTool> {
 	const registered = new Map<string, RegisteredTool>();
 
-	for ( const tool of standardTools ) {
+	for (const tool of standardTools) {
 		try {
-			registered.set( tool.name, register( server, tool, dispatch( tool, ctx ) ) );
-		} catch ( error ) {
-			logger.error( 'Error registering tool', { error: ( error as Error ).message } );
+			registered.set(tool.name, register(server, tool, dispatch(tool, ctx)));
+		} catch (error) {
+			logger.error('Error registering tool', { error: (error as Error).message });
 		}
 	}
 
 	const mgmtCtx: ManagementContext = { ...ctx, reconcile };
-	for ( const tool of managementTools ) {
+	for (const tool of managementTools) {
 		try {
-			registered.set( tool.name, register( server, tool, dispatch( tool, mgmtCtx ) ) );
-		} catch ( error ) {
-			logger.error( 'Error registering tool', { error: ( error as Error ).message } );
+			registered.set(tool.name, register(server, tool, dispatch(tool, mgmtCtx)));
+		} catch (error) {
+			logger.error('Error registering tool', { error: (error as Error).message });
 		}
 	}
 
