@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - Replaced ESLint and `eslint-config-wikimedia` with oxlint and oxfmt. Coding-style settings live in `.oxlintrc.json` and `.oxfmtrc.json`. Code reformatted to `useTabs: true`, `singleQuote: true`, otherwise oxfmt defaults (trailing commas everywhere, no spaces inside parens or brackets, default print width).
 - Pinned the Dockerfile base image to a specific `node:lts-alpine` digest. Dependabot's new `docker` ecosystem entry tracks digest updates and opens PRs when Alpine/Node publish new images, so base-image patches reach published builds via auditable git history rather than silent rebuilds.
 - The Docker builder stage now installs dependencies with `npm ci --ignore-scripts`, matching the production stage. Stops third-party postinstall scripts from running during the build that the SLSA provenance attestation vouches for.
+- Server startup constructs wiki state explicitly rather than as a side effect of module imports. Internal restructuring; no user-visible behaviour change.
 
 ### Removed
 
