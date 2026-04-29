@@ -48,7 +48,7 @@
 		"fmt:check": "oxfmt --check src tests scripts",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"lint": "oxlint",
+		"lint": "oxlint --tsconfig=./tsconfig.lint.json",
 		"validate:server-json": "node scripts/validate-server-json.cjs",
 		"preflight": "npm ci && npm run lint && npm run fmt:check && npm run validate:server-json && npm run test && npm run build && npm run bundle -- --clean",
 		"prepare": "lefthook install",
@@ -81,6 +81,7 @@
 		"lefthook": "^2.1.6",
 		"oxfmt": "^0.47.0",
 		"oxlint": "^1.62.0",
+		"oxlint-tsgolint": "^0.22.1",
 		"supertest": "^7.2.2",
 		"typescript": "npm:@typescript/typescript6@^6",
 		"vitest": "^4.1.1"
