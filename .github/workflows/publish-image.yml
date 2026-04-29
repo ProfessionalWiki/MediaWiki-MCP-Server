@@ -58,6 +58,11 @@ jobs:
           sbom: true
           provenance: mode=max
 
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ghcr.io/professionalwiki/mediawiki-mcp-server
+          subject-digest: ${{ steps.build.outputs.digest }}
+
       - if: startsWith(github.ref, 'refs/tags/v')
         uses: sigstore/cosign-installer@v4.1.1
 
