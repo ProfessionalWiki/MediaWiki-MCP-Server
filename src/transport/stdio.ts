@@ -25,6 +25,8 @@ async function main(): Promise<void> {
 	const server = createServer(ctx);
 
 	await server.connect(transport);
+	// Stdio has no in-flight queue, so grace doesn't apply — log graceMs: 0
+	// to make that explicit in the shutdown event.
 	registerShutdownHandlers({
 		transport: 'stdio',
 		graceMs: 0,
@@ -33,6 +35,9 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
+	// Bootstrap fail-safe: see the equivalent block in src/index.ts. Logger
+	// module not used here intentionally so a logger import failure can't
+	// suppress this path.
 	console.error('Server error:', error);
 	throw error;
 });

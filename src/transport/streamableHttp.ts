@@ -25,6 +25,8 @@ import {
 } from '../runtime/metrics.js';
 import { runtimeTokenStore } from './requestContext.js';
 import { loadConfigFromFile } from '../config/loadConfig.js';
+import type { MwnProvider } from '../wikis/mwnProvider.js';
+import type { WikiSelection } from '../wikis/wikiSelection.js';
 import { createAppState } from '../wikis/state.js';
 import { createServer } from '../server.js';
 import { emitStartupBanner } from '../runtime/banner.js';
@@ -250,8 +252,8 @@ export function __resetReadyCacheForTesting(): void {
 }
 
 async function probeDefaultWiki(
-	wikiSelection: import('../wikis/wikiSelection.js').WikiSelection,
-	mwnProvider: import('../wikis/mwnProvider.js').MwnProvider,
+	wikiSelection: WikiSelection,
+	mwnProvider: MwnProvider,
 ): Promise<ReadyCacheEntry> {
 	const wiki = wikiSelection.getCurrent().key;
 	const checkedAt = new Date().toISOString();
@@ -293,6 +295,8 @@ async function probeDefaultWiki(
 	}
 }
 
+// Test seam: exported so the timeout test can call the probe directly,
+// bypassing supertest's lazy request sending under vi.useFakeTimers.
 export const __probeDefaultWikiForTesting = probeDefaultWiki;
 
 export function mountMetricsEndpoint(app: express.Express): void {
@@ -309,13 +313,16 @@ export function mountMetricsEndpoint(app: express.Express): void {
 export function mountReadyEndpoint(
 	app: express.Express,
 	deps: {
-		wikiSelection: import('../wikis/wikiSelection.js').WikiSelection;
-		mwnProvider: import('../wikis/mwnProvider.js').MwnProvider;
+		wikiSelection: WikiSelection;
+		mwnProvider: MwnProvider;
 	},
 ): void {
 	app.get('/ready', async (_req, res) => {
 		if (!readyCache || Date.now() >= readyCache.expiresAt) {
 			readyCache = await probeDefaultWiki(deps.wikiSelection, deps.mwnProvider);
+			// Count distinct probe failures, not cached replays — K8s readiness
+			// probes that fire every second would otherwise inflate the counter
+			// 5x against a 5s cache for the same underlying outage.
 			if (readyCache.httpStatus !== 200) {
 				recordReadyFailure();
 			}
@@ -324,6 +331,10 @@ export function mountReadyEndpoint(
 	});
 }
 
+// Wiki config must load before HTTP config so evaluateBearerGuard below
+// can inspect wikiRegistry.getAll() to decide whether static credentials
+// are configured. resolveHttpConfig() reads only env vars and is order-
+// independent — placed after for visual grouping with the HTTP setup.
 const config = loadConfigFromFile();
 const state = createAppState(config);
 const { host, port, allowedHosts, allowedOrigins, maxRequestBody, warnings } = resolveHttpConfig();

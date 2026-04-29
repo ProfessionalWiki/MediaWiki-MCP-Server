@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -85,7 +85,6 @@ async function connectClientAndServer(): Promise<{ client: Client; server: McpSe
 
 describe('registerAllTools — wiki management gating', () => {
 	beforeEach(() => {
-		vi.clearAllMocks();
 		wikiStore.current = wikiA;
 	});
 
@@ -176,7 +175,6 @@ describe('registerAllTools — wiki management gating', () => {
 
 describe('registerAllTools — per-wiki readOnly', () => {
 	beforeEach(() => {
-		vi.clearAllMocks();
 		isManagementAllowedRef.current = true;
 		wikiStore.current = wikiA;
 	});
