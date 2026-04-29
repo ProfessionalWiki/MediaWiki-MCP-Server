@@ -5,11 +5,13 @@ describe('resolveShutdownGrace', () => {
 	let stderrSpy: ReturnType<typeof vi.spyOn>;
 
 	beforeEach(() => {
+		vi.stubEnv('MCP_LOG_LEVEL', 'debug');
 		stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 	});
 
 	afterEach(() => {
 		stderrSpy.mockRestore();
+		vi.unstubAllEnvs();
 	});
 
 	function warningLines(): string[] {
@@ -81,11 +83,13 @@ describe('registerShutdownHandlers (http)', () => {
 	let stderrSpy: ReturnType<typeof vi.spyOn>;
 
 	beforeEach(() => {
+		vi.stubEnv('MCP_LOG_LEVEL', 'debug');
 		stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 	});
 
 	afterEach(() => {
 		stderrSpy.mockRestore();
+		vi.unstubAllEnvs();
 	});
 
 	function setup(opts: { inFlight: number; sessions: number; graceMs?: number }) {
@@ -199,11 +203,13 @@ describe('registerShutdownHandlers (stdio)', () => {
 	let stderrSpy: ReturnType<typeof vi.spyOn>;
 
 	beforeEach(() => {
+		vi.stubEnv('MCP_LOG_LEVEL', 'debug');
 		stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 	});
 
 	afterEach(() => {
 		stderrSpy.mockRestore();
+		vi.unstubAllEnvs();
 	});
 
 	it('closes the stdio transport and exits 0', async () => {

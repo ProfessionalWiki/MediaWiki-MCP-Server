@@ -31,6 +31,34 @@ export function getRegisteredServerCount(): number {
 
 const RESERVED_KEYS = new Set<string>(['ts', 'level', 'message']);
 
+const LEVEL_RANK: Record<LogLevel | 'silent', number> = {
+	debug: 0,
+	info: 1,
+	notice: 2,
+	warning: 3,
+	error: 4,
+	critical: 5,
+	alert: 6,
+	emergency: 7,
+	silent: 8,
+};
+
+function isThresholdKey(raw: string): raw is keyof typeof LEVEL_RANK {
+	return Object.hasOwn(LEVEL_RANK, raw);
+}
+
+function currentThreshold(): number {
+	const raw = process.env.MCP_LOG_LEVEL;
+	if (raw === undefined || raw === '') {
+		return LEVEL_RANK.debug;
+	}
+	if (!isThresholdKey(raw)) {
+		const valid = Object.keys(LEVEL_RANK).join(', ');
+		throw new Error(`Invalid MCP_LOG_LEVEL "${raw}". Valid values: ${valid}.`);
+	}
+	return LEVEL_RANK[raw];
+}
+
 function buildLogObject(
 	level: LogLevel,
 	message: string,
@@ -61,11 +89,17 @@ const swallowNotificationError = (): undefined => undefined;
 // sendLoggingMessage broadcast. Used for operator-facing telemetry
 // (e.g. tool_call events) that must not leak to connected clients.
 export function emitTelemetryEvent(level: LogLevel, data: LogContext): void {
+	if (LEVEL_RANK[level] < currentThreshold()) {
+		return;
+	}
 	const line = buildLogObject(level, '', data);
 	process.stderr.write(JSON.stringify(line) + '\n');
 }
 
 function emit(level: LogLevel, message: string, data?: LogContext): void {
+	if (LEVEL_RANK[level] < currentThreshold()) {
+		return;
+	}
 	const line = buildLogObject(level, message, data);
 	process.stderr.write(JSON.stringify(line) + '\n');
 

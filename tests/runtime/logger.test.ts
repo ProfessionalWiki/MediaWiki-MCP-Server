@@ -4,6 +4,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
 	clearRegisteredServers,
+	emitTelemetryEvent,
 	getRegisteredServerCount,
 	logger,
 	registerServer,
@@ -30,12 +31,14 @@ describe('logger', () => {
 	let stderrSpy: ReturnType<typeof vi.spyOn>;
 
 	beforeEach(() => {
+		vi.stubEnv('MCP_LOG_LEVEL', 'debug');
 		stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 	});
 
 	afterEach(() => {
 		clearRegisteredServers();
 		stderrSpy.mockRestore();
+		vi.unstubAllEnvs();
 	});
 
 	describe('stderr output (JSON per line)', () => {
@@ -165,6 +168,67 @@ describe('logger', () => {
 			expect(() => logger.error('boom')).not.toThrow();
 			// Allow microtask to flush so the .catch handler runs.
 			await new Promise((resolve) => setImmediate(resolve));
+		});
+	});
+
+	describe('MCP_LOG_LEVEL threshold', () => {
+		it('drops below-threshold stderr writes', () => {
+			vi.stubEnv('MCP_LOG_LEVEL', 'warning');
+			logger.info('should be filtered');
+			expect(stderrSpy).not.toHaveBeenCalled();
+		});
+
+		it('emits at-or-above-threshold messages', () => {
+			vi.stubEnv('MCP_LOG_LEVEL', 'warning');
+			logger.warning('kept');
+			logger.error('also kept');
+			expect(stderrSpy).toHaveBeenCalledTimes(2);
+		});
+
+		it('silent drops every level including emergency', () => {
+			vi.stubEnv('MCP_LOG_LEVEL', 'silent');
+			logger.debug('no');
+			logger.info('no');
+			logger.warning('no');
+			logger.error('no');
+			logger.emergency('no');
+			expect(stderrSpy).not.toHaveBeenCalled();
+		});
+
+		it('unset env behaves like debug (everything emits)', () => {
+			vi.stubEnv('MCP_LOG_LEVEL', '');
+			logger.debug('kept');
+			logger.info('kept');
+			expect(stderrSpy).toHaveBeenCalledTimes(2);
+		});
+
+		it('throws on first emit with an invalid value', () => {
+			vi.stubEnv('MCP_LOG_LEVEL', 'verbose');
+			expect(() => logger.info('x')).toThrow(
+				/MCP_LOG_LEVEL.*verbose.*debug.*info.*notice.*warning.*error.*critical.*alert.*emergency.*silent/s,
+			);
+		});
+
+		it('throws on prototype-chain keys like toString', () => {
+			vi.stubEnv('MCP_LOG_LEVEL', 'toString');
+			expect(() => logger.info('x')).toThrow(/MCP_LOG_LEVEL.*toString/s);
+		});
+
+		it('does not broadcast to registered servers when below threshold', () => {
+			vi.stubEnv('MCP_LOG_LEVEL', 'warning');
+			const fake = fakeServer();
+			registerServer(asMcpServer(fake));
+			logger.info('filtered');
+			expect(fake.sendLoggingMessage).not.toHaveBeenCalled();
+			unregisterServer(asMcpServer(fake));
+		});
+
+		it('gates emitTelemetryEvent with the same threshold', () => {
+			vi.stubEnv('MCP_LOG_LEVEL', 'warning');
+			emitTelemetryEvent('info', { event: 'tool_call', tool: 'x' });
+			expect(stderrSpy).not.toHaveBeenCalled();
+			emitTelemetryEvent('error', { event: 'tool_call', tool: 'x' });
+			expect(stderrSpy).toHaveBeenCalledTimes(1);
 		});
 	});
 });
