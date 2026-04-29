@@ -32,6 +32,12 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ghcr.io/professionalwiki/mediawiki-mcp-server
+          labels: |
+            org.opencontainers.image.title=MediaWiki MCP Server
+            org.opencontainers.image.description=Model Context Protocol (MCP) server for MediaWiki
+            org.opencontainers.image.authors=Professional Wiki
+            org.opencontainers.image.url=https://professional.wiki/en/mediawiki-mcp-server
+            org.opencontainers.image.licenses=MIT
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
