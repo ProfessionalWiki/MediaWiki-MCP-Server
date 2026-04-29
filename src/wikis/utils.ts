@@ -1,6 +1,6 @@
-import { wikiSelection } from './state.js';
+import type { WikiSelection } from './wikiSelection.js';
 
-export function getPageUrl(title: string): string {
+export function getPageUrl(title: string, wikiSelection: WikiSelection): string {
 	const { server, articlepath } = wikiSelection.getCurrent().config;
 	// MediaWiki convention: spaces become underscores. encodeURI preserves
 	// '/' (subpages) and ':' (namespace prefixes) while encoding spaces and

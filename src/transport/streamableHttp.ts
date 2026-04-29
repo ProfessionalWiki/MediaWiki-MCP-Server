@@ -24,7 +24,8 @@ import {
 	setSessionsProvider,
 } from '../runtime/metrics.js';
 import { runtimeTokenStore } from './requestContext.js';
-import { wikiRegistry, wikiSelection, mwnProvider } from '../wikis/state.js';
+import { loadConfigFromFile } from '../config/loadConfig.js';
+import { createAppState } from '../wikis/state.js';
 import { createServer } from '../server.js';
 import { emitStartupBanner } from '../runtime/banner.js';
 import { createToolContext } from '../runtime/createContext.js';
@@ -248,7 +249,10 @@ export function __resetReadyCacheForTesting(): void {
 	readyCache = null;
 }
 
-async function probeDefaultWiki(): Promise<ReadyCacheEntry> {
+async function probeDefaultWiki(
+	wikiSelection: import('../wikis/wikiSelection.js').WikiSelection,
+	mwnProvider: import('../wikis/mwnProvider.js').MwnProvider,
+): Promise<ReadyCacheEntry> {
 	const wiki = wikiSelection.getCurrent().key;
 	const checkedAt = new Date().toISOString();
 	let timer: ReturnType<typeof setTimeout> | undefined;
@@ -289,8 +293,6 @@ async function probeDefaultWiki(): Promise<ReadyCacheEntry> {
 	}
 }
 
-// Test seam: exported so the timeout test can call the probe directly,
-// bypassing supertest's lazy request sending under vi.useFakeTimers.
 export const __probeDefaultWikiForTesting = probeDefaultWiki;
 
 export function mountMetricsEndpoint(app: express.Express): void {
@@ -304,13 +306,16 @@ export function mountMetricsEndpoint(app: express.Express): void {
 	}
 }
 
-export function mountReadyEndpoint(app: express.Express): void {
+export function mountReadyEndpoint(
+	app: express.Express,
+	deps: {
+		wikiSelection: import('../wikis/wikiSelection.js').WikiSelection;
+		mwnProvider: import('../wikis/mwnProvider.js').MwnProvider;
+	},
+): void {
 	app.get('/ready', async (_req, res) => {
 		if (!readyCache || Date.now() >= readyCache.expiresAt) {
-			readyCache = await probeDefaultWiki();
-			// Count distinct probe failures, not cached replays — K8s readiness
-			// probes that fire every second would otherwise inflate the counter
-			// 5x against a 5s cache for the same underlying outage.
+			readyCache = await probeDefaultWiki(deps.wikiSelection, deps.mwnProvider);
 			if (readyCache.httpStatus !== 200) {
 				recordReadyFailure();
 			}
@@ -319,8 +324,10 @@ export function mountReadyEndpoint(app: express.Express): void {
 	});
 }
 
+const config = loadConfigFromFile();
+const state = createAppState(config);
 const { host, port, allowedHosts, allowedOrigins, maxRequestBody, warnings } = resolveHttpConfig();
-const guard = evaluateBearerGuard(wikiRegistry.getAll(), process.env);
+const guard = evaluateBearerGuard(state.wikiRegistry.getAll(), process.env);
 if (guard.kind === 'block') {
 	logger.error(
 		'HTTP transport refuses to start because static credentials are configured for wiki(s): ' +
@@ -345,12 +352,14 @@ if (guard.kind === 'override') {
 for (const warning of warnings) {
 	logger.warning(warning);
 }
-// Emit the process-level startup banner before any HTTP request
-// can spin up a per-session McpServer.
-emitStartupBanner({
-	transport: 'http',
-	http: { host, port, allowedHosts, allowedOrigins, maxRequestBody },
-});
+emitStartupBanner(
+	{ transport: 'http', http: { host, port, allowedHosts, allowedOrigins, maxRequestBody } },
+	{
+		wikiRegistry: state.wikiRegistry,
+		wikiSelection: state.wikiSelection,
+		uploadDirs: state.uploadDirs,
+	},
+);
 
 const app = express();
 app.use(express.json({ limit: maxRequestBody }));
@@ -371,7 +380,7 @@ if ((host === '0.0.0.0' || host === '::') && !allowedOrigins) {
 
 const sessions: SessionRegistry = {};
 const sessionRequestHandler = createSessionRequestHandler(sessions);
-const ctx = createToolContext({ logger });
+const ctx = createToolContext({ logger, state });
 
 const inFlight = createInFlightCounter();
 app.use('/mcp', inFlight.middleware);
@@ -383,12 +392,11 @@ app.post(
 app.get('/mcp', sessionRequestHandler);
 app.delete('/mcp', sessionRequestHandler);
 
-// Used for the health check in the container
 app.get('/health', (_req: Request, res: Response) => {
 	res.status(200).json({ status: 'ok' });
 });
 
-mountReadyEndpoint(app);
+mountReadyEndpoint(app, { wikiSelection: state.wikiSelection, mwnProvider: state.mwnProvider });
 mountMetricsEndpoint(app);
 setSessionsProvider(() => Object.keys(sessions).length);
 

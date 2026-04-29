@@ -85,7 +85,7 @@ export const getRevision: Tool<typeof inputSchema> = {
 			payload.revisionId = rev.revid;
 			payload.pageId = page.pageid;
 			payload.title = page.title;
-			payload.url = getPageUrl(page.title);
+			payload.url = getPageUrl(page.title, ctx.selection);
 
 			if (needsMetadata) {
 				payload.userid = rev.userid;
@@ -117,7 +117,7 @@ export const getRevision: Tool<typeof inputSchema> = {
 				}
 				if (parseResult.parse?.title !== undefined) {
 					payload.title = parseResult.parse.title;
-					payload.url = getPageUrl(parseResult.parse.title);
+					payload.url = getPageUrl(parseResult.parse.title, ctx.selection);
 				}
 			}
 		}

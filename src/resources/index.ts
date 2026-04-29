@@ -4,7 +4,6 @@ import type { Resource } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolContext } from '../runtime/context.js';
 import type { WikiConfig, PublicWikiConfig } from '../config/loadConfig.js';
 import { WIKI_RESOURCE_URI_PREFIX } from '../runtime/constants.js';
-import { licenseCache } from '../wikis/state.js';
 import type { LicenseInfo } from '../wikis/licenseCache.js';
 
 function sanitize(wikiConfig: Readonly<WikiConfig>): PublicWikiConfig {
@@ -13,7 +12,7 @@ function sanitize(wikiConfig: Readonly<WikiConfig>): PublicWikiConfig {
 }
 
 async function getLicenseInfo(ctx: ToolContext, wikiKey: string): Promise<LicenseInfo | undefined> {
-	const cached = licenseCache.get(wikiKey);
+	const cached = ctx.licenseCache.get(wikiKey);
 	if (cached) {
 		return cached;
 	}
@@ -30,7 +29,7 @@ async function getLicenseInfo(ctx: ToolContext, wikiKey: string): Promise<Licens
 		const rightsInfo = response.query?.rightsinfo;
 		if (rightsInfo?.url && rightsInfo.text) {
 			const info: LicenseInfo = { url: rightsInfo.url, title: rightsInfo.text };
-			licenseCache.set(wikiKey, info);
+			ctx.licenseCache.set(wikiKey, info);
 			return info;
 		}
 	} catch {

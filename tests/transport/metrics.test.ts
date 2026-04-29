@@ -2,28 +2,28 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const mockRequest = vi.fn();
 
-vi.mock('../../src/wikis/state.js', () => ({
-	wikiRegistry: {
-		getAll: () => ({}),
-		get: () => undefined,
-		add: () => {},
-		remove: () => {},
-		isManagementAllowed: () => false,
-	},
-	wikiSelection: {
-		getCurrent: () => ({ key: 'example.org', config: {} }),
-		setCurrent: () => {},
-		reset: () => {},
-	},
-	uploadDirs: { list: () => [] },
-	mwnProvider: {
-		get: async () => ({ request: mockRequest }),
-		invalidate: () => {},
-	},
-	licenseCache: {
-		get: () => undefined,
-		set: () => {},
-		delete: () => {},
+vi.mock('../../src/config/loadConfig.js', () => ({
+	loadConfigFromFile: () => ({
+		defaultWiki: 'example.org',
+		wikis: {
+			'example.org': {
+				sitename: 'Example',
+				server: 'https://example.org',
+				articlepath: '/wiki',
+				scriptpath: '/w',
+				token: null,
+				username: null,
+				password: null,
+			},
+		},
+		uploadDirs: [],
+	}),
+}));
+
+vi.mock('../../src/wikis/mwnProvider.js', () => ({
+	MwnProviderImpl: class {
+		get = async () => ({ request: mockRequest });
+		invalidate = () => {};
 	},
 }));
 
@@ -36,10 +36,21 @@ import {
 } from '../../src/transport/streamableHttp.js';
 import { __resetMetricsForTesting, setSessionsProvider } from '../../src/runtime/metrics.js';
 
+const mockWikiSelection = {
+	getCurrent: () => ({ key: 'example.org', config: {} }),
+	setCurrent: () => {},
+	reset: () => {},
+};
+
+const mockMwnProvider = {
+	get: async () => ({ request: mockRequest }),
+	invalidate: () => {},
+};
+
 function makeApp(): express.Express {
 	const app = express();
 	mountMetricsEndpoint(app);
-	mountReadyEndpoint(app);
+	mountReadyEndpoint(app, { wikiSelection: mockWikiSelection as never, mwnProvider: mockMwnProvider as never });
 	return app;
 }
 

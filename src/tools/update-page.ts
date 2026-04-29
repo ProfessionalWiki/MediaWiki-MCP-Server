@@ -124,7 +124,7 @@ export const updatePage: Tool<typeof inputSchema> = {
 			latestRevisionId: edit.newrevid,
 			latestRevisionTimestamp: edit.newtimestamp,
 			contentModel: edit.contentmodel,
-			url: getPageUrl(resolvedTitle),
+			url: getPageUrl(resolvedTitle, ctx.selection),
 		});
 	},
 };

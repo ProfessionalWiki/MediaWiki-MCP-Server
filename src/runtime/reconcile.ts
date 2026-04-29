@@ -1,6 +1,7 @@
 import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { WikiConfig } from '../config/loadConfig.js';
-import { wikiRegistry, wikiSelection } from '../wikis/state.js';
+import type { WikiRegistry } from '../wikis/wikiRegistry.js';
+import type { WikiSelection } from '../wikis/wikiSelection.js';
 
 export type Reconcile = () => void;
 
@@ -13,7 +14,11 @@ const WRITE_TOOL_NAMES: readonly string[] = [
 	'upload-file-from-url',
 ];
 
-export function reconcileTools(tools: Map<string, RegisteredTool>): void {
+export function reconcileTools(
+	tools: Map<string, RegisteredTool>,
+	wikiRegistry: WikiRegistry,
+	wikiSelection: WikiSelection,
+): void {
 	const activeWiki = wikiSelection.getCurrent().config;
 	const wikiCount = Object.keys(wikiRegistry.getAll()).length;
 	const allowManagement = wikiRegistry.isManagementAllowed();

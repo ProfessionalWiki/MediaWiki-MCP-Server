@@ -4,6 +4,8 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 import { reconcileTools } from '../../src/runtime/reconcile.js';
+import { registerAllTools } from '../../src/tools/index.js';
+import { fakeContext } from '../helpers/fakeContext.js';
 
 const wikiA: WikiConfig = {
 	sitename: 'Writeable',
@@ -26,30 +28,7 @@ const wikiStore: { current: WikiConfig; byKey: Record<string, WikiConfig> } = {
 	byKey: { a: wikiA, b: wikiB },
 };
 
-vi.mock('../../src/wikis/state.js', () => ({
-	wikiRegistry: {
-		getAll: vi.fn(() => wikiStore.byKey),
-		get: vi.fn((key: string) => wikiStore.byKey[key]),
-		isManagementAllowed: vi.fn(),
-	},
-	wikiSelection: {
-		getCurrent: vi.fn(() => ({
-			key:
-				Object.keys(wikiStore.byKey).find((k) => wikiStore.byKey[k] === wikiStore.current) ?? 'a',
-			config: wikiStore.current,
-		})),
-		setCurrent: vi.fn((key: string) => {
-			if (!wikiStore.byKey[key]) {
-				throw new Error(`Wiki "${key}" not found`);
-			}
-			wikiStore.current = wikiStore.byKey[key];
-		}),
-	},
-}));
-
-import { wikiRegistry } from '../../src/wikis/state.js';
-import { registerAllTools } from '../../src/tools/index.js';
-import { fakeContext } from '../helpers/fakeContext.js';
+const isManagementAllowedRef = { current: true };
 
 const WRITE_TOOLS = [
 	'create-page',
@@ -70,25 +49,27 @@ async function connectClientAndServer(): Promise<{ client: Client; server: McpSe
 		{ capabilities: { tools: { listChanged: true } } },
 	);
 	const tools = new Map<string, RegisteredTool>();
-	const reconcile = () => reconcileTools(tools);
+	const wikiRegistryMock = {
+		getAll: () => wikiStore.byKey,
+		get: (key: string) => wikiStore.byKey[key],
+		add: () => {},
+		remove: () => {},
+		isManagementAllowed: () => isManagementAllowedRef.current,
+	};
+	const wikiSelectionMock = {
+		getCurrent: () => ({ key: currentKey(), config: wikiStore.current }),
+		setCurrent: (key: string) => {
+			if (!wikiStore.byKey[key]) {
+				throw new Error(`Wiki "${key}" not found`);
+			}
+			wikiStore.current = wikiStore.byKey[key];
+		},
+		reset: () => {},
+	};
+	const reconcile = () => reconcileTools(tools, wikiRegistryMock, wikiSelectionMock);
 	const ctx = fakeContext({
-		wikis: {
-			getAll: () => wikiStore.byKey,
-			get: (key: string) => wikiStore.byKey[key],
-			add: () => {},
-			remove: () => {},
-			isManagementAllowed: () => wikiRegistry.isManagementAllowed(),
-		},
-		selection: {
-			getCurrent: () => ({ key: currentKey(), config: wikiStore.current }),
-			setCurrent: (key: string) => {
-				if (!wikiStore.byKey[key]) {
-					throw new Error(`Wiki "${key}" not found`);
-				}
-				wikiStore.current = wikiStore.byKey[key];
-			},
-			reset: () => {},
-		},
+		wikis: wikiRegistryMock,
+		selection: wikiSelectionMock,
 	});
 	const registered = registerAllTools(server, reconcile, ctx);
 	for (const [name, tool] of registered) {
@@ -109,8 +90,7 @@ describe('registerAllTools — wiki management gating', () => {
 	});
 
 	it('lists add-wiki and remove-wiki when wiki management is allowed', async () => {
-		// oxlint-disable-next-line typescript/unbound-method -- vitest mock, bound at call time
-		vi.mocked(wikiRegistry.isManagementAllowed).mockReturnValue(true);
+		isManagementAllowedRef.current = true;
 		const { client } = await connectClientAndServer();
 
 		const { tools } = await client.listTools();
@@ -122,8 +102,7 @@ describe('registerAllTools — wiki management gating', () => {
 	});
 
 	it('omits add-wiki and remove-wiki but keeps set-wiki when management is disallowed and 2+ wikis are configured', async () => {
-		// oxlint-disable-next-line typescript/unbound-method -- vitest mock, bound at call time
-		vi.mocked(wikiRegistry.isManagementAllowed).mockReturnValue(false);
+		isManagementAllowedRef.current = false;
 		const { client } = await connectClientAndServer();
 
 		const { tools } = await client.listTools();
@@ -136,8 +115,7 @@ describe('registerAllTools — wiki management gating', () => {
 	});
 
 	it('hides set-wiki, add-wiki, and remove-wiki on the hosted single-wiki shape (1 wiki + management disallowed)', async () => {
-		// oxlint-disable-next-line typescript/unbound-method -- vitest mock, bound at call time
-		vi.mocked(wikiRegistry.isManagementAllowed).mockReturnValue(false);
+		isManagementAllowedRef.current = false;
 		const originalByKey = wikiStore.byKey;
 		wikiStore.byKey = { a: wikiA };
 		try {
@@ -156,8 +134,7 @@ describe('registerAllTools — wiki management gating', () => {
 	});
 
 	it('rejects calls to add-wiki with a disabled error when wiki management is disallowed', async () => {
-		// oxlint-disable-next-line typescript/unbound-method -- vitest mock, bound at call time
-		vi.mocked(wikiRegistry.isManagementAllowed).mockReturnValue(false);
+		isManagementAllowedRef.current = false;
 		const { client } = await connectClientAndServer();
 
 		const result = await client.callTool({
@@ -171,8 +148,7 @@ describe('registerAllTools — wiki management gating', () => {
 	});
 
 	it('shows set-wiki and remove-wiki when 2 wikis are configured and management is allowed', async () => {
-		// oxlint-disable-next-line typescript/unbound-method -- vitest mock, bound at call time
-		vi.mocked(wikiRegistry.isManagementAllowed).mockReturnValue(true);
+		isManagementAllowedRef.current = true;
 		const { client } = await connectClientAndServer();
 
 		const names = (await client.listTools()).tools.map((t) => t.name);
@@ -182,8 +158,7 @@ describe('registerAllTools — wiki management gating', () => {
 	});
 
 	it('hides set-wiki and remove-wiki when only 1 wiki is configured and management is allowed', async () => {
-		// oxlint-disable-next-line typescript/unbound-method -- vitest mock, bound at call time
-		vi.mocked(wikiRegistry.isManagementAllowed).mockReturnValue(true);
+		isManagementAllowedRef.current = true;
 		const originalByKey = wikiStore.byKey;
 		wikiStore.byKey = { a: wikiA };
 		try {
@@ -202,8 +177,7 @@ describe('registerAllTools — wiki management gating', () => {
 describe('registerAllTools — per-wiki readOnly', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		// oxlint-disable-next-line typescript/unbound-method -- vitest mock, bound at call time
-		vi.mocked(wikiRegistry.isManagementAllowed).mockReturnValue(true);
+		isManagementAllowedRef.current = true;
 		wikiStore.current = wikiA;
 	});
 

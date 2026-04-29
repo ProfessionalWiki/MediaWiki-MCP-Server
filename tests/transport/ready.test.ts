@@ -2,28 +2,28 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const mockRequest = vi.fn();
 
-vi.mock('../../src/wikis/state.js', () => ({
-	wikiRegistry: {
-		getAll: () => ({}),
-		get: () => undefined,
-		add: () => {},
-		remove: () => {},
-		isManagementAllowed: () => false,
-	},
-	wikiSelection: {
-		getCurrent: () => ({ key: 'example.org', config: {} }),
-		setCurrent: () => {},
-		reset: () => {},
-	},
-	uploadDirs: { list: () => [] },
-	mwnProvider: {
-		get: async () => ({ request: mockRequest }),
-		invalidate: () => {},
-	},
-	licenseCache: {
-		get: () => undefined,
-		set: () => {},
-		delete: () => {},
+vi.mock('../../src/config/loadConfig.js', () => ({
+	loadConfigFromFile: () => ({
+		defaultWiki: 'example.org',
+		wikis: {
+			'example.org': {
+				sitename: 'Example',
+				server: 'https://example.org',
+				articlepath: '/wiki',
+				scriptpath: '/w',
+				token: null,
+				username: null,
+				password: null,
+			},
+		},
+		uploadDirs: [],
+	}),
+}));
+
+vi.mock('../../src/wikis/mwnProvider.js', () => ({
+	MwnProviderImpl: class {
+		get = async () => ({ request: mockRequest });
+		invalidate = () => {};
 	},
 }));
 
@@ -35,9 +35,20 @@ import {
 	__probeDefaultWikiForTesting,
 } from '../../src/transport/streamableHttp.js';
 
+const mockWikiSelection = {
+	getCurrent: () => ({ key: 'example.org', config: {} }),
+	setCurrent: () => {},
+	reset: () => {},
+};
+
+const mockMwnProvider = {
+	get: async () => ({ request: mockRequest }),
+	invalidate: () => {},
+};
+
 function makeApp() {
 	const app = express();
-	mountReadyEndpoint(app);
+	mountReadyEndpoint(app, { wikiSelection: mockWikiSelection as never, mwnProvider: mockMwnProvider as never });
 	return app;
 }
 
@@ -86,7 +97,10 @@ describe('/ready', () => {
 		vi.useFakeTimers();
 		mockRequest.mockReturnValue(new Promise(() => undefined));
 
-		const probePromise = __probeDefaultWikiForTesting();
+		const probePromise = __probeDefaultWikiForTesting(
+			mockWikiSelection as never,
+			mockMwnProvider as never,
+		);
 		await vi.advanceTimersByTimeAsync(3001);
 		const entry = await probePromise;
 

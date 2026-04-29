@@ -69,7 +69,7 @@ export const searchPage: Tool<typeof inputSchema> = {
 				size: r.size,
 				wordCount: (r as ApiSearchResult & { wordcount?: number }).wordcount,
 				timestamp: r.timestamp,
-				url: getPageUrl(r.title),
+				url: getPageUrl(r.title, ctx.selection),
 			})),
 			...(truncation !== null ? { truncation } : {}),
 		});

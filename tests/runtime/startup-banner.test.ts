@@ -1,31 +1,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-
-vi.mock('../../src/wikis/state.js', () => ({
-	wikiRegistry: {
-		getAll: () => ({ 'a.example': { sitename: 'A', server: 'https://a' } }),
-		get: () => undefined,
-		add: () => {},
-		remove: () => {},
-		isManagementAllowed: () => false,
-	},
-	wikiSelection: {
-		getCurrent: () => ({ key: 'a.example', config: {} }),
-		setCurrent: () => {},
-		reset: () => {},
-	},
-	uploadDirs: { list: () => [] },
-	mwnProvider: {
-		get: () => Promise.reject(new Error('mwn not available in tests')),
-		invalidate: () => {},
-	},
-	licenseCache: {
-		get: () => undefined,
-		set: () => {},
-		delete: () => {},
-	},
-}));
-
 import { emitStartupBanner } from '../../src/runtime/banner.js';
+
+const mockWikiRegistry = {
+	getAll: () => ({ 'a.example': { sitename: 'A', server: 'https://a' } }),
+	get: () => undefined,
+	add: () => {},
+	remove: () => {},
+	isManagementAllowed: () => false,
+};
+
+const mockWikiSelection = {
+	getCurrent: () => ({ key: 'a.example', config: {} }),
+	setCurrent: () => {},
+	reset: () => {},
+};
+
+const mockUploadDirs = { list: () => [] };
 
 function captureLines(spy: ReturnType<typeof vi.spyOn>): Record<string, unknown>[] {
 	return spy.mock.calls
@@ -46,7 +36,14 @@ describe('startup banner', () => {
 	});
 
 	it('emits exactly one startup event for stdio', () => {
-		emitStartupBanner({ transport: 'stdio' });
+		emitStartupBanner(
+			{ transport: 'stdio' },
+			{
+				wikiRegistry: mockWikiRegistry as never,
+				wikiSelection: mockWikiSelection as never,
+				uploadDirs: mockUploadDirs,
+			},
+		);
 
 		const events = captureLines(stderrSpy).filter((e) => e.event === 'startup');
 		expect(events).toHaveLength(1);
@@ -66,16 +63,23 @@ describe('startup banner', () => {
 	});
 
 	it('includes http fields when transport is http', () => {
-		emitStartupBanner({
-			transport: 'http',
-			http: {
-				host: '0.0.0.0',
-				port: 8080,
-				allowedHosts: ['wiki.example.org'],
-				allowedOrigins: ['https://wiki.example.org'],
-				maxRequestBody: '2mb',
+		emitStartupBanner(
+			{
+				transport: 'http',
+				http: {
+					host: '0.0.0.0',
+					port: 8080,
+					allowedHosts: ['wiki.example.org'],
+					allowedOrigins: ['https://wiki.example.org'],
+					maxRequestBody: '2mb',
+				},
 			},
-		});
+			{
+				wikiRegistry: mockWikiRegistry as never,
+				wikiSelection: mockWikiSelection as never,
+				uploadDirs: mockUploadDirs,
+			},
+		);
 
 		const events = captureLines(stderrSpy).filter((e) => e.event === 'startup');
 		expect(events).toHaveLength(1);
@@ -90,10 +94,17 @@ describe('startup banner', () => {
 	});
 
 	it('omits allowed_hosts/origins when not provided but always emits max_request_body', () => {
-		emitStartupBanner({
-			transport: 'http',
-			http: { host: '127.0.0.1', port: 3000, maxRequestBody: '1mb' },
-		});
+		emitStartupBanner(
+			{
+				transport: 'http',
+				http: { host: '127.0.0.1', port: 3000, maxRequestBody: '1mb' },
+			},
+			{
+				wikiRegistry: mockWikiRegistry as never,
+				wikiSelection: mockWikiSelection as never,
+				uploadDirs: mockUploadDirs,
+			},
+		);
 
 		const e = captureLines(stderrSpy).find((x) => x.event === 'startup');
 		expect(e).toBeDefined();
@@ -103,37 +114,25 @@ describe('startup banner', () => {
 		expect(e!.max_request_body).toBe('1mb');
 	});
 
-	it('classifies static-credential and never logs the token value', async () => {
-		vi.resetModules();
-		vi.doMock('../../src/wikis/state.js', () => ({
-			wikiRegistry: {
-				getAll: () => ({
-					'a.example': { sitename: 'A', server: 'https://a', token: 'SUPER-SECRET' },
-				}),
-				get: () => undefined,
-				add: () => {},
-				remove: () => {},
-				isManagementAllowed: () => false,
-			},
-			wikiSelection: {
-				getCurrent: () => ({ key: 'a.example', config: {} }),
-				setCurrent: () => {},
-				reset: () => {},
-			},
-			uploadDirs: { list: () => [] },
-			mwnProvider: {
-				get: () => Promise.reject(new Error('mwn not available in tests')),
-				invalidate: () => {},
-			},
-			licenseCache: {
-				get: () => undefined,
-				set: () => {},
-				delete: () => {},
-			},
-		}));
+	it('classifies static-credential and never logs the token value', () => {
+		const staticRegistry = {
+			getAll: () => ({
+				'a.example': { sitename: 'A', server: 'https://a', token: 'SUPER-SECRET' },
+			}),
+			get: () => undefined,
+			add: () => {},
+			remove: () => {},
+			isManagementAllowed: () => false,
+		};
 
-		const { emitStartupBanner: esb } = await import('../../src/runtime/banner.js');
-		esb({ transport: 'stdio' });
+		emitStartupBanner(
+			{ transport: 'stdio' },
+			{
+				wikiRegistry: staticRegistry as never,
+				wikiSelection: mockWikiSelection as never,
+				uploadDirs: mockUploadDirs,
+			},
+		);
 
 		const allOutput = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
 		expect(allOutput).not.toContain('SUPER-SECRET');

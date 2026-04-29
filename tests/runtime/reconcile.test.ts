@@ -1,19 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
+import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
+import type { WikiSelection } from '../../src/wikis/wikiSelection.js';
 import { reconcileTools } from '../../src/runtime/reconcile.js';
-
-vi.mock('../../src/wikis/state.js', () => ({
-	wikiRegistry: {
-		getAll: vi.fn(),
-		isManagementAllowed: vi.fn(),
-	},
-	wikiSelection: {
-		getCurrent: vi.fn(),
-	},
-}));
-
-import { wikiRegistry, wikiSelection } from '../../src/wikis/state.js';
 
 const WRITE_TOOL_NAMES = [
 	'create-page',
@@ -67,7 +57,7 @@ const baseWiki: WikiConfig = {
 	scriptpath: '/w',
 };
 
-function setup({
+function makeMocks({
 	activeWiki,
 	wikis,
 	allowManagement,
@@ -75,28 +65,35 @@ function setup({
 	activeWiki: WikiConfig;
 	wikis: Record<string, WikiConfig>;
 	allowManagement: boolean;
-}): void {
-	// oxlint-disable-next-line typescript/unbound-method -- vitest mock, bound at call time
-	vi.mocked(wikiSelection.getCurrent).mockReturnValue({
-		key: Object.keys(wikis).find((k) => wikis[k] === activeWiki) ?? 'a',
-		config: activeWiki,
-	});
-	// oxlint-disable-next-line typescript/unbound-method -- vitest mock, bound at call time
-	vi.mocked(wikiRegistry.getAll).mockReturnValue(wikis);
-	// oxlint-disable-next-line typescript/unbound-method -- vitest mock, bound at call time
-	vi.mocked(wikiRegistry.isManagementAllowed).mockReturnValue(allowManagement);
+}): { registry: WikiRegistry; selection: WikiSelection } {
+	const registry: WikiRegistry = {
+		getAll: () => wikis,
+		get: (key: string) => wikis[key],
+		add: () => {},
+		remove: () => {},
+		isManagementAllowed: () => allowManagement,
+	};
+	const selection: WikiSelection = {
+		getCurrent: () => ({
+			key: Object.keys(wikis).find((k) => wikis[k] === activeWiki) ?? 'a',
+			config: activeWiki,
+		}),
+		setCurrent: () => {},
+		reset: () => {},
+	};
+	return { registry, selection };
 }
 
 describe('reconcileTools — applyReadOnlyRule', () => {
 	it('disables every write tool when the active wiki is readOnly', () => {
 		const { tools, mocks } = makeToolMap(true);
 		const wiki = { ...baseWiki, readOnly: true };
-		setup({
+		const { registry, selection } = makeMocks({
 			activeWiki: wiki,
 			wikis: { a: wiki },
 			allowManagement: true,
 		});
-		reconcileTools(tools);
+		reconcileTools(tools, registry, selection);
 		for (const name of WRITE_TOOL_NAMES) {
 			expect(mocks.get(name)!.disable).toHaveBeenCalledTimes(1);
 			expect(mocks.get(name)!.enable).not.toHaveBeenCalled();
@@ -106,12 +103,12 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 	it('does not touch non-write tools', () => {
 		const { tools, mocks } = makeToolMap(true);
 		const wiki = { ...baseWiki, readOnly: true };
-		setup({
+		const { registry, selection } = makeMocks({
 			activeWiki: wiki,
 			wikis: { a: wiki },
 			allowManagement: true,
 		});
-		reconcileTools(tools);
+		reconcileTools(tools, registry, selection);
 		for (const name of NON_WRITE_TOOL_NAMES) {
 			expect(mocks.get(name)!.disable).not.toHaveBeenCalled();
 			expect(mocks.get(name)!.enable).not.toHaveBeenCalled();
@@ -121,12 +118,12 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 	it('enables every write tool when the active wiki is not readOnly', () => {
 		const { tools, mocks } = makeToolMap(false);
 		const wiki = { ...baseWiki, readOnly: false };
-		setup({
+		const { registry, selection } = makeMocks({
 			activeWiki: wiki,
 			wikis: { a: wiki },
 			allowManagement: true,
 		});
-		reconcileTools(tools);
+		reconcileTools(tools, registry, selection);
 		for (const name of WRITE_TOOL_NAMES) {
 			expect(mocks.get(name)!.enable).toHaveBeenCalledTimes(1);
 			expect(mocks.get(name)!.disable).not.toHaveBeenCalled();
@@ -135,12 +132,12 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 
 	it('treats missing readOnly as non-readOnly', () => {
 		const { tools, mocks } = makeToolMap(false);
-		setup({
+		const { registry, selection } = makeMocks({
 			activeWiki: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
-		reconcileTools(tools);
+		reconcileTools(tools, registry, selection);
 		for (const name of WRITE_TOOL_NAMES) {
 			expect(mocks.get(name)!.enable).toHaveBeenCalledTimes(1);
 		}
@@ -149,22 +146,14 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 	it('is idempotent: a second call with identical state performs zero toggles', () => {
 		const { tools, mocks } = makeToolMap(true);
 		const wiki = { ...baseWiki, readOnly: true };
-		setup({
-			activeWiki: wiki,
-			wikis: { a: wiki },
-			allowManagement: true,
-		});
-		reconcileTools(tools);
+		const m1 = makeMocks({ activeWiki: wiki, wikis: { a: wiki }, allowManagement: true });
+		reconcileTools(tools, m1.registry, m1.selection);
 		for (const m of mocks.values()) {
 			m.enable.mockClear();
 			m.disable.mockClear();
 		}
-		setup({
-			activeWiki: wiki,
-			wikis: { a: wiki },
-			allowManagement: true,
-		});
-		reconcileTools(tools);
+		const m2 = makeMocks({ activeWiki: wiki, wikis: { a: wiki }, allowManagement: true });
+		reconcileTools(tools, m2.registry, m2.selection);
 		for (const m of mocks.values()) {
 			expect(m.enable).not.toHaveBeenCalled();
 			expect(m.disable).not.toHaveBeenCalled();
@@ -175,12 +164,12 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 		const { tools, mocks } = makeToolMap(true);
 		tools.delete('upload-file');
 		const wiki = { ...baseWiki, readOnly: true };
-		setup({
+		const { registry, selection } = makeMocks({
 			activeWiki: wiki,
 			wikis: { a: wiki },
 			allowManagement: true,
 		});
-		expect(() => reconcileTools(tools)).not.toThrow();
+		expect(() => reconcileTools(tools, registry, selection)).not.toThrow();
 		for (const name of WRITE_TOOL_NAMES) {
 			if (name === 'upload-file') {
 				continue;
@@ -193,12 +182,12 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 describe('reconcileTools — applyWikiSetRule', () => {
 	it('disables add-wiki, remove-wiki, set-wiki when count is 1 and management is disallowed', () => {
 		const { tools, mocks } = makeToolMap(true);
-		setup({
+		const { registry, selection } = makeMocks({
 			activeWiki: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: false,
 		});
-		reconcileTools(tools);
+		reconcileTools(tools, registry, selection);
 		for (const name of ['add-wiki', 'remove-wiki', 'set-wiki']) {
 			expect(mocks.get(name)!.disable).toHaveBeenCalledTimes(1);
 		}
@@ -206,12 +195,12 @@ describe('reconcileTools — applyWikiSetRule', () => {
 
 	it('enables add-wiki only when count is 1 and management is allowed', () => {
 		const { tools, mocks } = makeToolMap(false);
-		setup({
+		const { registry, selection } = makeMocks({
 			activeWiki: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
-		reconcileTools(tools);
+		reconcileTools(tools, registry, selection);
 		expect(mocks.get('add-wiki')!.enable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('remove-wiki')!.disable).not.toHaveBeenCalled();
 		expect(mocks.get('set-wiki')!.disable).not.toHaveBeenCalled();
@@ -219,12 +208,12 @@ describe('reconcileTools — applyWikiSetRule', () => {
 
 	it('enables set-wiki when count is 2 even if management is disallowed', () => {
 		const { tools, mocks } = makeToolMap(false);
-		setup({
+		const { registry, selection } = makeMocks({
 			activeWiki: baseWiki,
 			wikis: { a: baseWiki, b: baseWiki },
 			allowManagement: false,
 		});
-		reconcileTools(tools);
+		reconcileTools(tools, registry, selection);
 		expect(mocks.get('set-wiki')!.enable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('add-wiki')!.enable).not.toHaveBeenCalled();
 		expect(mocks.get('remove-wiki')!.enable).not.toHaveBeenCalled();
@@ -232,12 +221,12 @@ describe('reconcileTools — applyWikiSetRule', () => {
 
 	it('enables all three when count is 2 and management is allowed', () => {
 		const { tools, mocks } = makeToolMap(false);
-		setup({
+		const { registry, selection } = makeMocks({
 			activeWiki: baseWiki,
 			wikis: { a: baseWiki, b: baseWiki },
 			allowManagement: true,
 		});
-		reconcileTools(tools);
+		reconcileTools(tools, registry, selection);
 		for (const name of ['add-wiki', 'remove-wiki', 'set-wiki']) {
 			expect(mocks.get(name)!.enable).toHaveBeenCalledTimes(1);
 		}
@@ -245,39 +234,39 @@ describe('reconcileTools — applyWikiSetRule', () => {
 
 	it('transitions: count 1 to 2 enables set-wiki', () => {
 		const { tools, mocks } = makeToolMap(false);
-		setup({
+		const m1 = makeMocks({
 			activeWiki: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
-		reconcileTools(tools);
+		reconcileTools(tools, m1.registry, m1.selection);
 		expect(mocks.get('set-wiki')!.enabled).toBe(false);
 
-		setup({
+		const m2 = makeMocks({
 			activeWiki: baseWiki,
 			wikis: { a: baseWiki, b: baseWiki },
 			allowManagement: true,
 		});
-		reconcileTools(tools);
+		reconcileTools(tools, m2.registry, m2.selection);
 		expect(mocks.get('set-wiki')!.enabled).toBe(true);
 	});
 
 	it('transitions: count 2 to 1 disables remove-wiki', () => {
 		const { tools, mocks } = makeToolMap(true);
-		setup({
+		const m1 = makeMocks({
 			activeWiki: baseWiki,
 			wikis: { a: baseWiki, b: baseWiki },
 			allowManagement: true,
 		});
-		reconcileTools(tools);
+		reconcileTools(tools, m1.registry, m1.selection);
 		expect(mocks.get('remove-wiki')!.enabled).toBe(true);
 
-		setup({
+		const m2 = makeMocks({
 			activeWiki: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
-		reconcileTools(tools);
+		reconcileTools(tools, m2.registry, m2.selection);
 		expect(mocks.get('remove-wiki')!.enabled).toBe(false);
 	});
 });
