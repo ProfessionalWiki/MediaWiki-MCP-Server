@@ -52,7 +52,7 @@ interface NormalizedRow {
 export const smwAsk: Tool<typeof inputSchema> = {
 	name: 'smw-ask',
 	description:
-		'Runs a Semantic MediaWiki `#ask` query against the active wiki. Returns one row per matching subject, with the requested printouts as columns. For grounded property names and types, use smw-list-properties first.\n\nExamples:\n- Pages in a category: [[Category:Person]]|?Has occupation|limit=20\n- Numeric comparison: [[Born in::>1900]]|?Has name|?Born in\n- Multiple conditions: [[Category:Person]][[Born in::>1900]][[Has occupation::Architect]]\n\nReturns up to 500 rows per call; paginate with continueFrom. If the query has syntax errors, an error is returned with the SMW message preserved verbatim.',
+		'Runs a Semantic MediaWiki `#ask` query against the active wiki. Returns one row per matching subject, with the requested printouts as columns. For grounded property names and types, use smw-list-properties first.\n\nExamples:\n- Pages in a category: [[Category:Person]]|?Has occupation|limit=20\n- Numeric comparison: [[Born in::>1900]]|?Has name|?Born in\n- Multiple conditions: [[Category:Person]][[Born in::>1900]][[Has occupation::Architect]]\n\nNumeric operators: `>` and `<` work on every SMW version (some installs reject `>=` / `<=`); for strictly greater, prefer `>N-1` or `>>N` over `>=N`.\n\nReturns up to 500 rows per call; paginate with continueFrom. If the query has syntax errors, an error is returned with the SMW message preserved verbatim.',
 	inputSchema,
 	annotations: {
 		title: 'Run SMW query',
