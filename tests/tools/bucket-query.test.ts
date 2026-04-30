@@ -296,6 +296,51 @@ describe('bucket-query', () => {
 		});
 	});
 
+	it('injects Authorization: Bearer header when the wiki uses OAuth2', async () => {
+		const mock = createMockMwn({
+			rawRequest: rawRequestMock({ bucketQuery: '', bucket: [] }),
+			usingOAuth2: true,
+			options: { apiUrl: 'https://test.wiki/w/api.php', OAuth2AccessToken: 'abc-token' },
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		await bucketQuery.handle({ query: 'bucket("drops").select("page_name").run()' }, ctx);
+
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test, narrows mock call args
+		const call = mock.rawRequest.mock.calls[0][0] as {
+			headers: Record<string, string>;
+		};
+		expect(call.headers.Authorization).toBe('Bearer abc-token');
+	});
+
+	it('omits Authorization header when OAuth2 is not in use', async () => {
+		const mock = createMockMwn({
+			rawRequest: rawRequestMock({ bucketQuery: '', bucket: [] }),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		await bucketQuery.handle({ query: 'bucket("drops").select("page_name").run()' }, ctx);
+
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test, narrows mock call args
+		const call = mock.rawRequest.mock.calls[0][0] as {
+			headers: Record<string, string>;
+		};
+		expect(call.headers.Authorization).toBeUndefined();
+	});
+
+	it('keeps a user-supplied .limit(M) earlier in the chain — last-wins is Bucket-side', async () => {
+		const mock = createMockMwn({
+			rawRequest: rawRequestMock({ bucketQuery: '', bucket: [] }),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		await bucketQuery.handle({ query: 'bucket("drops").limit(10).select("page_name").run()' }, ctx);
+
+		expect(renderedQuery(mock.rawRequest.mock.calls[0])).toBe(
+			'bucket("drops").limit(10).select("page_name").limit(500).run()',
+		);
+	});
+
 	it('treats a missing bucket field as empty rows', async () => {
 		const mock = createMockMwn({
 			rawRequest: rawRequestMock({ bucketQuery: '' }),

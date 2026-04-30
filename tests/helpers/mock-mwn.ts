@@ -15,7 +15,8 @@ export interface MockMwn {
 	massQuery: ReturnType<typeof vi.fn>;
 	getPagesByPrefix: ReturnType<typeof vi.fn>;
 	getCsrfToken: ReturnType<typeof vi.fn>;
-	options: { apiUrl: string };
+	options: { apiUrl: string; OAuth2AccessToken?: string };
+	usingOAuth2: boolean;
 	Category: {
 		members: ReturnType<typeof vi.fn>;
 	};
@@ -39,6 +40,7 @@ export function createMockMwn(overrides: Partial<MockMwn> = {}): MockMwn {
 		getPagesByPrefix: vi.fn(),
 		getCsrfToken: vi.fn(),
 		options: { apiUrl: 'https://test.wiki/w/api.php' },
+		usingOAuth2: false,
 		Category: {
 			members: vi.fn(),
 		},

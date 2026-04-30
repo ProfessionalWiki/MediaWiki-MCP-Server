@@ -24,7 +24,7 @@ const inputSchema = {
 		.string()
 		.optional()
 		.describe(
-			'Opaque continuation token from a prior response; appended as `.offset(N)` before `.run()`.',
+			'Continuation token from a prior response (a non-negative integer offset); appended as `.offset(N)` before `.run()`.',
 		),
 } as const;
 
@@ -60,7 +60,15 @@ export const bucketQuery: Tool<typeof inputSchema> = {
 		// `request()` checks for a top-level `error` field and throws MwnError, but
 		// Bucket's string shape doesn't match the standard `{code, info}` object
 		// MwnError expects, so the resulting message is empty. `rawRequest` skips
-		// that processing while still applying mwn's auth (cookies / OAuth).
+		// that processing — but it also skips mwn's `applyAuthentication`, so we
+		// inject the OAuth2 bearer header ourselves. BotPassword cookies still
+		// flow via mwn's axios interceptor.
+		const headers: Record<string, string> = {
+			'Content-Type': 'application/x-www-form-urlencoded',
+		};
+		if (mwn.usingOAuth2 && typeof mwn.options.OAuth2AccessToken === 'string') {
+			headers.Authorization = `Bearer ${mwn.options.OAuth2AccessToken}`;
+		}
 		const axiosResponse = await mwn.rawRequest({
 			url: mwn.options.apiUrl,
 			method: 'POST',
@@ -69,7 +77,7 @@ export const bucketQuery: Tool<typeof inputSchema> = {
 				query: rendered.query,
 				format: 'json',
 			}).toString(),
-			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			headers,
 		});
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Bucket action=bucket response shape; trusted at this boundary
 		const response = axiosResponse.data as BucketResponse;
@@ -82,6 +90,8 @@ export const bucketQuery: Tool<typeof inputSchema> = {
 		const effectiveLimit = Math.min(limit ?? HARD_LIMIT, HARD_LIMIT);
 		const currentOffset = continueFrom !== undefined ? Number.parseInt(continueFrom, 10) : 0;
 
+		// `>=` rather than `===` — defensive against a Bucket version that
+		// returns more rows than the injected `.limit()` requested.
 		const truncation: TruncationInfo | null =
 			rows.length >= effectiveLimit
 				? {
