@@ -52,7 +52,7 @@ interface NormalizedProperty {
 export const smwListProperties: Tool<typeof inputSchema> = {
 	name: 'smw-list-properties',
 	description:
-		'Lists Semantic MediaWiki properties on the active wiki. Each entry has the property name, a copy-paste `[[name::value]]` template for smw-ask, and — when SMW exposes them — a description and usage count. Wikis often have hundreds of properties; supply search to narrow. Up to 200 per call; paginate with continueFrom.',
+		'Lists Semantic MediaWiki properties on the active wiki. Each entry has the property name, a copy-paste `[[name::value]]` template for smw-query, and — when SMW exposes them — a description and usage count. Wikis often have hundreds of properties; supply search to narrow. Up to 200 per call; paginate with continueFrom.',
 	inputSchema,
 	annotations: {
 		title: 'List SMW properties',

@@ -574,7 +574,7 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 	} {
 		const mocks = new Map<string, MockTool>();
 		const tools = new Map<string, RegisteredTool>();
-		for (const name of ['smw-ask', 'smw-list-properties', 'get-page']) {
+		for (const name of ['smw-query', 'smw-list-properties', 'get-page']) {
 			const mock = makeMockTool(initiallyEnabled);
 			mocks.set(name, mock);
 			tools.set(name, mock as unknown as RegisteredTool);
@@ -595,7 +595,7 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 			transport: 'stdio',
 			extensions: makeFakeDetector({}),
 		});
-		expect(mocks.get('smw-ask')!.disable).toHaveBeenCalledTimes(1);
+		expect(mocks.get('smw-query')!.disable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('smw-list-properties')!.disable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('get-page')!.disable).not.toHaveBeenCalled();
 	});
@@ -613,7 +613,7 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 			transport: 'stdio',
 			extensions: makeFakeDetector({ 'a:SemanticMediaWiki': true }),
 		});
-		expect(mocks.get('smw-ask')!.enable).toHaveBeenCalledTimes(1);
+		expect(mocks.get('smw-query')!.enable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('smw-list-properties')!.enable).toHaveBeenCalledTimes(1);
 	});
 
