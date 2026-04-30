@@ -119,54 +119,10 @@ For the full field reference, env-var substitution, secret sources, change tags,
 
 Tools marked 🔐 require authentication. They are also hidden from `tools/list` when the active wiki has `readOnly: true` — see [Deployment](#deployment).
 
-### OAuth (browser-based, recommended)
-
-If your wiki admin has registered an OAuth consumer for this server, you can sign in through your browser instead of pasting tokens into `config.json`. Add the values they give you to the wiki entry:
-
-```json
-{
-	"wikis": {
-		"example.org": {
-			"sitename": "Example Wiki",
-			"server": "https://example.org",
-			"articlepath": "/wiki",
-			"scriptpath": "/w",
-			"oauth2ClientId": "<from your wiki admin>",
-			"oauth2CallbackPort": 53117
-		}
-	}
-}
-```
-
-The first time a tool needs to act on your behalf, a browser tab opens to the wiki for you to approve. After that, the server reuses the saved token until it expires. Use the `oauth-status` and `oauth-logout` tools to see or clear stored tokens.
-
-If your wiki doesn't have an OAuth consumer set up, use the manual token or bot password options below. Wiki admins: see [docs/configuration.md](docs/configuration.md#oauth-browser-based) for how to register the consumer.
-
-### OAuth2 (manual token, HTTP transport)
-
-1. Navigate to `Special:OAuthConsumerRegistration/propose/oauth2` on your wiki.
-2. Select "This consumer is for use only by [YourUsername]".
-3. Grant the permissions your tools need — see the Permissions column in the [Tools](#tools) table.
-4. After approval, copy the **Access Token** into the `token` field for that wiki in `config.json`.
-
-> OAuth2 requires the [OAuth extension](https://www.mediawiki.org/wiki/Special:MyLanguage/Extension:OAuth) on the wiki.
-
-### Per-request bearer token (HTTP transport)
-
-When using the HTTP transport, the server accepts a standard OAuth 2.1 `Authorization: Bearer <token>` header on each request (per the [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization)). Any MCP client that supports HTTP transport authentication can be configured to send it, allowing each client to act as its own wiki user rather than sharing the `config.json` identity.
-
-Example with Claude Code:
-
-```bash
-claude mcp add --transport http my-wiki https://wiki.example.org/mcp \
-  --header "Authorization: Bearer <your-access-token>"
-```
-
-When no header is present, the server falls back to `config.json` credentials or anonymous access. See [docs/deployment.md](docs/deployment.md#per-request-bearer-token-http-transport) for details, precedence, trust-boundary guidance, and reverse-proxy requirements.
-
-### Bot password (fallback)
-
-If the OAuth extension isn't available, create a bot password at `Special:BotPasswords` and set `username` and `password` in `config.json` instead of `token`.
+- **Browser-based OAuth (recommended).** Sign in through a browser tab the first time a tool needs auth. Set `oauth2ClientId` and `oauth2CallbackPort` per wiki — see [docs/configuration.md — OAuth (browser-based)](docs/configuration.md#oauth-browser-based).
+- **HTTP per-request bearer token.** Each request carries `Authorization: Bearer <token>`; the server forwards it to MediaWiki. See [docs/deployment.md — per-request bearer token](docs/deployment.md#per-request-bearer-token-http-transport).
+- **Manual OAuth2 access token.** Paste a long-lived token into `config.json`. See [docs/configuration.md — manual OAuth2 access token](docs/configuration.md#manual-oauth2-access-token).
+- **Bot password.** Fallback when Extension:OAuth isn't installed. See [docs/configuration.md — bot password](docs/configuration.md#bot-password).
 
 ## Installation
 

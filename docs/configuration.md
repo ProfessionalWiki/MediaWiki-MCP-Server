@@ -208,3 +208,16 @@ The **client application secret** is not used and can be ignored.
 Tick only the grants your users will use — see the Permissions column of the [tool table in the README](../README.md#tools) for the exact mapping. Always include **Basic rights**. **High-volume editing** is recommended if users will drive bulk edits.
 
 Avoid granting **Manage your OAuth clients**. The MCP server does not use it, and granting it would let anyone with a token from this consumer tamper with OAuth registrations on the wiki.
+
+## Manual OAuth2 access token
+
+1. Navigate to `Special:OAuthConsumerRegistration/propose/oauth2` on your wiki.
+2. Select "This consumer is for use only by [YourUsername]".
+3. Grant the permissions your tools need — see the Permissions column in the [Tools](../README.md#tools) table.
+4. After approval, copy the **Access Token** into the `token` field for that wiki in `config.json`.
+
+> OAuth2 requires the [OAuth extension](https://www.mediawiki.org/wiki/Special:MyLanguage/Extension:OAuth) on the wiki.
+
+## Bot password
+
+If the OAuth extension isn't available, create a bot password at `Special:BotPasswords` and set `username` and `password` in `config.json` instead of `token`.
