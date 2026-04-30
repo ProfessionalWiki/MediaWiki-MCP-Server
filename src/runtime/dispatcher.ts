@@ -30,6 +30,8 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext =
 				token = await acquireToken(wikiKey, {
 					wiki: { server: wiki.server, scriptpath: wiki.scriptpath },
 					oauth2ClientId: wiki.oauth2ClientId,
+					callbackPort:
+						typeof wiki.oauth2CallbackPort === 'number' ? wiki.oauth2CallbackPort : undefined,
 				});
 			} catch (err: unknown) {
 				const message = err instanceof Error ? err.message : String(err);

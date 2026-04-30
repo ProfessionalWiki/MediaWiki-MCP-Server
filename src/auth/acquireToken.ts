@@ -9,6 +9,7 @@ export interface AcquireCtx {
 	wiki: WikiSlice;
 	oauth2ClientId: string | undefined | null;
 	scopes?: string[];
+	callbackPort?: number;
 }
 
 export async function acquireToken(wikiKey: string, ctx: AcquireCtx): Promise<string> {
@@ -34,5 +35,6 @@ export async function acquireToken(wikiKey: string, ctx: AcquireCtx): Promise<st
 		wiki: ctx.wiki,
 		clientId: ctx.oauth2ClientId,
 		scopes: ctx.scopes,
+		callbackPort: ctx.callbackPort,
 	});
 }

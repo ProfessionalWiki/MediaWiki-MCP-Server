@@ -132,6 +132,7 @@ Create a `config.json` file to configure wiki connections. Use the `config.examp
 | `articlepath` | Yes | Path pattern for articles (typically `/wiki`) |
 | `scriptpath` | Yes | Path to MediaWiki scripts (typically `/w`) |
 | `oauth2ClientId` | No | OAuth 2.0 client identifier from `Special:OAuthConsumerRegistration/propose/oauth2`. Opts the wiki into browser-based OAuth (public client + PKCE). When set, `/.well-known/oauth-protected-resource` is published on HTTP transport. |
+| `oauth2CallbackPort` | No | Fixed loopback port for the OAuth callback. Required when the wiki's authorization server exact-matches the registered redirect URI (Extension:OAuth's OAuth 2.0 implementation does this). Register `http://127.0.0.1:<port>/oauth/callback` on the wiki and set the same number here. Omit only against AS that follow RFC 8252 §7.3 loopback flexibility. |
 | `token` | No | OAuth2 access token for authenticated operations (manual token alternative to `oauth2ClientId`) |
 | `username` | No | Bot username (fallback when OAuth2 is not available) |
 | `password` | No | Bot password (fallback when OAuth2 is not available) |
@@ -152,8 +153,8 @@ When using HTTP transport with an OAuth-aware MCP client (Claude Desktop, mcp-re
 **One-time setup on the wiki:**
 
 1. Visit `Special:OAuthConsumerRegistration/propose/oauth2` on the wiki.
-2. **OAuth "callback URL"**: `http://127.0.0.1/oauth/callback`
-3. **Allow consumer to specify a callback in requests, and use "callback URL" as a prefix**: enabled. RFC 8252 loopback flows pick an ephemeral port at runtime, so the registered URL is treated as a prefix.
+2. **OAuth "callback URL"**: `http://127.0.0.1:<port>/oauth/callback`. Pick a fixed high port that's likely to be free on your machine (e.g., `53117`). Extension:OAuth exact-matches this URL on every authorization request — it does not honour RFC 8252 §7.3 loopback port flexibility for OAuth 2.0 — so the same port number must also go in `oauth2CallbackPort` in `config.json`.
+3. The "Allow consumer to specify a callback in requests, and use 'callback' URL above as a required prefix" checkbox is OAuth 1.0a-only; ignore it for OAuth 2.0.
 4. **Client is confidential**: leave **unchecked**. The MCP server is a public client and uses PKCE in lieu of a client secret; checking this box would make the wiki demand a `client_secret` on every token exchange and the dance would fail with `invalid_client`.
 5. **Allowed OAuth2 grant types**: tick **Authorization code** (required) and **Refresh token** (so the server can refresh access tokens transparently before they expire). Leave **Client credentials** unchecked — that grant is for confidential clients authenticating as themselves, which doesn't apply here.
 6. **Types of grants being requested**: pick **Request authorization for specific permissions**. The MCP server tools call the wiki API on the user's behalf, which is exactly what this option enables. The two identity-only options would block every API tool with `permission_denied`. Tick the grant categories you want to expose — at minimum **Basic rights**; add edit/upload categories to enable the corresponding write tools.
@@ -170,7 +171,8 @@ When using HTTP transport with an OAuth-aware MCP client (Claude Desktop, mcp-re
 			"server": "https://example.org",
 			"articlepath": "/wiki",
 			"scriptpath": "/w",
-			"oauth2ClientId": "<paste client_id here>"
+			"oauth2ClientId": "<paste client_id here>",
+			"oauth2CallbackPort": 53117
 		}
 	}
 }

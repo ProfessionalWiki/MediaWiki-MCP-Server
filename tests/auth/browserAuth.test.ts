@@ -97,6 +97,30 @@ describe('browserAuth', () => {
 		).rejects.toMatchObject({ reason: 'timeout' });
 	});
 
+	it('callbackPort: binds the requested port and uses it in redirect_uri', async () => {
+		fakeAs = await startFakeAs();
+		// Pick a high ephemeral port that's almost certainly free in CI.
+		const fixedPort = 53117;
+		// Capture the URL passed to open() so we can assert the redirect_uri.
+		let capturedAuthUrl = '';
+		vi.mocked(openMod).mockImplementation((async (url: string) => {
+			capturedAuthUrl = url;
+			// Drive the dance to completion so the test doesn't time out.
+			await fakeBrowserDriver(fakeAs!.url, 'consent')(url);
+		}) as unknown as typeof openMod);
+
+		const tok = await browserAuth('test-wiki', {
+			wiki: makeWiki(fakeAs.url),
+			clientId: 'my-client',
+			scopes: ['edit'],
+			callbackPort: fixedPort,
+		});
+
+		expect(tok).toMatch(/^access-CODE/);
+		const redirect = new URL(capturedAuthUrl).searchParams.get('redirect_uri');
+		expect(redirect).toBe(`http://127.0.0.1:${fixedPort}/oauth/callback`);
+	});
+
 	it('MCP_OAUTH_NO_BROWSER=1: skips open(), listener still runs but times out', async () => {
 		fakeAs = await startFakeAs();
 		vi.stubEnv('MCP_OAUTH_NO_BROWSER', '1');

@@ -164,8 +164,7 @@ Browser-based OAuth lets users authenticate without pasting a token into `config
 
 1. Visit `Special:OAuthConsumerRegistration/propose/oauth2` on the wiki. Extension:OAuth ≥ 1.0 (MediaWiki ≥ 1.39) is required.
 2. Fill in the form fields specific to the OAuth flow:
-   - **OAuth "callback URL"**: `http://127.0.0.1/oauth/callback`
-   - **Allow consumer to specify a callback in requests, and use "callback URL" as a prefix**: ✅ enabled. RFC 8252 §7.3 mandates that authorization servers honour any port on a loopback redirect URI, so the runtime port the MCP server picks does not need to be pre-registered — but Extension:OAuth requires this checkbox to permit the variable port.
+   - **OAuth "callback URL"**: `http://127.0.0.1:<port>/oauth/callback`. Pick a fixed high port that's likely to be free on your machine — `53117` is a reasonable default; any value in the dynamic-port range (49152–65535) works. Extension:OAuth's OAuth 2.0 implementation **exact-matches** the redirect URI on every authorization request and explicitly does not honour RFC 8252 §7.3 loopback flexibility (the form's help text says "Unlike OAuth 1.0a, this URL is exactly matched"). The same port number must also go in `oauth2CallbackPort` in `config.json` — see below. The "Allow consumer to specify a callback in requests, and use 'callback' URL above as a required prefix" checkbox is OAuth 1.0a-only; for OAuth 2.0 consumers it has no effect.
    - **Client is confidential**: ❌ leave unchecked. The MCP server is a public client and uses PKCE (RFC 7636) in place of a client secret. Marking the consumer confidential would make the wiki demand a `client_secret` on every token-endpoint exchange, and the dance would fail with `invalid_client` because the server does not (and cannot safely) hold a secret on a user's machine.
    - **Allowed OAuth2 grant types**:
      - ✅ **Authorization code** — required; this is the user-delegated flow the MCP server drives.
@@ -182,7 +181,7 @@ Browser-based OAuth lets users authenticate without pasting a token into `config
 
 ### Configure the MCP server
 
-Add `oauth2ClientId` to the wiki entry:
+Add `oauth2ClientId` and `oauth2CallbackPort` to the wiki entry:
 
 ```json
 {
@@ -192,13 +191,16 @@ Add `oauth2ClientId` to the wiki entry:
 			"server": "https://example.org",
 			"articlepath": "/wiki",
 			"scriptpath": "/w",
-			"oauth2ClientId": "<client_id from step 5>"
+			"oauth2ClientId": "<client_id from step 4>",
+			"oauth2CallbackPort": 53117
 		}
 	}
 }
 ```
 
 Presence of `oauth2ClientId` opts the wiki into OAuth. Wikis without it continue to use static credentials (`token` / `username` + `password`) or anonymous access.
+
+`oauth2CallbackPort` must match the port in the registered callback URL on the wiki side. The stdio runtime binds `127.0.0.1:<oauth2CallbackPort>` for the OAuth callback. Omit this field only if the wiki's authorization server honours RFC 8252 §7.3 loopback flexibility — Extension:OAuth's OAuth 2.0 implementation does not, so for any MediaWiki wiki you must set it.
 
 ### How it works
 

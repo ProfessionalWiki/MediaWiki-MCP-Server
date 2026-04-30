@@ -33,6 +33,16 @@ export interface BrowserAuthCtx {
 	clientId: string;
 	scopes?: string[];
 	timeoutMs?: number;
+	/**
+	 * Fixed loopback port for the OAuth callback. When set, the listener binds
+	 * `127.0.0.1:<port>` and the redirect URI sent to the AS is
+	 * `http://127.0.0.1:<port>/oauth/callback`. Required for authorization
+	 * servers that exact-match the registered redirect URI (notably
+	 * Extension:OAuth's OAuth 2.0 implementation, which does not honour
+	 * RFC 8252 §7.3 loopback flexibility). When unset, the OS picks an
+	 * ephemeral port — works only against AS that follow RFC 8252.
+	 */
+	callbackPort?: number;
 }
 
 const inFlight = new Map<string, Promise<string>>();
@@ -64,8 +74,10 @@ async function doBrowserAuth(wikiKey: string, ctx: BrowserAuthCtx): Promise<stri
 	const challenge = s256(verifier);
 	const state = randomBytes(32).toString('hex');
 
-	// Spin up loopback listener on OS-assigned port
-	const { server, port } = await startListener();
+	// Spin up loopback listener. If `callbackPort` is set, bind that exact port
+	// (required for Extension:OAuth's exact-match redirect URI); otherwise the
+	// OS picks an ephemeral port (RFC 8252-compliant authorization servers).
+	const { server, port } = await startListener(ctx.callbackPort);
 	const redirectUri = `http://127.0.0.1:${port}/oauth/callback`;
 
 	// Build authorization URL
@@ -188,10 +200,10 @@ interface ListenerResult {
 	port: number;
 }
 
-function startListener(): Promise<ListenerResult> {
+function startListener(fixedPort?: number): Promise<ListenerResult> {
 	return new Promise((resolve, reject) => {
 		const server = http.createServer();
-		server.listen(0, '127.0.0.1', () => {
+		server.listen(fixedPort ?? 0, '127.0.0.1', () => {
 			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- server.address() is AddressInfo when the server is bound to a TCP port
 			const addr = server.address() as AddressInfo;
 			resolve({ server, port: addr.port });
