@@ -478,7 +478,7 @@ if ((host === '0.0.0.0' || host === '::') && !allowedOrigins) {
 
 const sessions: SessionRegistry = {};
 const sessionRequestHandler = createSessionRequestHandler(sessions);
-const ctx = createToolContext({ logger, state });
+const ctx = createToolContext({ logger, state, transport: 'http' });
 
 const inFlight = createInFlightCounter();
 app.use('/mcp', inFlight.middleware);

@@ -8,8 +8,12 @@ import { RevisionNormalizerImpl } from '../services/revisionNormalize.js';
 import { ResponseFormatterImpl } from '../results/response.js';
 import { ErrorClassifierImpl } from '../errors/classifyError.js';
 
-export function createToolContext(deps: { logger: Logger; state: AppState }): ToolContext {
-	const { logger, state } = deps;
+export function createToolContext(deps: {
+	logger: Logger;
+	state: AppState;
+	transport: 'http' | 'stdio';
+}): ToolContext {
+	const { logger, state, transport } = deps;
 	return {
 		mwn: (wikiKey?: string) => state.mwnProvider.get(wikiKey),
 		wikis: state.wikiRegistry,
@@ -23,5 +27,6 @@ export function createToolContext(deps: { logger: Logger; state: AppState }): To
 		format: new ResponseFormatterImpl(),
 		errors: new ErrorClassifierImpl(),
 		logger,
+		transport,
 	};
 }

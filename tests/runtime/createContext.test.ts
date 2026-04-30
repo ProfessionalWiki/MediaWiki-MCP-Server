@@ -23,7 +23,7 @@ const testConfig: Config = {
 describe('createToolContext', () => {
 	it('populates all ToolContext fields', () => {
 		const state = createAppState(testConfig);
-		const ctx = createToolContext({ logger, state });
+		const ctx = createToolContext({ logger, state, transport: 'stdio' });
 		expect(ctx.mwn).toBeTypeOf('function');
 		expect(ctx.wikis).toBeDefined();
 		expect(ctx.selection).toBeDefined();
@@ -37,5 +37,6 @@ describe('createToolContext', () => {
 		expect(ctx.format).toBeDefined();
 		expect(ctx.errors).toBeDefined();
 		expect(ctx.logger).toBe(logger);
+		expect(ctx.transport).toBe('stdio');
 	});
 });

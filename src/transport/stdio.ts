@@ -21,7 +21,7 @@ async function main(): Promise<void> {
 		},
 	);
 	const transport = new StdioServerTransport();
-	const ctx = createToolContext({ logger, state });
+	const ctx = createToolContext({ logger, state, transport: 'stdio' });
 	const server = createServer(ctx);
 
 	await server.connect(transport);
