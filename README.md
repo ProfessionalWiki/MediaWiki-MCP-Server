@@ -28,7 +28,7 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | `search-page-by-prefix` | Search page titles by prefix. | - |
 | `set-wiki` | Set the active wiki for the current session. Disabled when fewer than two wikis are configured. | - |
 | `smw-ask` | Run a Semantic MediaWiki `#ask` query on the active wiki. Enabled only when the wiki has SMW installed. | - |
-| `smw-list-properties` | List Semantic MediaWiki properties on the active wiki with name, datatype, description, usage count, and a copy-paste-ready usage template. Enabled only when the wiki has SMW installed. | - |
+| `smw-list-properties` | List Semantic MediaWiki properties on the active wiki with name, description, usage count, and a copy-paste-ready usage template. Enabled only when the wiki has SMW installed. | - |
 | `undelete-page` 🔐 | Undelete a wiki page. | `Delete pages, revisions, and log entries` |
 | `update-file` 🔐 | Upload a new revision of an existing file from local disk. | `Upload, replace, and move files` |
 | `update-file-from-url` 🔐 | Upload a new revision of an existing file from a URL. | `Upload, replace, and move files` |

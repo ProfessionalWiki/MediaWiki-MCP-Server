@@ -25,46 +25,25 @@ const inputSchema = {
 		.describe('Opaque continuation token from a previous response; omit on first call.'),
 } as const;
 
-// SMW datatype codes → human-readable type names. The codes come from the
-// "_xxx" series used internally by SMW. Codes not in this table fall through
-// to the raw code so we never lie about the type.
-const TYPE_LABELS: Record<string, string> = {
-	_wpg: 'Page',
-	_txt: 'Text',
-	_str: 'String',
-	_cod: 'Code',
-	_num: 'Number',
-	_qty: 'Quantity',
-	_dat: 'Date',
-	_boo: 'Boolean',
-	_uri: 'URL',
-	_eid: 'External identifier',
-	_geo: 'Geographic coordinate',
-	_tem: 'Temperature',
-	_rec: 'Record',
-	_mlt_rec: 'Monolingual text',
-	_ref_rec: 'Reference',
-	_anu: 'Annotation URI',
-};
-
-// smwbrowse may or may not return description/usageCount depending on SMW
-// version. Both are treated as optional; normalizeProperty omits them from
-// the response when absent rather than triggering per-property follow-up
-// queries (N+1 anti-pattern).
+// smwbrowse returns description and prefLabel as language-keyed objects
+// ({ en: "..." }). usageCount comes back as a string. The query field is an
+// object keyed by property key when there are matches, and an empty array
+// when there are none.
 interface SmwBrowseProperty {
 	label?: string;
-	type?: string;
-	description?: string;
-	usageCount?: number;
+	key?: string;
+	description?: Record<string, string>;
+	prefLabel?: Record<string, string>;
+	usageCount?: string | number;
 }
 
 interface SmwBrowseResponse {
-	query?: SmwBrowseProperty[];
+	query?: Record<string, SmwBrowseProperty> | unknown[];
+	'query-continue-offset'?: number;
 }
 
 interface NormalizedProperty {
 	name: string;
-	type: string;
 	description?: string;
 	usageCount?: number;
 	usage: string;
@@ -73,7 +52,7 @@ interface NormalizedProperty {
 export const smwListProperties: Tool<typeof inputSchema> = {
 	name: 'smw-list-properties',
 	description:
-		'Returns Semantic MediaWiki properties on the active wiki. Each entry includes the property name, datatype, optional description, usage count when available, and a copy-paste-ready [[name::value]] template for use in smw-ask. Wikis often have hundreds of properties; supply search to narrow.\n\nReturns up to 200 properties per call; paginate with continueFrom.',
+		'Returns Semantic MediaWiki properties on the active wiki. Each entry includes the property name, optional description, usage count, and a copy-paste-ready [[name::value]] template for use in smw-ask. Wikis often have hundreds of properties; supply search to narrow.\n\nReturns up to 200 properties per call; paginate with continueFrom.',
 	inputSchema,
 	annotations: {
 		title: 'List SMW properties',
@@ -85,62 +64,99 @@ export const smwListProperties: Tool<typeof inputSchema> = {
 	failureVerb: 'list SMW properties',
 
 	async handle({ search, limit, continueFrom }, ctx: ToolContext): Promise<CallToolResult> {
+		const offset = continueFrom !== undefined ? parsePositiveInt(continueFrom) : 0;
+		const effectiveLimit = limit ?? DEFAULT_LIMIT;
+
+		const params = {
+			search: search ?? '',
+			limit: effectiveLimit,
+			offset,
+			description: true,
+			prefLabel: true,
+			usageCount: true,
+		};
+
 		const mwn = await ctx.mwn();
 		const raw = await mwn.request({
 			action: 'smwbrowse',
 			browse: 'property',
 			format: 'json',
+			params: JSON.stringify(params),
 		});
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SMW action=smwbrowse response shape; trusted at this boundary
 		const response = raw as SmwBrowseResponse;
 
-		const all = (response.query ?? []).map(normalizeProperty);
-		all.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+		const properties: NormalizedProperty[] = [];
+		const queryField = response.query;
+		if (queryField && !Array.isArray(queryField)) {
+			for (const [key, entry] of Object.entries(queryField)) {
+				properties.push(normalizeProperty(key, entry));
+			}
+		}
 
-		const filtered = search
-			? all.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
-			: all;
-
-		const offset = continueFrom !== undefined ? parsePositiveInt(continueFrom) : 0;
-		const effectiveLimit = limit ?? DEFAULT_LIMIT;
-		// Client-side pagination over the full smwbrowse response. Sufficient for
-		// first cut; wikis with thousands of properties may want server-side later.
-		const page = filtered.slice(offset, offset + effectiveLimit);
-
-		const moreAvailable = offset + effectiveLimit < filtered.length;
-		const truncation: TruncationInfo | null = moreAvailable
-			? {
-					reason: 'more-available',
-					returnedCount: page.length,
-					itemNoun: 'properties',
-					toolName: 'smw-list-properties',
-					continueWith: { param: 'continueFrom', value: String(offset + effectiveLimit) },
-				}
-			: null;
+		const continueOffset = response['query-continue-offset'];
+		const truncation: TruncationInfo | null =
+			typeof continueOffset === 'number' && continueOffset > 0
+				? {
+						reason: 'more-available',
+						returnedCount: properties.length,
+						itemNoun: 'properties',
+						toolName: 'smw-list-properties',
+						continueWith: { param: 'continueFrom', value: String(continueOffset) },
+					}
+				: null;
 
 		return ctx.format.ok({
-			properties: page,
+			properties,
 			...(truncation !== null ? { truncation } : {}),
 		});
 	},
 };
 
-function normalizeProperty(raw: SmwBrowseProperty): NormalizedProperty {
-	const name = raw.label ?? '';
-	const typeCode = raw.type ?? '';
-	const type = TYPE_LABELS[typeCode] ?? typeCode;
+function normalizeProperty(key: string, raw: SmwBrowseProperty): NormalizedProperty {
+	const name = raw.label ?? key.replaceAll('_', ' ');
 	const out: NormalizedProperty = {
 		name,
-		type,
 		usage: `[[${name}::value]]`,
 	};
-	if (typeof raw.description === 'string' && raw.description !== '') {
-		out.description = raw.description;
+
+	const desc = pickFirstNonEmpty(raw.description);
+	if (desc !== undefined) {
+		out.description = desc;
 	}
-	if (typeof raw.usageCount === 'number' && Number.isFinite(raw.usageCount)) {
-		out.usageCount = raw.usageCount;
+
+	const usageCount = parseUsageCount(raw.usageCount);
+	if (usageCount !== undefined) {
+		out.usageCount = usageCount;
 	}
+
 	return out;
+}
+
+function pickFirstNonEmpty(map: Record<string, string> | undefined): string | undefined {
+	if (!map) {
+		return undefined;
+	}
+	if (typeof map.en === 'string' && map.en !== '') {
+		return map.en;
+	}
+	for (const value of Object.values(map)) {
+		if (typeof value === 'string' && value !== '') {
+			return value;
+		}
+	}
+	return undefined;
+}
+
+function parseUsageCount(value: string | number | undefined): number | undefined {
+	if (typeof value === 'number') {
+		return Number.isFinite(value) && value >= 0 ? value : undefined;
+	}
+	if (typeof value !== 'string') {
+		return undefined;
+	}
+	const n = Number.parseInt(value, 10);
+	return Number.isFinite(n) && n >= 0 ? n : undefined;
 }
 
 function parsePositiveInt(value: string): number {

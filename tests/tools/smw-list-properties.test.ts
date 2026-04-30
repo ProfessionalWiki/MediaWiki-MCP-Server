@@ -5,15 +5,52 @@ import { smwListProperties } from '../../src/tools/smw-list-properties.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
 
+interface SmwBrowsePropertyMock {
+	label: string;
+	key: string;
+	description?: Record<string, string>;
+	prefLabel?: Record<string, string>;
+	usageCount?: string;
+}
+
+function smwBrowseProp(
+	key: string,
+	opts: { label?: string; description?: string; usageCount?: number } = {},
+): [string, SmwBrowsePropertyMock] {
+	const entry: SmwBrowsePropertyMock = {
+		label: opts.label ?? key.replaceAll('_', ' '),
+		key,
+		description: { en: opts.description ?? '' },
+		prefLabel: { en: '' },
+	};
+	if (opts.usageCount !== undefined) {
+		entry.usageCount = String(opts.usageCount);
+	}
+	return [key, entry];
+}
+
+function smwBrowseResponse(
+	entries: [string, SmwBrowsePropertyMock][],
+	continueOffset: number = 0,
+): unknown {
+	return {
+		query: Object.fromEntries(entries),
+		'query-continue-offset': continueOffset,
+		meta: { type: 'property', limit: entries.length, count: entries.length },
+	};
+}
+
 describe('smw-list-properties', () => {
-	it('calls action=smwbrowse&browse=property and returns shaped property records', async () => {
+	it('calls action=smwbrowse with browse=property and returns shaped property records', async () => {
 		const mock = createMockMwn({
-			request: vi.fn().mockResolvedValue({
-				query: [
-					{ label: 'Born in', type: '_dat', description: 'Year of birth', usageCount: 1483 },
-					{ label: 'Has occupation', type: '_wpg' },
-				],
-			}),
+			request: vi
+				.fn()
+				.mockResolvedValue(
+					smwBrowseResponse([
+						smwBrowseProp('Born_in', { description: 'Year of birth', usageCount: 1483 }),
+						smwBrowseProp('Has_occupation', { usageCount: 42 }),
+					]),
+				),
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
@@ -21,26 +58,32 @@ describe('smw-list-properties', () => {
 
 		const text = assertStructuredSuccess(result);
 		expect(text).toContain('Name: Born in');
-		expect(text).toContain('Type: Date');
 		expect(text).toContain('Description: Year of birth');
 		expect(text).toContain('Usage count: 1483');
 		expect(text).toContain('Usage: [[Born in::value]]');
 
 		expect(text).toContain('Name: Has occupation');
-		expect(text).toContain('Type: Page');
+		expect(text).toContain('Usage count: 42');
 		expect(text).toContain('Usage: [[Has occupation::value]]');
 
-		expect(mock.request.mock.calls[0][0]).toMatchObject({
-			action: 'smwbrowse',
-			browse: 'property',
+		const sent = mock.request.mock.calls[0][0];
+		expect(sent.action).toBe('smwbrowse');
+		expect(sent.browse).toBe('property');
+		expect(typeof sent.params).toBe('string');
+		const sentParams = JSON.parse(sent.params as string);
+		expect(sentParams).toMatchObject({
+			search: '',
+			description: true,
+			prefLabel: true,
+			usageCount: true,
 		});
 	});
 
-	it('omits description and usageCount when unavailable', async () => {
+	it('omits description when the en value is empty', async () => {
 		const mock = createMockMwn({
-			request: vi.fn().mockResolvedValue({
-				query: [{ label: 'Bare property', type: '_txt' }],
-			}),
+			request: vi
+				.fn()
+				.mockResolvedValue(smwBrowseResponse([smwBrowseProp('Bare_property', { usageCount: 0 })])),
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
@@ -48,83 +91,106 @@ describe('smw-list-properties', () => {
 
 		const props = (result.structuredContent as { properties: Record<string, unknown>[] })
 			.properties;
-		expect(props[0]).toHaveProperty('name', 'Bare property');
-		expect(props[0]).toHaveProperty('type', 'Text');
-		expect(props[0]).toHaveProperty('usage', '[[Bare property::value]]');
+		expect(props[0]).toMatchObject({
+			name: 'Bare property',
+			usage: '[[Bare property::value]]',
+			usageCount: 0,
+		});
 		expect(props[0]).not.toHaveProperty('description');
-		expect(props[0]).not.toHaveProperty('usageCount');
 	});
 
-	it('filters by case-insensitive substring on search', async () => {
+	it('omits usageCount when smwbrowse does not return it', async () => {
 		const mock = createMockMwn({
-			request: vi.fn().mockResolvedValue({
-				query: [
-					{ label: 'Born in', type: '_dat' },
-					{ label: 'Birth date', type: '_dat' },
-					{ label: 'Has occupation', type: '_wpg' },
-				],
-			}),
+			request: vi.fn().mockResolvedValue(smwBrowseResponse([smwBrowseProp('Some_property')])),
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		const result = await smwListProperties.handle({ search: 'BORN' }, ctx);
+		const result = await smwListProperties.handle({}, ctx);
 
-		const props = (result.structuredContent as { properties: { name: string }[] }).properties;
-		expect(props.map((p) => p.name)).toEqual(['Born in']);
+		const props = (result.structuredContent as { properties: Record<string, unknown>[] })
+			.properties;
+		expect(props[0]).toHaveProperty('name', 'Some property');
+		expect(props[0]).not.toHaveProperty('usageCount');
 	});
 
-	it('sorts results alphabetically by name (case-insensitive)', async () => {
+	it('parses usageCount returned as a string into a number', async () => {
+		const mock = createMockMwn({
+			request: vi
+				.fn()
+				.mockResolvedValue(
+					smwBrowseResponse([smwBrowseProp('Manufacturer', { usageCount: 6190 })]),
+				),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		const result = await smwListProperties.handle({}, ctx);
+
+		const props = (result.structuredContent as { properties: { usageCount: unknown }[] })
+			.properties;
+		expect(props[0].usageCount).toBe(6190);
+	});
+
+	it('replaces underscores with spaces when the label is missing', async () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({
-				query: [
-					{ label: 'banana', type: '_txt' },
-					{ label: 'Apple', type: '_txt' },
-					{ label: 'BANANA', type: '_txt' },
-					{ label: 'Cherry', type: '_txt' },
-					{ label: 'apple', type: '_txt' },
-				],
+				query: {
+					Some_internal_key: { key: 'Some_internal_key' },
+				},
+				'query-continue-offset': 0,
 			}),
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
 		const result = await smwListProperties.handle({}, ctx);
 
-		const names = (result.structuredContent as { properties: { name: string }[] }).properties.map(
-			(p) => p.name,
-		);
-
-		// Both 'apple'/'Apple' must precede every banana; both bananas must precede Cherry.
-		// Case-insensitive sort guarantees clustering by lowercased key.
-		const lowercased = names.map((n) => n.toLowerCase());
-		expect(lowercased).toEqual(['apple', 'apple', 'banana', 'banana', 'cherry']);
+		const props = (result.structuredContent as { properties: { name: string }[] }).properties;
+		expect(props[0].name).toBe('Some internal key');
 	});
 
-	it('default limit is 50; user-provided limit is honoured', async () => {
-		const labels = Array.from({ length: 75 }, (_, i) => ({
-			label: `prop-${String(i).padStart(3, '0')}`,
-			type: '_txt',
-		}));
+	it('forwards the search term to smwbrowse params', async () => {
 		const mock = createMockMwn({
-			request: vi.fn().mockResolvedValue({ query: labels }),
+			request: vi.fn().mockResolvedValue(smwBrowseResponse([])),
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		const resultDefault = await smwListProperties.handle({}, ctx);
-		const propsDefault = (resultDefault.structuredContent as { properties: unknown[] }).properties;
-		expect(propsDefault).toHaveLength(50);
+		await smwListProperties.handle({ search: 'manufacturer' }, ctx);
 
-		const resultLimit = await smwListProperties.handle({ limit: 10 }, ctx);
-		const propsLimit = (resultLimit.structuredContent as { properties: unknown[] }).properties;
-		expect(propsLimit).toHaveLength(10);
+		const sentParams = JSON.parse(mock.request.mock.calls[0][0].params as string);
+		expect(sentParams.search).toBe('manufacturer');
 	});
 
-	it('attaches a more-available truncation when results exceed the limit', async () => {
-		const labels = Array.from({ length: 75 }, (_, i) => ({
-			label: `prop-${String(i).padStart(3, '0')}`,
-			type: '_txt',
-		}));
+	it('forwards limit and offset to smwbrowse params', async () => {
 		const mock = createMockMwn({
-			request: vi.fn().mockResolvedValue({ query: labels }),
+			request: vi.fn().mockResolvedValue(smwBrowseResponse([])),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		await smwListProperties.handle({ limit: 25, continueFrom: '100' }, ctx);
+
+		const sentParams = JSON.parse(mock.request.mock.calls[0][0].params as string);
+		expect(sentParams.limit).toBe(25);
+		expect(sentParams.offset).toBe(100);
+	});
+
+	it('defaults limit to 50 and offset to 0 when not supplied', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue(smwBrowseResponse([])),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		await smwListProperties.handle({}, ctx);
+
+		const sentParams = JSON.parse(mock.request.mock.calls[0][0].params as string);
+		expect(sentParams.limit).toBe(50);
+		expect(sentParams.offset).toBe(0);
+	});
+
+	it('attaches a more-available truncation when query-continue-offset > 0', async () => {
+		const entries = Array.from({ length: 50 }, (_, i) =>
+			smwBrowseProp(`prop-${String(i).padStart(3, '0')}`),
+		);
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue(smwBrowseResponse(entries, 50)),
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
@@ -134,16 +200,15 @@ describe('smw-list-properties', () => {
 		expect(text).toContain('Truncation:');
 		expect(text).toContain('Reason: more-available');
 		expect(text).toContain('Param: continueFrom');
-		expect(text).toMatch(/Value: 50/);
+		expect(text).toContain('Value: 50');
 	});
 
-	it('omits truncation when limit exactly matches the result count', async () => {
-		const labels = Array.from({ length: 50 }, (_, i) => ({
-			label: `prop-${String(i).padStart(3, '0')}`,
-			type: '_txt',
-		}));
+	it('omits truncation when query-continue-offset is 0', async () => {
+		const entries = Array.from({ length: 50 }, (_, i) =>
+			smwBrowseProp(`prop-${String(i).padStart(3, '0')}`),
+		);
 		const mock = createMockMwn({
-			request: vi.fn().mockResolvedValue({ query: labels }),
+			request: vi.fn().mockResolvedValue(smwBrowseResponse(entries, 0)),
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
@@ -151,18 +216,42 @@ describe('smw-list-properties', () => {
 
 		const text = assertStructuredSuccess(result);
 		expect(text).not.toContain('Truncation:');
-		expect((result.structuredContent as { properties: unknown[] }).properties).toHaveLength(50);
 	});
 
-	it('returns empty properties array on no results', async () => {
+	it('returns empty properties array when smwbrowse responds with query: []', async () => {
 		const mock = createMockMwn({
-			request: vi.fn().mockResolvedValue({ query: [] }),
+			request: vi.fn().mockResolvedValue({
+				query: [],
+				'query-continue-offset': 0,
+			}),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		const result = await smwListProperties.handle({ search: 'no-match-anywhere' }, ctx);
+
+		expect(result.structuredContent).toMatchObject({ properties: [] });
+	});
+
+	it('falls back to a non-en description when en is empty but another lang is set', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				query: {
+					Foo: {
+						label: 'Foo',
+						key: 'Foo',
+						description: { en: '', de: 'Eine Beschreibung' },
+					},
+				},
+				'query-continue-offset': 0,
+			}),
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
 		const result = await smwListProperties.handle({}, ctx);
 
-		expect(result.structuredContent).toMatchObject({ properties: [] });
+		const props = (result.structuredContent as { properties: { description?: string }[] })
+			.properties;
+		expect(props[0].description).toBe('Eine Beschreibung');
 	});
 
 	it('surfaces upstream errors as upstream_failure via dispatcher', async () => {
