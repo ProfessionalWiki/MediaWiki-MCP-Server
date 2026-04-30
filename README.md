@@ -10,7 +10,7 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | Name | Description | Permissions |
 |---|---|---|
 | `add-wiki` | Add a wiki as an MCP resource from its URL. Disabled when `allowWikiManagement` is `false`. | - |
-| `bucket-query` | Run a [Bucket extension](https://github.com/weirdgloop/mediawiki-extensions-Bucket) query (Lua chain). Enabled only when the wiki has Bucket installed. | - |
+| `bucket-query` | Run a [Bucket extension](https://github.com/weirdgloop/mediawiki-extensions-Bucket) Lua query. Enabled only when the wiki has Bucket installed. | - |
 | `compare-pages` | Diff two versions of a wiki page by revision, title, or supplied wikitext. | - |
 | `oauth-logout` | Remove stored OAuth tokens. Stdio only. | - |
 | `oauth-status` | List stored OAuth tokens with scopes and expiry (no token values). Stdio only. | - |

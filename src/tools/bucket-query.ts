@@ -10,8 +10,7 @@ const inputSchema = {
 	query: z
 		.string()
 		.describe(
-			'Bucket Lua chain ending in `.run()`. ' +
-				'Example: bucket("drops").select("page_name","item").where("item","Bandos chestplate").run()',
+			'Bucket Lua chain ending in `.run()`. Example: bucket("exchange").select("name","high_alch").where("name","Abyssal whip").run()',
 		),
 	limit: z
 		.number()
@@ -19,13 +18,11 @@ const inputSchema = {
 		.min(1)
 		.max(HARD_LIMIT)
 		.optional()
-		.describe('Appended as `.limit(N)` immediately before `.run()`. Hard cap 500.'),
+		.describe('Appended as `.limit(N)` before `.run()`. Hard cap 500.'),
 	continueFrom: z
 		.string()
 		.optional()
-		.describe(
-			'Continuation token from a prior response (a non-negative integer offset); appended as `.offset(N)` before `.run()`.',
-		),
+		.describe('Pagination token from a prior response (non-negative integer offset).'),
 } as const;
 
 interface BucketResponse {
@@ -37,7 +34,7 @@ interface BucketResponse {
 export const bucketQuery: Tool<typeof inputSchema> = {
 	name: 'bucket-query',
 	description:
-		'Runs a Bucket extension query against the active wiki. Pass a fully built Lua chain ending in `.run()`; the server caps results at 500 rows per call and paginates via `continueFrom`.\n\nGround bucket and field names BEFORE composing a query — guessing fails. Schemas live as JSON pages in the `Bucket:` namespace (id 9592). The bucket name passed to `bucket(...)` is the page title with the `Bucket:` prefix stripped, lowercased, and spaces replaced with underscores. Examples: page `Bucket:Exchange` → `bucket("exchange")`; page `Bucket:Combat achievement` → `bucket("combat_achievement")`; page `Bucket:Infobox item` → `bucket("infobox_item")`.\n\nDiscovery flow: call `search-page-by-prefix` with `namespace=9592` and a starting-letter `prefix` you suspect a relevant bucket starts with (e.g. `prefix="E"` for Grand Exchange / item price data → `Bucket:Exchange`; `prefix="C"` for combat achievements → `Bucket:Combat achievement`; `prefix="I"` for infobox-style data → `Bucket:Infobox item`). Then `get-page` on the matching `Bucket:<Name>` to read the JSON schema — each top-level key is a field with a `type` of PAGE, TEXT, INTEGER, DOUBLE, or BOOLEAN. Field names are already lowercase-underscored in the schema; pass them verbatim.\n\nQuery syntax (full reference: https://meta.weirdgloop.org/w/Extension:Bucket/Usage):\n- `select("a","b",...)` — fields to return.\n- `where({"field","value"})` or shorthand `where("field","value")` for equality. For comparators use the table form with an operator: `where({"value",">",1000000})`. Operators: `=`, `!=`, `>`, `<`, `>=`, `<=`. Compose with `Bucket.And(c1,c2)`, `Bucket.Or(c1,c2)`, `Bucket.Not(c)`.\n- `orderBy("field","asc")` or `"desc"`.\n- `.run()` returns an array of row tables; an empty array means no matches.\n\nFull example: `bucket("exchange").select("name","value","high_alch").where("name","Abyssal whip").run()`. Bucket\'s third-party API is not yet stable upstream, so error wording from the wiki may shift between versions.',
+		'Runs a Bucket extension query against the active wiki. One row per match.\n\nGround bucket and field names first: schemas are JSON pages in the `Bucket:` namespace (id 9592). The `bucket(...)` argument is the page title lowercased with spaces replaced by underscores — page `Bucket:Combat achievement` is queried as `bucket("combat_achievement")`. Discover with `search-page-by-prefix` (namespace 9592 plus a starting-letter prefix), then `get-page` to read the schema. Field names appear already lowercase-underscored in the schema; pass them verbatim.\n\nExamples:\n- Lookup: bucket("exchange").select("name","high_alch").where("name","Abyssal whip").run()\n- Sort: bucket("exchange").select("name","value").orderBy("value","desc").limit(10).run()\n- Comparator: bucket("exchange").select("name","value").where({"value",">",1000000}).run()\n\nWhere syntax: shorthand `where("field","value")` for equality; table form `where({"field","op","value"})` for `=`, `!=`, `>`, `<`, `>=`, `<=`. Compose with `Bucket.And/Or/Not`. Full Lua reference: https://meta.weirdgloop.org/w/Extension:Bucket/Usage.\n\nUp to 500 rows per call; paginate with continueFrom. Bucket\'s API is not yet stable upstream — error wording may shift, but errors come through verbatim.',
 	inputSchema,
 	annotations: {
 		title: 'Run Bucket query',
