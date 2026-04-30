@@ -152,9 +152,13 @@ When using HTTP transport with an OAuth-aware MCP client (Claude Desktop, mcp-re
 **One-time setup on the wiki:**
 
 1. Visit `Special:OAuthConsumerRegistration/propose/oauth2` on the wiki.
-2. Register a **public client** (PKCE only, no client secret).
-3. Set redirect URI to `http://127.0.0.1/oauth/callback` — loopback per RFC 8252; the runtime port varies.
-4. Copy the issued `client_id`.
+2. **OAuth "callback URL"**: `http://127.0.0.1/oauth/callback`
+3. **Allow consumer to specify a callback in requests, and use "callback URL" as a prefix**: enabled. RFC 8252 loopback flows pick an ephemeral port at runtime, so the registered URL is treated as a prefix.
+4. **Client is confidential**: leave **unchecked**. The MCP server is a public client and uses PKCE in lieu of a client secret; checking this box would make the wiki demand a `client_secret` on every token exchange and the dance would fail with `invalid_client`.
+5. **Allowed OAuth2 grant types**: tick **Authorization code** (required) and **Refresh token** (so the server can refresh access tokens transparently before they expire). Leave **Client credentials** unchecked — that grant is for confidential clients authenticating as themselves, which doesn't apply here.
+6. **Types of grants being requested**: pick **Request authorization for specific permissions**. The MCP server tools call the wiki API on the user's behalf, which is exactly what this option enables. The two identity-only options would block every API tool with `permission_denied`. Tick the grant categories you want to expose — at minimum **Basic rights**; add edit/upload categories to enable the corresponding write tools.
+7. Approve the consumer (admin step on the wiki — `Special:OAuthManageConsumers`).
+8. Copy the issued `client_id`.
 
 **Configure the MCP server:**
 

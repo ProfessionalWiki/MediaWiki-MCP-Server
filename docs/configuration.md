@@ -163,10 +163,22 @@ Browser-based OAuth lets users authenticate without pasting a token into `config
 ### Register an OAuth consumer on the wiki
 
 1. Visit `Special:OAuthConsumerRegistration/propose/oauth2` on the wiki. Extension:OAuth ≥ 1.0 (MediaWiki ≥ 1.39) is required.
-2. Register a **public client** — PKCE only, no client secret.
-3. Set redirect URI to `http://127.0.0.1/oauth/callback`. RFC 8252 §7.3 mandates that authorization servers honour any port on a loopback redirect URI, so the runtime port the MCP server picks does not need to be pre-registered.
-4. Approve the consumer (admin step on the wiki side, depending on your wiki's policy).
-5. Copy the issued `client_id`.
+2. Fill in the form fields specific to the OAuth flow:
+   - **OAuth "callback URL"**: `http://127.0.0.1/oauth/callback`
+   - **Allow consumer to specify a callback in requests, and use "callback URL" as a prefix**: ✅ enabled. RFC 8252 §7.3 mandates that authorization servers honour any port on a loopback redirect URI, so the runtime port the MCP server picks does not need to be pre-registered — but Extension:OAuth requires this checkbox to permit the variable port.
+   - **Client is confidential**: ❌ leave unchecked. The MCP server is a public client and uses PKCE (RFC 7636) in place of a client secret. Marking the consumer confidential would make the wiki demand a `client_secret` on every token-endpoint exchange, and the dance would fail with `invalid_client` because the server does not (and cannot safely) hold a secret on a user's machine.
+   - **Allowed OAuth2 grant types**:
+     - ✅ **Authorization code** — required; this is the user-delegated flow the MCP server drives.
+     - ✅ **Refresh token** — recommended; lets the server renew an expiring access token without prompting the user again. Disable only if your security policy requires re-authentication on every token expiry.
+     - ❌ **Client credentials** — leave unchecked. This grant is for confidential clients authenticating as themselves with no user; it doesn't apply to a public client doing user-delegated auth, and granting it would let any holder of the `client_id` impersonate the consumer without user consent.
+   - **Types of grants being requested**: pick **Request authorization for specific permissions**. The two identity-only options stop short of API access; the MCP server's tools all need to call the wiki API on the user's behalf. This option opens a checklist of grant categories — tick the ones you want the consumer to be able to request. Suggested minimum:
+     - **Basic rights** — always required (anonymous reads, basic profile).
+     - **Edit existing pages** + **Create, edit, and move pages** — needed for `update-page`, `create-page`, `delete-page`, `undelete-page`.
+     - **High-volume editing** — recommended if the MCP server is going to drive bulk edits without rate-limiting prompts.
+     - **Upload new files** + **Upload, replace, and move files** — needed for `upload-file`, `upload-file-from-url`, `update-file`, `update-file-from-url`.
+   - Tools whose grants the user has not approved at consent time will return `permission_denied`; you can grant only what you want to exercise.
+3. Approve the consumer at `Special:OAuthManageConsumers` (admin step, depending on your wiki's policy).
+4. Copy the issued `client_id`.
 
 ### Configure the MCP server
 
