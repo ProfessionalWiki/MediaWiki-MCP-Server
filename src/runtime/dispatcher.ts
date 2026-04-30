@@ -13,6 +13,20 @@ import {
 } from './instrument.js';
 import { acquireToken } from '../auth/acquireToken.js';
 
+// Tools that operate on server-local state (the wiki registry, the OAuth token
+// store) rather than the active wiki's API. They must not be blocked by an
+// OAuth gate keyed on the active wiki — otherwise a wiki whose OAuth has gone
+// stale would render set-wiki, remove-wiki, and the oauth-* tools unreachable,
+// with no way for the caller to escape it. add-wiki targets a different wiki
+// entirely and equally has no business borrowing the active wiki's token.
+const TOOLS_BYPASSING_ACTIVE_WIKI_AUTH: ReadonlySet<string> = new Set([
+	'add-wiki',
+	'set-wiki',
+	'remove-wiki',
+	'oauth-status',
+	'oauth-logout',
+]);
+
 export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext = ToolContext>(
 	tool: Tool<TSchema, TCtx>,
 	ctx: TCtx,
@@ -21,6 +35,7 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext =
 		const { key: wikiKey, config: wiki } = ctx.selection.getCurrent();
 		const useOauth =
 			ctx.transport === 'stdio' &&
+			!TOOLS_BYPASSING_ACTIVE_WIKI_AUTH.has(tool.name) &&
 			typeof wiki.oauth2ClientId === 'string' &&
 			wiki.oauth2ClientId.trim() !== '';
 
