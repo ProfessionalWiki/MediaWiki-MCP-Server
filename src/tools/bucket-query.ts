@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
+import type { TruncationInfo } from '../results/truncation.js';
 
 const HARD_LIMIT = 500;
 
@@ -67,8 +68,28 @@ export const bucketQuery: Tool<typeof inputSchema> = {
 			return ctx.format.invalidInput(response.error);
 		}
 
-		const rows = Array.isArray(response.bucket) ? response.bucket : [];
-		return ctx.format.ok({ rows });
+		const rows = extractRows(response.bucket, ctx);
+		const effectiveLimit = Math.min(limit ?? HARD_LIMIT, HARD_LIMIT);
+		const currentOffset = continueFrom !== undefined ? Number.parseInt(continueFrom, 10) : 0;
+
+		const truncation: TruncationInfo | null =
+			rows.length >= effectiveLimit
+				? {
+						reason: 'more-available',
+						returnedCount: rows.length,
+						itemNoun: 'rows',
+						toolName: 'bucket-query',
+						continueWith: {
+							param: 'continueFrom',
+							value: String(currentOffset + rows.length),
+						},
+					}
+				: null;
+
+		return ctx.format.ok({
+			rows,
+			...(truncation !== null ? { truncation } : {}),
+		});
 	},
 };
 
@@ -106,4 +127,17 @@ function renderQuery(
 		kind: 'ok',
 		query: `${head}.limit(${effectiveLimit})${offsetSuffix}.run()`,
 	};
+}
+
+function extractRows(value: unknown, ctx: ToolContext): unknown[] {
+	if (value === undefined || value === null) {
+		return [];
+	}
+	if (Array.isArray(value)) {
+		return value;
+	}
+	ctx.logger.debug('bucket-query: non-array bucket field, wrapping as single row', {
+		valueType: typeof value,
+	});
+	return [value];
 }

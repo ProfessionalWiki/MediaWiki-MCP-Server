@@ -190,4 +190,98 @@ describe('bucket-query', () => {
 		expect(envelope.message).toMatch(/continueFrom/);
 		expect(mock.request).not.toHaveBeenCalled();
 	});
+
+	it('emits a more-available truncation when rows.length === effectiveLimit', async () => {
+		const fullPage = Array.from({ length: 50 }, (_, i) => ({
+			page_name: `Item ${i}`,
+		}));
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({ bucketQuery: '', bucket: fullPage }),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		const result = await bucketQuery.handle(
+			{ query: 'bucket("drops").select("page_name").run()', limit: 50 },
+			ctx,
+		);
+
+		const text = assertStructuredSuccess(result);
+		expect(text).toContain('Truncation:');
+		expect(text).toContain('Reason: more-available');
+		expect(text).toContain('Param: continueFrom');
+		expect(text).toContain('Value: 50');
+	});
+
+	it('continueFrom advances by rows.length on subsequent pages', async () => {
+		const fullPage = Array.from({ length: 50 }, (_, i) => ({
+			page_name: `Item ${i + 50}`,
+		}));
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({ bucketQuery: '', bucket: fullPage }),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		const result = await bucketQuery.handle(
+			{
+				query: 'bucket("drops").select("page_name").run()',
+				limit: 50,
+				continueFrom: '50',
+			},
+			ctx,
+		);
+
+		const text = assertStructuredSuccess(result);
+		expect(text).toContain('Value: 100');
+	});
+
+	it('emits no truncation when rows.length < effectiveLimit', async () => {
+		const partial = Array.from({ length: 3 }, (_, i) => ({
+			page_name: `Item ${i}`,
+		}));
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({ bucketQuery: '', bucket: partial }),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		const result = await bucketQuery.handle(
+			{ query: 'bucket("drops").select("page_name").run()', limit: 50 },
+			ctx,
+		);
+
+		const text = assertStructuredSuccess(result);
+		expect(text).not.toContain('Truncation:');
+	});
+
+	it('wraps a non-array bucket field as a single-row array', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				bucketQuery: '',
+				bucket: { count: 42 },
+			}),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		const result = await bucketQuery.handle(
+			{ query: 'bucket("drops").select(bucket.count("*")).run()' },
+			ctx,
+		);
+
+		expect(result.structuredContent).toMatchObject({
+			rows: [{ count: 42 }],
+		});
+	});
+
+	it('treats a missing bucket field as empty rows', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({ bucketQuery: '' }),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		const result = await bucketQuery.handle(
+			{ query: 'bucket("drops").select("page_name").run()' },
+			ctx,
+		);
+
+		expect(result.structuredContent).toMatchObject({ rows: [] });
+	});
 });
