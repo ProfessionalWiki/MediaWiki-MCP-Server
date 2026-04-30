@@ -638,3 +638,73 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 		expect(hasSpy).toHaveBeenCalledWith('a', 'SemanticMediaWiki');
 	});
 });
+
+describe('reconcileTools — applyBucketExtensionRule', () => {
+	function makeToolMapWithBucket(initiallyEnabled: boolean): {
+		tools: Map<string, RegisteredTool>;
+		mocks: Map<string, MockTool>;
+	} {
+		const mocks = new Map<string, MockTool>();
+		const tools = new Map<string, RegisteredTool>();
+		for (const name of ['bucket-query', 'get-page']) {
+			const mock = makeMockTool(initiallyEnabled);
+			mocks.set(name, mock);
+			tools.set(name, mock as unknown as RegisteredTool);
+		}
+		return { tools, mocks };
+	}
+
+	it('disables bucket-query when the detector resolves false', async () => {
+		const { tools, mocks } = makeToolMapWithBucket(true);
+		const { registry, selection } = makeMocks({
+			activeWiki: baseWiki,
+			wikis: { a: baseWiki },
+			allowManagement: true,
+		});
+		await reconcileTools(tools, {
+			wikiRegistry: registry,
+			wikiSelection: selection,
+			transport: 'stdio',
+			extensions: makeFakeDetector({}),
+		});
+		expect(mocks.get('bucket-query')!.disable).toHaveBeenCalledTimes(1);
+		expect(mocks.get('get-page')!.disable).not.toHaveBeenCalled();
+	});
+
+	it('enables bucket-query when the detector resolves true', async () => {
+		const { tools, mocks } = makeToolMapWithBucket(false);
+		const { registry, selection } = makeMocks({
+			activeWiki: baseWiki,
+			wikis: { a: baseWiki },
+			allowManagement: true,
+		});
+		await reconcileTools(tools, {
+			wikiRegistry: registry,
+			wikiSelection: selection,
+			transport: 'stdio',
+			extensions: makeFakeDetector({ 'a:Bucket': true }),
+		});
+		expect(mocks.get('bucket-query')!.enable).toHaveBeenCalledTimes(1);
+	});
+
+	it('queries the detector with the active wiki key and the string "Bucket"', async () => {
+		const { tools } = makeToolMapWithBucket(false);
+		const hasSpy = vi.fn(async () => true);
+		const detector: ExtensionDetector = {
+			has: hasSpy,
+			invalidate: vi.fn(),
+		};
+		const { registry, selection } = makeMocks({
+			activeWiki: baseWiki,
+			wikis: { a: baseWiki },
+			allowManagement: true,
+		});
+		await reconcileTools(tools, {
+			wikiRegistry: registry,
+			wikiSelection: selection,
+			transport: 'stdio',
+			extensions: detector,
+		});
+		expect(hasSpy).toHaveBeenCalledWith('a', 'Bucket');
+	});
+});
