@@ -167,6 +167,7 @@ describe('GET /.well-known/oauth-protected-resource', () => {
 describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 	afterEach(() => {
 		delete process.env.MCP_ALLOW_STATIC_FALLBACK;
+		vi.unstubAllEnvs();
 	});
 
 	it('returns 401 with WWW-Authenticate when no bearer and wiki has oauth2ClientId', async () => {
@@ -334,5 +335,29 @@ describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 		expect(res.status).toBe(401);
 		const wwwAuth = res.headers['www-authenticate'] as string;
 		expect(wwwAuth).toContain('https://mcp.example.org:443/.well-known/oauth-protected-resource');
+	});
+
+	it('metadata URL in WWW-Authenticate honours MCP_PUBLIC_URL over request Host', async () => {
+		vi.stubEnv('MCP_PUBLIC_URL', 'https://override.example.org/');
+		const wikiCfg: Partial<WikiConfig> = {
+			sitename: 'OAuthWiki',
+			server: 'https://wiki.example',
+			scriptpath: '/w',
+			articlepath: '/wiki',
+			oauth2ClientId: 'client-id-123',
+		};
+		const selection = fakeSelection('mywiki', wikiCfg);
+		const app = buildMcpApp(selection);
+
+		const res = await request(app)
+			.post('/mcp')
+			.set('Content-Type', 'application/json')
+			.set('Host', 'internal.example.org')
+			.send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+
+		expect(res.status).toBe(401);
+		const wwwAuth = res.headers['www-authenticate'] as string;
+		expect(wwwAuth).toContain('https://override.example.org/.well-known/oauth-protected-resource');
+		expect(wwwAuth).not.toContain('internal.example.org');
 	});
 });

@@ -26,7 +26,13 @@ function anyWikiHasOAuth(wikis: Record<string, { oauth2ClientId?: string | null 
 	);
 }
 
-function resolveResource(
+/**
+ * Resolves the public base URL of the MCP server with a guaranteed trailing
+ * slash. Honours `MCP_PUBLIC_URL` when set; otherwise builds from request
+ * proto+host. Used for both the protected-resource doc's `resource` field and
+ * the WWW-Authenticate `resource_metadata` URL so the two stay aligned.
+ */
+export function resolvePublicBase(
 	requestHost: string | undefined,
 	requestProto: 'http' | 'https' | undefined,
 ): string {
@@ -49,7 +55,7 @@ export function buildProtectedResource(
 		return undefined;
 	}
 
-	const resource = resolveResource(input.requestHost, input.requestProto);
+	const resource = resolvePublicBase(input.requestHost, input.requestProto);
 
 	const doc: ProtectedResourceDoc = {
 		resource,

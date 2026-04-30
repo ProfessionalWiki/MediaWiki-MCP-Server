@@ -18,7 +18,7 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext =
 	ctx: TCtx,
 ): (args: z.infer<z.ZodObject<TSchema>>) => Promise<CallToolResult> {
 	return async (args) => {
-		const wiki = ctx.selection.getCurrent().config;
+		const { key: wikiKey, config: wiki } = ctx.selection.getCurrent();
 		const useOauth =
 			ctx.transport === 'stdio' &&
 			typeof wiki.oauth2ClientId === 'string' &&
@@ -27,7 +27,7 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext =
 		if (useOauth) {
 			let token: string;
 			try {
-				token = await acquireToken(ctx.selection.getCurrent().key, {
+				token = await acquireToken(wikiKey, {
 					wiki: { server: wiki.server, scriptpath: wiki.scriptpath },
 					oauth2ClientId: wiki.oauth2ClientId,
 				});

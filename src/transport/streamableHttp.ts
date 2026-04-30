@@ -31,7 +31,7 @@ import type { MwnProvider } from '../wikis/mwnProvider.js';
 import type { WikiSelection } from '../wikis/wikiSelection.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
 import { fetchMetadata } from '../auth/metadata.js';
-import { buildProtectedResource } from '../auth/protectedResource.js';
+import { buildProtectedResource, resolvePublicBase } from '../auth/protectedResource.js';
 import { createAppState } from '../wikis/state.js';
 import { createServer } from '../server.js';
 import { emitStartupBanner } from '../runtime/banner.js';
@@ -212,8 +212,8 @@ export function createMcpPostHandler(
 					typeof protoHeader === 'string' ? protoHeader.split(',')[0]?.trim() : undefined;
 				const requestProto =
 					proto === 'https' || proto === 'http' ? proto : req.secure ? 'https' : 'http';
-				const host = req.headers.host ?? 'localhost';
-				const metadataUrl = `${requestProto}://${host}/.well-known/oauth-protected-resource`;
+				const base = resolvePublicBase(req.headers.host ?? undefined, requestProto);
+				const metadataUrl = `${base}.well-known/oauth-protected-resource`;
 				res.set(
 					'WWW-Authenticate',
 					`Bearer realm="MediaWiki MCP Server", resource_metadata="${metadataUrl}"`,
