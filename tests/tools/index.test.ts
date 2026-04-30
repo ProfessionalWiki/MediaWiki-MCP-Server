@@ -71,6 +71,7 @@ async function connectClientAndServer(): Promise<{ client: Client; server: McpSe
 	};
 	const fakeDetector: ExtensionDetector = {
 		has: vi.fn(async () => false),
+		hasAny: vi.fn(async () => false),
 		invalidate: vi.fn(),
 	};
 	const reconcile = () =>

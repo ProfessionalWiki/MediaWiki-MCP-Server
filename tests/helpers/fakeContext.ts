@@ -41,6 +41,7 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 		},
 		extensions: {
 			has: throws('extensions.has') as never,
+			hasAny: throws('extensions.hasAny') as never,
 			invalidate: throws('extensions.invalidate') as never,
 		},
 		sections: { list: throws('sections.list') as never },

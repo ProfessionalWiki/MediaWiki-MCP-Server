@@ -11,6 +11,9 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 |---|---|---|
 | `add-wiki` | Add a wiki as an MCP resource from its URL. Disabled when `allowWikiManagement` is `false`. | - |
 | `bucket-query` | Run a [Bucket extension](https://github.com/weirdgloop/mediawiki-extensions-Bucket) Lua query. Enabled only when the wiki has Bucket installed. | - |
+| `cargo-describe-table` | List the fields of a [Cargo extension](https://www.mediawiki.org/wiki/Extension:Cargo) table with their types and list-flags. Enabled only when the wiki has Cargo installed. | - |
+| `cargo-list-tables` | List Cargo tables defined on the active wiki. Enabled only when the wiki has Cargo installed. | - |
+| `cargo-query` | Run a [Cargo extension](https://www.mediawiki.org/wiki/Extension:Cargo) SQL-style query. Enabled only when the wiki has Cargo installed. | - |
 | `compare-pages` | Diff two versions of a wiki page by revision, title, or supplied wikitext. | - |
 | `oauth-logout` | Remove stored OAuth tokens. Stdio only. | - |
 | `oauth-status` | List stored OAuth tokens with scopes and expiry (no token values). Stdio only. | - |
@@ -106,6 +109,8 @@ Tools marked 🔐 require authentication. They are also hidden from `tools/list`
 - **Per-request bearer token (HTTP).** Each request carries `Authorization: Bearer <token>`; the server forwards it to MediaWiki. See [docs/deployment.md — per-request bearer token](docs/deployment.md#per-request-bearer-token-http-transport).
 - **Manual OAuth2 access token.** Paste a long-lived token into `config.json`. See [docs/configuration.md — manual OAuth2 access token](docs/configuration.md#manual-oauth2-access-token).
 - **Bot password.** Fallback when Extension:OAuth isn't installed. See [docs/configuration.md — bot password](docs/configuration.md#bot-password).
+
+The Cargo tools (`cargo-query`, `cargo-list-tables`, `cargo-describe-table`) call API actions gated by the `runcargoqueries` user right. Most wikis grant this to all users by default; wikis that restrict it require the **`Create, query and delete data through the Cargo extension`** grant on the bot password or OAuth consumer. The Cargo extension is also detected on wiki.gg-hosted wikis (Helldivers, Terraria, Ark, etc.), where it ships under the rebranded name `LIBRARIAN`.
 
 ## Installation
 

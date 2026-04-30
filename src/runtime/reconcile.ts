@@ -45,6 +45,17 @@ export const SMW_GATED_TOOLS: readonly string[] = ['smw-query', 'smw-list-proper
 
 export const BUCKET_GATED_TOOLS: readonly string[] = ['bucket-query'];
 
+export const CARGO_GATED_TOOLS: readonly string[] = [
+	'cargo-list-tables',
+	'cargo-describe-table',
+	'cargo-query',
+];
+
+// wiki.gg-hosted wikis (Helldivers, Terraria, Ark, etc.) ship Cargo under the
+// rebranded name `LIBRARIAN`. Same author (Yaron Koren), same upstream, same
+// API. Accept either name when probing the active wiki's extensions.
+const CARGO_EXTENSION_NAMES: readonly string[] = ['Cargo', 'LIBRARIAN'];
+
 const RULES: readonly ToolGatingRule[] = [
 	{
 		name: 'read-only',
@@ -80,6 +91,11 @@ const RULES: readonly ToolGatingRule[] = [
 		name: 'bucket-extension',
 		affects: BUCKET_GATED_TOOLS,
 		isAllowed: (c) => c.extensions.has(c.activeWikiKey, 'Bucket'),
+	},
+	{
+		name: 'cargo-extension',
+		affects: CARGO_GATED_TOOLS,
+		isAllowed: (c) => c.extensions.hasAny(c.activeWikiKey, CARGO_EXTENSION_NAMES),
 	},
 ];
 
