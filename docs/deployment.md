@@ -16,7 +16,7 @@ The server can run as a remote HTTP endpoint for clients that only accept URLs (
 - `MCP_BIND` — listen interface (default `127.0.0.1`; the Dockerfile overrides to `0.0.0.0` so container port forwarding reaches the listener). Set to `0.0.0.0` outside Docker only when you need remote access.
 - `MCP_SHUTDOWN_GRACE_MS` — milliseconds to wait for in-flight `/mcp` requests to drain on `SIGTERM` or `SIGINT` (default `10000`, max `600000`). On expiry the server exits 1 with `grace_exceeded: true`. See [Graceful shutdown](operations.md#graceful-shutdown).
 - `MCP_ALLOWED_HOSTS` — comma-separated Host-header allowlist (e.g. `MCP_ALLOWED_HOSTS=wiki.example.org`). Set it on any non-localhost bind — without it, the SDK disables its DNS-rebinding check and logs a startup warning. Not needed on localhost binds, where the SDK auto-allows `localhost`, `127.0.0.1`, and `[::1]`. A bare hostname in `MCP_BIND` counts as non-localhost: the auto-allowlist only matches those three literals.
-- `MCP_ALLOWED_ORIGINS` — comma-separated `Origin`-header allowlist (e.g. `MCP_ALLOWED_ORIGINS=https://wiki.example.org`). Requests whose `Origin` is present but not listed get a 403. On a localhost bind, defaults to the three loopback origins on the bound port (`http://localhost:<port>`, `http://127.0.0.1:<port>`, `http://[::1]:<port>`) so local browser clients keep working. On a non-localhost bind, leaving it unset disables Origin validation and logs a startup warning. The allowlist is an exact string match — see [configuration.md — reverse proxy requirements](configuration.md#reverse-proxy-requirements) for the gotchas that silently cause every browser request to fail.
+- `MCP_ALLOWED_ORIGINS` — comma-separated `Origin`-header allowlist (e.g. `MCP_ALLOWED_ORIGINS=https://wiki.example.org`). Requests whose `Origin` is present but not listed get a 403. On a localhost bind, defaults to the three loopback origins on the bound port (`http://localhost:<port>`, `http://127.0.0.1:<port>`, `http://[::1]:<port>`) so local browser clients keep working. On a non-localhost bind, leaving it unset disables Origin validation and logs a startup warning. The allowlist is an exact string match — see [reverse proxy requirements](#reverse-proxy-requirements) for the gotchas that silently cause every browser request to fail.
 - `MCP_MAX_REQUEST_BODY` — maximum HTTP request body size (default `1mb`, matching nginx's `client_max_body_size 1m`). Raise it if `update-page` calls return 413 on legitimately large edits, or if your wiki has raised `$wgMaxArticleSize` (MediaWiki default 2 MB) and routinely edits near the ceiling. Lower it for a tighter DoS guard. Accepts body-parser size strings (`b`, `kb`, `mb`, `gb`).
 
 ## Shape 1 — Single-wiki, read-only, anonymous
@@ -62,18 +62,63 @@ Place the server behind a reverse proxy that terminates TLS and applies rate lim
 
 One wiki entry, `allowWikiManagement: false`, no static credentials. Each HTTP request carries `Authorization: Bearer <token>`, which the server forwards to MediaWiki as that caller's OAuth2 access token. Writes are attributable to the caller, MediaWiki's per-user rate limits apply, and `tools/list` exposes the full write surface.
 
-See [configuration.md — per-request bearer token](configuration.md#per-request-bearer-token-http-transport) for the header contract, precedence, token acquisition, and trust-boundary details.
+See [per-request bearer token](#per-request-bearer-token-http-transport) for the header contract, precedence, token acquisition, and trust-boundary details.
 
 Hosted-use notes:
 
 - **No static credentials in `config.json`.** The HTTP transport refuses to start when any wiki has a `token` set or both `username` and `password` set — they would silently act as a fallback identity for unauthenticated callers, defeating per-caller bearer passthrough. Set `MCP_ALLOW_STATIC_FALLBACK=true` to opt into a shared-identity deployment; the server then starts with a warning naming the affected wikis.
 - **The server process sees every caller's token in flight.** Treat it as a secret-handling component: avoid verbose error logging, and don't pipe raw error objects into error-tracking services that capture arbitrary fields.
 - **Single wiki only for now.** A bearer is scoped to one MediaWiki OAuth2 realm, and `set-wiki` hasn't been audited for concurrent-caller safety. Multi-wiki bearer deployment is on the roadmap.
-- **Reverse proxy must forward `Authorization` intact** and strip it on untrusted inbound paths. The MCP server trusts any `Authorization: Bearer` header it sees — see [configuration.md — reverse proxy requirements](configuration.md#reverse-proxy-requirements).
+- **Reverse proxy must forward `Authorization` intact** and strip it on untrusted inbound paths. The MCP server trusts any `Authorization: Bearer` header it sees — see [reverse proxy requirements](#reverse-proxy-requirements).
 - **Set `MCP_ALLOWED_HOSTS` to the hostname(s) your reverse proxy forwards** (e.g. `MCP_ALLOWED_HOSTS=wiki.example.org`). Without it, the SDK's DNS-rebinding check is off and non-matching `Host` headers are not rejected.
 - **Set `MCP_ALLOWED_ORIGINS` to the public origin(s) your proxy serves** (e.g. `MCP_ALLOWED_ORIGINS=https://wiki.example.org`). Without it, Origin validation is off and browser requests with a mismatched `Origin` are not rejected.
 - **`upload-file` stays off until you opt in.** Configure an allowlist via `uploadDirs` in `config.json` or the `MCP_UPLOAD_DIRS` env var — see [configuration.md — upload directories](configuration.md#upload-directories). With no allowlist, every local-upload attempt is refused.
 - **OAuth-spec discovery is available** when a wiki sets `oauth2ClientId`. The server publishes `/.well-known/oauth-protected-resource` and returns `WWW-Authenticate: Bearer realm="MediaWiki MCP Server", resource_metadata="..."` on bearer-less 401s. OAuth-aware MCP clients use this to start the auth-code+PKCE dance against the wiki's authorization server. See [configuration.md — OAuth (browser-based)](configuration.md#oauth-browser-based) for the per-wiki opt-in.
+
+## Per-request bearer token (HTTP transport)
+
+When using the Streamable HTTP transport (`MCP_TRANSPORT=http`), the server accepts a standard OAuth 2.1 `Authorization: Bearer` header on each request, as described in the [MCP authorization specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization):
+
+```
+Authorization: Bearer <oauth2-access-token>
+```
+
+Any MCP client that supports HTTP transport authentication can be configured to send this header. The token must be a MediaWiki OAuth2 access token obtained from `Special:OAuthConsumerRegistration/propose/oauth2` on the target wiki, with [Extension:OAuth](https://www.mediawiki.org/wiki/Extension:OAuth) installed.
+
+**Precedence**: request header → `config.json` `token` → `config.json` `username`/`password` → anonymous. The HTTP transport refuses to start with static credentials in `config.json` unless `MCP_ALLOW_STATIC_FALLBACK=true` is set — see [deployment.md](deployment.md#shape-2--single-wiki-per-user-oauth2-bearer-passthrough) for why.
+
+Each request builds an independent MediaWiki session using the supplied token. Token rotation and revocation take effect on the next MCP session started with the new token.
+
+Example configuration with Claude Code:
+
+```
+claude mcp add --transport http my-wiki https://wiki.example.org/mcp \
+  --header "Authorization: Bearer eyJhbGciOi..."
+```
+
+> **Note on the MCP authorization model.** The spec envisions the MCP server as a distinct OAuth resource server with its own audience, advertising `/.well-known/oauth-protected-resource` and obtaining a separate upstream token when calling MediaWiki. This server pragmatically uses MediaWiki's OAuth realm directly — the bearer token is a MediaWiki access token, and the MCP server forwards it without re-issuing. This is simpler to deploy against existing wikis but means clients must obtain a MediaWiki-audience token rather than going through an MCP-spec-compliant discovery flow.
+
+### Reverse proxy requirements
+
+**Trust boundary.** The server trusts any `Authorization: Bearer` header it receives without performing origin checks. Run it behind a reverse proxy that terminates client connections and forwards only intended traffic, or bind it to a trusted interface (e.g. `127.0.0.1`) — never expose the HTTP port directly on an untrusted network.
+
+If the MCP server runs behind a reverse proxy (Caddy, nginx, Traefik), the proxy must forward the `Authorization` header to the MCP server intact. Configurations that strip or consume the header (e.g. `header_up -Authorization`, `proxy_set_header Authorization ""`, or a proxy-level basic auth handler on the MCP route) will cause the server to see no token and fall back to config/anonymous.
+
+**Host header allowlist.** On any public deployment, set `MCP_ALLOWED_HOSTS` to the comma-separated hostnames your proxy forwards (e.g. `MCP_ALLOWED_HOSTS=wiki.example.org`). This engages the SDK's DNS-rebinding check — requests to `/mcp` with a non-matching `Host` are rejected with a 403 JSON-RPC error. On a localhost bind, leaving it unset is safe (the SDK auto-allows `localhost`, `127.0.0.1`, and `[::1]`). On a public bind, leaving it unset turns the check off and the SDK logs a warning at startup.
+
+**Origin header allowlist.** Set `MCP_ALLOWED_ORIGINS` to the browser origins allowed to call `/mcp`. An origin is the scheme, host, and (only if non-default) port — for example `https://wiki.example.org`. When the allowlist is configured and an incoming `Origin` is present but not listed, the SDK returns 403. On a localhost bind, the default allowlist is the three loopback origins on the bound port (`http://localhost:<port>`, `http://127.0.0.1:<port>`, `http://[::1]:<port>`) so browser clients running alongside the server keep working. On a non-localhost bind, leaving it unset turns Origin validation off and the server logs a startup warning.
+
+Matching is exact string equality against what the browser sends. These values all silently 403 every browser request:
+
+- bare hostname (`wiki.example.org`) — missing scheme
+- trailing slash (`https://wiki.example.org/`) — browsers don't include it
+- path (`https://wiki.example.org/mcp`) — browsers don't include it
+- explicit default port (`https://wiki.example.org:443`) — browsers drop default ports when serializing
+- uppercase scheme (`HTTPS://...`) — browsers lowercase it
+
+When in doubt, open your deployed site in a browser and log `window.location.origin` — copy that value verbatim.
+
+Both allowlists apply only to `/mcp`. The `/health` endpoint is always reachable so container healthchecks and liveness probes (which hit `http://localhost:<port>/health`) keep working regardless of what you put in `MCP_ALLOWED_HOSTS` or `MCP_ALLOWED_ORIGINS`.
 
 ## Docker
 

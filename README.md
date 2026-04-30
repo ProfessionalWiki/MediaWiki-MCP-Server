@@ -189,7 +189,7 @@ claude mcp add --transport http my-wiki https://wiki.example.org/mcp \
   --header "Authorization: Bearer <your-access-token>"
 ```
 
-When no header is present, the server falls back to `config.json` credentials or anonymous access. See [docs/configuration.md](docs/configuration.md#per-request-bearer-token-http-transport) for details, precedence, trust-boundary guidance, and reverse-proxy requirements.
+When no header is present, the server falls back to `config.json` credentials or anonymous access. See [docs/deployment.md](docs/deployment.md#per-request-bearer-token-http-transport) for details, precedence, trust-boundary guidance, and reverse-proxy requirements.
 
 ### Bot password (fallback)
 
@@ -334,7 +334,7 @@ Tool calls emit an `event: "tool_call"` line; the startup banner is `event: "sta
 
 Defaults are safe for single-user use. Before exposing the HTTP transport to others, lock down three things:
 
-- **Trust the proxy, not the header.** The server forwards any `Authorization: Bearer` header straight to MediaWiki — authentication is the reverse proxy's job. Terminate TLS there, and don't expose the MCP port directly on an untrusted network. See [docs/configuration.md — reverse proxy requirements](docs/configuration.md#reverse-proxy-requirements).
+- **Trust the proxy, not the header.** The server forwards any `Authorization: Bearer` header straight to MediaWiki — authentication is the reverse proxy's job. Terminate TLS there, and don't expose the MCP port directly on an untrusted network. See [docs/deployment.md — reverse proxy requirements](docs/deployment.md#reverse-proxy-requirements).
 - **Pair `MCP_BIND` with `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS`.** The HTTP transport binds to `127.0.0.1` by default. When you open it up with `MCP_BIND=0.0.0.0`, set `MCP_ALLOWED_HOSTS` to the hostnames your proxy forwards and `MCP_ALLOWED_ORIGINS` to the browser origins allowed to call the server — these block DNS-rebinding and cross-origin attacks respectively.
 - **Uploads are opt-in.** `upload-file` is disabled until you list allowed directories in `uploadDirs` or `MCP_UPLOAD_DIRS`. See [docs/configuration.md — upload directories](docs/configuration.md#upload-directories).
 
