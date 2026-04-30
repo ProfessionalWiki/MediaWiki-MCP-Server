@@ -41,7 +41,7 @@ const WRITE_TOOL_NAMES: readonly string[] = [
 
 const STDIO_ONLY_TOOLS: readonly string[] = ['oauth-status', 'oauth-logout'];
 
-export const SMW_GATED_TOOLS: readonly string[] = ['smw-ask', 'smw-list-properties'];
+export const SMW_GATED_TOOLS: readonly string[] = ['smw-query', 'smw-list-properties'];
 
 const RULES: readonly ToolGatingRule[] = [
 	{

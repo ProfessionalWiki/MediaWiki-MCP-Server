@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 import { fakeContext } from '../helpers/fakeContext.js';
-import { smwAsk } from '../../src/tools/smw-ask.js';
+import { smwQuery } from '../../src/tools/smw-query.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
 
-describe('smw-ask', () => {
+describe('smw-query', () => {
 	it('calls action=ask with the user query and returns row-shaped results', async () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({
@@ -38,7 +38,7 @@ describe('smw-ask', () => {
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		const result = await smwAsk.handle(
+		const result = await smwQuery.handle(
 			{ query: '[[Category:Person]][[Born in::>1900]]|?Has occupation|?Born in' },
 			ctx,
 		);
@@ -70,7 +70,7 @@ describe('smw-ask', () => {
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		const result = await dispatch(smwAsk, ctx)({ query: '[[Borked' });
+		const result = await dispatch(smwQuery, ctx)({ query: '[[Borked' });
 
 		const envelope = assertStructuredError(result, 'invalid_input');
 		expect(envelope.message).toContain('Some parts of the query were not understood: [[Borked');
@@ -88,7 +88,7 @@ describe('smw-ask', () => {
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		const result = await smwAsk.handle({ query: '[[Category:DoesNotExist]]' }, ctx);
+		const result = await smwQuery.handle({ query: '[[Category:DoesNotExist]]' }, ctx);
 
 		const text = assertStructuredSuccess(result);
 		expect(text).not.toContain('Truncation:');
@@ -103,7 +103,7 @@ describe('smw-ask', () => {
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		await smwAsk.handle({ query: '[[Category:X]]|limit=10', limit: 50 }, ctx);
+		await smwQuery.handle({ query: '[[Category:X]]|limit=10', limit: 50 }, ctx);
 
 		const sentQuery = mock.request.mock.calls[0][0].query;
 		expect(sentQuery).toMatch(/\|limit=50\b/);
@@ -118,7 +118,7 @@ describe('smw-ask', () => {
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		await smwAsk.handle({ query: '[[Category:X]]|limit=10000' }, ctx);
+		await smwQuery.handle({ query: '[[Category:X]]|limit=10000' }, ctx);
 
 		const sentQuery = mock.request.mock.calls[0][0].query;
 		expect(sentQuery).toMatch(/\|limit=500\b/);
@@ -133,7 +133,7 @@ describe('smw-ask', () => {
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		await smwAsk.handle({ query: '[[Category:X]]' }, ctx);
+		await smwQuery.handle({ query: '[[Category:X]]' }, ctx);
 
 		const sentQuery = mock.request.mock.calls[0][0].query;
 		expect(sentQuery).toMatch(/\|limit=500\b/);
@@ -147,7 +147,7 @@ describe('smw-ask', () => {
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		await smwAsk.handle({ query: '[[Category:X]]', continueFrom: '40' }, ctx);
+		await smwQuery.handle({ query: '[[Category:X]]', continueFrom: '40' }, ctx);
 
 		const sentQuery = mock.request.mock.calls[0][0].query;
 		expect(sentQuery).toMatch(/\|offset=40\b/);
@@ -168,7 +168,7 @@ describe('smw-ask', () => {
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		const result = await smwAsk.handle({ query: '[[Category:X]]', limit: 1 }, ctx);
+		const result = await smwQuery.handle({ query: '[[Category:X]]', limit: 1 }, ctx);
 
 		const text = assertStructuredSuccess(result);
 		expect(text).toContain('Truncation:');
@@ -198,7 +198,7 @@ describe('smw-ask', () => {
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		const result = await smwAsk.handle({ query: 'q' }, ctx);
+		const result = await smwQuery.handle({ query: 'q' }, ctx);
 
 		expect(result.structuredContent).toMatchObject({
 			rows: [
@@ -220,7 +220,7 @@ describe('smw-ask', () => {
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		const result = await dispatch(smwAsk, ctx)({ query: '[[Category:X]]' });
+		const result = await dispatch(smwQuery, ctx)({ query: '[[Category:X]]' });
 
 		const envelope = assertStructuredError(result, 'upstream_failure');
 		expect(envelope.message).toContain('SMW timeout');

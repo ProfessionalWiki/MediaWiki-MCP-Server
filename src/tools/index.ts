@@ -19,7 +19,7 @@ import { comparePages } from './compare-pages.js';
 import { getFile } from './get-file.js';
 import { getRevision } from './get-revision.js';
 import { getCategoryMembers } from './get-category-members.js';
-import { smwAsk } from './smw-ask.js';
+import { smwQuery } from './smw-query.js';
 import { smwListProperties } from './smw-list-properties.js';
 import { createPage } from './create-page.js';
 import { updatePage } from './update-page.js';
@@ -52,7 +52,7 @@ export const standardTools: Tool<any>[] = [
 	getFile,
 	getRevision,
 	getCategoryMembers,
-	smwAsk,
+	smwQuery,
 	smwListProperties,
 	createPage,
 	updatePage,

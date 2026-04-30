@@ -33,7 +33,7 @@ interface SmwResultRow {
 	printouts?: Record<string, unknown[]>;
 }
 
-interface SmwAskResponse {
+interface SmwQueryResponse {
 	query?: {
 		results?: Record<string, SmwResultRow>;
 		errors?: string[];
@@ -49,8 +49,8 @@ interface NormalizedRow {
 	printouts: Record<string, unknown[]>;
 }
 
-export const smwAsk: Tool<typeof inputSchema> = {
-	name: 'smw-ask',
+export const smwQuery: Tool<typeof inputSchema> = {
+	name: 'smw-query',
 	description:
 		"Runs a Semantic MediaWiki `#ask` query against the active wiki. One row per matching page, with the requested printouts as columns. For grounded property names, use smw-list-properties first.\n\nExamples:\n- Pages in a category: [[Category:Person]]|?Has occupation|limit=20\n- Numeric comparison: [[Born in::>1900]]|?Has name|?Born in\n- Multiple conditions: [[Category:Person]][[Born in::>1900]][[Has occupation::Architect]]\n\nNumeric operators: write `>N` and `<N`; SMW's default config treats them as ≥ and ≤. `>=` and `<=` are rejected unless the wiki enables strict comparators (`$smwStrictComparators`).\n\nUp to 500 rows per call; paginate with continueFrom. Syntax errors return the SMW message verbatim.",
 	inputSchema,
@@ -73,7 +73,7 @@ export const smwAsk: Tool<typeof inputSchema> = {
 			format: 'json',
 		});
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SMW action=ask response shape; trusted at this boundary
-		const response = raw as SmwAskResponse;
+		const response = raw as SmwQueryResponse;
 
 		const errors = response.query?.errors;
 		if (Array.isArray(errors) && errors.length > 0) {
@@ -95,7 +95,7 @@ export const smwAsk: Tool<typeof inputSchema> = {
 						reason: 'more-available',
 						returnedCount: rows.length,
 						itemNoun: 'rows',
-						toolName: 'smw-ask',
+						toolName: 'smw-query',
 						continueWith: { param: 'continueFrom', value: String(continueOffset) },
 					}
 				: null;
