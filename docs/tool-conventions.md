@@ -99,6 +99,10 @@ Imperative instructions to the model ("You should...", "You MUST...") in tool de
 
 Annotation hints (`destructiveHint`, `idempotentHint`, `openWorldHint`) carry the boolean classification. The description carries the *specific* effect when it isn't obvious from the verb. `delete-page` is obvious; `upload-file-from-url` is not — the description should make clear that the file is fetched server-side, whether it overwrites, and whether the upload is logged. State only effects that are observable to the caller or visible on the wiki, not implementation incidentals.
 
+#### Validate descriptions with natural-language eval
+
+Unit tests verify the handler — not the description. For tools that surface a domain-specific syntax (query tools, parser-function wrappers — anywhere the caller writes a string in a non-obvious dialect), spot-check the description with a few natural-language prompts before merge. Any LLM-driving setup works: MCPJam Inspector, Claude Desktop pointed at the local build, an ad-hoc subagent driving the Inspector CLI. Watch for hallucinated syntax, failure to use companion discovery tools, and ungrounded names — consistent confusion in one direction is a description gap, not a model failure.
+
 ### Parameter docs
 
 #### Parameter descriptions
