@@ -611,7 +611,7 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 			wikiRegistry: registry,
 			wikiSelection: selection,
 			transport: 'stdio',
-			extensions: makeFakeDetector({ 'a:Semantic MediaWiki': true }),
+			extensions: makeFakeDetector({ 'a:SemanticMediaWiki': true }),
 		});
 		expect(mocks.get('smw-ask')!.enable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('smw-list-properties')!.enable).toHaveBeenCalledTimes(1);
@@ -635,6 +635,6 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 			transport: 'stdio',
 			extensions: detector,
 		});
-		expect(hasSpy).toHaveBeenCalledWith('a', 'Semantic MediaWiki');
+		expect(hasSpy).toHaveBeenCalledWith('a', 'SemanticMediaWiki');
 	});
 });

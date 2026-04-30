@@ -36,7 +36,7 @@ describe('ExtensionDetectorImpl', () => {
 		vi.mocked(makeApiRequest).mockResolvedValueOnce({
 			query: {
 				extensions: [
-					{ name: 'Semantic MediaWiki', type: 'parserhook' },
+					{ name: 'SemanticMediaWiki', type: 'parserhook' },
 					{ name: 'OAuth', type: 'specialpage' },
 				],
 			},
@@ -44,20 +44,20 @@ describe('ExtensionDetectorImpl', () => {
 		const clock = fakeClock();
 		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
 
-		expect(await detector.has('a', 'Semantic MediaWiki')).toBe(true);
+		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(true);
 		expect(await detector.has('a', 'OAuth')).toBe(true);
 		expect(await detector.has('a', 'NonExistent')).toBe(false);
 	});
 
 	it('issues exactly one HTTP request for multiple has() calls within TTL', async () => {
 		vi.mocked(makeApiRequest).mockResolvedValueOnce({
-			query: { extensions: [{ name: 'Semantic MediaWiki' }] },
+			query: { extensions: [{ name: 'SemanticMediaWiki' }] },
 		});
 		const clock = fakeClock();
 		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
 
-		await detector.has('a', 'Semantic MediaWiki');
-		await detector.has('a', 'Semantic MediaWiki');
+		await detector.has('a', 'SemanticMediaWiki');
+		await detector.has('a', 'SemanticMediaWiki');
 		await detector.has('a', 'OAuth');
 
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(1);
@@ -65,14 +65,14 @@ describe('ExtensionDetectorImpl', () => {
 
 	it('re-probes after the 1-hour TTL', async () => {
 		vi.mocked(makeApiRequest)
-			.mockResolvedValueOnce({ query: { extensions: [{ name: 'Semantic MediaWiki' }] } })
+			.mockResolvedValueOnce({ query: { extensions: [{ name: 'SemanticMediaWiki' }] } })
 			.mockResolvedValueOnce({ query: { extensions: [] } });
 		const clock = fakeClock();
 		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
 
-		expect(await detector.has('a', 'Semantic MediaWiki')).toBe(true);
+		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(true);
 		clock.advance(60 * 60 * 1000 + 1); // 1h + 1ms
-		expect(await detector.has('a', 'Semantic MediaWiki')).toBe(false);
+		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(false);
 
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(2);
 	});
@@ -82,18 +82,18 @@ describe('ExtensionDetectorImpl', () => {
 		const clock = fakeClock();
 		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
 
-		expect(await detector.has('a', 'Semantic MediaWiki')).toBe(false);
+		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(false);
 		// Within 60s, no re-probe.
 		clock.advance(30_000);
-		expect(await detector.has('a', 'Semantic MediaWiki')).toBe(false);
+		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(false);
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(1);
 
 		// After 60s, retry.
 		clock.advance(31_000);
 		vi.mocked(makeApiRequest).mockResolvedValueOnce({
-			query: { extensions: [{ name: 'Semantic MediaWiki' }] },
+			query: { extensions: [{ name: 'SemanticMediaWiki' }] },
 		});
-		expect(await detector.has('a', 'Semantic MediaWiki')).toBe(true);
+		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(true);
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(2);
 	});
 
@@ -108,14 +108,14 @@ describe('ExtensionDetectorImpl', () => {
 		const clock = fakeClock();
 		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
 
-		const p1 = detector.has('a', 'Semantic MediaWiki');
+		const p1 = detector.has('a', 'SemanticMediaWiki');
 		const p2 = detector.has('a', 'OAuth');
 		const p3 = detector.has('a', 'NotInstalled');
 
 		// All three calls share one in-flight probe.
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(1);
 
-		resolveProbe({ query: { extensions: [{ name: 'Semantic MediaWiki' }, { name: 'OAuth' }] } });
+		resolveProbe({ query: { extensions: [{ name: 'SemanticMediaWiki' }, { name: 'OAuth' }] } });
 		expect(await p1).toBe(true);
 		expect(await p2).toBe(true);
 		expect(await p3).toBe(false);
@@ -123,14 +123,14 @@ describe('ExtensionDetectorImpl', () => {
 
 	it('invalidate drops the entry; next call re-probes', async () => {
 		vi.mocked(makeApiRequest)
-			.mockResolvedValueOnce({ query: { extensions: [{ name: 'Semantic MediaWiki' }] } })
+			.mockResolvedValueOnce({ query: { extensions: [{ name: 'SemanticMediaWiki' }] } })
 			.mockResolvedValueOnce({ query: { extensions: [] } });
 		const clock = fakeClock();
 		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
 
-		expect(await detector.has('a', 'Semantic MediaWiki')).toBe(true);
+		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(true);
 		detector.invalidate('a');
-		expect(await detector.has('a', 'Semantic MediaWiki')).toBe(false);
+		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(false);
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(2);
 	});
 
@@ -139,7 +139,7 @@ describe('ExtensionDetectorImpl', () => {
 		const clock = fakeClock();
 		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
 
-		await detector.has('a', 'Semantic MediaWiki');
+		await detector.has('a', 'SemanticMediaWiki');
 
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledWith(
 			'https://test.wiki/w/api.php',
@@ -156,7 +156,7 @@ describe('ExtensionDetectorImpl', () => {
 		const clock = fakeClock();
 		const detector = new ExtensionDetectorImpl(makeRegistry({}), clock.now);
 
-		expect(await detector.has('unknown', 'Semantic MediaWiki')).toBe(false);
+		expect(await detector.has('unknown', 'SemanticMediaWiki')).toBe(false);
 		expect(vi.mocked(makeApiRequest)).not.toHaveBeenCalled();
 	});
 
@@ -165,10 +165,10 @@ describe('ExtensionDetectorImpl', () => {
 		const clock = fakeClock();
 		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
 
-		expect(await detector.has('a', 'Semantic MediaWiki')).toBe(false);
+		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(false);
 		// 60s short backoff applies.
 		clock.advance(30_000);
-		expect(await detector.has('a', 'Semantic MediaWiki')).toBe(false);
+		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(false);
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(1);
 	});
 });

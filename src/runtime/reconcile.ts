@@ -72,7 +72,7 @@ const RULES: readonly ToolGatingRule[] = [
 	{
 		name: 'smw-extension',
 		affects: SMW_GATED_TOOLS,
-		isAllowed: (c) => c.extensions.has(c.activeWikiKey, 'Semantic MediaWiki'),
+		isAllowed: (c) => c.extensions.has(c.activeWikiKey, 'SemanticMediaWiki'),
 	},
 ];
 
