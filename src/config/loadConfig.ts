@@ -36,6 +36,15 @@ export interface WikiConfig {
 	 */
 	password?: string | null;
 	/**
+	 * OAuth 2.0 client identifier registered at
+	 * Special:OAuthConsumerRegistration/propose/oauth2 on this wiki.
+	 * Presence opts the wiki into OAuth: HTTP transport advertises it in
+	 * /.well-known/oauth-protected-resource, and stdio runtime triggers
+	 * a browser-based login when no live token is stored.
+	 * Public client (PKCE only) — no client secret needed.
+	 */
+	oauth2ClientId?: string | null;
+	/**
 	 * If the wiki always requires auth to access.
 	 * $wgGroupPermissions['*']['read'] = false; in MediaWiki
 	 */
