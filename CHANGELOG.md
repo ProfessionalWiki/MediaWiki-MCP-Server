@@ -49,6 +49,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Fixed
 
 - The dispatcher OAuth gate no longer fires for `add-wiki`, `set-wiki`, `remove-wiki`, `oauth-status`, or `oauth-logout`. These tools operate on server-local state (the wiki registry, the OAuth token store) and don't need a token for the active wiki. Without this fix, a wiki whose OAuth had gone stale would render those five tools unreachable — leaving no way to switch away from it or clear its tokens.
+- Read-only wikis now hide the `update-file` and `update-file-from-url` tools. They were previously left enabled because the read-only gate's tool list was missing the two `update-file*` entries.
 - Markdown payload formatter no longer renders class instances and other non-plain objects as the bare `[object Object]`.
 - `scripts/validate-server-json.cjs` now exits with status 1 on validation failure instead of leaving an unhandled rejection.
 

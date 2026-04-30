@@ -438,21 +438,37 @@ describe('reconcileTools — AND semantics across rules', () => {
 		expect(mocks.get('get-page')!.enabled).toBe(true);
 	});
 
-	it('runs sync rule predicates without serial waterfall', async () => {
-		const { tools } = makeToolMap(true);
-		const { registry, selection } = makeMocks({
+	it('resolves multiple rule predicates concurrently, not serially', async () => {
+		const ctx: ReconcileContext = {
+			activeWikiKey: 'a',
 			activeWiki: baseWiki,
-			wikis: { a: baseWiki },
+			wikiCount: 1,
 			allowManagement: true,
-		});
-		const start = performance.now();
-		await reconcileTools(tools, {
-			wikiRegistry: registry,
-			wikiSelection: selection,
 			transport: 'stdio',
-		});
+		};
+		const slowAllow: ToolGatingRule = {
+			name: 'slow-allow',
+			affects: ['t'],
+			isAllowed: async () => {
+				await new Promise((r) => setTimeout(r, 30));
+				return true;
+			},
+		};
+		const slowOther: ToolGatingRule = {
+			name: 'slow-other',
+			affects: ['t'],
+			isAllowed: async () => {
+				await new Promise((r) => setTimeout(r, 30));
+				return true;
+			},
+		};
+
+		const start = performance.now();
+		await computeDesiredEnabledState(['t'], ctx, [slowAllow, slowOther]);
 		const elapsed = performance.now() - start;
-		expect(elapsed).toBeLessThan(50); // generous; sync rules should resolve in <1ms
+		// Two rules each delay 30ms. Concurrent: ~30ms. Serial: ~60ms.
+		// Allow generous slack for slow CI but stay below 60ms to detect serialization.
+		expect(elapsed).toBeLessThan(55);
 	});
 });
 
