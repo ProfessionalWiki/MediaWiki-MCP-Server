@@ -39,6 +39,10 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 			set: () => {},
 			delete: () => {},
 		},
+		extensions: {
+			has: throws('extensions.has') as never,
+			invalidate: throws('extensions.invalidate') as never,
+		},
 		sections: { list: throws('sections.list') as never },
 		edit: {
 			submit: throws('edit.submit') as never,

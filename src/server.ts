@@ -63,6 +63,7 @@ export const createServer = async (ctx: ToolContext): Promise<McpServer> => {
 			wikiRegistry: ctx.wikis,
 			wikiSelection: ctx.selection,
 			transport: ctx.transport,
+			extensions: ctx.extensions,
 		});
 		// Notify clients that the wiki resource list may have changed (e.g. after
 		// add-wiki / remove-wiki). Also covers tool-list changes since toggling a

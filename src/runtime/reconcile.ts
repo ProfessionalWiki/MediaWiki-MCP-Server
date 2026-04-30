@@ -2,6 +2,7 @@ import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { WikiConfig } from '../config/loadConfig.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
 import type { WikiSelection } from '../wikis/wikiSelection.js';
+import type { ExtensionDetector } from '../wikis/extensionDetector.js';
 
 export type Reconcile = () => Promise<void>;
 
@@ -9,6 +10,7 @@ export interface ReconcileDeps {
 	readonly wikiRegistry: WikiRegistry;
 	readonly wikiSelection: WikiSelection;
 	readonly transport: 'http' | 'stdio';
+	readonly extensions: ExtensionDetector;
 }
 
 export interface ReconcileContext {
@@ -17,6 +19,7 @@ export interface ReconcileContext {
 	readonly wikiCount: number;
 	readonly allowManagement: boolean;
 	readonly transport: 'http' | 'stdio';
+	readonly extensions: ExtensionDetector;
 }
 
 export interface ToolGatingRule {
@@ -64,6 +67,11 @@ const RULES: readonly ToolGatingRule[] = [
 		affects: ['set-wiki'],
 		isAllowed: (c) => c.wikiCount >= 2,
 	},
+	{
+		name: 'smw-extension',
+		affects: ['smw-ask', 'smw-list-properties'],
+		isAllowed: (c) => c.extensions.has(c.activeWikiKey, 'Semantic MediaWiki'),
+	},
 ];
 
 function buildContext(deps: ReconcileDeps): ReconcileContext {
@@ -74,6 +82,7 @@ function buildContext(deps: ReconcileDeps): ReconcileContext {
 		wikiCount: Object.keys(deps.wikiRegistry.getAll()).length,
 		allowManagement: deps.wikiRegistry.isManagementAllowed(),
 		transport: deps.transport,
+		extensions: deps.extensions,
 	};
 }
 
