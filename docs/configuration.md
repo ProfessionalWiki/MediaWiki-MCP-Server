@@ -223,11 +223,6 @@ The **client application secret** is not used and can be ignored.
 
 #### Suggested grants
 
-Tick only what your users will actually use; the MCP server returns `permission_denied` for tools whose grants weren't approved.
+Tick only the grants your users will use — see the Permissions column of the [tool table in the README](../README.md#tools) for the exact mapping. Always include **Basic rights**. **High-volume editing** is recommended if users will drive bulk edits.
 
-- **Basic rights** — always required.
-- **Edit existing pages** + **Create, edit, and move pages** — for `update-page`, `create-page`, `delete-page`, `undelete-page`.
-- **High-volume editing** — for bulk edits without rate-limit prompts.
-- **Upload new files** + **Upload, replace, and move files** — for `upload-file`, `upload-file-from-url`, `update-file`, `update-file-from-url`.
-
-Avoid granting **Manage your OAuth clients** — the MCP server doesn't use it, and granting it would let anyone with a token from this consumer tamper with OAuth registrations on the wiki.
+Avoid granting **Manage your OAuth clients**. The MCP server does not use it, and granting it would let anyone with a token from this consumer tamper with OAuth registrations on the wiki.
