@@ -47,6 +47,10 @@ const TYPE_LABELS: Record<string, string> = {
 	_anu: 'Annotation URI',
 };
 
+// smwbrowse may or may not return description/usageCount depending on SMW
+// version. Both are treated as optional; normalizeProperty omits them from
+// the response when absent rather than triggering per-property follow-up
+// queries (N+1 anti-pattern).
 interface SmwBrowseProperty {
 	label?: string;
 	type?: string;
@@ -69,7 +73,7 @@ interface NormalizedProperty {
 export const smwListProperties: Tool<typeof inputSchema> = {
 	name: 'smw-list-properties',
 	description:
-		'Returns Semantic MediaWiki properties on the active wiki. Each entry includes the property name, datatype, optional description, usage count when available, and a copy-paste-ready [[name::value]] template for use in smw-ask. The wiki may have hundreds of properties; supply search to narrow.\n\nReturns up to 200 properties per call; paginate with continueFrom.',
+		'Returns Semantic MediaWiki properties on the active wiki. Each entry includes the property name, datatype, optional description, usage count when available, and a copy-paste-ready [[name::value]] template for use in smw-ask. Wikis often have hundreds of properties; supply search to narrow.\n\nReturns up to 200 properties per call; paginate with continueFrom.',
 	inputSchema,
 	annotations: {
 		title: 'List SMW properties',
@@ -82,12 +86,13 @@ export const smwListProperties: Tool<typeof inputSchema> = {
 
 	async handle({ search, limit, continueFrom }, ctx: ToolContext): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- smwbrowse response shape; trusted at this boundary
-		const response = (await mwn.request({
+		const raw = await mwn.request({
 			action: 'smwbrowse',
 			browse: 'property',
 			format: 'json',
-		})) as SmwBrowseResponse;
+		});
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SMW action=smwbrowse response shape; trusted at this boundary
+		const response = raw as SmwBrowseResponse;
 
 		const all = (response.query ?? []).map(normalizeProperty);
 		all.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
@@ -98,6 +103,8 @@ export const smwListProperties: Tool<typeof inputSchema> = {
 
 		const offset = continueFrom !== undefined ? parsePositiveInt(continueFrom) : 0;
 		const effectiveLimit = limit ?? DEFAULT_LIMIT;
+		// Client-side pagination over the full smwbrowse response. Sufficient for
+		// first cut; wikis with thousands of properties may want server-side later.
 		const page = filtered.slice(offset, offset + effectiveLimit);
 
 		const moreAvailable = offset + effectiveLimit < filtered.length;

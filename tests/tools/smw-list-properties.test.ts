@@ -77,9 +77,11 @@ describe('smw-list-properties', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({
 				query: [
-					{ label: 'zebra', type: '_txt' },
-					{ label: 'Apple', type: '_txt' },
 					{ label: 'banana', type: '_txt' },
+					{ label: 'Apple', type: '_txt' },
+					{ label: 'BANANA', type: '_txt' },
+					{ label: 'Cherry', type: '_txt' },
+					{ label: 'apple', type: '_txt' },
 				],
 			}),
 		});
@@ -87,8 +89,14 @@ describe('smw-list-properties', () => {
 
 		const result = await smwListProperties.handle({}, ctx);
 
-		const props = (result.structuredContent as { properties: { name: string }[] }).properties;
-		expect(props.map((p) => p.name)).toEqual(['Apple', 'banana', 'zebra']);
+		const names = (result.structuredContent as { properties: { name: string }[] }).properties.map(
+			(p) => p.name,
+		);
+
+		// Both 'apple'/'Apple' must precede every banana; both bananas must precede Cherry.
+		// Case-insensitive sort guarantees clustering by lowercased key.
+		const lowercased = names.map((n) => n.toLowerCase());
+		expect(lowercased).toEqual(['apple', 'apple', 'banana', 'banana', 'cherry']);
 	});
 
 	it('default limit is 50; user-provided limit is honoured', async () => {
@@ -127,6 +135,23 @@ describe('smw-list-properties', () => {
 		expect(text).toContain('Reason: more-available');
 		expect(text).toContain('Param: continueFrom');
 		expect(text).toMatch(/Value: 50/);
+	});
+
+	it('omits truncation when limit exactly matches the result count', async () => {
+		const labels = Array.from({ length: 50 }, (_, i) => ({
+			label: `prop-${String(i).padStart(3, '0')}`,
+			type: '_txt',
+		}));
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({ query: labels }),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		const result = await smwListProperties.handle({ limit: 50 }, ctx);
+
+		const text = assertStructuredSuccess(result);
+		expect(text).not.toContain('Truncation:');
+		expect((result.structuredContent as { properties: unknown[] }).properties).toHaveLength(50);
 	});
 
 	it('returns empty properties array on no results', async () => {
