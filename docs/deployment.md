@@ -12,13 +12,17 @@ The server can run as a remote HTTP endpoint for clients that only accept URLs (
 
 ## Environment
 
-- `MCP_TRANSPORT=http` — switch to the StreamableHTTP transport (the Dockerfile sets this by default).
-- `PORT` — listen port (default `3000` locally, `8080` in Docker).
-- `MCP_BIND` — listen interface (default `127.0.0.1`; the Dockerfile overrides to `0.0.0.0` so container port forwarding reaches the listener). Set to `0.0.0.0` outside Docker only when you need remote access.
-- `MCP_SHUTDOWN_GRACE_MS` — milliseconds to wait for in-flight `/mcp` requests to drain on `SIGTERM` or `SIGINT` (default `10000`, max `600000`). On expiry the server exits 1 with `grace_exceeded: true`. See [Graceful shutdown](operations.md#graceful-shutdown).
-- `MCP_ALLOWED_HOSTS` — comma-separated Host-header allowlist (e.g. `MCP_ALLOWED_HOSTS=wiki.example.org`). Set it on any non-localhost bind — without it, the SDK disables its DNS-rebinding check and logs a startup warning. Not needed on localhost binds, where the SDK auto-allows `localhost`, `127.0.0.1`, and `[::1]`. A bare hostname in `MCP_BIND` counts as non-localhost: the auto-allowlist only matches those three literals.
-- `MCP_ALLOWED_ORIGINS` — comma-separated `Origin`-header allowlist (e.g. `MCP_ALLOWED_ORIGINS=https://wiki.example.org`). Requests whose `Origin` is present but not listed get a 403. On a localhost bind, defaults to the three loopback origins on the bound port (`http://localhost:<port>`, `http://127.0.0.1:<port>`, `http://[::1]:<port>`) so local browser clients keep working. On a non-localhost bind, leaving it unset disables Origin validation and logs a startup warning. The allowlist is an exact string match — see [reverse proxy requirements](#reverse-proxy-requirements) for the gotchas that silently cause every browser request to fail.
-- `MCP_MAX_REQUEST_BODY` — maximum HTTP request body size (default `1mb`, matching nginx's `client_max_body_size 1m`). Raise it if `update-page` calls return 413 on legitimately large edits, or if your wiki has raised `$wgMaxArticleSize` (MediaWiki default 2 MB) and routinely edits near the ceiling. Lower it for a tighter DoS guard. Accepts body-parser size strings (`b`, `kb`, `mb`, `gb`).
+| Name | Default | Description |
+|---|---|---|
+| `MCP_TRANSPORT` | `stdio` | Set to `http` for the StreamableHTTP transport (Docker default). |
+| `PORT` | `3000` (Docker: `8080`) | Listen port. |
+| `MCP_BIND` | `127.0.0.1` (Docker: `0.0.0.0`) | Listen interface. Set to `0.0.0.0` outside Docker only when you need remote access. |
+| `MCP_SHUTDOWN_GRACE_MS` | `10000` | Drain timeout in ms on `SIGTERM` / `SIGINT`. See [Graceful shutdown](operations.md#graceful-shutdown). |
+| `MCP_ALLOWED_HOSTS` | auto on localhost | Comma-separated Host-header allowlist. See [Reverse proxy requirements](#reverse-proxy-requirements). |
+| `MCP_ALLOWED_ORIGINS` | auto on localhost | Comma-separated `Origin`-header allowlist. See [Reverse proxy requirements](#reverse-proxy-requirements). |
+| `MCP_MAX_REQUEST_BODY` | `1mb` | HTTP request body cap. Accepts size strings (`b`, `kb`, `mb`, `gb`). |
+
+`MCP_MAX_REQUEST_BODY` matches nginx's `client_max_body_size 1m`. Raise it if `update-page` calls return 413 on legitimately large edits or your wiki has raised `$wgMaxArticleSize` (MediaWiki default 2 MB). Lower it for a tighter DoS guard.
 
 ## Shape 1 — Single-wiki, read-only, anonymous
 
