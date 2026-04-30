@@ -19,9 +19,7 @@ const inputSchema = {
 		.min(1)
 		.max(HARD_LIMIT)
 		.optional()
-		.describe(
-			`Maximum results to return (1..${HARD_LIMIT}). Overrides |limit= in query if both are set.`,
-		),
+		.describe('Overrides |limit= in query if both are set.'),
 	continueFrom: z
 		.string()
 		.optional()
@@ -54,7 +52,7 @@ interface NormalizedRow {
 export const smwAsk: Tool<typeof inputSchema> = {
 	name: 'smw-ask',
 	description:
-		'Runs a Semantic MediaWiki `#ask` query against the active wiki. Returns one row per matching subject, with the requested printouts as columns. For grounded property names and types, use smw-list-properties first.\n\nExamples:\n- Pages in a category: [[Category:Person]]|?Has occupation|limit=20\n- Numeric comparison: [[Born in::>1900]]|?Has name|?Born in\n- Multiple conditions: [[Category:Person]][[Born in::>1900]][[Has occupation::Architect]]\n\nReturns up to 500 rows per call; paginate with continueFrom. If the query has syntax errors, returns invalid_input with the SMW error message preserved verbatim.',
+		'Runs a Semantic MediaWiki `#ask` query against the active wiki. Returns one row per matching subject, with the requested printouts as columns. For grounded property names and types, use smw-list-properties first.\n\nExamples:\n- Pages in a category: [[Category:Person]]|?Has occupation|limit=20\n- Numeric comparison: [[Born in::>1900]]|?Has name|?Born in\n- Multiple conditions: [[Category:Person]][[Born in::>1900]][[Has occupation::Architect]]\n\nReturns up to 500 rows per call; paginate with continueFrom. If the query has syntax errors, an error is returned with the SMW message preserved verbatim.',
 	inputSchema,
 	annotations: {
 		title: 'Run SMW query',
@@ -87,6 +85,9 @@ export const smwAsk: Tool<typeof inputSchema> = {
 			normalizeRow(title, row),
 		);
 
+		// SMW returns query-continue-offset as a JSON number per the action=ask docs.
+		// If it ever comes back as a string from a misbehaving proxy, pagination
+		// silently stops; callers will see a complete-looking result.
 		const continueOffset = response['query-continue-offset'];
 		const truncation: TruncationInfo | null =
 			typeof continueOffset === 'number'

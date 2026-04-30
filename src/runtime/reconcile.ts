@@ -41,6 +41,8 @@ const WRITE_TOOL_NAMES: readonly string[] = [
 
 const STDIO_ONLY_TOOLS: readonly string[] = ['oauth-status', 'oauth-logout'];
 
+export const SMW_GATED_TOOLS: readonly string[] = ['smw-ask', 'smw-list-properties'];
+
 const RULES: readonly ToolGatingRule[] = [
 	{
 		name: 'read-only',
@@ -69,7 +71,7 @@ const RULES: readonly ToolGatingRule[] = [
 	},
 	{
 		name: 'smw-extension',
-		affects: ['smw-ask', 'smw-list-properties'],
+		affects: SMW_GATED_TOOLS,
 		isAllowed: (c) => c.extensions.has(c.activeWikiKey, 'Semantic MediaWiki'),
 	},
 ];
