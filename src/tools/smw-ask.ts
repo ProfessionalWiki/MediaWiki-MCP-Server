@@ -10,8 +10,8 @@ const inputSchema = {
 	query: z
 		.string()
 		.describe(
-			'SMW #ask query. Conditions in [[Property::value]] form, optional printouts as |?Property, ' +
-				'optional parameters as |limit=N, |offset=N, |sort=Property, |order=asc/desc.',
+			'SMW #ask query. Conditions: `[[Property::value]]`. Printouts: `|?Property`. ' +
+				'Parameters: `|limit=N`, `|offset=N`, `|sort=Property`, `|order=asc/desc`.',
 		),
 	limit: z
 		.number()
@@ -52,7 +52,7 @@ interface NormalizedRow {
 export const smwAsk: Tool<typeof inputSchema> = {
 	name: 'smw-ask',
 	description:
-		'Runs a Semantic MediaWiki `#ask` query against the active wiki. Returns one row per matching subject, with the requested printouts as columns. For grounded property names and types, use smw-list-properties first.\n\nExamples:\n- Pages in a category: [[Category:Person]]|?Has occupation|limit=20\n- Numeric comparison: [[Born in::>1900]]|?Has name|?Born in\n- Multiple conditions: [[Category:Person]][[Born in::>1900]][[Has occupation::Architect]]\n\nNumeric operators: `>` and `<` work on every SMW version (some installs reject `>=` / `<=`); for strictly greater, prefer `>N-1` or `>>N` over `>=N`.\n\nReturns up to 500 rows per call; paginate with continueFrom. If the query has syntax errors, an error is returned with the SMW message preserved verbatim.',
+		"Runs a Semantic MediaWiki `#ask` query against the active wiki. One row per matching page, with the requested printouts as columns. For grounded property names, use smw-list-properties first.\n\nExamples:\n- Pages in a category: [[Category:Person]]|?Has occupation|limit=20\n- Numeric comparison: [[Born in::>1900]]|?Has name|?Born in\n- Multiple conditions: [[Category:Person]][[Born in::>1900]][[Has occupation::Architect]]\n\nNumeric operators: write `>N` and `<N`; SMW's default config treats them as ≥ and ≤. `>=` and `<=` are rejected unless the wiki enables strict comparators (`$smwStrictComparators`).\n\nUp to 500 rows per call; paginate with continueFrom. Syntax errors return the SMW message verbatim.",
 	inputSchema,
 	annotations: {
 		title: 'Run SMW query',
