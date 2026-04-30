@@ -48,11 +48,16 @@ export const bucketQuery: Tool<typeof inputSchema> = {
 	failureVerb: 'run Bucket query',
 	target: (a) => a.query,
 
-	async handle({ query }, ctx: ToolContext): Promise<CallToolResult> {
+	async handle({ query, limit, continueFrom }, ctx: ToolContext): Promise<CallToolResult> {
+		const rendered = renderQuery(query, limit, continueFrom);
+		if (rendered.kind === 'error') {
+			return ctx.format.invalidInput(rendered.message);
+		}
+
 		const mwn = await ctx.mwn();
 		const raw = await mwn.request({
 			action: 'bucket',
-			query,
+			query: rendered.query,
 			format: 'json',
 		});
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Bucket action=bucket response shape; trusted at this boundary
@@ -66,3 +71,39 @@ export const bucketQuery: Tool<typeof inputSchema> = {
 		return ctx.format.ok({ rows });
 	},
 };
+
+type RenderResult = { kind: 'ok'; query: string } | { kind: 'error'; message: string };
+
+// Locates the trailing `.run()` (whitespace tolerant) and inserts
+// `.limit(N).offset(M)` immediately before it. Last-wins semantics in
+// BucketQuery's options-table constructor mean any earlier `.limit(M)` in
+// the user chain is overridden by ours.
+const RUN_AT_END = /\.\s*run\s*\(\s*\)\s*$/;
+
+function renderQuery(
+	rawQuery: string,
+	schemaLimit: number | undefined,
+	continueFrom: string | undefined,
+): RenderResult {
+	const trimmed = rawQuery.replace(/\s+$/, '');
+	const match = trimmed.match(RUN_AT_END);
+	if (!match) {
+		return { kind: 'error', message: 'query must end in .run()' };
+	}
+
+	const effectiveLimit = Math.min(schemaLimit ?? HARD_LIMIT, HARD_LIMIT);
+	let offsetSuffix = '';
+	if (continueFrom !== undefined) {
+		const parsed = Number.parseInt(continueFrom, 10);
+		if (!Number.isFinite(parsed) || parsed < 0 || String(parsed) !== continueFrom) {
+			return { kind: 'error', message: 'continueFrom must be a non-negative integer' };
+		}
+		offsetSuffix = `.offset(${parsed})`;
+	}
+
+	const head = trimmed.slice(0, match.index);
+	return {
+		kind: 'ok',
+		query: `${head}.limit(${effectiveLimit})${offsetSuffix}.run()`,
+	};
+}
