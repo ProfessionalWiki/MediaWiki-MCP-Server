@@ -56,7 +56,7 @@ interface CargoQueryResponse {
 export const cargoQuery: Tool<typeof inputSchema> = {
 	name: 'cargo-query',
 	description:
-		'Queries a Cargo database table on the active wiki and returns matching rows. Supports WHERE, JOIN ON, GROUP BY, HAVING, and ORDER BY clauses using SQL syntax. Use cargo-list-tables to discover table names and cargo-describe-table to inspect field types before constructing a query — field types determine which operators apply (HOLDS / HOLDS LIKE for list fields, MATCHES for Searchtext, NEAR for Coordinates). Up to 500 rows per call; paginate with continueFrom.',
+		"Returns rows from one or more Cargo tables on the active wiki, matching a SQL-style filter. Supports WHERE, JOIN ON, GROUP BY, HAVING, and ORDER BY clauses. Use cargo-list-tables to discover table names and cargo-describe-table to inspect field types before constructing a query — field types determine which operators apply (HOLDS / HOLDS LIKE for list fields, MATCHES for Searchtext, NEAR for Coordinates). Cargo collapses NULL to empty string on output, so `where=field=''` matches both unset and truly-empty values. Up to 500 rows per call; paginate with continueFrom.",
 	inputSchema,
 	annotations: {
 		title: 'Run Cargo query',

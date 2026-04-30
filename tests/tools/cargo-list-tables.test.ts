@@ -45,6 +45,21 @@ describe('cargo-list-tables', () => {
 		});
 	});
 
+	it('drops non-string entries from cargotables defensively', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				cargotables: ['items', null, 42, { name: 'malformed' }, '_pageData'],
+			}),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		const result = await cargoListTables.handle({}, ctx);
+
+		expect(result.structuredContent).toMatchObject({
+			tables: ['items', '_pageData'],
+		});
+	});
+
 	it('returns tables: [] when cargotables is missing', async () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({}),

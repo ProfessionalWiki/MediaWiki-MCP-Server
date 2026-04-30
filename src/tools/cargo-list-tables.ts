@@ -11,7 +11,7 @@ interface CargoTablesResponse {
 export const cargoListTables: Tool<typeof inputSchema> = {
 	name: 'cargo-list-tables',
 	description:
-		"Lists all Cargo tables defined on the active wiki, including Cargo's built-in system tables (underscore-prefixed: `_pageData`, `_fileData`, etc.). Use cargo-describe-table to inspect a table's fields and types before constructing a cargo-query.",
+		"Returns the names of all Cargo tables defined on the active wiki, including Cargo's built-in system tables (underscore-prefixed: `_pageData`, `_fileData`, etc.). Use cargo-describe-table to inspect a table's fields and types before constructing a cargo-query.",
 	inputSchema,
 	annotations: {
 		title: 'List Cargo tables',
