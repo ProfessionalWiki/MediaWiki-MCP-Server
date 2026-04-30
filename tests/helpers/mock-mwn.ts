@@ -10,10 +10,13 @@ export interface MockMwn {
 	upload: ReturnType<typeof vi.fn>;
 	uploadFromUrl: ReturnType<typeof vi.fn>;
 	request: ReturnType<typeof vi.fn>;
+	rawRequest: ReturnType<typeof vi.fn>;
 	query: ReturnType<typeof vi.fn>;
 	massQuery: ReturnType<typeof vi.fn>;
 	getPagesByPrefix: ReturnType<typeof vi.fn>;
 	getCsrfToken: ReturnType<typeof vi.fn>;
+	options: { apiUrl: string; OAuth2AccessToken?: string };
+	usingOAuth2: boolean;
 	Category: {
 		members: ReturnType<typeof vi.fn>;
 	};
@@ -31,10 +34,13 @@ export function createMockMwn(overrides: Partial<MockMwn> = {}): MockMwn {
 		upload: vi.fn(),
 		uploadFromUrl: vi.fn(),
 		request: vi.fn(),
+		rawRequest: vi.fn(),
 		query: vi.fn(),
 		massQuery: vi.fn(),
 		getPagesByPrefix: vi.fn(),
 		getCsrfToken: vi.fn(),
+		options: { apiUrl: 'https://test.wiki/w/api.php' },
+		usingOAuth2: false,
 		Category: {
 			members: vi.fn(),
 		},

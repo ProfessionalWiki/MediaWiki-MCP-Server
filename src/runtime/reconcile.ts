@@ -43,6 +43,8 @@ const STDIO_ONLY_TOOLS: readonly string[] = ['oauth-status', 'oauth-logout'];
 
 export const SMW_GATED_TOOLS: readonly string[] = ['smw-query', 'smw-list-properties'];
 
+export const BUCKET_GATED_TOOLS: readonly string[] = ['bucket-query'];
+
 const RULES: readonly ToolGatingRule[] = [
 	{
 		name: 'read-only',
@@ -73,6 +75,11 @@ const RULES: readonly ToolGatingRule[] = [
 		name: 'smw-extension',
 		affects: SMW_GATED_TOOLS,
 		isAllowed: (c) => c.extensions.has(c.activeWikiKey, 'SemanticMediaWiki'),
+	},
+	{
+		name: 'bucket-extension',
+		affects: BUCKET_GATED_TOOLS,
+		isAllowed: (c) => c.extensions.has(c.activeWikiKey, 'Bucket'),
 	},
 ];
 
