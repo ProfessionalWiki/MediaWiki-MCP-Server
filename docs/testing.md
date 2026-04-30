@@ -2,7 +2,8 @@
 
 Reference for unit tests, integration testing against a real wiki, and the local wiki setup needed to exercise authenticated tools.
 
-> 🐋 **Docker alternative:** commands that use `npm run <script>` have a Makefile equivalent — run `make <script>` instead (e.g. `make test`, `make inspector`). The MCP Inspector CLI examples below use `npx` directly and have no Makefile target.
+> [!TIP]
+> 🐋 Commands that use `npm run <script>` have a Makefile equivalent — run `make <script>` instead (e.g. `make test`, `make inspector`). The MCP Inspector CLI examples below use `npx` directly and have no Makefile target.
 
 ## Unit tests
 
