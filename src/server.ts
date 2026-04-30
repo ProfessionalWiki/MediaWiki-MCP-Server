@@ -22,7 +22,7 @@ Writes, deletes, and uploads use the caller's \`Authorization: Bearer\` token wh
 
 Tool errors fall into seven categories: \`not_found\`, \`permission_denied\`, \`invalid_input\`, \`conflict\`, \`authentication\`, \`rate_limited\`, and \`upstream_failure\`. Reads that exceed a per-call cap return a truncation marker describing what was returned and how to fetch the rest.`;
 
-export const createServer = (ctx: ToolContext): McpServer => {
+export const createServer = async (ctx: ToolContext): Promise<McpServer> => {
 	const server = new McpServer(
 		{
 			name: SERVER_NAME,
@@ -58,8 +58,12 @@ export const createServer = (ctx: ToolContext): McpServer => {
 	};
 
 	const tools = new Map<string, RegisteredTool>();
-	const reconcile = (): void => {
-		reconcileTools(tools, ctx.wikis, ctx.selection, ctx.transport);
+	const reconcile = async (): Promise<void> => {
+		await reconcileTools(tools, {
+			wikiRegistry: ctx.wikis,
+			wikiSelection: ctx.selection,
+			transport: ctx.transport,
+		});
 		// Notify clients that the wiki resource list may have changed (e.g. after
 		// add-wiki / remove-wiki). Also covers tool-list changes since toggling a
 		// RegisteredTool's enabled state already emits its own listChanged event.
@@ -72,7 +76,7 @@ export const createServer = (ctx: ToolContext): McpServer => {
 	}
 	registerAllResources(server, ctx);
 
-	reconcile();
+	await reconcile();
 
 	return server;
 };

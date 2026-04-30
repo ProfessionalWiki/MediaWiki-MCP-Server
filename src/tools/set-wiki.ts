@@ -40,7 +40,7 @@ export const setWiki: Tool<typeof inputSchema, ManagementContext> = {
 		}
 
 		ctx.selection.setCurrent(wikiKey);
-		ctx.reconcile();
+		await ctx.reconcile();
 
 		const newConfig = ctx.selection.getCurrent().config;
 		return ctx.format.ok({

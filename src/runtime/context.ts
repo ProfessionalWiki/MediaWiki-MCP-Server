@@ -28,5 +28,5 @@ export interface ToolContext {
 }
 
 export interface ManagementContext extends ToolContext {
-	readonly reconcile: () => void;
+	readonly reconcile: () => Promise<void>;
 }

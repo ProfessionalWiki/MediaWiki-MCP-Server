@@ -66,7 +66,12 @@ async function connectClientAndServer(): Promise<{ client: Client; server: McpSe
 		},
 		reset: () => {},
 	};
-	const reconcile = () => reconcileTools(tools, wikiRegistryMock, wikiSelectionMock);
+	const reconcile = () =>
+		reconcileTools(tools, {
+			wikiRegistry: wikiRegistryMock,
+			wikiSelection: wikiSelectionMock,
+			transport: 'stdio',
+		});
 	const ctx = fakeContext({
 		wikis: wikiRegistryMock,
 		selection: wikiSelectionMock,
@@ -75,7 +80,7 @@ async function connectClientAndServer(): Promise<{ client: Client; server: McpSe
 	for (const [name, tool] of registered) {
 		tools.set(name, tool);
 	}
-	reconcile();
+	await reconcile();
 
 	const client = new Client({ name: 'test-client', version: '0.0.0' });
 	const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
