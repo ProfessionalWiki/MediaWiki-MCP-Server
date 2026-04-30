@@ -202,13 +202,19 @@ function startListener(): Promise<ListenerResult> {
 
 function waitForCallback(server: http.Server, expectedState: string): Promise<string> {
 	return new Promise<string>((resolve, reject) => {
-		server.on('request', (req, res) => {
+		const handler = (req: http.IncomingMessage, res: http.ServerResponse): void => {
 			const url = new URL(req.url ?? '/', `http://127.0.0.1`);
 
 			if (url.pathname !== '/oauth/callback') {
+				// Ignore non-callback requests (favicon, browser pre-fetches) without
+				// consuming the listener — only /oauth/callback resolves the dance.
 				res.writeHead(404).end('Not found');
 				return;
 			}
+
+			// /oauth/callback hit — this is the one chance to settle the dance.
+			// Remove the listener so a refresh of the success page doesn't re-enter.
+			server.removeListener('request', handler);
 
 			const error = url.searchParams.get('error');
 			if (error === 'access_denied') {
@@ -243,7 +249,8 @@ function waitForCallback(server: http.Server, expectedState: string): Promise<st
 					'<html><body><h1>Login successful</h1><p>You can close this tab and return to your terminal.</p></body></html>',
 				);
 			resolve(code);
-		});
+		};
+		server.on('request', handler);
 	});
 }
 

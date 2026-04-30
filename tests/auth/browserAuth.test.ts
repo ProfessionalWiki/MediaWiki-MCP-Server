@@ -100,6 +100,9 @@ describe('browserAuth', () => {
 	it('MCP_OAUTH_NO_BROWSER=1: skips open(), listener still runs but times out', async () => {
 		fakeAs = await startFakeAs();
 		vi.stubEnv('MCP_OAUTH_NO_BROWSER', '1');
+		// Silence the URL log to keep the vitest reporter clean. Assert it was
+		// emitted at least once so the headless-fallback path is still observed.
+		const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 
 		await expect(
 			browserAuth('test-wiki', {
@@ -110,6 +113,11 @@ describe('browserAuth', () => {
 		).rejects.toMatchObject({ reason: 'timeout' });
 
 		expect(vi.mocked(openMod).mock.calls.length).toBe(0);
+		const wrote = stderrSpy.mock.calls.some(
+			(args) => typeof args[0] === 'string' && args[0].includes('Open this URL to log in'),
+		);
+		expect(wrote).toBe(true);
+		stderrSpy.mockRestore();
 	});
 
 	it('concurrent calls for the same wiki share one dance (open called once)', async () => {
