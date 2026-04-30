@@ -24,7 +24,7 @@ const TAILORED_TOOLS: Record<string, ReadonlySet<string>> = {
 	missingtitle: new Set(['compare-pages']),
 	nosuchrevid: new Set(['compare-pages']),
 	nosuchsection: new Set(['update-page']),
-	internal_api_error_MWException: new Set(['cargo-describe-table']),
+	internal_api_error_MWException: new Set(['cargo-describe-table', 'cargo-query']),
 };
 
 function appliesTo(code: string, toolName: string): boolean {
@@ -78,6 +78,14 @@ const overrides: Record<string, Override> = {
 				category: 'invalid_input',
 				code: 'internal_api_error_MWException',
 				message: 'Table not found. Use cargo-list-tables to see available table names.',
+			};
+		}
+		if (toolName === 'cargo-query') {
+			return {
+				category: 'invalid_input',
+				code: 'internal_api_error_MWException',
+				message:
+					'Cargo could not parse the query. Verify table and field names with cargo-list-tables / cargo-describe-table, or inspect Special:CargoTables.',
 			};
 		}
 		return null;

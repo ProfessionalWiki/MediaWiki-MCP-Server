@@ -716,7 +716,7 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 	} {
 		const mocks = new Map<string, MockTool>();
 		const tools = new Map<string, RegisteredTool>();
-		for (const name of ['cargo-list-tables', 'cargo-describe-table', 'get-page']) {
+		for (const name of ['cargo-list-tables', 'cargo-describe-table', 'cargo-query', 'get-page']) {
 			const mock = makeMockTool(initiallyEnabled);
 			mocks.set(name, mock);
 			tools.set(name, mock as unknown as RegisteredTool);
@@ -724,7 +724,7 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 		return { tools, mocks };
 	}
 
-	it('disables cargo-list-tables when the detector resolves false', async () => {
+	it('disables all Cargo tools when the detector resolves false', async () => {
 		const { tools, mocks } = makeToolMapWithCargo(true);
 		const { registry, selection } = makeMocks({
 			activeWiki: baseWiki,
@@ -739,10 +739,11 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 		});
 		expect(mocks.get('cargo-list-tables')!.disable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('cargo-describe-table')!.disable).toHaveBeenCalledTimes(1);
+		expect(mocks.get('cargo-query')!.disable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('get-page')!.disable).not.toHaveBeenCalled();
 	});
 
-	it('enables cargo-list-tables when the detector resolves true', async () => {
+	it('enables all Cargo tools when the detector resolves true', async () => {
 		const { tools, mocks } = makeToolMapWithCargo(false);
 		const { registry, selection } = makeMocks({
 			activeWiki: baseWiki,
@@ -757,6 +758,7 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 		});
 		expect(mocks.get('cargo-list-tables')!.enable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('cargo-describe-table')!.enable).toHaveBeenCalledTimes(1);
+		expect(mocks.get('cargo-query')!.enable).toHaveBeenCalledTimes(1);
 	});
 
 	it('queries the detector with the active wiki key and the string "Cargo"', async () => {
