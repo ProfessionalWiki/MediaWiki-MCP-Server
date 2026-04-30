@@ -4,7 +4,7 @@ import { errorMessage } from '../errors/isErrnoException.js';
 import { logger } from '../runtime/logger.js';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext, ManagementContext } from '../runtime/context.js';
-import type { Reconcile } from '../runtime/reconcile.js';
+import { type Reconcile, SMW_GATED_TOOLS } from '../runtime/reconcile.js';
 import { dispatch } from '../runtime/dispatcher.js';
 import { register } from '../runtime/register.js';
 
@@ -19,6 +19,8 @@ import { comparePages } from './compare-pages.js';
 import { getFile } from './get-file.js';
 import { getRevision } from './get-revision.js';
 import { getCategoryMembers } from './get-category-members.js';
+import { smwAsk } from './smw-ask.js';
+import { smwListProperties } from './smw-list-properties.js';
 import { createPage } from './create-page.js';
 import { updatePage } from './update-page.js';
 import { deletePage } from './delete-page.js';
@@ -50,6 +52,8 @@ export const standardTools: Tool<any>[] = [
 	getFile,
 	getRevision,
 	getCategoryMembers,
+	smwAsk,
+	smwListProperties,
 	createPage,
 	updatePage,
 	deletePage,
@@ -86,6 +90,17 @@ export function registerAllTools(
 			registered.set(tool.name, register(server, tool, dispatch(tool, mgmtCtx)));
 		} catch (error) {
 			logger.error('Error registering tool', { error: errorMessage(error) });
+		}
+	}
+
+	// SMW tools start disabled. They're enabled by reconcile() once the
+	// extension detector confirms Semantic MediaWiki is installed on the
+	// active wiki. This avoids a race where tools/list arrives before the
+	// initial reconcile completes.
+	for (const name of SMW_GATED_TOOLS) {
+		const tool = registered.get(name);
+		if (tool && tool.enabled) {
+			tool.disable();
 		}
 	}
 

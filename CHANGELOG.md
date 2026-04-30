@@ -21,6 +21,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - New per-wiki config field `oauth2ClientId` — OAuth 2.0 client identifier from `Special:OAuthConsumerRegistration/propose/oauth2`. Public client + PKCE only; no client secret.
 - New per-wiki config field `oauth2CallbackPort` — fixed loopback port for the OAuth callback. Required for MediaWiki's Extension:OAuth, whose OAuth 2.0 implementation exact-matches the registered redirect URI rather than honouring RFC 8252 §7.3 loopback port flexibility. The registered callback URL must be `http://127.0.0.1:<port>/oauth/callback` with the same port number set in this field. Omit only against authorization servers that follow RFC 8252.
 - `MCP_LOG_LEVEL` env var (default `debug`) sets the minimum severity for logger output. Filters both stderr telemetry and the `sendLoggingMessage` broadcast. Accepts the eight RFC 5424 levels plus `silent`. Invalid values throw on first log call.
+- `smw-ask` tool — runs a Semantic MediaWiki `#ask` query and returns row-shaped results. Enabled only when the wiki has Semantic MediaWiki installed (auto-detected from `siteinfo`).
+- `smw-list-properties` tool — lists SMW properties with copy-paste templates for `smw-ask`. Same gating.
 - Optional `GET /metrics` Prometheus endpoint on the HTTP transport, enabled with `MCP_METRICS=true`. Exposes tool-call counters, duration histograms, upstream status totals, active sessions, and readiness-probe failures.
 - `SIGTERM` and `SIGINT` now drain in-flight `/mcp` calls and close active StreamableHTTP sessions before exit, with a structured `event: "shutdown"` / `event: "shutdown_complete"` pair on stderr. Configurable via `MCP_SHUTDOWN_GRACE_MS` (default `10000`). Stdio transport closes its single transport on the same signals.
 - `MCP_MAX_REQUEST_BODY` env var (default `1mb`) caps HTTP request body size, replacing body-parser's silent 100 kB default that was rejecting long-form wikitext edits. Oversize requests return a JSON-RPC 413; the resolved value appears in the startup banner.
@@ -49,6 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Fixed
 
 - The dispatcher OAuth gate no longer fires for `add-wiki`, `set-wiki`, `remove-wiki`, `oauth-status`, or `oauth-logout`. These tools operate on server-local state (the wiki registry, the OAuth token store) and don't need a token for the active wiki. Without this fix, a wiki whose OAuth had gone stale would render those five tools unreachable — leaving no way to switch away from it or clear its tokens.
+- Read-only wikis now hide the `update-file` and `update-file-from-url` tools. They were previously left enabled because the read-only gate's tool list was missing the two `update-file*` entries.
 - Markdown payload formatter no longer renders class instances and other non-plain objects as the bare `[object Object]`.
 - `scripts/validate-server-json.cjs` now exits with status 1 on validation failure instead of leaving an unhandled rejection.
 

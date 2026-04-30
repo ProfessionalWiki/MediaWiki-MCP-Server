@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
+import type { ExtensionDetector } from '../../src/wikis/extensionDetector.js';
 import { reconcileTools } from '../../src/runtime/reconcile.js';
 import { registerAllTools } from '../../src/tools/index.js';
 import { fakeContext } from '../helpers/fakeContext.js';
@@ -37,6 +38,8 @@ const WRITE_TOOLS = [
 	'undelete-page',
 	'upload-file',
 	'upload-file-from-url',
+	'update-file',
+	'update-file-from-url',
 ];
 
 function currentKey(): string {
@@ -66,7 +69,17 @@ async function connectClientAndServer(): Promise<{ client: Client; server: McpSe
 		},
 		reset: () => {},
 	};
-	const reconcile = () => reconcileTools(tools, wikiRegistryMock, wikiSelectionMock);
+	const fakeDetector: ExtensionDetector = {
+		has: vi.fn(async () => false),
+		invalidate: vi.fn(),
+	};
+	const reconcile = () =>
+		reconcileTools(tools, {
+			wikiRegistry: wikiRegistryMock,
+			wikiSelection: wikiSelectionMock,
+			transport: 'stdio',
+			extensions: fakeDetector,
+		});
 	const ctx = fakeContext({
 		wikis: wikiRegistryMock,
 		selection: wikiSelectionMock,
@@ -75,7 +88,7 @@ async function connectClientAndServer(): Promise<{ client: Client; server: McpSe
 	for (const [name, tool] of registered) {
 		tools.set(name, tool);
 	}
-	reconcile();
+	await reconcile();
 
 	const client = new Client({ name: 'test-client', version: '0.0.0' });
 	const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

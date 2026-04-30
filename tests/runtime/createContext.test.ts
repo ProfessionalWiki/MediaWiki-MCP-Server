@@ -31,6 +31,7 @@ describe('createToolContext', () => {
 		expect(ctx.wikiCache).toBeDefined();
 		expect(typeof ctx.wikiCache.invalidate).toBe('function');
 		expect(ctx.licenseCache).toBeDefined();
+		expect(ctx.extensions).toBeDefined();
 		expect(ctx.sections).toBeDefined();
 		expect(ctx.edit).toBeDefined();
 		expect(ctx.revision).toBeDefined();

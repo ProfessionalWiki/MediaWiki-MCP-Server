@@ -2,10 +2,31 @@ import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { WikiConfig } from '../config/loadConfig.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
 import type { WikiSelection } from '../wikis/wikiSelection.js';
+import type { ExtensionDetector } from '../wikis/extensionDetector.js';
 
-export type Reconcile = () => void;
+export type Reconcile = () => Promise<void>;
 
-const STDIO_ONLY_TOOLS: readonly string[] = ['oauth-status', 'oauth-logout'];
+export interface ReconcileDeps {
+	readonly wikiRegistry: WikiRegistry;
+	readonly wikiSelection: WikiSelection;
+	readonly transport: 'http' | 'stdio';
+	readonly extensions: ExtensionDetector;
+}
+
+export interface ReconcileContext {
+	readonly activeWikiKey: string;
+	readonly activeWiki: Readonly<WikiConfig>;
+	readonly wikiCount: number;
+	readonly allowManagement: boolean;
+	readonly transport: 'http' | 'stdio';
+	readonly extensions: ExtensionDetector;
+}
+
+export interface ToolGatingRule {
+	readonly name: string;
+	readonly affects: readonly string[];
+	readonly isAllowed: (ctx: ReconcileContext) => boolean | Promise<boolean>;
+}
 
 const WRITE_TOOL_NAMES: readonly string[] = [
 	'create-page',
@@ -14,46 +35,95 @@ const WRITE_TOOL_NAMES: readonly string[] = [
 	'undelete-page',
 	'upload-file',
 	'upload-file-from-url',
+	'update-file',
+	'update-file-from-url',
 ];
 
-export function reconcileTools(
-	tools: Map<string, RegisteredTool>,
-	wikiRegistry: WikiRegistry,
-	wikiSelection: WikiSelection,
-	transport: 'http' | 'stdio' = 'stdio',
-): void {
-	const activeWiki = wikiSelection.getCurrent().config;
-	const wikiCount = Object.keys(wikiRegistry.getAll()).length;
-	const allowManagement = wikiRegistry.isManagementAllowed();
+const STDIO_ONLY_TOOLS: readonly string[] = ['oauth-status', 'oauth-logout'];
 
-	applyReadOnlyRule(tools, activeWiki);
-	applyWikiSetRule(tools, wikiCount, allowManagement);
-	applyTransportRule(tools, transport);
+export const SMW_GATED_TOOLS: readonly string[] = ['smw-ask', 'smw-list-properties'];
+
+const RULES: readonly ToolGatingRule[] = [
+	{
+		name: 'read-only',
+		affects: WRITE_TOOL_NAMES,
+		isAllowed: (c) => !c.activeWiki.readOnly,
+	},
+	{
+		name: 'stdio-only',
+		affects: STDIO_ONLY_TOOLS,
+		isAllowed: (c) => c.transport === 'stdio',
+	},
+	{
+		name: 'wiki-mgmt',
+		affects: ['add-wiki'],
+		isAllowed: (c) => c.allowManagement,
+	},
+	{
+		name: 'remove-wiki',
+		affects: ['remove-wiki'],
+		isAllowed: (c) => c.allowManagement && c.wikiCount >= 2,
+	},
+	{
+		name: 'set-wiki',
+		affects: ['set-wiki'],
+		isAllowed: (c) => c.wikiCount >= 2,
+	},
+	{
+		name: 'smw-extension',
+		affects: SMW_GATED_TOOLS,
+		isAllowed: (c) => c.extensions.has(c.activeWikiKey, 'SemanticMediaWiki'),
+	},
+];
+
+function buildContext(deps: ReconcileDeps): ReconcileContext {
+	const { key, config } = deps.wikiSelection.getCurrent();
+	return {
+		activeWikiKey: key,
+		activeWiki: config,
+		wikiCount: Object.keys(deps.wikiRegistry.getAll()).length,
+		allowManagement: deps.wikiRegistry.isManagementAllowed(),
+		transport: deps.transport,
+		extensions: deps.extensions,
+	};
 }
 
-function applyReadOnlyRule(
-	tools: Map<string, RegisteredTool>,
-	activeWiki: Readonly<WikiConfig>,
-): void {
-	const shouldBeEnabled = !activeWiki.readOnly;
-	for (const name of WRITE_TOOL_NAMES) {
-		toggle(tools.get(name), shouldBeEnabled);
+export async function computeDesiredEnabledState(
+	toolNames: Iterable<string>,
+	ctx: ReconcileContext,
+	rules: readonly ToolGatingRule[],
+): Promise<Map<string, boolean>> {
+	const results = await Promise.all(
+		rules.map(async (r) => ({ rule: r, allowed: await r.isAllowed(ctx) })),
+	);
+
+	// Each tool starts allowed. A rule that disallows it flips to false.
+	// Tools not affected by any rule remain enabled.
+	const desired = new Map<string, boolean>();
+	for (const name of toolNames) {
+		desired.set(name, true);
 	}
+	for (const { rule, allowed } of results) {
+		if (allowed) {
+			continue;
+		}
+		for (const toolName of rule.affects) {
+			if (desired.has(toolName)) {
+				desired.set(toolName, false);
+			}
+		}
+	}
+	return desired;
 }
 
-function applyWikiSetRule(
+export async function reconcileTools(
 	tools: Map<string, RegisteredTool>,
-	wikiCount: number,
-	allowManagement: boolean,
-): void {
-	toggle(tools.get('add-wiki'), allowManagement);
-	toggle(tools.get('remove-wiki'), allowManagement && wikiCount >= 2);
-	toggle(tools.get('set-wiki'), wikiCount >= 2);
-}
-
-function applyTransportRule(tools: Map<string, RegisteredTool>, transport: 'http' | 'stdio'): void {
-	for (const name of STDIO_ONLY_TOOLS) {
-		toggle(tools.get(name), transport === 'stdio');
+	deps: ReconcileDeps,
+): Promise<void> {
+	const ctx = buildContext(deps);
+	const desired = await computeDesiredEnabledState(tools.keys(), ctx, RULES);
+	for (const [name, shouldEnable] of desired) {
+		toggle(tools.get(name), shouldEnable);
 	}
 }
 

@@ -22,7 +22,7 @@ async function main(): Promise<void> {
 	);
 	const transport = new StdioServerTransport();
 	const ctx = createToolContext({ logger, state, transport: 'stdio' });
-	const server = createServer(ctx);
+	const server = await createServer(ctx);
 
 	await server.connect(transport);
 	// Stdio has no in-flight queue, so grace doesn't apply — log graceMs: 0

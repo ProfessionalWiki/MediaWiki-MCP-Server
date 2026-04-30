@@ -258,7 +258,7 @@ export function createMcpPostHandler(
 					delete sessions[transport.sessionId];
 				}
 			};
-			const server = createServerFn();
+			const server = await createServerFn();
 
 			await server.connect(transport);
 		} else {

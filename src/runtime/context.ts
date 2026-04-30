@@ -4,6 +4,7 @@ import type { WikiSelection } from '../wikis/wikiSelection.js';
 import type { UploadDirs } from '../wikis/uploadDirs.js';
 import type { WikiCache } from '../wikis/wikiCache.js';
 import type { LicenseCache } from '../wikis/licenseCache.js';
+import type { ExtensionDetector } from '../wikis/extensionDetector.js';
 import type { SectionService } from '../services/sectionService.js';
 import type { EditService } from '../services/editService.js';
 import type { RevisionNormalizer } from '../services/revisionNormalize.js';
@@ -18,6 +19,7 @@ export interface ToolContext {
 	readonly uploadDirs: UploadDirs;
 	readonly wikiCache: WikiCache;
 	readonly licenseCache: LicenseCache;
+	readonly extensions: ExtensionDetector;
 	readonly sections: SectionService;
 	readonly edit: EditService;
 	readonly revision: RevisionNormalizer;
@@ -28,5 +30,5 @@ export interface ToolContext {
 }
 
 export interface ManagementContext extends ToolContext {
-	readonly reconcile: () => void;
+	readonly reconcile: () => Promise<void>;
 }

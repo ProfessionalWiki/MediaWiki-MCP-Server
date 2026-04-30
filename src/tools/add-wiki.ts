@@ -62,7 +62,7 @@ export const addWiki: Tool<typeof inputSchema, ManagementContext> = {
 			throw error;
 		}
 
-		ctx.reconcile();
+		await ctx.reconcile();
 
 		return ctx.format.ok({
 			wikiKey: wikiInfo.servername,

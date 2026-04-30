@@ -49,7 +49,7 @@ export const removeWiki: Tool<typeof inputSchema, ManagementContext> = {
 
 		ctx.wikis.remove(wikiKey);
 		ctx.wikiCache.invalidate(wikiKey);
-		ctx.reconcile();
+		await ctx.reconcile();
 
 		return ctx.format.ok({
 			wikiKey,

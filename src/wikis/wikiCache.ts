@@ -1,5 +1,6 @@
 import type { MwnProvider } from './mwnProvider.js';
 import type { LicenseCache } from './licenseCache.js';
+import type { ExtensionDetector } from './extensionDetector.js';
 
 /**
  * Invalidates wiki-scoped caches. Used by remove-wiki to drop cached wiki
@@ -14,10 +15,12 @@ export class WikiCacheImpl implements WikiCache {
 	public constructor(
 		private readonly mwnProvider: Pick<MwnProvider, 'invalidate'>,
 		private readonly licenseCache: Pick<LicenseCache, 'delete'>,
+		private readonly extensionDetector: Pick<ExtensionDetector, 'invalidate'>,
 	) {}
 
 	public invalidate(wikiKey: string): void {
 		this.mwnProvider.invalidate(wikiKey);
 		this.licenseCache.delete(wikiKey);
+		this.extensionDetector.invalidate(wikiKey);
 	}
 }
