@@ -11,6 +11,8 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 |---|---|---|
 | `add-wiki` | Add a wiki as an MCP resource from its URL. Disabled when `allowWikiManagement` is `false`. | - |
 | `compare-pages` | Diff two versions of a wiki page by revision, title, or supplied wikitext. | - |
+| `oauth-logout` | Remove stored OAuth tokens. Stdio only. | - |
+| `oauth-status` | List stored OAuth tokens with scopes and expiry (no token values). Stdio only. | - |
 | `create-page` 🔐 | Create a new wiki page. | `Create, edit, and move pages` |
 | `delete-page` 🔐 | Delete a wiki page. | `Delete pages, revisions, and log entries` |
 | `get-category-members` | List members of a category (up to 500 per call, paginated via `continueFrom`). | - |
@@ -77,6 +79,9 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | `MCP_ALLOW_STATIC_FALLBACK` | Set to `true` to allow HTTP startup when `config.json` has static credentials. Otherwise the server refuses to start, preventing silent shared-identity fallback for unauthenticated requests. | `unset` |
 | `MCP_CONTENT_MAX_BYTES` | Byte cap for content bodies (wikitext, rendered HTML, diffs) returned by `get-page`, `get-pages`, `parse-wikitext`, and `compare-pages`. Oversized bodies are truncated with a trailing marker. Tune to the target LLM client's tool-response budget. | `50000` |
 | `MCP_LOG_LEVEL` | Minimum severity for logger output (stderr telemetry and `sendLoggingMessage` broadcast). One of `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`, or `silent`. Invalid values fail loudly on first log call. | `debug` |
+| `MCP_OAUTH_CREDENTIALS_FILE` | Override the default credentials store path. Default: `~/.config/mediawiki-mcp/credentials.json` (Linux/macOS) or `%APPDATA%\mediawiki-mcp\credentials.json` (Windows). | `unset` |
+| `MCP_OAUTH_NO_BROWSER` | Set to `1` to skip launching a browser during the OAuth flow; the auth URL is logged to stderr instead. Useful in headless environments. | `unset` |
+| `MCP_PUBLIC_URL` | Override the request-derived public URL used in the `resource` field of the OAuth protected-resource discovery document. Useful for reverse-proxy setups that rewrite the `Host` header. | `unset` |
 | `MCP_MAX_REQUEST_BODY` | Maximum HTTP request body size (StreamableHTTP transport). Accepts size strings like `512kb` or `1mb`. Oversize requests get a JSON-RPC 413. | `1mb` |
 | `MCP_METRICS` | Set to `true` to expose Prometheus metrics at `GET /metrics` on the HTTP transport. | `unset` |
 | `MCP_SHUTDOWN_GRACE_MS` | Maximum time in ms to wait for in-flight `/mcp` calls to drain on `SIGTERM` / `SIGINT` before exiting. Capped at 600000 (10 min); invalid values fall back to the default with a warning. | `10000` |
@@ -126,7 +131,8 @@ Create a `config.json` file to configure wiki connections. Use the `config.examp
 | `server` | Yes | Base URL of the wiki (e.g., `https://en.wikipedia.org`) |
 | `articlepath` | Yes | Path pattern for articles (typically `/wiki`) |
 | `scriptpath` | Yes | Path to MediaWiki scripts (typically `/w`) |
-| `token` | No | OAuth2 access token for authenticated operations (preferred) |
+| `oauth2ClientId` | No | OAuth 2.0 client identifier from `Special:OAuthConsumerRegistration/propose/oauth2`. Opts the wiki into browser-based OAuth (public client + PKCE). When set, `/.well-known/oauth-protected-resource` is published on HTTP transport. |
+| `token` | No | OAuth2 access token for authenticated operations (manual token alternative to `oauth2ClientId`) |
 | `username` | No | Bot username (fallback when OAuth2 is not available) |
 | `password` | No | Bot password (fallback when OAuth2 is not available) |
 | `private` | No | Whether the wiki requires authentication to read (default: `false`) |
@@ -139,7 +145,38 @@ Create a `config.json` file to configure wiki connections. Use the `config.examp
 
 Tools marked 🔐 require authentication. They are also hidden from `tools/list` when the active wiki has `readOnly: true` — see [Deployment](#deployment).
 
-### OAuth2 (preferred)
+### OAuth (browser-based, recommended)
+
+When using HTTP transport with an OAuth-aware MCP client (Claude Desktop, mcp-remote, Claude Code), or stdio with this server, the smoothest path is per-user OAuth — no token pasted into config.
+
+**One-time setup on the wiki:**
+
+1. Visit `Special:OAuthConsumerRegistration/propose/oauth2` on the wiki.
+2. Register a **public client** (PKCE only, no client secret).
+3. Set redirect URI to `http://127.0.0.1/oauth/callback` — loopback per RFC 8252; the runtime port varies.
+4. Copy the issued `client_id`.
+
+**Configure the MCP server:**
+
+```json
+{
+	"wikis": {
+		"example.org": {
+			"sitename": "Example Wiki",
+			"server": "https://example.org",
+			"articlepath": "/wiki",
+			"scriptpath": "/w",
+			"oauth2ClientId": "<paste client_id here>"
+		}
+	}
+}
+```
+
+On HTTP transport, the server publishes `/.well-known/oauth-protected-resource` (RFC 9728); OAuth-aware clients drive the auth-code+PKCE dance themselves. On stdio, the server opens a browser the first time a tool call needs an OAuth token; subsequent calls reuse the stored token (refreshed automatically before expiry). Tokens are stored in `~/.config/mediawiki-mcp/credentials.json` (mode 0600) on Linux/macOS, `%APPDATA%\mediawiki-mcp\credentials.json` on Windows.
+
+Use the `oauth-status` and `oauth-logout` tools to inspect and reset stored tokens.
+
+### OAuth2 (manual token, HTTP transport)
 
 1. Navigate to `Special:OAuthConsumerRegistration/propose/oauth2` on your wiki.
 2. Select "This consumer is for use only by [YourUsername]".

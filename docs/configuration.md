@@ -155,3 +155,70 @@ Matching is exact string equality against what the browser sends. These values a
 When in doubt, open your deployed site in a browser and log `window.location.origin` — copy that value verbatim.
 
 Both allowlists apply only to `/mcp`. The `/health` endpoint is always reachable so container healthchecks and liveness probes (which hit `http://localhost:<port>/health`) keep working regardless of what you put in `MCP_ALLOWED_HOSTS` or `MCP_ALLOWED_ORIGINS`.
+
+## OAuth (browser-based)
+
+Browser-based OAuth lets users authenticate without pasting a token into `config.json`. It is opt-in per wiki.
+
+### Register an OAuth consumer on the wiki
+
+1. Visit `Special:OAuthConsumerRegistration/propose/oauth2` on the wiki. Extension:OAuth ≥ 1.0 (MediaWiki ≥ 1.39) is required.
+2. Register a **public client** — PKCE only, no client secret.
+3. Set redirect URI to `http://127.0.0.1/oauth/callback`. RFC 8252 §7.3 mandates that authorization servers honour any port on a loopback redirect URI, so the runtime port the MCP server picks does not need to be pre-registered.
+4. Approve the consumer (admin step on the wiki side, depending on your wiki's policy).
+5. Copy the issued `client_id`.
+
+### Configure the MCP server
+
+Add `oauth2ClientId` to the wiki entry:
+
+```json
+{
+	"wikis": {
+		"example.org": {
+			"sitename": "Example Wiki",
+			"server": "https://example.org",
+			"articlepath": "/wiki",
+			"scriptpath": "/w",
+			"oauth2ClientId": "<client_id from step 5>"
+		}
+	}
+}
+```
+
+Presence of `oauth2ClientId` opts the wiki into OAuth. Wikis without it continue to use static credentials (`token` / `username` + `password`) or anonymous access.
+
+### How it works
+
+On **HTTP transport** the server publishes `/.well-known/oauth-protected-resource` (RFC 9728) listing the wiki's authorization server. OAuth-aware MCP clients (Claude Desktop, mcp-remote, Claude Code) follow this metadata to drive auth-code + PKCE against the wiki and send `Authorization: Bearer <token>` on each call. Bearer-less requests against an OAuth-enabled wiki receive `401 Unauthorized` with a `WWW-Authenticate: Bearer realm="MediaWiki MCP Server", resource_metadata="..."` header so the client can discover the AS and start the dance.
+
+On **stdio transport** the server itself runs the auth-code + PKCE dance: opens a browser, runs a loopback HTTP listener on `127.0.0.1:<random-port>` for the callback, exchanges the code for tokens, and stores `{access_token, refresh_token, expires_at, scopes, obtained_at}` in:
+
+- Linux/macOS: `$XDG_CONFIG_HOME/mediawiki-mcp/credentials.json` or `~/.config/mediawiki-mcp/credentials.json`
+- Windows: `%APPDATA%\mediawiki-mcp\credentials.json`
+
+The file is mode 0600 on Unix; on Windows the per-user `%APPDATA%` ACLs apply. Subsequent stdio calls reuse the stored token, refreshing it automatically within 60 seconds of expiry.
+
+### Optional environment variables
+
+- `MCP_OAUTH_CREDENTIALS_FILE` — Override the default credentials path.
+- `MCP_OAUTH_NO_BROWSER` — Set to `1` to skip `open()` (the server logs the URL to stderr instead). Useful in headless environments and CI.
+- `MCP_PUBLIC_URL` — Override the request-derived URL used in the protected-resource doc's `resource` field. Set this when running behind a proxy that rewrites the request `Host`.
+
+### Inspecting and resetting stored tokens (stdio)
+
+Two MCP tools, hidden on HTTP transport:
+
+- `oauth-status` — returns the wikis with stored tokens, their scopes, and expiry. Never returns token values.
+- `oauth-logout` — removes stored tokens. Pass `wiki: "<key>"` to remove only that wiki, or call with no arguments to remove all.
+
+### What if my wiki doesn't have Extension:OAuth?
+
+Don't set `oauth2ClientId`. Static credentials (`token`, `username` + `password`) continue to work as before.
+
+### Interaction with `MCP_ALLOW_STATIC_FALLBACK`
+
+On HTTP transport, the existing `MCP_ALLOW_STATIC_FALLBACK` guard determines whether bearer-less requests fall back to static credentials. Two configurations:
+
+- `oauth2ClientId` set, `MCP_ALLOW_STATIC_FALLBACK` unset: bearer-less requests get 401 + WWW-Authenticate. Pure OAuth.
+- `oauth2ClientId` set, `MCP_ALLOW_STATIC_FALLBACK=true`, AND wiki has static creds: bearer-less requests use static creds (legacy behaviour). The discovery doc is still published; OAuth-aware clients can opt in.
