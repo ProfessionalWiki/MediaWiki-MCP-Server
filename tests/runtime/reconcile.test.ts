@@ -708,3 +708,73 @@ describe('reconcileTools — applyBucketExtensionRule', () => {
 		expect(hasSpy).toHaveBeenCalledWith('a', 'Bucket');
 	});
 });
+
+describe('reconcileTools — applyCargoExtensionRule', () => {
+	function makeToolMapWithCargo(initiallyEnabled: boolean): {
+		tools: Map<string, RegisteredTool>;
+		mocks: Map<string, MockTool>;
+	} {
+		const mocks = new Map<string, MockTool>();
+		const tools = new Map<string, RegisteredTool>();
+		for (const name of ['cargo-list-tables', 'get-page']) {
+			const mock = makeMockTool(initiallyEnabled);
+			mocks.set(name, mock);
+			tools.set(name, mock as unknown as RegisteredTool);
+		}
+		return { tools, mocks };
+	}
+
+	it('disables cargo-list-tables when the detector resolves false', async () => {
+		const { tools, mocks } = makeToolMapWithCargo(true);
+		const { registry, selection } = makeMocks({
+			activeWiki: baseWiki,
+			wikis: { a: baseWiki },
+			allowManagement: true,
+		});
+		await reconcileTools(tools, {
+			wikiRegistry: registry,
+			wikiSelection: selection,
+			transport: 'stdio',
+			extensions: makeFakeDetector({}),
+		});
+		expect(mocks.get('cargo-list-tables')!.disable).toHaveBeenCalledTimes(1);
+		expect(mocks.get('get-page')!.disable).not.toHaveBeenCalled();
+	});
+
+	it('enables cargo-list-tables when the detector resolves true', async () => {
+		const { tools, mocks } = makeToolMapWithCargo(false);
+		const { registry, selection } = makeMocks({
+			activeWiki: baseWiki,
+			wikis: { a: baseWiki },
+			allowManagement: true,
+		});
+		await reconcileTools(tools, {
+			wikiRegistry: registry,
+			wikiSelection: selection,
+			transport: 'stdio',
+			extensions: makeFakeDetector({ 'a:Cargo': true }),
+		});
+		expect(mocks.get('cargo-list-tables')!.enable).toHaveBeenCalledTimes(1);
+	});
+
+	it('queries the detector with the active wiki key and the string "Cargo"', async () => {
+		const { tools } = makeToolMapWithCargo(false);
+		const hasSpy = vi.fn(async () => true);
+		const detector: ExtensionDetector = {
+			has: hasSpy,
+			invalidate: vi.fn(),
+		};
+		const { registry, selection } = makeMocks({
+			activeWiki: baseWiki,
+			wikis: { a: baseWiki },
+			allowManagement: true,
+		});
+		await reconcileTools(tools, {
+			wikiRegistry: registry,
+			wikiSelection: selection,
+			transport: 'stdio',
+			extensions: detector,
+		});
+		expect(hasSpy).toHaveBeenCalledWith('a', 'Cargo');
+	});
+});

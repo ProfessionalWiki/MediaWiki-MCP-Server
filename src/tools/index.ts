@@ -4,7 +4,12 @@ import { errorMessage } from '../errors/isErrnoException.js';
 import { logger } from '../runtime/logger.js';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext, ManagementContext } from '../runtime/context.js';
-import { type Reconcile, SMW_GATED_TOOLS, BUCKET_GATED_TOOLS } from '../runtime/reconcile.js';
+import {
+	type Reconcile,
+	SMW_GATED_TOOLS,
+	BUCKET_GATED_TOOLS,
+	CARGO_GATED_TOOLS,
+} from '../runtime/reconcile.js';
 import { dispatch } from '../runtime/dispatcher.js';
 import { register } from '../runtime/register.js';
 
@@ -22,6 +27,7 @@ import { getCategoryMembers } from './get-category-members.js';
 import { smwQuery } from './smw-query.js';
 import { smwListProperties } from './smw-list-properties.js';
 import { bucketQuery } from './bucket-query.js';
+import { cargoListTables } from './cargo-list-tables.js';
 import { createPage } from './create-page.js';
 import { updatePage } from './update-page.js';
 import { deletePage } from './delete-page.js';
@@ -56,6 +62,7 @@ export const standardTools: Tool<any>[] = [
 	smwQuery,
 	smwListProperties,
 	bucketQuery,
+	cargoListTables,
 	createPage,
 	updatePage,
 	deletePage,
@@ -99,7 +106,7 @@ export function registerAllTools(
 	// the extension detector confirms the relevant extension is installed on
 	// the active wiki. This avoids a race where tools/list arrives before the
 	// initial reconcile completes.
-	for (const name of [...SMW_GATED_TOOLS, ...BUCKET_GATED_TOOLS]) {
+	for (const name of [...SMW_GATED_TOOLS, ...BUCKET_GATED_TOOLS, ...CARGO_GATED_TOOLS]) {
 		const tool = registered.get(name);
 		if (tool && tool.enabled) {
 			tool.disable();
