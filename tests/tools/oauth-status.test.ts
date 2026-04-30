@@ -43,4 +43,19 @@ describe('oauth-status', () => {
 		expect(text).toContain('2026-04-29');
 		expect(text).not.toContain('tok');
 	});
+
+	it('refuses to read the credentials file on HTTP transport', async () => {
+		await createTokenStore().put('mywiki', {
+			access_token: 'SECRET',
+			expires_at: '2026-12-01T00:00:00.000Z',
+			scopes: ['edit'],
+			obtained_at: '2026-04-29T12:00:00.000Z',
+		});
+		const result = await dispatch(oauthStatus, fakeContext({ transport: 'http' }))({});
+		expect(result.isError).toBe(true);
+		const text = (result.content[0] as { text: string }).text;
+		expect(text).toContain('stdio');
+		expect(text).not.toContain('SECRET');
+		expect(text).not.toContain('mywiki');
+	});
 });

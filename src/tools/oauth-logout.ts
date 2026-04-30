@@ -23,6 +23,11 @@ export const oauthLogout: Tool<typeof inputSchema> = {
 	failureVerb: 'log out',
 
 	async handle({ wiki }, ctx: ToolContext): Promise<CallToolResult> {
+		// Defense in depth: the reconcile rule already hides this tool on HTTP,
+		// but a forced direct invocation must not delete from the local credentials file.
+		if (ctx.transport !== 'stdio') {
+			return ctx.format.invalidInput('oauth-logout is only available on the stdio transport.');
+		}
 		const store = createTokenStore();
 		const cur = await store.read();
 		const targets = typeof wiki === 'string' ? [wiki] : Object.keys(cur.tokens);

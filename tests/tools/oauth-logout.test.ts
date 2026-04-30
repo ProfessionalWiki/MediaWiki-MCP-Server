@@ -67,4 +67,13 @@ describe('oauth-logout', () => {
 		await dispatch(oauthLogout, ctx)({ wiki: 'ghost' });
 		expect(vi.mocked(ctx.logger.info)).not.toHaveBeenCalled();
 	});
+
+	it('refuses to delete from the credentials file on HTTP transport', async () => {
+		const store = createTokenStore();
+		await store.put('k1', tok);
+		const result = await dispatch(oauthLogout, fakeContext({ transport: 'http' }))({});
+		expect(result.isError).toBe(true);
+		const after = await store.read();
+		expect(Object.keys(after.tokens)).toEqual(['k1']);
+	});
 });

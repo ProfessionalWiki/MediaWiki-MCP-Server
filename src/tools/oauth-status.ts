@@ -18,6 +18,11 @@ export const oauthStatus: Tool<Record<string, never>> = {
 	failureVerb: 'read OAuth status',
 
 	async handle(_args, ctx: ToolContext): Promise<CallToolResult> {
+		// Defense in depth: the reconcile rule already hides this tool on HTTP,
+		// but a forced direct invocation must not read the local credentials file.
+		if (ctx.transport !== 'stdio') {
+			return ctx.format.invalidInput('oauth-status is only available on the stdio transport.');
+		}
 		const store = await createTokenStore().read();
 		const wikis = Object.entries(store.tokens).map(([wiki, t]) => ({
 			wiki,
