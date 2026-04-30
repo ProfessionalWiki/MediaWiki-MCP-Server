@@ -62,8 +62,6 @@ Like the MCP Inspector, but with a built-in MCP client that can drive the server
 npm run mcpjam
 ```
 
-For tools that surface a domain-specific syntax to the LLM (query tools, parser-function wrappers), spot-check the description with a few natural-language prompts here before merge — this catches description gaps that unit tests can't.
-
 ## MCP Inspector CLI (integration tests)
 
 The [MCP Inspector CLI](https://github.com/modelcontextprotocol/inspector) exercises tools against a real wiki. Build first with `npm run build`, then:
