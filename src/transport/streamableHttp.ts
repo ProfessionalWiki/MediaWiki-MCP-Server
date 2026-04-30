@@ -23,7 +23,9 @@ import {
 	recordReadyFailure,
 	setSessionsProvider,
 } from '../runtime/metrics.js';
-import { runtimeTokenStore } from './requestContext.js';
+import { withRequestContext } from './requestContext.js';
+
+export { withRequestContext } from './requestContext.js';
 import { loadConfigFromFile } from '../config/loadConfig.js';
 import type { MwnProvider } from '../wikis/mwnProvider.js';
 import type { WikiSelection } from '../wikis/wikiSelection.js';
@@ -32,14 +34,6 @@ import { createServer } from '../server.js';
 import { emitStartupBanner } from '../runtime/banner.js';
 import { createToolContext } from '../runtime/createContext.js';
 import { registerShutdownHandlers, resolveShutdownGrace } from '../runtime/shutdown.js';
-
-export async function withRequestContext<T>(
-	runtimeToken: string | undefined,
-	sessionId: string | undefined,
-	fn: () => Promise<T>,
-): Promise<T> {
-	return runtimeTokenStore.run({ runtimeToken, sessionId }, fn);
-}
 
 export function extractBearerToken(req: Request): string | undefined {
 	const raw = req.headers.authorization;

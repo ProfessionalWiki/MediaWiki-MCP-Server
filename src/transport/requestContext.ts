@@ -14,3 +14,11 @@ export function getRuntimeToken(): string | undefined {
 export function getSessionId(): string | undefined {
 	return runtimeTokenStore.getStore()?.sessionId;
 }
+
+export function withRequestContext<T>(
+	runtimeToken: string | undefined,
+	sessionId: string | undefined,
+	fn: () => Promise<T>,
+): Promise<T> {
+	return runtimeTokenStore.run({ runtimeToken, sessionId }, fn);
+}
