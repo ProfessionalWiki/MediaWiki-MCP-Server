@@ -45,7 +45,7 @@ export const SMW_GATED_TOOLS: readonly string[] = ['smw-query', 'smw-list-proper
 
 export const BUCKET_GATED_TOOLS: readonly string[] = ['bucket-query'];
 
-export const CARGO_GATED_TOOLS: readonly string[] = ['cargo-list-tables'];
+export const CARGO_GATED_TOOLS: readonly string[] = ['cargo-list-tables', 'cargo-describe-table'];
 
 const RULES: readonly ToolGatingRule[] = [
 	{

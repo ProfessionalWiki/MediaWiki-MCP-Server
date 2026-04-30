@@ -716,7 +716,7 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 	} {
 		const mocks = new Map<string, MockTool>();
 		const tools = new Map<string, RegisteredTool>();
-		for (const name of ['cargo-list-tables', 'get-page']) {
+		for (const name of ['cargo-list-tables', 'cargo-describe-table', 'get-page']) {
 			const mock = makeMockTool(initiallyEnabled);
 			mocks.set(name, mock);
 			tools.set(name, mock as unknown as RegisteredTool);
@@ -738,6 +738,7 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 			extensions: makeFakeDetector({}),
 		});
 		expect(mocks.get('cargo-list-tables')!.disable).toHaveBeenCalledTimes(1);
+		expect(mocks.get('cargo-describe-table')!.disable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('get-page')!.disable).not.toHaveBeenCalled();
 	});
 
@@ -755,6 +756,7 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 			extensions: makeFakeDetector({ 'a:Cargo': true }),
 		});
 		expect(mocks.get('cargo-list-tables')!.enable).toHaveBeenCalledTimes(1);
+		expect(mocks.get('cargo-describe-table')!.enable).toHaveBeenCalledTimes(1);
 	});
 
 	it('queries the detector with the active wiki key and the string "Cargo"', async () => {

@@ -28,6 +28,7 @@ import { smwQuery } from './smw-query.js';
 import { smwListProperties } from './smw-list-properties.js';
 import { bucketQuery } from './bucket-query.js';
 import { cargoListTables } from './cargo-list-tables.js';
+import { cargoDescribeTable } from './cargo-describe-table.js';
 import { createPage } from './create-page.js';
 import { updatePage } from './update-page.js';
 import { deletePage } from './delete-page.js';
@@ -63,6 +64,7 @@ export const standardTools: Tool<any>[] = [
 	smwListProperties,
 	bucketQuery,
 	cargoListTables,
+	cargoDescribeTable,
 	createPage,
 	updatePage,
 	deletePage,
