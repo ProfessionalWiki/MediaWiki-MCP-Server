@@ -87,9 +87,9 @@ async function doBrowserAuth(wikiKey: string, ctx: BrowserAuthCtx): Promise<stri
 	// Arm the timeout. Silence unhandled-rejection warnings on both race
 	// participants before any await — the winning promise propagates its
 	// outcome via Promise.race; the loser is intentionally discarded.
-	const timeoutPromise = timeout(timeoutMs);
+	const timeoutHandle = timeout(timeoutMs);
 	callbackPromise.catch(() => undefined);
-	timeoutPromise.catch(() => undefined);
+	timeoutHandle.promise.catch(() => undefined);
 
 	// Attempt to open browser
 	if (process.env.MCP_OAUTH_NO_BROWSER === '1') {
@@ -106,8 +106,11 @@ async function doBrowserAuth(wikiKey: string, ctx: BrowserAuthCtx): Promise<stri
 
 	let code: string;
 	try {
-		code = await Promise.race([callbackPromise, timeoutPromise]);
+		code = await Promise.race([callbackPromise, timeoutHandle.promise]);
 	} finally {
+		// Cancel the timeout so the process doesn't keep a 5-minute timer
+		// alive after a successful (or failed) dance.
+		timeoutHandle.cancel();
 		server.close();
 	}
 
@@ -244,12 +247,27 @@ function waitForCallback(server: http.Server, expectedState: string): Promise<st
 	});
 }
 
-function timeout(ms: number): Promise<never> {
-	return new Promise<never>((_, reject) => {
-		setTimeout(() => {
+interface TimeoutHandle {
+	promise: Promise<never>;
+	cancel: () => void;
+}
+
+function timeout(ms: number): TimeoutHandle {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const promise = new Promise<never>((_, reject) => {
+		timer = setTimeout(() => {
 			reject(new BrowserAuthError('timeout', `No callback received within ${ms}ms`));
 		}, ms);
 	});
+	return {
+		promise,
+		cancel(): void {
+			if (timer !== undefined) {
+				clearTimeout(timer);
+				timer = undefined;
+			}
+		},
+	};
 }
 
 function mapFlowErrorReason(err: unknown): BrowserAuthError['reason'] {

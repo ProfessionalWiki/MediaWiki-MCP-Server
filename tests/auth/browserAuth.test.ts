@@ -68,6 +68,21 @@ describe('browserAuth', () => {
 		).rejects.toMatchObject({ reason: 'user_denied' });
 	});
 
+	it('state_mismatch: rejects with reason=state_mismatch when callback state is tampered', async () => {
+		fakeAs = await startFakeAs();
+		vi.mocked(openMod).mockImplementation(
+			fakeBrowserDriver(fakeAs.url, 'tampered_state') as typeof openMod,
+		);
+
+		await expect(
+			browserAuth('test-wiki', {
+				wiki: makeWiki(fakeAs.url),
+				clientId: 'my-client',
+				scopes: ['edit'],
+			}),
+		).rejects.toMatchObject({ reason: 'state_mismatch' });
+	});
+
 	it('timeout: rejects with BrowserAuthError reason=timeout when no callback arrives', async () => {
 		fakeAs = await startFakeAs();
 		// open mock does nothing — no callback will arrive
