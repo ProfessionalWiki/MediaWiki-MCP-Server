@@ -171,4 +171,51 @@ describe('ExtensionDetectorImpl', () => {
 		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(false);
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(1);
 	});
+
+	describe('hasAny', () => {
+		it('returns true when any of the given names matches', async () => {
+			vi.mocked(makeApiRequest).mockResolvedValueOnce({
+				query: { extensions: [{ name: 'LIBRARIAN' }] },
+			});
+			const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }));
+
+			expect(await detector.hasAny('a', ['Cargo', 'LIBRARIAN'])).toBe(true);
+		});
+
+		it('returns false when none of the given names match', async () => {
+			vi.mocked(makeApiRequest).mockResolvedValueOnce({
+				query: { extensions: [{ name: 'OAuth' }] },
+			});
+			const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }));
+
+			expect(await detector.hasAny('a', ['Cargo', 'LIBRARIAN'])).toBe(false);
+		});
+
+		it('returns false on probe failure', async () => {
+			vi.mocked(makeApiRequest).mockRejectedValueOnce(new Error('network down'));
+			const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }));
+
+			expect(await detector.hasAny('a', ['Cargo', 'LIBRARIAN'])).toBe(false);
+		});
+
+		it('returns false on an empty names list', async () => {
+			vi.mocked(makeApiRequest).mockResolvedValueOnce({
+				query: { extensions: [{ name: 'Cargo' }] },
+			});
+			const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }));
+
+			expect(await detector.hasAny('a', [])).toBe(false);
+		});
+
+		it('shares the same cache as has()', async () => {
+			vi.mocked(makeApiRequest).mockResolvedValueOnce({
+				query: { extensions: [{ name: 'LIBRARIAN' }] },
+			});
+			const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }));
+
+			expect(await detector.has('a', 'OAuth')).toBe(false);
+			expect(await detector.hasAny('a', ['Cargo', 'LIBRARIAN'])).toBe(true);
+			expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(1);
+		});
+	});
 });

@@ -8,6 +8,12 @@ const TTL_FAILURE_MS = 60 * 1000; // 60 seconds
 
 export interface ExtensionDetector {
 	has(wikiKey: string, extensionName: string): Promise<boolean>;
+	/**
+	 * True when the wiki advertises ANY of the given extension names. Useful for
+	 * extensions that ship under multiple names — e.g. Cargo is rebranded as
+	 * `LIBRARIAN` on wiki.gg-hosted wikis (Helldivers, Terraria, Ark, etc.).
+	 */
+	hasAny(wikiKey: string, extensionNames: readonly string[]): Promise<boolean>;
 	invalidate(wikiKey: string): void;
 }
 
@@ -34,6 +40,19 @@ export class ExtensionDetectorImpl implements ExtensionDetector {
 			return false;
 		}
 		return entry.extensions.has(extensionName);
+	}
+
+	public async hasAny(wikiKey: string, extensionNames: readonly string[]): Promise<boolean> {
+		const entry = await this.resolveEntry(wikiKey);
+		if (entry.kind === 'failed') {
+			return false;
+		}
+		for (const name of extensionNames) {
+			if (entry.extensions.has(name)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	public invalidate(wikiKey: string): void {

@@ -97,6 +97,9 @@ function makeMocks({
 function makeFakeDetector(answers: Record<string, boolean> = {}): ExtensionDetector {
 	return {
 		has: vi.fn(async (wikiKey: string, name: string) => answers[`${wikiKey}:${name}`] ?? false),
+		hasAny: vi.fn(async (wikiKey: string, names: readonly string[]) =>
+			names.some((name) => answers[`${wikiKey}:${name}`] ?? false),
+		),
 		invalidate: vi.fn(),
 	};
 }
@@ -622,6 +625,7 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 		const hasSpy = vi.fn(async () => true);
 		const detector: ExtensionDetector = {
 			has: hasSpy,
+			hasAny: vi.fn(async () => false),
 			invalidate: vi.fn(),
 		};
 		const { registry, selection } = makeMocks({
@@ -692,6 +696,7 @@ describe('reconcileTools — applyBucketExtensionRule', () => {
 		const hasSpy = vi.fn(async () => true);
 		const detector: ExtensionDetector = {
 			has: hasSpy,
+			hasAny: vi.fn(async () => false),
 			invalidate: vi.fn(),
 		};
 		const { registry, selection } = makeMocks({
@@ -761,11 +766,12 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 		expect(mocks.get('cargo-query')!.enable).toHaveBeenCalledTimes(1);
 	});
 
-	it('queries the detector with the active wiki key and the string "Cargo"', async () => {
+	it('queries the detector with the active wiki key and the canonical+wiki.gg names', async () => {
 		const { tools } = makeToolMapWithCargo(false);
-		const hasSpy = vi.fn(async () => true);
+		const hasAnySpy = vi.fn(async () => true);
 		const detector: ExtensionDetector = {
-			has: hasSpy,
+			has: vi.fn(async () => false),
+			hasAny: hasAnySpy,
 			invalidate: vi.fn(),
 		};
 		const { registry, selection } = makeMocks({
@@ -779,6 +785,24 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 			transport: 'stdio',
 			extensions: detector,
 		});
-		expect(hasSpy).toHaveBeenCalledWith('a', 'Cargo');
+		expect(hasAnySpy).toHaveBeenCalledWith('a', ['Cargo', 'LIBRARIAN']);
+	});
+
+	it('enables all Cargo tools on a wiki.gg-rebranded LIBRARIAN install', async () => {
+		const { tools, mocks } = makeToolMapWithCargo(false);
+		const { registry, selection } = makeMocks({
+			activeWiki: baseWiki,
+			wikis: { a: baseWiki },
+			allowManagement: true,
+		});
+		await reconcileTools(tools, {
+			wikiRegistry: registry,
+			wikiSelection: selection,
+			transport: 'stdio',
+			extensions: makeFakeDetector({ 'a:LIBRARIAN': true }),
+		});
+		expect(mocks.get('cargo-list-tables')!.enable).toHaveBeenCalledTimes(1);
+		expect(mocks.get('cargo-describe-table')!.enable).toHaveBeenCalledTimes(1);
+		expect(mocks.get('cargo-query')!.enable).toHaveBeenCalledTimes(1);
 	});
 });
