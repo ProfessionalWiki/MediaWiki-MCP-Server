@@ -99,7 +99,7 @@ docker logs -f mediawiki-mcp-server | humanlog
 The server registers `SIGTERM` and `SIGINT` handlers in both the HTTP and stdio transports. On signal:
 
 1. The HTTP listener stops accepting new connections (`server.close()`), and active StreamableHTTP sessions are closed. `/health` and `/ready` keep responding until the listener finishes closing.
-2. In-flight `/mcp` requests are given up to `MCP_SHUTDOWN_GRACE_MS` (default `10000`) to finish.
+2. In-flight `/mcp` requests are given up to `MCP_SHUTDOWN_GRACE_MS` (default `10000`) to finish. The value is capped at `600000` (10 min); invalid values fall back to the default with a warning.
 3. The server emits two structured stderr events:
    - `event: "shutdown"` with `signal`, `transport`, `grace_ms`, `in_flight_at_signal`, `sessions_at_signal`.
    - `event: "shutdown_complete"` with `in_flight_drained`, `sessions_closed`, `grace_exceeded`, `duration_ms`.
