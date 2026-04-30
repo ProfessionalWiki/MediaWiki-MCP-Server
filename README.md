@@ -247,17 +247,7 @@ See the [Gemini CLI extensions documentation](https://github.com/google-gemini/g
 
 ## Deployment
 
-Running the server as a remote HTTP endpoint for other users has its own configuration requirements — see [docs/deployment.md](docs/deployment.md). A pre-built image is published at `ghcr.io/professionalwiki/mediawiki-mcp-server`.
-
-### Logs
-
-Every stderr line is a JSON object. Pipe through `jq` for live tailing:
-
-```bash
-node dist/index.js 2>&1 | jq -R 'fromjson? // empty'
-```
-
-Tool calls emit an `event: "tool_call"` line; the startup banner is `event: "startup"`. The HTTP transport adds `/health` (liveness) and `/ready` (probes the default wiki). [docs/deployment.md](docs/deployment.md) has the full schema.
+Running the server as a remote HTTP endpoint for other users has its own configuration requirements — see [docs/deployment.md](docs/deployment.md). A pre-built image is published at `ghcr.io/professionalwiki/mediawiki-mcp-server`. For day-2 operations (logs, `/health`/`/ready`, metrics, graceful shutdown), see [docs/operations.md](docs/operations.md).
 
 ## Security
 
