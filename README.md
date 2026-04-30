@@ -41,22 +41,6 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 - Credentials (`token`, `username`, `password`) are never exposed in resource content.
 - After `add-wiki` or `remove-wiki`, the server sends `notifications/resources/list_changed` so clients refresh.
 
-<details><summary>Example list result</summary>
-
-```json
-{
-  "resources": [
-    {
-      "uri": "mcp://wikis/en.wikipedia.org",
-      "name": "wikis/en.wikipedia.org",
-      "title": "Wikipedia",
-      "description": "Wiki \"Wikipedia\" hosted at https://en.wikipedia.org"
-    }
-  ]
-}
-```
-</details>
-
 <details><summary>Example read result</summary>
 
 ```json
@@ -76,124 +60,49 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | Name | Description | Default |
 |---|---|---|
 | `CONFIG` | Path to your configuration file | `config.json` |
-| `MCP_ALLOW_STATIC_FALLBACK` | Set to `true` to allow HTTP startup when `config.json` has static credentials. Otherwise the server refuses to start, preventing silent shared-identity fallback for unauthenticated requests. | `unset` |
-| `MCP_CONTENT_MAX_BYTES` | Byte cap for content bodies (wikitext, rendered HTML, diffs) returned by `get-page`, `get-pages`, `parse-wikitext`, and `compare-pages`. Oversized bodies are truncated with a trailing marker. Tune to the target LLM client's tool-response budget. | `50000` |
-| `MCP_LOG_LEVEL` | Minimum severity for logger output (stderr telemetry and `sendLoggingMessage` broadcast). One of `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`, or `silent`. Invalid values fail loudly on first log call. | `debug` |
+| `MCP_ALLOW_STATIC_FALLBACK` | Set to `true` to allow HTTP startup when `config.json` has static credentials. See [docs/deployment.md — Shape 2](docs/deployment.md#shape-2--single-wiki-per-user-oauth2-bearer-passthrough). | `unset` |
+| `MCP_CONTENT_MAX_BYTES` | Byte cap for content bodies (wikitext, rendered HTML, diffs). Tune to the target LLM client's tool-response budget. | `50000` |
+| `MCP_LOG_LEVEL` | Minimum severity for logger output. One of `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`, or `silent`. | `debug` |
 | `MCP_OAUTH_CREDENTIALS_FILE` | Override the default credentials store path. Default: `~/.config/mediawiki-mcp/credentials.json` (Linux/macOS) or `%APPDATA%\mediawiki-mcp\credentials.json` (Windows). | `unset` |
 | `MCP_OAUTH_NO_BROWSER` | Set to `1` to skip launching a browser during the OAuth flow; the auth URL is logged to stderr instead. Useful in headless environments. | `unset` |
-| `MCP_PUBLIC_URL` | Override the request-derived public URL used in the `resource` field of the OAuth protected-resource discovery document. Useful for reverse-proxy setups that rewrite the `Host` header. | `unset` |
+| `MCP_PUBLIC_URL` | Override the request-derived public URL used in OAuth protected-resource discovery. Useful for reverse-proxy setups that rewrite the `Host` header. | `unset` |
 | `MCP_MAX_REQUEST_BODY` | Maximum HTTP request body size (StreamableHTTP transport). Accepts size strings like `512kb` or `1mb`. Oversize requests get a JSON-RPC 413. | `1mb` |
 | `MCP_METRICS` | Set to `true` to expose Prometheus metrics at `GET /metrics` on the HTTP transport. | `unset` |
-| `MCP_SHUTDOWN_GRACE_MS` | Maximum time in ms to wait for in-flight `/mcp` calls to drain on `SIGTERM` / `SIGINT` before exiting. Capped at 600000 (10 min); invalid values fall back to the default with a warning. | `10000` |
+| `MCP_SHUTDOWN_GRACE_MS` | Maximum ms to wait for in-flight `/mcp` calls to drain on `SIGTERM` / `SIGINT`. See [docs/operations.md — Graceful shutdown](docs/operations.md#graceful-shutdown). | `10000` |
 | `MCP_TRANSPORT` | Type of MCP server transport (`stdio` or `http`) | `stdio` |
 | `PORT` | Port used for StreamableHTTP transport | `3000` |
 
 ## Configuration
 
-> **Note:** Config is only required when interacting with a private wiki or using authenticated tools.
+> [!NOTE]
+> Config is only required when interacting with a private wiki or using authenticated tools.
 
 Create a `config.json` file to configure wiki connections. Use the `config.example.json` as a starting point.
 
-### Basic structure
-
 ```json
 {
-  "allowWikiManagement": true,
   "defaultWiki": "en.wikipedia.org",
   "wikis": {
     "en.wikipedia.org": {
       "sitename": "Wikipedia",
       "server": "https://en.wikipedia.org",
       "articlepath": "/wiki",
-      "scriptpath": "/w",
-      "token": null,
-      "username": null,
-      "password": null,
-      "private": false
+      "scriptpath": "/w"
     }
   }
 }
 ```
 
-### Configuration fields
-
-| Field | Description |
-|---|---|
-| `allowWikiManagement` | Enables the `add-wiki` and `remove-wiki` tools. Set to `false` to freeze the list of configured wikis. Default: `true` |
-| `defaultWiki` | The default wiki identifier to use (matches a key in `wikis`) |
-| `wikis` | Object containing wiki configurations, keyed by domain/identifier |
-
-### Wiki configuration fields
-
-| Field | Required | Description |
-|---|---|---|
-| `sitename` | Yes | Display name for the wiki |
-| `server` | Yes | Base URL of the wiki (e.g., `https://en.wikipedia.org`) |
-| `articlepath` | Yes | Path pattern for articles (typically `/wiki`) |
-| `scriptpath` | Yes | Path to MediaWiki scripts (typically `/w`) |
-| `oauth2ClientId` | No | Client key your wiki admin gives you when they register the MCP server's OAuth consumer. Opts the wiki into browser-based sign-in. See [docs/configuration.md](docs/configuration.md#oauth-browser-based). |
-| `oauth2CallbackPort` | No | Loopback port for the OAuth sign-in callback. Use the same port number your admin set in the consumer's callback URL. |
-| `token` | No | OAuth2 access token for authenticated operations (manual token alternative to `oauth2ClientId`) |
-| `username` | No | Bot username (fallback when OAuth2 is not available) |
-| `password` | No | Bot password (fallback when OAuth2 is not available) |
-| `private` | No | Whether the wiki requires authentication to read (default: `false`) |
-| `readOnly` | No | When `true`, hides the six 🔐 write tools from `tools/list` while this wiki is active. Pairs with `allowWikiManagement: false` for a [hosted read-only endpoint](docs/deployment.md). Default: `false` |
-| `tags` | No | Change tag(s) to apply to every write (string or array). The tag must exist and be active at `Special:Tags` — see [docs/configuration.md](docs/configuration.md#change-tags-tags) for details. |
-
-> Environment variable substitution (`${VAR}`), secret sources that read from a password manager, and the plaintext-warning behavior are covered in [docs/configuration.md](docs/configuration.md).
+For the full field reference, env-var substitution, secret sources, change tags, upload directories, and authentication options, see [docs/configuration.md](docs/configuration.md).
 
 ## Authentication
 
 Tools marked 🔐 require authentication. They are also hidden from `tools/list` when the active wiki has `readOnly: true` — see [Deployment](#deployment).
 
-### OAuth (browser-based, recommended)
-
-If your wiki admin has registered an OAuth consumer for this server, you can sign in through your browser instead of pasting tokens into `config.json`. Add the values they give you to the wiki entry:
-
-```json
-{
-	"wikis": {
-		"example.org": {
-			"sitename": "Example Wiki",
-			"server": "https://example.org",
-			"articlepath": "/wiki",
-			"scriptpath": "/w",
-			"oauth2ClientId": "<from your wiki admin>",
-			"oauth2CallbackPort": 53117
-		}
-	}
-}
-```
-
-The first time a tool needs to act on your behalf, a browser tab opens to the wiki for you to approve. After that, the server reuses the saved token until it expires. Use the `oauth-status` and `oauth-logout` tools to see or clear stored tokens.
-
-If your wiki doesn't have an OAuth consumer set up, use the manual token or bot password options below. Wiki admins: see [docs/configuration.md](docs/configuration.md#oauth-browser-based) for how to register the consumer.
-
-### OAuth2 (manual token, HTTP transport)
-
-1. Navigate to `Special:OAuthConsumerRegistration/propose/oauth2` on your wiki.
-2. Select "This consumer is for use only by [YourUsername]".
-3. Grant the permissions your tools need — see the Permissions column in the [Tools](#tools) table.
-4. After approval, copy the **Access Token** into the `token` field for that wiki in `config.json`.
-
-> OAuth2 requires the [OAuth extension](https://www.mediawiki.org/wiki/Special:MyLanguage/Extension:OAuth) on the wiki.
-
-### Per-request bearer token (HTTP transport)
-
-When using the HTTP transport, the server accepts a standard OAuth 2.1 `Authorization: Bearer <token>` header on each request (per the [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization)). Any MCP client that supports HTTP transport authentication can be configured to send it, allowing each client to act as its own wiki user rather than sharing the `config.json` identity.
-
-Example with Claude Code:
-
-```bash
-claude mcp add --transport http my-wiki https://wiki.example.org/mcp \
-  --header "Authorization: Bearer <your-access-token>"
-```
-
-When no header is present, the server falls back to `config.json` credentials or anonymous access. See [docs/configuration.md](docs/configuration.md#per-request-bearer-token-http-transport) for details, precedence, trust-boundary guidance, and reverse-proxy requirements.
-
-### Bot password (fallback)
-
-If the OAuth extension isn't available, create a bot password at `Special:BotPasswords` and set `username` and `password` in `config.json` instead of `token`.
+- **Browser-based OAuth (recommended).** Sign in through a browser tab the first time a tool needs auth. Set `oauth2ClientId` and `oauth2CallbackPort` per wiki — see [docs/configuration.md — OAuth (browser-based)](docs/configuration.md#oauth-browser-based).
+- **Per-request bearer token (HTTP).** Each request carries `Authorization: Bearer <token>`; the server forwards it to MediaWiki. See [docs/deployment.md — per-request bearer token](docs/deployment.md#per-request-bearer-token-http-transport).
+- **Manual OAuth2 access token.** Paste a long-lived token into `config.json`. See [docs/configuration.md — manual OAuth2 access token](docs/configuration.md#manual-oauth2-access-token).
+- **Bot password.** Fallback when Extension:OAuth isn't installed. See [docs/configuration.md — bot password](docs/configuration.md#bot-password).
 
 ## Installation
 
@@ -318,23 +227,13 @@ See the [Gemini CLI extensions documentation](https://github.com/google-gemini/g
 
 ## Deployment
 
-Running the server as a remote HTTP endpoint for other users has its own configuration requirements — see [docs/deployment.md](docs/deployment.md). A pre-built image is published at `ghcr.io/professionalwiki/mediawiki-mcp-server`.
-
-### Logs
-
-Every stderr line is a JSON object. Pipe through `jq` for live tailing:
-
-```bash
-node dist/index.js 2>&1 | jq -R 'fromjson? // empty'
-```
-
-Tool calls emit an `event: "tool_call"` line; the startup banner is `event: "startup"`. The HTTP transport adds `/health` (liveness) and `/ready` (probes the default wiki). [docs/deployment.md](docs/deployment.md) has the full schema.
+Running the server as a remote HTTP endpoint for other users has its own configuration requirements — see [docs/deployment.md](docs/deployment.md). A pre-built image is published at `ghcr.io/professionalwiki/mediawiki-mcp-server`. For day-2 operations (logs, `/health`/`/ready`, metrics, graceful shutdown), see [docs/operations.md](docs/operations.md).
 
 ## Security
 
 Defaults are safe for single-user use. Before exposing the HTTP transport to others, lock down three things:
 
-- **Trust the proxy, not the header.** The server forwards any `Authorization: Bearer` header straight to MediaWiki — authentication is the reverse proxy's job. Terminate TLS there, and don't expose the MCP port directly on an untrusted network. See [docs/configuration.md — reverse proxy requirements](docs/configuration.md#reverse-proxy-requirements).
+- **Trust the proxy, not the header.** The server forwards any `Authorization: Bearer` header straight to MediaWiki — authentication is the reverse proxy's job. Terminate TLS there, and don't expose the MCP port directly on an untrusted network. See [docs/deployment.md — reverse proxy requirements](docs/deployment.md#reverse-proxy-requirements).
 - **Pair `MCP_BIND` with `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS`.** The HTTP transport binds to `127.0.0.1` by default. When you open it up with `MCP_BIND=0.0.0.0`, set `MCP_ALLOWED_HOSTS` to the hostnames your proxy forwards and `MCP_ALLOWED_ORIGINS` to the browser origins allowed to call the server — these block DNS-rebinding and cross-origin attacks respectively.
 - **Uploads are opt-in.** `upload-file` is disabled until you list allowed directories in `uploadDirs` or `MCP_UPLOAD_DIRS`. See [docs/configuration.md — upload directories](docs/configuration.md#upload-directories).
 

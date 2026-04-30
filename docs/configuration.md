@@ -1,6 +1,33 @@
 # Advanced configuration
 
-Covers configuration topics beyond the basic `config.json` shape documented in [README.md](../README.md#configuration): environment variable substitution, secret sources, plaintext fallback, and the `tags` field.
+Covers configuration topics beyond the basic `config.json` shape documented in [README.md](../README.md#configuration): the full field reference, environment variable substitution, secret sources, plaintext fallback, and the `tags` field.
+
+## Configuration fields
+
+### Top-level fields
+
+| Field | Description |
+|---|---|
+| `allowWikiManagement` | Enables the `add-wiki` and `remove-wiki` tools. Set to `false` to freeze the list of configured wikis. Default: `true` |
+| `defaultWiki` | The default wiki identifier to use (matches a key in `wikis`) |
+| `wikis` | Object containing wiki configurations, keyed by domain/identifier |
+
+### Per-wiki fields
+
+| Field | Required | Description |
+|---|---|---|
+| `sitename` | Yes | Display name for the wiki |
+| `server` | Yes | Base URL of the wiki (e.g., `https://en.wikipedia.org`) |
+| `articlepath` | Yes | Path pattern for articles (typically `/wiki`) |
+| `scriptpath` | Yes | Path to MediaWiki scripts (typically `/w`) |
+| `oauth2ClientId` | No | Client key your wiki admin gives you when they register the MCP server's OAuth consumer. Opts the wiki into browser-based sign-in. See [OAuth (browser-based)](#oauth-browser-based). |
+| `oauth2CallbackPort` | No | Loopback port for the OAuth sign-in callback. Use the same port number your admin set in the consumer's callback URL. |
+| `token` | No | OAuth2 access token for authenticated operations (manual token alternative to `oauth2ClientId`) |
+| `username` | No | Bot username (fallback when OAuth2 is not available) |
+| `password` | No | Bot password (fallback when OAuth2 is not available) |
+| `private` | No | Whether the wiki requires authentication to read (default: `false`) |
+| `readOnly` | No | When `true`, hides the six 🔐 write tools from `tools/list` while this wiki is active. Pairs with `allowWikiManagement: false` for a [hosted read-only endpoint](deployment.md). Default: `false` |
+| `tags` | No | Change tag(s) to apply to every write (string or array). The tag must exist and be active at `Special:Tags` — see [change tags](#change-tags-tags) for details. |
 
 ## Environment variable substitution
 
@@ -30,7 +57,7 @@ If a referenced variable is not set:
 
 ## Secret sources
 
-As an alternative to `${VAR_NAME}`, secret fields can run an external command at startup and use its output as the secret. This lets you fetch credentials from a password manager, keyring, or secret store without writing them to disk:
+Secret fields can also run an external command at startup and use its output as the secret. This lets you fetch credentials from a password manager, keyring, or secret store without writing them to disk:
 
 ```json
 {
@@ -109,52 +136,8 @@ Entries from both sources are merged. Each entry is canonicalised with `fs.realp
 
 At upload time, the supplied `filepath` must be absolute, must exist, and its symlink-resolved form must sit inside one of the configured directories. Symlinks are followed *before* the allowlist check, so a symlink pointing outside the allowlist is rejected. `..` traversal is also rejected. The resolved (canonical) path — not the caller-supplied one — is what gets uploaded.
 
+> [!NOTE]
 > Dynamic client-supplied allow-listing via the MCP Roots protocol is a planned follow-up; today the allowlist is static at startup.
-
-## Per-request bearer token (HTTP transport)
-
-When using the Streamable HTTP transport (`MCP_TRANSPORT=http`), the server accepts a standard OAuth 2.1 `Authorization: Bearer` header on each request, as described in the [MCP authorization specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization):
-
-```
-Authorization: Bearer <oauth2-access-token>
-```
-
-Any MCP client that supports HTTP transport authentication can be configured to send this header. The token must be a MediaWiki OAuth2 access token obtained from `Special:OAuthConsumerRegistration/propose/oauth2` on the target wiki, with [Extension:OAuth](https://www.mediawiki.org/wiki/Extension:OAuth) installed.
-
-**Precedence**: request header → `config.json` `token` → `config.json` `username`/`password` → anonymous. The HTTP transport refuses to start with static credentials in `config.json` unless `MCP_ALLOW_STATIC_FALLBACK=true` is set — see [deployment.md](deployment.md#shape-2--single-wiki-per-user-oauth2-bearer-passthrough) for why.
-
-Each request builds an independent MediaWiki session using the supplied token. Token rotation and revocation take effect on the next MCP session started with the new token.
-
-Example configuration with Claude Code:
-
-```
-claude mcp add --transport http my-wiki https://wiki.example.org/mcp \
-  --header "Authorization: Bearer eyJhbGciOi..."
-```
-
-> **Note on the MCP authorization model.** The spec envisions the MCP server as a distinct OAuth resource server with its own audience, advertising `/.well-known/oauth-protected-resource` and obtaining a separate upstream token when calling MediaWiki. This server pragmatically uses MediaWiki's OAuth realm directly — the bearer token is a MediaWiki access token, and the MCP server forwards it without re-issuing. This is simpler to deploy against existing wikis but means clients must obtain a MediaWiki-audience token rather than going through an MCP-spec-compliant discovery flow.
-
-### Reverse proxy requirements
-
-**Trust boundary.** The server trusts any `Authorization: Bearer` header it receives without performing origin checks. Run it behind a reverse proxy that terminates client connections and forwards only intended traffic, or bind it to a trusted interface (e.g. `127.0.0.1`) — never expose the HTTP port directly on an untrusted network.
-
-If the MCP server runs behind a reverse proxy (Caddy, nginx, Traefik), the proxy must forward the `Authorization` header to the MCP server intact. Configurations that strip or consume the header (e.g. `header_up -Authorization`, `proxy_set_header Authorization ""`, or a proxy-level basic auth handler on the MCP route) will cause the server to see no token and fall back to config/anonymous.
-
-**Host header allowlist.** On any public deployment, set `MCP_ALLOWED_HOSTS` to the comma-separated hostnames your proxy forwards (e.g. `MCP_ALLOWED_HOSTS=wiki.example.org`). This engages the SDK's DNS-rebinding check — requests to `/mcp` with a non-matching `Host` are rejected with a 403 JSON-RPC error. On a localhost bind, leaving it unset is safe (the SDK auto-allows `localhost`, `127.0.0.1`, and `[::1]`). On a public bind, leaving it unset turns the check off and the SDK logs a warning at startup.
-
-**Origin header allowlist.** Set `MCP_ALLOWED_ORIGINS` to the browser origins allowed to call `/mcp`. An origin is the scheme, host, and (only if non-default) port — for example `https://wiki.example.org`. When the allowlist is configured and an incoming `Origin` is present but not listed, the SDK returns 403. On a localhost bind, the default allowlist is the three loopback origins on the bound port (`http://localhost:<port>`, `http://127.0.0.1:<port>`, `http://[::1]:<port>`) so browser clients running alongside the server keep working. On a non-localhost bind, leaving it unset turns Origin validation off and the server logs a startup warning.
-
-Matching is exact string equality against what the browser sends. These values all silently 403 every browser request:
-
-- bare hostname (`wiki.example.org`) — missing scheme
-- trailing slash (`https://wiki.example.org/`) — browsers don't include it
-- path (`https://wiki.example.org/mcp`) — browsers don't include it
-- explicit default port (`https://wiki.example.org:443`) — browsers drop default ports when serializing
-- uppercase scheme (`HTTPS://...`) — browsers lowercase it
-
-When in doubt, open your deployed site in a browser and log `window.location.origin` — copy that value verbatim.
-
-Both allowlists apply only to `/mcp`. The `/health` endpoint is always reachable so container healthchecks and liveness probes (which hit `http://localhost:<port>/health`) keep working regardless of what you put in `MCP_ALLOWED_HOSTS` or `MCP_ALLOWED_ORIGINS`.
 
 ## OAuth (browser-based)
 
@@ -226,3 +209,17 @@ The **client application secret** is not used and can be ignored.
 Tick only the grants your users will use — see the Permissions column of the [tool table in the README](../README.md#tools) for the exact mapping. Always include **Basic rights**. **High-volume editing** is recommended if users will drive bulk edits.
 
 Avoid granting **Manage your OAuth clients**. The MCP server does not use it, and granting it would let anyone with a token from this consumer tamper with OAuth registrations on the wiki.
+
+## Manual OAuth2 access token
+
+1. Navigate to `Special:OAuthConsumerRegistration/propose/oauth2` on your wiki.
+2. Select "This consumer is for use only by [YourUsername]".
+3. Grant the permissions your tools need — see the Permissions column in the [Tools](../README.md#tools) table.
+4. After approval, copy the **Access Token** into the `token` field for that wiki in `config.json`.
+
+> [!IMPORTANT]
+> OAuth2 requires the [OAuth extension](https://www.mediawiki.org/wiki/Special:MyLanguage/Extension:OAuth) on the wiki.
+
+## Bot password
+
+If the OAuth extension isn't available, create a bot password at `Special:BotPasswords` and set `username` and `password` in `config.json` instead of `token`.
