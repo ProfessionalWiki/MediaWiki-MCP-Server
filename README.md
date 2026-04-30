@@ -11,6 +11,9 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 |---|---|---|
 | `add-wiki` | Add a wiki as an MCP resource from its URL. Disabled when `allowWikiManagement` is `false`. | - |
 | `bucket-query` | Run a [Bucket extension](https://github.com/weirdgloop/mediawiki-extensions-Bucket) Lua query. Enabled only when the wiki has Bucket installed. | - |
+| `cargo-describe-table` | List the fields of a [Cargo extension](https://www.mediawiki.org/wiki/Extension:Cargo) table with their types and list-flags. Enabled only when the wiki has Cargo installed. | - |
+| `cargo-list-tables` | List Cargo tables defined on the active wiki. Enabled only when the wiki has Cargo installed. | - |
+| `cargo-query` | Run a [Cargo extension](https://www.mediawiki.org/wiki/Extension:Cargo) SQL-style query. Enabled only when the wiki has Cargo installed. | - |
 | `compare-pages` | Diff two versions of a wiki page by revision, title, or supplied wikitext. | - |
 | `oauth-logout` | Remove stored OAuth tokens. Stdio only. | - |
 | `oauth-status` | List stored OAuth tokens with scopes and expiry (no token values). Stdio only. | - |

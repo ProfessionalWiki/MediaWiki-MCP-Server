@@ -83,7 +83,7 @@ export const cargoQuery: Tool<typeof inputSchema> = {
 
 		const effectiveLimit = limit ?? HARD_LIMIT;
 
-		const params: Record<string, unknown> = {
+		const params: Record<string, string | number | boolean> = {
 			action: 'cargoquery',
 			tables,
 			limit: effectiveLimit,
