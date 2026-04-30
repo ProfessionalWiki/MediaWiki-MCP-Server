@@ -3,7 +3,8 @@ import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
 import type { WikiSelection } from '../../src/wikis/wikiSelection.js';
-import { reconcileTools } from '../../src/runtime/reconcile.js';
+import { reconcileTools, computeDesiredEnabledState } from '../../src/runtime/reconcile.js';
+import type { ToolGatingRule, ReconcileContext } from '../../src/runtime/reconcile.js';
 
 const WRITE_TOOL_NAMES = [
 	'create-page',
@@ -12,6 +13,8 @@ const WRITE_TOOL_NAMES = [
 	'undelete-page',
 	'upload-file',
 	'upload-file-from-url',
+	'update-file',
+	'update-file-from-url',
 ];
 
 const NON_WRITE_TOOL_NAMES = ['get-page', 'search-page'];
@@ -450,5 +453,70 @@ describe('reconcileTools — AND semantics across rules', () => {
 		});
 		const elapsed = performance.now() - start;
 		expect(elapsed).toBeLessThan(50); // generous; sync rules should resolve in <1ms
+	});
+});
+
+describe('computeDesiredEnabledState — AND semantics for a single tool affected by multiple rules', () => {
+	const baseCtx: ReconcileContext = {
+		activeWikiKey: 'a',
+		activeWiki: baseWiki,
+		wikiCount: 1,
+		allowManagement: true,
+		transport: 'stdio',
+	};
+
+	it('disables a tool when one of two affecting rules disallows, regardless of rule order', async () => {
+		const allowRule: ToolGatingRule = {
+			name: 'allow',
+			affects: ['shared-tool'],
+			isAllowed: () => true,
+		};
+		const denyRule: ToolGatingRule = {
+			name: 'deny',
+			affects: ['shared-tool'],
+			isAllowed: () => false,
+		};
+
+		const desired1 = await computeDesiredEnabledState(['shared-tool'], baseCtx, [
+			allowRule,
+			denyRule,
+		]);
+		expect(desired1.get('shared-tool')).toBe(false);
+
+		const desired2 = await computeDesiredEnabledState(['shared-tool'], baseCtx, [
+			denyRule,
+			allowRule,
+		]);
+		expect(desired2.get('shared-tool')).toBe(false);
+	});
+
+	it('enables a tool when both affecting rules allow', async () => {
+		const ruleA: ToolGatingRule = {
+			name: 'a',
+			affects: ['shared-tool'],
+			isAllowed: () => true,
+		};
+		const ruleB: ToolGatingRule = {
+			name: 'b',
+			affects: ['shared-tool'],
+			isAllowed: () => true,
+		};
+
+		const desired = await computeDesiredEnabledState(['shared-tool'], baseCtx, [ruleA, ruleB]);
+		expect(desired.get('shared-tool')).toBe(true);
+	});
+
+	it('tools not referenced by any rule are enabled by default', async () => {
+		const denyRule: ToolGatingRule = {
+			name: 'deny',
+			affects: ['other-tool'],
+			isAllowed: () => false,
+		};
+
+		const desired = await computeDesiredEnabledState(['shared-tool', 'other-tool'], baseCtx, [
+			denyRule,
+		]);
+		expect(desired.get('shared-tool')).toBe(true);
+		expect(desired.get('other-tool')).toBe(false);
 	});
 });

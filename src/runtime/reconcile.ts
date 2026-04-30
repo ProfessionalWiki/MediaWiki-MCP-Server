@@ -11,7 +11,7 @@ export interface ReconcileDeps {
 	readonly transport: 'http' | 'stdio';
 }
 
-interface ReconcileContext {
+export interface ReconcileContext {
 	readonly activeWikiKey: string;
 	readonly activeWiki: Readonly<WikiConfig>;
 	readonly wikiCount: number;
@@ -19,7 +19,7 @@ interface ReconcileContext {
 	readonly transport: 'http' | 'stdio';
 }
 
-interface ToolGatingRule {
+export interface ToolGatingRule {
 	readonly name: string;
 	readonly affects: readonly string[];
 	readonly isAllowed: (ctx: ReconcileContext) => boolean | Promise<boolean>;
@@ -77,19 +77,19 @@ function buildContext(deps: ReconcileDeps): ReconcileContext {
 	};
 }
 
-export async function reconcileTools(
-	tools: Map<string, RegisteredTool>,
-	deps: ReconcileDeps,
-): Promise<void> {
-	const ctx = buildContext(deps);
+export async function computeDesiredEnabledState(
+	toolNames: Iterable<string>,
+	ctx: ReconcileContext,
+	rules: readonly ToolGatingRule[],
+): Promise<Map<string, boolean>> {
 	const results = await Promise.all(
-		RULES.map(async (r) => ({ rule: r, allowed: await r.isAllowed(ctx) })),
+		rules.map(async (r) => ({ rule: r, allowed: await r.isAllowed(ctx) })),
 	);
 
 	// Each tool starts allowed. A rule that disallows it flips to false.
-	// Tools not affected by any rule remain at their initial map state (allowed).
+	// Tools not affected by any rule remain enabled.
 	const desired = new Map<string, boolean>();
-	for (const name of tools.keys()) {
+	for (const name of toolNames) {
 		desired.set(name, true);
 	}
 	for (const { rule, allowed } of results) {
@@ -102,7 +102,15 @@ export async function reconcileTools(
 			}
 		}
 	}
+	return desired;
+}
 
+export async function reconcileTools(
+	tools: Map<string, RegisteredTool>,
+	deps: ReconcileDeps,
+): Promise<void> {
+	const ctx = buildContext(deps);
+	const desired = await computeDesiredEnabledState(tools.keys(), ctx, RULES);
 	for (const [name, shouldEnable] of desired) {
 		toggle(tools.get(name), shouldEnable);
 	}
