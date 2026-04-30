@@ -97,6 +97,29 @@ describe('browserAuth', () => {
 		).rejects.toMatchObject({ reason: 'timeout' });
 	});
 
+	it('callbackPort: rejects with listen_failed when the configured port is in use', async () => {
+		fakeAs = await startFakeAs();
+		const fixedPort = 53201;
+		// Pre-bind the port to force EADDRINUSE.
+		const { createServer } = await import('node:http');
+		const blocker = createServer();
+		await new Promise<void>((resolve) => blocker.listen(fixedPort, '127.0.0.1', () => resolve()));
+		try {
+			await expect(
+				browserAuth('test-wiki', {
+					wiki: makeWiki(fakeAs.url),
+					clientId: 'my-client',
+					callbackPort: fixedPort,
+				}),
+			).rejects.toMatchObject({
+				reason: 'listen_failed',
+				message: expect.stringContaining(`Port ${fixedPort}`) as unknown as string,
+			});
+		} finally {
+			await new Promise<void>((resolve) => blocker.close(() => resolve()));
+		}
+	});
+
 	it('callbackPort: binds the requested port and uses it in redirect_uri', async () => {
 		fakeAs = await startFakeAs();
 		// Pick a high ephemeral port that's almost certainly free in CI.

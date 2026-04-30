@@ -20,6 +20,7 @@ export class BrowserAuthError extends Error {
 			| 'state_mismatch'
 			| 'invalid_client'
 			| 'invalid_grant'
+			| 'listen_failed'
 			| 'transient',
 		message: string,
 	) {
@@ -208,7 +209,18 @@ function startListener(fixedPort?: number): Promise<ListenerResult> {
 			const addr = server.address() as AddressInfo;
 			resolve({ server, port: addr.port });
 		});
-		server.on('error', reject);
+		server.on('error', (err: NodeJS.ErrnoException) => {
+			if (err.code === 'EADDRINUSE' && fixedPort !== undefined) {
+				reject(
+					new BrowserAuthError(
+						'listen_failed',
+						`Port ${fixedPort} is already in use. Pick a different oauth2CallbackPort and re-register the consumer with the new port in its callback URL, or stop the conflicting process.`,
+					),
+				);
+				return;
+			}
+			reject(err);
+		});
 	});
 }
 
