@@ -1,5 +1,6 @@
 # Deployment
 
+> [!WARNING]
 > **Experimental — work in progress.** Hosted deployments support two shapes:
 >
 > 1. **Single-wiki, read-only, anonymous.** Simplest to deploy — no auth, no writes.
@@ -85,7 +86,7 @@ Authorization: Bearer <oauth2-access-token>
 
 Any MCP client that supports HTTP transport authentication can be configured to send this header. The token must be a MediaWiki OAuth2 access token obtained from `Special:OAuthConsumerRegistration/propose/oauth2` on the target wiki, with [Extension:OAuth](https://www.mediawiki.org/wiki/Extension:OAuth) installed.
 
-**Precedence**: request header → `config.json` `token` → `config.json` `username`/`password` → anonymous. The HTTP transport refuses to start with static credentials in `config.json` unless `MCP_ALLOW_STATIC_FALLBACK=true` is set — see [deployment.md](deployment.md#shape-2--single-wiki-per-user-oauth2-bearer-passthrough) for why.
+**Precedence**: request header → `config.json` `token` → `config.json` `username`/`password` → anonymous. The HTTP transport refuses to start with static credentials in `config.json` unless `MCP_ALLOW_STATIC_FALLBACK=true` is set — see [Shape 2](#shape-2--single-wiki-per-user-oauth2-bearer-passthrough) for why.
 
 Each request builds an independent MediaWiki session using the supplied token. Token rotation and revocation take effect on the next MCP session started with the new token.
 
@@ -96,7 +97,8 @@ claude mcp add --transport http my-wiki https://wiki.example.org/mcp \
   --header "Authorization: Bearer eyJhbGciOi..."
 ```
 
-> **Note on the MCP authorization model.** The spec envisions the MCP server as a distinct OAuth resource server with its own audience, advertising `/.well-known/oauth-protected-resource` and obtaining a separate upstream token when calling MediaWiki. This server pragmatically uses MediaWiki's OAuth realm directly — the bearer token is a MediaWiki access token, and the MCP server forwards it without re-issuing. This is simpler to deploy against existing wikis but means clients must obtain a MediaWiki-audience token rather than going through an MCP-spec-compliant discovery flow.
+> [!NOTE]
+> The spec envisions the MCP server as a distinct OAuth resource server with its own audience, advertising `/.well-known/oauth-protected-resource` and obtaining a separate upstream token when calling MediaWiki. This server pragmatically uses MediaWiki's OAuth realm directly — the bearer token is a MediaWiki access token, and the MCP server forwards it without re-issuing. This is simpler to deploy against existing wikis but means clients must obtain a MediaWiki-audience token rather than going through an MCP-spec-compliant discovery flow.
 
 ### Reverse proxy requirements
 

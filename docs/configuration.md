@@ -20,14 +20,14 @@ Covers configuration topics beyond the basic `config.json` shape documented in [
 | `server` | Yes | Base URL of the wiki (e.g., `https://en.wikipedia.org`) |
 | `articlepath` | Yes | Path pattern for articles (typically `/wiki`) |
 | `scriptpath` | Yes | Path to MediaWiki scripts (typically `/w`) |
-| `oauth2ClientId` | No | Client key your wiki admin gives you when they register the MCP server's OAuth consumer. Opts the wiki into browser-based sign-in. See [docs/configuration.md](docs/configuration.md#oauth-browser-based). |
+| `oauth2ClientId` | No | Client key your wiki admin gives you when they register the MCP server's OAuth consumer. Opts the wiki into browser-based sign-in. See [OAuth (browser-based)](#oauth-browser-based). |
 | `oauth2CallbackPort` | No | Loopback port for the OAuth sign-in callback. Use the same port number your admin set in the consumer's callback URL. |
 | `token` | No | OAuth2 access token for authenticated operations (manual token alternative to `oauth2ClientId`) |
 | `username` | No | Bot username (fallback when OAuth2 is not available) |
 | `password` | No | Bot password (fallback when OAuth2 is not available) |
 | `private` | No | Whether the wiki requires authentication to read (default: `false`) |
-| `readOnly` | No | When `true`, hides the six 🔐 write tools from `tools/list` while this wiki is active. Pairs with `allowWikiManagement: false` for a [hosted read-only endpoint](docs/deployment.md). Default: `false` |
-| `tags` | No | Change tag(s) to apply to every write (string or array). The tag must exist and be active at `Special:Tags` — see [docs/configuration.md](docs/configuration.md#change-tags-tags) for details. |
+| `readOnly` | No | When `true`, hides the six 🔐 write tools from `tools/list` while this wiki is active. Pairs with `allowWikiManagement: false` for a [hosted read-only endpoint](deployment.md). Default: `false` |
+| `tags` | No | Change tag(s) to apply to every write (string or array). The tag must exist and be active at `Special:Tags` — see [change tags](#change-tags-tags) for details. |
 
 ## Environment variable substitution
 
@@ -57,7 +57,7 @@ If a referenced variable is not set:
 
 ## Secret sources
 
-As an alternative to `${VAR_NAME}`, secret fields can run an external command at startup and use its output as the secret. This lets you fetch credentials from a password manager, keyring, or secret store without writing them to disk:
+Secret fields can also run an external command at startup and use its output as the secret. This lets you fetch credentials from a password manager, keyring, or secret store without writing them to disk:
 
 ```json
 {
@@ -136,6 +136,7 @@ Entries from both sources are merged. Each entry is canonicalised with `fs.realp
 
 At upload time, the supplied `filepath` must be absolute, must exist, and its symlink-resolved form must sit inside one of the configured directories. Symlinks are followed *before* the allowlist check, so a symlink pointing outside the allowlist is rejected. `..` traversal is also rejected. The resolved (canonical) path — not the caller-supplied one — is what gets uploaded.
 
+> [!NOTE]
 > Dynamic client-supplied allow-listing via the MCP Roots protocol is a planned follow-up; today the allowlist is static at startup.
 
 ## OAuth (browser-based)
@@ -216,6 +217,7 @@ Avoid granting **Manage your OAuth clients**. The MCP server does not use it, an
 3. Grant the permissions your tools need — see the Permissions column in the [Tools](../README.md#tools) table.
 4. After approval, copy the **Access Token** into the `token` field for that wiki in `config.json`.
 
+> [!IMPORTANT]
 > OAuth2 requires the [OAuth extension](https://www.mediawiki.org/wiki/Special:MyLanguage/Extension:OAuth) on the wiki.
 
 ## Bot password

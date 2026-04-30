@@ -41,22 +41,6 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 - Credentials (`token`, `username`, `password`) are never exposed in resource content.
 - After `add-wiki` or `remove-wiki`, the server sends `notifications/resources/list_changed` so clients refresh.
 
-<details><summary>Example list result</summary>
-
-```json
-{
-  "resources": [
-    {
-      "uri": "mcp://wikis/en.wikipedia.org",
-      "name": "wikis/en.wikipedia.org",
-      "title": "Wikipedia",
-      "description": "Wiki \"Wikipedia\" hosted at https://en.wikipedia.org"
-    }
-  ]
-}
-```
-</details>
-
 <details><summary>Example read result</summary>
 
 ```json
@@ -76,38 +60,34 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 | Name | Description | Default |
 |---|---|---|
 | `CONFIG` | Path to your configuration file | `config.json` |
-| `MCP_ALLOW_STATIC_FALLBACK` | Set to `true` to allow HTTP startup when `config.json` has static credentials. Otherwise the server refuses to start, preventing silent shared-identity fallback for unauthenticated requests. | `unset` |
-| `MCP_CONTENT_MAX_BYTES` | Byte cap for content bodies (wikitext, rendered HTML, diffs) returned by `get-page`, `get-pages`, `parse-wikitext`, and `compare-pages`. Oversized bodies are truncated with a trailing marker. Tune to the target LLM client's tool-response budget. | `50000` |
-| `MCP_LOG_LEVEL` | Minimum severity for logger output (stderr telemetry and `sendLoggingMessage` broadcast). One of `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`, or `silent`. Invalid values fail loudly on first log call. | `debug` |
+| `MCP_ALLOW_STATIC_FALLBACK` | Set to `true` to allow HTTP startup when `config.json` has static credentials. See [docs/deployment.md — Shape 2](docs/deployment.md#shape-2--single-wiki-per-user-oauth2-bearer-passthrough). | `unset` |
+| `MCP_CONTENT_MAX_BYTES` | Byte cap for content bodies (wikitext, rendered HTML, diffs). Tune to the target LLM client's tool-response budget. | `50000` |
+| `MCP_LOG_LEVEL` | Minimum severity for logger output. One of `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`, or `silent`. | `debug` |
 | `MCP_OAUTH_CREDENTIALS_FILE` | Override the default credentials store path. Default: `~/.config/mediawiki-mcp/credentials.json` (Linux/macOS) or `%APPDATA%\mediawiki-mcp\credentials.json` (Windows). | `unset` |
 | `MCP_OAUTH_NO_BROWSER` | Set to `1` to skip launching a browser during the OAuth flow; the auth URL is logged to stderr instead. Useful in headless environments. | `unset` |
-| `MCP_PUBLIC_URL` | Override the request-derived public URL used in the `resource` field of the OAuth protected-resource discovery document. Useful for reverse-proxy setups that rewrite the `Host` header. | `unset` |
+| `MCP_PUBLIC_URL` | Override the request-derived public URL used in OAuth protected-resource discovery. Useful for reverse-proxy setups that rewrite the `Host` header. | `unset` |
 | `MCP_MAX_REQUEST_BODY` | Maximum HTTP request body size (StreamableHTTP transport). Accepts size strings like `512kb` or `1mb`. Oversize requests get a JSON-RPC 413. | `1mb` |
 | `MCP_METRICS` | Set to `true` to expose Prometheus metrics at `GET /metrics` on the HTTP transport. | `unset` |
-| `MCP_SHUTDOWN_GRACE_MS` | Maximum time in ms to wait for in-flight `/mcp` calls to drain on `SIGTERM` / `SIGINT` before exiting. Capped at 600000 (10 min); invalid values fall back to the default with a warning. | `10000` |
+| `MCP_SHUTDOWN_GRACE_MS` | Maximum ms to wait for in-flight `/mcp` calls to drain on `SIGTERM` / `SIGINT`. See [docs/operations.md — Graceful shutdown](docs/operations.md#graceful-shutdown). | `10000` |
 | `MCP_TRANSPORT` | Type of MCP server transport (`stdio` or `http`) | `stdio` |
 | `PORT` | Port used for StreamableHTTP transport | `3000` |
 
 ## Configuration
 
-> **Note:** Config is only required when interacting with a private wiki or using authenticated tools.
+> [!NOTE]
+> Config is only required when interacting with a private wiki or using authenticated tools.
 
 Create a `config.json` file to configure wiki connections. Use the `config.example.json` as a starting point.
 
 ```json
 {
-  "allowWikiManagement": true,
   "defaultWiki": "en.wikipedia.org",
   "wikis": {
     "en.wikipedia.org": {
       "sitename": "Wikipedia",
       "server": "https://en.wikipedia.org",
       "articlepath": "/wiki",
-      "scriptpath": "/w",
-      "token": null,
-      "username": null,
-      "password": null,
-      "private": false
+      "scriptpath": "/w"
     }
   }
 }
