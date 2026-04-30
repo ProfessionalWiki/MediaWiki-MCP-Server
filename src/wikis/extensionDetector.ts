@@ -58,6 +58,9 @@ export class ExtensionDetectorImpl implements ExtensionDetector {
 		return probe;
 	}
 
+	// Never throws — failures are caught and surfaced as `failed` cache entries
+	// with a TTL_FAILURE_MS backoff. has() callers (notably reconcile's rule
+	// predicates) depend on this totality to keep Promise.all from rejecting.
 	private async probe(wikiKey: string): Promise<CacheEntry> {
 		const config = this.wikis.get(wikiKey);
 		if (!config) {

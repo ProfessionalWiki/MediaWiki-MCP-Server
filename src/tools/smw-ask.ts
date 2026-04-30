@@ -144,17 +144,16 @@ function mergeQueryParams(
 	const embeddedLimitMatch = rawQuery.match(/\|\s*limit\s*=\s*(\d+)/i);
 	const embeddedLimit = embeddedLimitMatch ? Number.parseInt(embeddedLimitMatch[1], 10) : undefined;
 
-	let effectiveLimit: number | undefined;
+	let effectiveLimit: number;
 	if (typeof schemaLimit === 'number') {
 		effectiveLimit = Math.min(schemaLimit, HARD_LIMIT);
 	} else if (typeof embeddedLimit === 'number' && Number.isFinite(embeddedLimit)) {
 		effectiveLimit = Math.min(embeddedLimit, HARD_LIMIT);
+	} else {
+		effectiveLimit = HARD_LIMIT;
 	}
 
-	const parts: string[] = [stripped];
-	if (effectiveLimit !== undefined) {
-		parts.push(`limit=${effectiveLimit}`);
-	}
+	const parts: string[] = [stripped, `limit=${effectiveLimit}`];
 	if (continueFrom !== undefined) {
 		const parsed = Number.parseInt(continueFrom, 10);
 		if (Number.isFinite(parsed) && parsed >= 0) {

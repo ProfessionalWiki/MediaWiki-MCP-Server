@@ -38,6 +38,8 @@ const WRITE_TOOLS = [
 	'undelete-page',
 	'upload-file',
 	'upload-file-from-url',
+	'update-file',
+	'update-file-from-url',
 ];
 
 function currentKey(): string {

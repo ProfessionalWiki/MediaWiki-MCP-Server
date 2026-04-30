@@ -125,6 +125,20 @@ describe('smw-ask', () => {
 		expect(sentQuery).not.toMatch(/\|limit=10000\b/);
 	});
 
+	it('defaults to limit=500 when no limit is supplied (matching the description cap)', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				query: { results: {}, meta: { count: 0 }, printrequests: [] },
+			}),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		await smwAsk.handle({ query: '[[Category:X]]' }, ctx);
+
+		const sentQuery = mock.request.mock.calls[0][0].query;
+		expect(sentQuery).toMatch(/\|limit=500\b/);
+	});
+
 	it('translates continueFrom to SMW |offset= in the query', async () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({
