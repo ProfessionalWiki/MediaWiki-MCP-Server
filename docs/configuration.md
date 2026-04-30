@@ -178,7 +178,7 @@ Browser-based OAuth lets users authenticate without pasting a token into `config
      - **Upload new files** + **Upload, replace, and move files** — needed for `upload-file`, `upload-file-from-url`, `update-file`, `update-file-from-url`.
    - Tools whose grants the user has not approved at consent time will return `permission_denied`; you can grant only what you want to exercise.
 3. Approve the consumer at `Special:OAuthManageConsumers` (admin step, depending on your wiki's policy).
-4. Copy the issued `client_id`.
+4. From the confirmation page, copy the **client application key** — Extension:OAuth's UI label for the OAuth 2.0 `client_id`. This is the value that goes into `oauth2ClientId` below. Disregard the **client application secret**: it is only used by confidential clients (which this server isn't), and it has no `WikiConfig` field to live in.
 
 ### Configure the MCP server
 

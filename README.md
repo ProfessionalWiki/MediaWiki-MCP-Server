@@ -158,7 +158,7 @@ When using HTTP transport with an OAuth-aware MCP client (Claude Desktop, mcp-re
 5. **Allowed OAuth2 grant types**: tick **Authorization code** (required) and **Refresh token** (so the server can refresh access tokens transparently before they expire). Leave **Client credentials** unchecked — that grant is for confidential clients authenticating as themselves, which doesn't apply here.
 6. **Types of grants being requested**: pick **Request authorization for specific permissions**. The MCP server tools call the wiki API on the user's behalf, which is exactly what this option enables. The two identity-only options would block every API tool with `permission_denied`. Tick the grant categories you want to expose — at minimum **Basic rights**; add edit/upload categories to enable the corresponding write tools.
 7. Approve the consumer (admin step on the wiki — `Special:OAuthManageConsumers`).
-8. Copy the issued `client_id`.
+8. From the confirmation page, copy the **client application key** — that's the `client_id` for `oauth2ClientId` below. Ignore the **client application secret**: public clients don't use it.
 
 **Configure the MCP server:**
 
