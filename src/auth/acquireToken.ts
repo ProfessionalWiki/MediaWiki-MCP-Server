@@ -19,15 +19,13 @@ export async function acquireToken(wikiKey: string, ctx: AcquireCtx): Promise<st
 	if (cur !== undefined) {
 		try {
 			const md = await fetchMetadata(wikiKey, ctx.wiki);
-			return await refreshIfNeeded(wikiKey, {
-				clientId: ctx.oauth2ClientId,
-				metadata: md,
-			});
+			return await refreshIfNeeded(wikiKey, { clientId: ctx.oauth2ClientId, metadata: md }, cur);
 		} catch (err: unknown) {
-			if (err instanceof OAuthFlowError && err.kind === 'invalid_grant') {
-				// Refresh token dead — tokenRefresh already deleted the entry.
-				// Fall through to a fresh browser dance below.
-			} else {
+			// Only invalid_grant means the stored token is dead and a fresh dance
+			// will recover. tokenRefresh already deleted the entry. Other errors
+			// (transient network, invalid_client, MetadataError) propagate — a
+			// fresh dance against the same broken AS would not help.
+			if (!(err instanceof OAuthFlowError) || err.kind !== 'invalid_grant') {
 				throw err;
 			}
 		}

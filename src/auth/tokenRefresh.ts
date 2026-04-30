@@ -1,7 +1,7 @@
 // src/auth/tokenRefresh.ts
 import { logger } from '../runtime/logger.js';
 import { OAuthFlowError, refreshTokens } from './oauthFlow.js';
-import { createTokenStore } from './tokenStore.js';
+import { createTokenStore, type StoredToken } from './tokenStore.js';
 import type { AsMetadata } from './metadata.js';
 
 const REFRESH_THRESHOLD_MS = 60_000;
@@ -17,10 +17,17 @@ export function _resetRefreshDedupForTesting(): void {
 	inFlight.clear();
 }
 
-export async function refreshIfNeeded(wikiKey: string, ctx: RefreshContext): Promise<string> {
-	const store = createTokenStore();
-	const creds = await store.read();
-	const cur = creds.tokens[wikiKey];
+/**
+ * Returns a fresh access_token for `wikiKey`. If `preloaded` is supplied,
+ * skips the credentials-file read — callers that already read the store
+ * (`acquireToken`) can pass their result through.
+ */
+export async function refreshIfNeeded(
+	wikiKey: string,
+	ctx: RefreshContext,
+	preloaded?: StoredToken,
+): Promise<string> {
+	const cur = preloaded ?? (await createTokenStore().read()).tokens[wikiKey];
 
 	if (cur === undefined) {
 		throw new Error(`No stored token for wiki ${wikiKey}`);
