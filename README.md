@@ -94,8 +94,6 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 
 Create a `config.json` file to configure wiki connections. Use the `config.example.json` as a starting point.
 
-### Basic structure
-
 ```json
 {
   "allowWikiManagement": true,
@@ -115,32 +113,7 @@ Create a `config.json` file to configure wiki connections. Use the `config.examp
 }
 ```
 
-### Configuration fields
-
-| Field | Description |
-|---|---|
-| `allowWikiManagement` | Enables the `add-wiki` and `remove-wiki` tools. Set to `false` to freeze the list of configured wikis. Default: `true` |
-| `defaultWiki` | The default wiki identifier to use (matches a key in `wikis`) |
-| `wikis` | Object containing wiki configurations, keyed by domain/identifier |
-
-### Wiki configuration fields
-
-| Field | Required | Description |
-|---|---|---|
-| `sitename` | Yes | Display name for the wiki |
-| `server` | Yes | Base URL of the wiki (e.g., `https://en.wikipedia.org`) |
-| `articlepath` | Yes | Path pattern for articles (typically `/wiki`) |
-| `scriptpath` | Yes | Path to MediaWiki scripts (typically `/w`) |
-| `oauth2ClientId` | No | Client key your wiki admin gives you when they register the MCP server's OAuth consumer. Opts the wiki into browser-based sign-in. See [docs/configuration.md](docs/configuration.md#oauth-browser-based). |
-| `oauth2CallbackPort` | No | Loopback port for the OAuth sign-in callback. Use the same port number your admin set in the consumer's callback URL. |
-| `token` | No | OAuth2 access token for authenticated operations (manual token alternative to `oauth2ClientId`) |
-| `username` | No | Bot username (fallback when OAuth2 is not available) |
-| `password` | No | Bot password (fallback when OAuth2 is not available) |
-| `private` | No | Whether the wiki requires authentication to read (default: `false`) |
-| `readOnly` | No | When `true`, hides the six 🔐 write tools from `tools/list` while this wiki is active. Pairs with `allowWikiManagement: false` for a [hosted read-only endpoint](docs/deployment.md). Default: `false` |
-| `tags` | No | Change tag(s) to apply to every write (string or array). The tag must exist and be active at `Special:Tags` — see [docs/configuration.md](docs/configuration.md#change-tags-tags) for details. |
-
-> Environment variable substitution (`${VAR}`), secret sources that read from a password manager, and the plaintext-warning behavior are covered in [docs/configuration.md](docs/configuration.md).
+For the full field reference, env-var substitution, secret sources, change tags, upload directories, and authentication options, see [docs/configuration.md](docs/configuration.md).
 
 ## Authentication
 
