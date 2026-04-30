@@ -29,6 +29,9 @@ export { withRequestContext } from './requestContext.js';
 import { loadConfigFromFile } from '../config/loadConfig.js';
 import type { MwnProvider } from '../wikis/mwnProvider.js';
 import type { WikiSelection } from '../wikis/wikiSelection.js';
+import type { WikiRegistry } from '../wikis/wikiRegistry.js';
+import { fetchMetadata } from '../auth/metadata.js';
+import { buildProtectedResource } from '../auth/protectedResource.js';
 import { createAppState } from '../wikis/state.js';
 import { createServer } from '../server.js';
 import { emitStartupBanner } from '../runtime/banner.js';
@@ -125,8 +128,61 @@ function sendSessionBearerMismatch(res: Response): void {
 	});
 }
 
+export function createOAuthProtectedResourceHandler(deps: {
+	wikiRegistry: WikiRegistry;
+	wikiSelection: WikiSelection;
+}): RequestHandler {
+	return async (req, res, next) => {
+		try {
+			const wikis = deps.wikiRegistry.getAll();
+			const oauthEnabled = Object.values(wikis).some(
+				(w) => typeof w.oauth2ClientId === 'string' && w.oauth2ClientId.trim() !== '',
+			);
+			if (!oauthEnabled) {
+				res.status(404).end();
+				return;
+			}
+			const defaultKey = deps.wikiSelection.getCurrent().key;
+			const defaultCfg = wikis[defaultKey];
+			if (!defaultCfg) {
+				res.status(404).end();
+				return;
+			}
+			let metadata;
+			try {
+				metadata = await fetchMetadata(defaultKey, {
+					server: defaultCfg.server,
+					scriptpath: defaultCfg.scriptpath,
+				});
+			} catch (err) {
+				res.status(503).json({ error: 'discovery_failed', detail: String(err) });
+				return;
+			}
+			const protoHeader = req.headers['x-forwarded-proto'];
+			const proto = typeof protoHeader === 'string' ? protoHeader.split(',')[0]?.trim() : undefined;
+			const requestProto =
+				proto === 'https' || proto === 'http' ? proto : req.secure ? 'https' : 'http';
+			const doc = buildProtectedResource({
+				wikis,
+				defaultWiki: defaultKey,
+				metadata,
+				requestHost: req.headers.host ?? undefined,
+				requestProto,
+			});
+			if (!doc) {
+				res.status(404).end();
+				return;
+			}
+			res.json(doc);
+		} catch (err) {
+			next(err);
+		}
+	};
+}
+
 export interface McpPostHandlerOptions {
 	allowedOrigins?: string[];
+	wikiSelection?: WikiSelection;
 }
 
 export function createMcpPostHandler(
@@ -134,11 +190,45 @@ export function createMcpPostHandler(
 	createServerFn: () => ReturnType<typeof createServer>,
 	options: McpPostHandlerOptions = {},
 ): RequestHandler {
-	const { allowedOrigins } = options;
+	const { allowedOrigins, wikiSelection } = options;
 	return async (req, res) => {
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Express headers are string|string[]|undefined; MCP transport sends a single header
 		const sessionId = req.headers['mcp-session-id'] as string | undefined;
 		const bearer = extractBearerToken(req);
+
+		if (!bearer && wikiSelection) {
+			const cfg = wikiSelection.getCurrent().config;
+			const oauthOnly = typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
+			const hasStatic =
+				(typeof cfg.token === 'string' && cfg.token.trim() !== '') ||
+				(typeof cfg.username === 'string' &&
+					typeof cfg.password === 'string' &&
+					cfg.username.trim() !== '' &&
+					cfg.password.trim() !== '');
+			const fallbackAllowed = process.env.MCP_ALLOW_STATIC_FALLBACK === 'true';
+			if (oauthOnly && !(hasStatic && fallbackAllowed)) {
+				const protoHeader = req.headers['x-forwarded-proto'];
+				const proto =
+					typeof protoHeader === 'string' ? protoHeader.split(',')[0]?.trim() : undefined;
+				const requestProto =
+					proto === 'https' || proto === 'http' ? proto : req.secure ? 'https' : 'http';
+				const host = req.headers.host ?? 'localhost';
+				const metadataUrl = `${requestProto}://${host}/.well-known/oauth-protected-resource`;
+				res.set(
+					'WWW-Authenticate',
+					`Bearer realm="MediaWiki MCP Server", resource_metadata="${metadataUrl}"`,
+				);
+				res.status(401).json({
+					jsonrpc: '2.0',
+					error: {
+						code: -32001,
+						message: 'Authentication required. See WWW-Authenticate header.',
+					},
+					id: null,
+				});
+				return;
+			}
+		}
 		let transport: StreamableHTTPServerTransport;
 
 		if (sessionId && sessions[sessionId]) {
@@ -395,7 +485,10 @@ app.use('/mcp', inFlight.middleware);
 
 app.post(
 	'/mcp',
-	createMcpPostHandler(sessions, () => createServer(ctx), { allowedOrigins }),
+	createMcpPostHandler(sessions, () => createServer(ctx), {
+		allowedOrigins,
+		wikiSelection: state.wikiSelection,
+	}),
 );
 app.get('/mcp', sessionRequestHandler);
 app.delete('/mcp', sessionRequestHandler);
@@ -403,6 +496,14 @@ app.delete('/mcp', sessionRequestHandler);
 app.get('/health', (_req: Request, res: Response) => {
 	res.status(200).json({ status: 'ok' });
 });
+
+app.get(
+	'/.well-known/oauth-protected-resource',
+	createOAuthProtectedResourceHandler({
+		wikiRegistry: state.wikiRegistry,
+		wikiSelection: state.wikiSelection,
+	}),
+);
 
 mountReadyEndpoint(app, { wikiSelection: state.wikiSelection, mwnProvider: state.mwnProvider });
 mountMetricsEndpoint(app);
