@@ -1,7 +1,7 @@
 // tests/helpers/fakeClock.ts
 
 export interface FakeClock {
-	now(): number;
+	now(this: void): number;
 	advance(ms: number): void;
 }
 
