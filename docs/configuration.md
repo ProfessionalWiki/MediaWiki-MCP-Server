@@ -158,30 +158,11 @@ Both allowlists apply only to `/mcp`. The `/health` endpoint is always reachable
 
 ## OAuth (browser-based)
 
-Browser-based OAuth lets users authenticate without pasting a token into `config.json`. It is opt-in per wiki.
+Browser-based OAuth lets you sign in to the wiki through a browser tab instead of pasting a long-lived token into `config.json`. It needs a one-time setup on the wiki by an admin; once that's done, every user of the MCP server signs in as themselves.
 
-### Register an OAuth consumer on the wiki
+### For MCP server users
 
-1. Visit `Special:OAuthConsumerRegistration/propose/oauth2` on the wiki. Extension:OAuth ≥ 1.0 (MediaWiki ≥ 1.39) is required.
-2. Fill in the form fields specific to the OAuth flow:
-   - **OAuth "callback URL"**: `http://127.0.0.1:<port>/oauth/callback`. Pick a fixed high port that's likely to be free on your machine — `53117` is a reasonable default; any value in the dynamic-port range (49152–65535) works. Extension:OAuth's OAuth 2.0 implementation **exact-matches** the redirect URI on every authorization request and explicitly does not honour RFC 8252 §7.3 loopback flexibility (the form's help text says "Unlike OAuth 1.0a, this URL is exactly matched"). The same port number must also go in `oauth2CallbackPort` in `config.json` — see below. The "Allow consumer to specify a callback in requests, and use 'callback' URL above as a required prefix" checkbox is OAuth 1.0a-only; for OAuth 2.0 consumers it has no effect.
-   - **Client is confidential**: ❌ leave unchecked. The MCP server is a public client and uses PKCE (RFC 7636) in place of a client secret. Marking the consumer confidential would make the wiki demand a `client_secret` on every token-endpoint exchange, and the dance would fail with `invalid_client` because the server does not (and cannot safely) hold a secret on a user's machine.
-   - **Allowed OAuth2 grant types**:
-     - ✅ **Authorization code** — required; this is the user-delegated flow the MCP server drives.
-     - ✅ **Refresh token** — recommended; lets the server renew an expiring access token without prompting the user again. Disable only if your security policy requires re-authentication on every token expiry.
-     - ❌ **Client credentials** — leave unchecked. This grant is for confidential clients authenticating as themselves with no user; it doesn't apply to a public client doing user-delegated auth, and granting it would let any holder of the `client_id` impersonate the consumer without user consent.
-   - **Types of grants being requested**: pick **Request authorization for specific permissions**. The two identity-only options stop short of API access; the MCP server's tools all need to call the wiki API on the user's behalf. This option opens a checklist of grant categories — tick the ones you want the consumer to be able to request. Suggested minimum:
-     - **Basic rights** — always required (anonymous reads, basic profile).
-     - **Edit existing pages** + **Create, edit, and move pages** — needed for `update-page`, `create-page`, `delete-page`, `undelete-page`.
-     - **High-volume editing** — recommended if the MCP server is going to drive bulk edits without rate-limiting prompts.
-     - **Upload new files** + **Upload, replace, and move files** — needed for `upload-file`, `upload-file-from-url`, `update-file`, `update-file-from-url`.
-   - Tools whose grants the user has not approved at consent time will return `permission_denied`; you can grant only what you want to exercise.
-3. Approve the consumer at `Special:OAuthManageConsumers` (admin step, depending on your wiki's policy).
-4. From the confirmation page, copy the **client application key** — Extension:OAuth's UI label for the OAuth 2.0 `client_id`. This is the value that goes into `oauth2ClientId` below. Disregard the **client application secret**: it is only used by confidential clients (which this server isn't), and it has no `WikiConfig` field to live in.
-
-### Configure the MCP server
-
-Add `oauth2ClientId` and `oauth2CallbackPort` to the wiki entry:
+Add the values your wiki admin gives you to the wiki entry in `config.json`:
 
 ```json
 {
@@ -191,48 +172,62 @@ Add `oauth2ClientId` and `oauth2CallbackPort` to the wiki entry:
 			"server": "https://example.org",
 			"articlepath": "/wiki",
 			"scriptpath": "/w",
-			"oauth2ClientId": "<client_id from step 4>",
+			"oauth2ClientId": "<from your wiki admin>",
 			"oauth2CallbackPort": 53117
 		}
 	}
 }
 ```
 
-Presence of `oauth2ClientId` opts the wiki into OAuth. Wikis without it continue to use static credentials (`token` / `username` + `password`) or anonymous access.
+What happens at runtime:
 
-`oauth2CallbackPort` must match the port in the registered callback URL on the wiki side. The stdio runtime binds `127.0.0.1:<oauth2CallbackPort>` for the OAuth callback. Omit this field only if the wiki's authorization server honours RFC 8252 §7.3 loopback flexibility — Extension:OAuth's OAuth 2.0 implementation does not, so for any MediaWiki wiki you must set it.
+- **First call.** The server opens a browser tab to the wiki's consent page. Approve, return to your terminal — the call completes.
+- **Later calls.** The server reuses the saved token. It refreshes the token automatically before it expires; you only see the consent page again if the token is revoked or you log out.
+- **Where the token lives.** Linux/macOS: `~/.config/mediawiki-mcp/credentials.json`. Windows: `%APPDATA%\mediawiki-mcp\credentials.json`. The file is mode `0600` on Unix and protected by per-user `%APPDATA%` ACLs on Windows. Token values never appear in logs or tool output.
 
-### How it works
+Two helper tools (stdio only):
 
-On **HTTP transport** the server publishes `/.well-known/oauth-protected-resource` (RFC 9728) listing the wiki's authorization server. OAuth-aware MCP clients (Claude Desktop, mcp-remote, Claude Code) follow this metadata to drive auth-code + PKCE against the wiki and send `Authorization: Bearer <token>` on each call. Bearer-less requests against an OAuth-enabled wiki receive `401 Unauthorized` with a `WWW-Authenticate: Bearer realm="MediaWiki MCP Server", resource_metadata="..."` header so the client can discover the AS and start the dance.
+- `oauth-status` — show which wikis you're signed into, what scopes you have, and when each token expires. Never returns token values.
+- `oauth-logout` — clear the stored token. Pass `wiki: "<key>"` to log out of one wiki, or call with no arguments to log out everywhere.
 
-On **stdio transport** the server itself runs the auth-code + PKCE dance: opens a browser, runs a loopback HTTP listener on `127.0.0.1:<random-port>` for the callback, exchanges the code for tokens, and stores `{access_token, refresh_token, expires_at, scopes, obtained_at}` in:
+If your wiki doesn't have an OAuth consumer set up, omit `oauth2ClientId`. Static credentials (`token` or `username` + `password`) and anonymous access keep working as before. If you don't know whether your wiki supports this, ask the admin.
 
-- Linux/macOS: `$XDG_CONFIG_HOME/mediawiki-mcp/credentials.json` or `~/.config/mediawiki-mcp/credentials.json`
-- Windows: `%APPDATA%\mediawiki-mcp\credentials.json`
+#### Optional environment variables
 
-The file is mode 0600 on Unix; on Windows the per-user `%APPDATA%` ACLs apply. Subsequent stdio calls reuse the stored token, refreshing it automatically within 60 seconds of expiry.
+- `MCP_OAUTH_CREDENTIALS_FILE` — store the credentials file somewhere other than the default path.
+- `MCP_OAUTH_NO_BROWSER` — set to `1` in headless or CI environments. The server prints the consent URL to stderr instead of trying to open a browser.
+- `MCP_PUBLIC_URL` — set when running the HTTP transport behind a reverse proxy that rewrites the request `Host`. Used in the OAuth discovery document and the `WWW-Authenticate` header so an OAuth-aware client can find its way back.
 
-### Optional environment variables
+#### HTTP transport behaviour
 
-- `MCP_OAUTH_CREDENTIALS_FILE` — Override the default credentials path.
-- `MCP_OAUTH_NO_BROWSER` — Set to `1` to skip `open()` (the server logs the URL to stderr instead). Useful in headless environments and CI.
-- `MCP_PUBLIC_URL` — Override the request-derived URL used in the protected-resource doc's `resource` field. Set this when running behind a proxy that rewrites the request `Host`.
+When you run the HTTP transport with at least one OAuth-enabled wiki, the server publishes `/.well-known/oauth-protected-resource` so OAuth-aware MCP clients (Claude Desktop, mcp-remote, Claude Code) can discover the wiki and run the consent flow themselves. Bearer-less requests get `401` with a `WWW-Authenticate` header pointing at the discovery document. Wikis without `oauth2ClientId` are unaffected.
 
-### Inspecting and resetting stored tokens (stdio)
+If `MCP_ALLOW_STATIC_FALLBACK=true` and the wiki has static credentials, bearer-less requests fall back to those credentials instead of returning 401. Use this only if you specifically want a hybrid where OAuth-aware clients sign in per user but unauthenticated callers still get service through a shared identity.
 
-Two MCP tools, hidden on HTTP transport:
+### For wiki admins: registering the OAuth consumer
 
-- `oauth-status` — returns the wikis with stored tokens, their scopes, and expiry. Never returns token values.
-- `oauth-logout` — removes stored tokens. Pass `wiki: "<key>"` to remove only that wiki, or call with no arguments to remove all.
+The MCP server needs one OAuth 2.0 consumer per wiki. Registration requires Extension:OAuth (1.0 or later, included with MediaWiki 1.39+) and the `mwoauthproposeconsumer` user right.
 
-### What if my wiki doesn't have Extension:OAuth?
+1. Go to `Special:OAuthConsumerRegistration/propose/oauth2` on the wiki.
+2. Fill the form:
+   - **OAuth "callback URL"**: `http://127.0.0.1:<port>/oauth/callback`. Pick any free high port, for example `53117`. The MCP server users will need to set the same port number as `oauth2CallbackPort` in their `config.json`. Extension:OAuth requires an exact match between the registered URL and what the server sends, including the port.
+   - **Client is confidential**: leave unchecked. The MCP server runs on user machines and uses PKCE rather than a client secret.
+   - **Allowed OAuth2 grant types**: tick **Authorization code** and **Refresh token**. Leave **Client credentials** unchecked.
+   - **Types of grants being requested**: pick **Request authorization for specific permissions**, then tick the categories you want the consumer to be able to request. The MCP server's tools call the wiki API on the user's behalf, so the two identity-only options aren't enough.
+3. Approve the consumer at `Special:OAuthManageConsumers` if your wiki requires admin approval.
+4. Hand off two values to the MCP server users:
+   - The **client application key** from the confirmation page (it goes in `oauth2ClientId`).
+   - The port you used in the callback URL (it goes in `oauth2CallbackPort`).
 
-Don't set `oauth2ClientId`. Static credentials (`token`, `username` + `password`) continue to work as before.
+The **client application secret** is not used and can be ignored.
 
-### Interaction with `MCP_ALLOW_STATIC_FALLBACK`
+#### Suggested grants
 
-On HTTP transport, the existing `MCP_ALLOW_STATIC_FALLBACK` guard determines whether bearer-less requests fall back to static credentials. Two configurations:
+Tick only what your users will actually use; the MCP server returns `permission_denied` for tools whose grants weren't approved.
 
-- `oauth2ClientId` set, `MCP_ALLOW_STATIC_FALLBACK` unset: bearer-less requests get 401 + WWW-Authenticate. Pure OAuth.
-- `oauth2ClientId` set, `MCP_ALLOW_STATIC_FALLBACK=true`, AND wiki has static creds: bearer-less requests use static creds (legacy behaviour). The discovery doc is still published; OAuth-aware clients can opt in.
+- **Basic rights** — always required.
+- **Edit existing pages** + **Create, edit, and move pages** — for `update-page`, `create-page`, `delete-page`, `undelete-page`.
+- **High-volume editing** — for bulk edits without rate-limit prompts.
+- **Upload new files** + **Upload, replace, and move files** — for `upload-file`, `upload-file-from-url`, `update-file`, `update-file-from-url`.
+
+Avoid granting **Manage your OAuth clients** — the MCP server doesn't use it, and granting it would let anyone with a token from this consumer tamper with OAuth registrations on the wiki.
