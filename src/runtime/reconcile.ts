@@ -5,6 +5,8 @@ import type { WikiSelection } from '../wikis/wikiSelection.js';
 
 export type Reconcile = () => void;
 
+const STDIO_ONLY_TOOLS: readonly string[] = ['oauth-status', 'oauth-logout'];
+
 const WRITE_TOOL_NAMES: readonly string[] = [
 	'create-page',
 	'update-page',
@@ -18,6 +20,7 @@ export function reconcileTools(
 	tools: Map<string, RegisteredTool>,
 	wikiRegistry: WikiRegistry,
 	wikiSelection: WikiSelection,
+	transport: 'http' | 'stdio' = 'stdio',
 ): void {
 	const activeWiki = wikiSelection.getCurrent().config;
 	const wikiCount = Object.keys(wikiRegistry.getAll()).length;
@@ -25,6 +28,7 @@ export function reconcileTools(
 
 	applyReadOnlyRule(tools, activeWiki);
 	applyWikiSetRule(tools, wikiCount, allowManagement);
+	applyTransportRule(tools, transport);
 }
 
 function applyReadOnlyRule(
@@ -45,6 +49,12 @@ function applyWikiSetRule(
 	toggle(tools.get('add-wiki'), allowManagement);
 	toggle(tools.get('remove-wiki'), allowManagement && wikiCount >= 2);
 	toggle(tools.get('set-wiki'), wikiCount >= 2);
+}
+
+function applyTransportRule(tools: Map<string, RegisteredTool>, transport: 'http' | 'stdio'): void {
+	for (const name of STDIO_ONLY_TOOLS) {
+		toggle(tools.get(name), transport === 'stdio');
+	}
 }
 
 function toggle(tool: RegisteredTool | undefined, shouldBeEnabled: boolean): void {

@@ -24,6 +24,7 @@ export interface ToolContext {
 	readonly format: ResponseFormatter;
 	readonly errors: ErrorClassifier;
 	readonly logger: Logger;
+	readonly transport: 'http' | 'stdio';
 }
 
 export interface ManagementContext extends ToolContext {

@@ -30,6 +30,8 @@ import { updateFileFromUrl } from './update-file-from-url.js';
 import { addWiki } from './add-wiki.js';
 import { removeWiki } from './remove-wiki.js';
 import { setWiki } from './set-wiki.js';
+import { oauthStatus } from './oauth-status.js';
+import { oauthLogout } from './oauth-logout.js';
 
 // `Tool<any>` widens the heterogeneous-schema array; `inputSchema: TSchema`
 // is invariant in `TSchema`, so `Tool<never>` and `Tool<ZodRawShape>` both
@@ -56,6 +58,8 @@ export const standardTools: Tool<any>[] = [
 	uploadFileFromUrl,
 	updateFile,
 	updateFileFromUrl,
+	oauthStatus,
+	oauthLogout,
 ];
 
 // oxlint-disable-next-line typescript/no-explicit-any

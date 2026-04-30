@@ -16,6 +16,7 @@ const WRITE_TOOL_NAMES = [
 
 const NON_WRITE_TOOL_NAMES = ['get-page', 'search-page'];
 const WIKI_SET_TOOL_NAMES = ['add-wiki', 'remove-wiki', 'set-wiki'];
+const STDIO_ONLY_TOOL_NAMES = ['oauth-status', 'oauth-logout'];
 
 interface MockTool {
 	enabled: boolean;
@@ -42,7 +43,12 @@ function makeToolMap(initiallyEnabled: boolean): {
 } {
 	const mocks = new Map<string, MockTool>();
 	const tools = new Map<string, RegisteredTool>();
-	for (const name of [...WRITE_TOOL_NAMES, ...NON_WRITE_TOOL_NAMES, ...WIKI_SET_TOOL_NAMES]) {
+	for (const name of [
+		...WRITE_TOOL_NAMES,
+		...NON_WRITE_TOOL_NAMES,
+		...WIKI_SET_TOOL_NAMES,
+		...STDIO_ONLY_TOOL_NAMES,
+	]) {
 		const mock = makeMockTool(initiallyEnabled);
 		mocks.set(name, mock);
 		tools.set(name, mock as unknown as RegisteredTool);
@@ -268,5 +274,62 @@ describe('reconcileTools — applyWikiSetRule', () => {
 		});
 		reconcileTools(tools, m2.registry, m2.selection);
 		expect(mocks.get('remove-wiki')!.enabled).toBe(false);
+	});
+});
+
+describe('reconcileTools — applyTransportRule', () => {
+	it('hides oauth-* tools on HTTP transport', () => {
+		const { tools, mocks } = makeToolMap(true);
+		const { registry, selection } = makeMocks({
+			activeWiki: baseWiki,
+			wikis: { a: baseWiki },
+			allowManagement: true,
+		});
+		reconcileTools(tools, registry, selection, 'http');
+		for (const name of STDIO_ONLY_TOOL_NAMES) {
+			expect(mocks.get(name)!.disable).toHaveBeenCalledTimes(1);
+			expect(mocks.get(name)!.enable).not.toHaveBeenCalled();
+		}
+	});
+
+	it('shows oauth-* tools on stdio transport', () => {
+		const { tools, mocks } = makeToolMap(false);
+		const { registry, selection } = makeMocks({
+			activeWiki: baseWiki,
+			wikis: { a: baseWiki },
+			allowManagement: true,
+		});
+		reconcileTools(tools, registry, selection, 'stdio');
+		for (const name of STDIO_ONLY_TOOL_NAMES) {
+			expect(mocks.get(name)!.enable).toHaveBeenCalledTimes(1);
+			expect(mocks.get(name)!.disable).not.toHaveBeenCalled();
+		}
+	});
+
+	it('defaults to stdio when transport is omitted', () => {
+		const { tools, mocks } = makeToolMap(false);
+		const { registry, selection } = makeMocks({
+			activeWiki: baseWiki,
+			wikis: { a: baseWiki },
+			allowManagement: true,
+		});
+		reconcileTools(tools, registry, selection);
+		for (const name of STDIO_ONLY_TOOL_NAMES) {
+			expect(mocks.get(name)!.enable).toHaveBeenCalledTimes(1);
+		}
+	});
+
+	it('does not touch non-oauth tools when applying transport rule', () => {
+		const { tools, mocks } = makeToolMap(true);
+		const { registry, selection } = makeMocks({
+			activeWiki: baseWiki,
+			wikis: { a: baseWiki },
+			allowManagement: true,
+		});
+		reconcileTools(tools, registry, selection, 'http');
+		for (const name of NON_WRITE_TOOL_NAMES) {
+			expect(mocks.get(name)!.disable).not.toHaveBeenCalled();
+			expect(mocks.get(name)!.enable).not.toHaveBeenCalled();
+		}
 	});
 });

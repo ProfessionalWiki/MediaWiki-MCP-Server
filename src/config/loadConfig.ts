@@ -36,6 +36,27 @@ export interface WikiConfig {
 	 */
 	password?: string | null;
 	/**
+	 * OAuth 2.0 client identifier registered at
+	 * Special:OAuthConsumerRegistration/propose/oauth2 on this wiki.
+	 * Presence opts the wiki into OAuth: HTTP transport advertises it in
+	 * /.well-known/oauth-protected-resource, and stdio runtime triggers
+	 * a browser-based login when no live token is stored.
+	 * Public client (PKCE only) — no client secret needed.
+	 */
+	oauth2ClientId?: string | null;
+	/**
+	 * Fixed loopback port for the OAuth 2.0 callback during the stdio
+	 * browser dance. Set this when the wiki's authorization server
+	 * exact-matches the registered redirect URI — notably MediaWiki's
+	 * Extension:OAuth, which does not honour RFC 8252 §7.3 loopback
+	 * port flexibility for OAuth 2.0 consumers. The callback URL
+	 * registered on the wiki must then be
+	 * `http://127.0.0.1:<port>/oauth/callback`. When unset, the OS
+	 * picks an ephemeral port (works only against AS that follow
+	 * RFC 8252).
+	 */
+	oauth2CallbackPort?: number | null;
+	/**
 	 * If the wiki always requires auth to access.
 	 * $wgGroupPermissions['*']['read'] = false; in MediaWiki
 	 */

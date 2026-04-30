@@ -49,6 +49,7 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 		format: new ResponseFormatterImpl(),
 		errors: new ErrorClassifierImpl(),
 		logger: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), debug: vi.fn() },
+		transport: 'stdio' as const,
 		...overrides,
 	};
 }

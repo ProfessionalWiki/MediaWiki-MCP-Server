@@ -523,4 +523,33 @@ describe('loadConfigFromFile', () => {
 			}
 		});
 	});
+
+	describe('oauth2ClientId field', () => {
+		it('round-trips a populated value', async () => {
+			setConfigFile({
+				defaultWiki: 'a',
+				wikis: { a: { ...baseWiki, oauth2ClientId: 'abc123' } },
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(loadConfigFromFile().wikis.a.oauth2ClientId).toBe('abc123');
+		});
+
+		it('is undefined when omitted', async () => {
+			setConfigFile({
+				defaultWiki: 'a',
+				wikis: { a: { ...baseWiki } },
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(loadConfigFromFile().wikis.a.oauth2ClientId).toBeUndefined();
+		});
+
+		it('preserves null verbatim', async () => {
+			setConfigFile({
+				defaultWiki: 'a',
+				wikis: { a: { ...baseWiki, oauth2ClientId: null } },
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(loadConfigFromFile().wikis.a.oauth2ClientId).toBeNull();
+		});
+	});
 });

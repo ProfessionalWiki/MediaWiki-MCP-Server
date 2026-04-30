@@ -73,6 +73,7 @@ Hosted-use notes:
 - **Set `MCP_ALLOWED_HOSTS` to the hostname(s) your reverse proxy forwards** (e.g. `MCP_ALLOWED_HOSTS=wiki.example.org`). Without it, the SDK's DNS-rebinding check is off and non-matching `Host` headers are not rejected.
 - **Set `MCP_ALLOWED_ORIGINS` to the public origin(s) your proxy serves** (e.g. `MCP_ALLOWED_ORIGINS=https://wiki.example.org`). Without it, Origin validation is off and browser requests with a mismatched `Origin` are not rejected.
 - **`upload-file` stays off until you opt in.** Configure an allowlist via `uploadDirs` in `config.json` or the `MCP_UPLOAD_DIRS` env var — see [configuration.md — upload directories](configuration.md#upload-directories). With no allowlist, every local-upload attempt is refused.
+- **OAuth-spec discovery is available** when a wiki sets `oauth2ClientId`. The server publishes `/.well-known/oauth-protected-resource` and returns `WWW-Authenticate: Bearer realm="MediaWiki MCP Server", resource_metadata="..."` on bearer-less 401s. OAuth-aware MCP clients use this to start the auth-code+PKCE dance against the wiki's authorization server. See [configuration.md — OAuth (browser-based)](configuration.md#oauth-browser-based) for the per-wiki opt-in.
 
 ## Docker
 
