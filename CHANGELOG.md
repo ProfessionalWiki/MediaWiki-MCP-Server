@@ -40,6 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - Pinned the Dockerfile base image to a specific `node:lts-alpine` digest. Dependabot's new `docker` ecosystem entry tracks digest updates and opens PRs when Alpine/Node publish new images, so base-image patches reach published builds via auditable git history rather than silent rebuilds.
 - The Docker builder stage now installs dependencies with `npm ci --ignore-scripts`, matching the production stage. Stops third-party postinstall scripts from running during the build that the SLSA provenance attestation vouches for.
 - Server startup constructs wiki state explicitly rather than as a side effect of module imports. Internal restructuring; no user-visible behaviour change.
+- Reorganised user-facing docs: extracted `docs/operations.md` for day-2 concerns (logs, `/health`/`/ready`, metrics, graceful shutdown), moved per-request bearer and reverse-proxy documentation from `docs/configuration.md` into `docs/deployment.md`, slimmed the README's authentication section, consolidated manual-token and bot-password instructions in `docs/configuration.md`, and converted blockquote callouts to GitHub admonitions.
 
 ### Removed
 
