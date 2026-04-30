@@ -56,13 +56,23 @@ export const bucketQuery: Tool<typeof inputSchema> = {
 		}
 
 		const mwn = await ctx.mwn();
-		const raw = await mwn.request({
-			action: 'bucket',
-			query: rendered.query,
-			format: 'json',
+		// Bucket returns errors as `{error: <string>}` at the top level. mwn's
+		// `request()` checks for a top-level `error` field and throws MwnError, but
+		// Bucket's string shape doesn't match the standard `{code, info}` object
+		// MwnError expects, so the resulting message is empty. `rawRequest` skips
+		// that processing while still applying mwn's auth (cookies / OAuth).
+		const axiosResponse = await mwn.rawRequest({
+			url: mwn.options.apiUrl,
+			method: 'POST',
+			data: new URLSearchParams({
+				action: 'bucket',
+				query: rendered.query,
+				format: 'json',
+			}).toString(),
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 		});
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Bucket action=bucket response shape; trusted at this boundary
-		const response = raw as BucketResponse;
+		const response = axiosResponse.data as BucketResponse;
 
 		if (typeof response.error === 'string' && response.error !== '') {
 			return ctx.format.invalidInput(response.error);
