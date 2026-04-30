@@ -162,4 +162,48 @@ describe('dispatch OAuth integration', () => {
 		expect(envelope.category).toBe('authentication');
 		expect(envelope.message).toContain('OAuth login required:');
 	});
+
+	it.each(['add-wiki', 'set-wiki', 'remove-wiki', 'oauth-status', 'oauth-logout'])(
+		'%s bypasses the OAuth gate even when the active wiki has oauth2ClientId set',
+		async (toolName) => {
+			// Active wiki points at a URL where nothing is listening — so if the
+			// dispatcher tried to acquire a token, it would fail with "authentication"
+			// just like the previous test. The bypass means the tool runs anyway.
+			const ctx = fakeContext({
+				transport: 'stdio',
+				selection: {
+					getCurrent: () => ({
+						key: 'oauth-configured',
+						config: {
+							sitename: 'OAuth-Configured',
+							server: 'http://127.0.0.1:1',
+							articlepath: '/wiki',
+							scriptpath: '/w',
+							oauth2ClientId: 'my-client',
+							tags: null,
+						} as never,
+					}),
+					setCurrent: () => {},
+					reset: () => {},
+				},
+			});
+
+			let toolInvoked = false;
+			const bypassTool: Tool<Record<string, never>> = {
+				name: toolName,
+				description: 'd',
+				inputSchema: {},
+				annotations: {},
+				async handle(): Promise<CallToolResult> {
+					toolInvoked = true;
+					return { content: [{ type: 'text', text: 'ran' }] };
+				},
+			};
+
+			const result = await dispatch(bypassTool, ctx)({});
+			expect(toolInvoked).toBe(true);
+			expect(result.isError).toBeUndefined();
+			expect((result.content[0] as { text: string }).text).toBe('ran');
+		},
+	);
 });
