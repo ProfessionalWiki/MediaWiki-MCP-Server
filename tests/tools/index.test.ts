@@ -5,6 +5,7 @@ import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 import type { ExtensionDetector } from '../../src/wikis/extensionDetector.js';
 import { reconcileTools } from '../../src/runtime/reconcile.js';
+import { extensionPacks } from '../../src/tools/extensions/index.js';
 import { registerAllTools } from '../../src/tools/index.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 
@@ -80,6 +81,7 @@ async function connectClientAndServer(): Promise<{ client: Client; server: McpSe
 			wikiSelection: wikiSelectionMock,
 			transport: 'stdio',
 			extensions: fakeDetector,
+			extensionPacks,
 		});
 	const ctx = fakeContext({
 		wikis: wikiRegistryMock,

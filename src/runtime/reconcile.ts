@@ -3,6 +3,7 @@ import type { WikiConfig } from '../config/loadConfig.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
 import type { WikiSelection } from '../wikis/wikiSelection.js';
 import type { ExtensionDetector } from '../wikis/extensionDetector.js';
+import type { ExtensionPack } from '../tools/extensions/types.js';
 
 export type Reconcile = () => Promise<void>;
 
@@ -11,6 +12,7 @@ export interface ReconcileDeps {
 	readonly wikiSelection: WikiSelection;
 	readonly transport: 'http' | 'stdio';
 	readonly extensions: ExtensionDetector;
+	readonly extensionPacks: readonly ExtensionPack[];
 }
 
 export interface ReconcileContext {
@@ -41,22 +43,7 @@ const WRITE_TOOL_NAMES: readonly string[] = [
 
 const STDIO_ONLY_TOOLS: readonly string[] = ['oauth-status', 'oauth-logout'];
 
-export const SMW_GATED_TOOLS: readonly string[] = ['smw-query', 'smw-list-properties'];
-
-export const BUCKET_GATED_TOOLS: readonly string[] = ['bucket-query'];
-
-export const CARGO_GATED_TOOLS: readonly string[] = [
-	'cargo-list-tables',
-	'cargo-describe-table',
-	'cargo-query',
-];
-
-// wiki.gg-hosted wikis (Helldivers, Terraria, Ark, etc.) ship Cargo under the
-// rebranded name `LIBRARIAN`. Same author (Yaron Koren), same upstream, same
-// API. Accept either name when probing the active wiki's extensions.
-const CARGO_EXTENSION_NAMES: readonly string[] = ['Cargo', 'LIBRARIAN'];
-
-const RULES: readonly ToolGatingRule[] = [
+const STATIC_RULES: readonly ToolGatingRule[] = [
 	{
 		name: 'read-only',
 		affects: WRITE_TOOL_NAMES,
@@ -82,22 +69,15 @@ const RULES: readonly ToolGatingRule[] = [
 		affects: ['set-wiki'],
 		isAllowed: (c) => c.wikiCount >= 2,
 	},
-	{
-		name: 'smw-extension',
-		affects: SMW_GATED_TOOLS,
-		isAllowed: (c) => c.extensions.has(c.activeWikiKey, 'SemanticMediaWiki'),
-	},
-	{
-		name: 'bucket-extension',
-		affects: BUCKET_GATED_TOOLS,
-		isAllowed: (c) => c.extensions.has(c.activeWikiKey, 'Bucket'),
-	},
-	{
-		name: 'cargo-extension',
-		affects: CARGO_GATED_TOOLS,
-		isAllowed: (c) => c.extensions.hasAny(c.activeWikiKey, CARGO_EXTENSION_NAMES),
-	},
 ];
+
+function buildExtensionRules(packs: readonly ExtensionPack[]): readonly ToolGatingRule[] {
+	return packs.map((pack) => ({
+		name: `${pack.id}-extension`,
+		affects: pack.tools.map((t) => t.name),
+		isAllowed: (c) => c.extensions.hasAny(c.activeWikiKey, pack.extensionNames),
+	}));
+}
 
 function buildContext(deps: ReconcileDeps): ReconcileContext {
 	const { key, config } = deps.wikiSelection.getCurrent();
@@ -144,7 +124,8 @@ export async function reconcileTools(
 	deps: ReconcileDeps,
 ): Promise<void> {
 	const ctx = buildContext(deps);
-	const desired = await computeDesiredEnabledState(tools.keys(), ctx, RULES);
+	const rules = [...STATIC_RULES, ...buildExtensionRules(deps.extensionPacks)];
+	const desired = await computeDesiredEnabledState(tools.keys(), ctx, rules);
 	for (const [name, shouldEnable] of desired) {
 		toggle(tools.get(name), shouldEnable);
 	}
