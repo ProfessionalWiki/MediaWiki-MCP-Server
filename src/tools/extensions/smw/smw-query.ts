@@ -52,7 +52,7 @@ interface NormalizedRow {
 export const smwQuery: Tool<typeof inputSchema> = {
 	name: 'smw-query',
 	description:
-		"Runs a Semantic MediaWiki `#ask` query against the active wiki. One row per matching page, with the requested printouts as columns. For grounded property names, use smw-list-properties first.\n\nExamples:\n- Pages in a category: [[Category:Person]]|?Has occupation|limit=20\n- Numeric comparison: [[Born in::>1900]]|?Has name|?Born in\n- Multiple conditions: [[Category:Person]][[Born in::>1900]][[Has occupation::Architect]]\n\nNumeric operators: write `>N` and `<N`; SMW's default config treats them as ≥ and ≤. `>=` and `<=` are rejected unless the wiki enables strict comparators (`$smwStrictComparators`).\n\nUp to 500 rows per call; paginate with continueFrom. Syntax errors return the SMW message verbatim.",
+		"Runs a Semantic MediaWiki `#ask` query against the active wiki. Enabled only when the wiki has SMW installed. One row per matching page, with the requested printouts as columns. For grounded property names, use smw-list-properties first.\n\nExamples:\n- Pages in a category: [[Category:Person]]|?Has occupation|limit=20\n- Numeric comparison: [[Born in::>1900]]|?Has name|?Born in\n- Multiple conditions: [[Category:Person]][[Born in::>1900]][[Has occupation::Architect]]\n\nNumeric operators: write `>N` and `<N`; SMW's default config treats them as ≥ and ≤. `>=` and `<=` are rejected unless the wiki enables strict comparators (`$smwStrictComparators`).\n\nUp to 500 rows per call; paginate with continueFrom. Syntax errors return the SMW message verbatim.",
 	inputSchema,
 	annotations: {
 		title: 'Run SMW query',

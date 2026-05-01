@@ -27,7 +27,7 @@ interface FieldDescriptor {
 export const cargoDescribeTable: Tool<typeof inputSchema> = {
 	name: 'cargo-describe-table',
 	description:
-		"Returns the field schema for a Cargo table on the active wiki: each field's name, type (String/Integer/Boolean/Date/Page/Coordinates/etc.), and — for list-typed fields — its delimiter. Use before constructing a cargo-query so the where clause uses the right operators (HOLDS / HOLDS LIKE for list fields, MATCHES for Searchtext, NEAR for Coordinates). Use cargo-list-tables to discover table names.",
+		"Returns the field schema for a Cargo table on the active wiki: each field's name, type (String/Integer/Boolean/Date/Page/Coordinates/etc.), and — for list-typed fields — its delimiter. Enabled only when the wiki has Cargo installed. Use before constructing a cargo-query so the where clause uses the right operators (HOLDS / HOLDS LIKE for list fields, MATCHES for Searchtext, NEAR for Coordinates). Use cargo-list-tables to discover table names.",
 	inputSchema,
 	annotations: {
 		title: 'Describe Cargo table',
