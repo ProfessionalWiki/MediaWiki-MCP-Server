@@ -39,7 +39,7 @@ import { oauthLogout } from './oauth-logout.js';
 // fail this assignment. The dispatcher's own generic re-narrows TSchema
 // when each tool's handler is wrapped.
 // oxlint-disable-next-line typescript/no-explicit-any
-export const standardTools: Tool<any>[] = [
+const standardTools: Tool<any>[] = [
 	getPage,
 	getPages,
 	getPageHistory,
@@ -64,7 +64,7 @@ export const standardTools: Tool<any>[] = [
 ];
 
 // oxlint-disable-next-line typescript/no-explicit-any
-export const managementTools: Tool<any, ManagementContext>[] = [addWiki, removeWiki, setWiki];
+const managementTools: Tool<any, ManagementContext>[] = [addWiki, removeWiki, setWiki];
 
 export function registerAllTools(
 	server: McpServer,

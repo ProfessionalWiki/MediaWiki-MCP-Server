@@ -12,7 +12,7 @@ export const LOCALHOST_HOSTS: readonly string[] = ['127.0.0.1', 'localhost', '::
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 3000;
 const MAX_PORT = 65535;
-export const DEFAULT_MAX_REQUEST_BODY = '1mb';
+const DEFAULT_MAX_REQUEST_BODY = '1mb';
 
 // Mirrors body-parser's size grammar: optional decimal number followed by an
 // optional unit (bytes if omitted). Validating at startup prevents body-parser

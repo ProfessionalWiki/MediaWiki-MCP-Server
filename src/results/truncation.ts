@@ -1,6 +1,6 @@
 export const DEFAULT_CONTENT_MAX_BYTES = 50000;
 
-export function resolveContentMaxBytes(): number {
+function resolveContentMaxBytes(): number {
 	const raw = process.env.MCP_CONTENT_MAX_BYTES;
 	if (raw === undefined || raw === '') {
 		return DEFAULT_CONTENT_MAX_BYTES;
