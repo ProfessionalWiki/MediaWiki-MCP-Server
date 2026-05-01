@@ -1,6 +1,6 @@
 {
   "name": "mediawiki-mcp-server",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "MCP server enabling AI clients to interact with any MediaWiki wiki through standard tools",
   "mcpServers": {
     "mediawiki": {
