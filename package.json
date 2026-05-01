@@ -74,7 +74,6 @@
 		"@anthropic-ai/mcpb": "^2.1.2",
 		"@types/express": "^5.0.2",
 		"@types/node": "^25.0.2",
-		"@types/node-fetch": "^2.6.12",
 		"@types/supertest": "^7.2.0",
 		"@typescript/native-preview": "beta",
 		"ajv": "^8.17.1",
