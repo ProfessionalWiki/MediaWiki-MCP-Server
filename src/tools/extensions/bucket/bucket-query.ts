@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
-import type { Tool } from '../runtime/tool.js';
-import type { ToolContext } from '../runtime/context.js';
-import type { TruncationInfo } from '../results/truncation.js';
+import type { Tool } from '../../../runtime/tool.js';
+import type { ToolContext } from '../../../runtime/context.js';
+import type { TruncationInfo } from '../../../results/truncation.js';
 
 const HARD_LIMIT = 500;
 

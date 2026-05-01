@@ -1,9 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { smwListProperties } from '../../src/tools/smw-list-properties.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
+import { createMockMwn } from '../../../helpers/mock-mwn.js';
+import { fakeContext } from '../../../helpers/fakeContext.js';
+import { smwListProperties } from '../../../../src/tools/extensions/smw/smw-list-properties.js';
+import { dispatch } from '../../../../src/runtime/dispatcher.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess,
+} from '../../../helpers/structuredResult.js';
 
 interface SmwBrowsePropertyMock {
 	label: string;

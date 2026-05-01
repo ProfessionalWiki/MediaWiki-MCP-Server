@@ -1,9 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { smwQuery } from '../../src/tools/smw-query.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
+import { createMockMwn } from '../../../helpers/mock-mwn.js';
+import { fakeContext } from '../../../helpers/fakeContext.js';
+import { smwQuery } from '../../../../src/tools/extensions/smw/smw-query.js';
+import { dispatch } from '../../../../src/runtime/dispatcher.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess,
+} from '../../../helpers/structuredResult.js';
 
 describe('smw-query', () => {
 	it('calls action=ask with the user query and returns row-shaped results', async () => {

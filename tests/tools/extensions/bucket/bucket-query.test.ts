@@ -1,9 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { bucketQuery } from '../../src/tools/bucket-query.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
+import { createMockMwn } from '../../../helpers/mock-mwn.js';
+import { fakeContext } from '../../../helpers/fakeContext.js';
+import { bucketQuery } from '../../../../src/tools/extensions/bucket/bucket-query.js';
+import { dispatch } from '../../../../src/runtime/dispatcher.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess,
+} from '../../../helpers/structuredResult.js';
 
 // rawRequest is called with `{url, method, data, headers}` where `data` is a
 // form-urlencoded string. Tests assert the rendered Lua chain by parsing the

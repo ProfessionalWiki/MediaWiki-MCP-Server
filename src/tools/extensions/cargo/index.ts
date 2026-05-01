@@ -1,7 +1,7 @@
 import type { ExtensionPack } from '../types.js';
-import { cargoListTables } from '../../cargo-list-tables.js';
-import { cargoDescribeTable } from '../../cargo-describe-table.js';
-import { cargoQuery } from '../../cargo-query.js';
+import { cargoListTables } from './cargo-list-tables.js';
+import { cargoDescribeTable } from './cargo-describe-table.js';
+import { cargoQuery } from './cargo-query.js';
 
 // wiki.gg-hosted wikis (Helldivers, Terraria, Ark, etc.) ship Cargo under the
 // rebranded name `LIBRARIAN`. Same author (Yaron Koren), same upstream, same
