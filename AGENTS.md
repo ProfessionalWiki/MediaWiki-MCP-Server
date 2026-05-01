@@ -54,7 +54,8 @@ A pack is a self-describing module exposing tools that share an extension gate. 
 	import type { ExtensionPack } from '../types.js';
 	import { myTool } from './<id>-<verb>.js';
 
-	export const <id>Pack: ExtensionPack = {
+	// Convention: export name folds the id — `smwPack`, `bucketPack`, etc.
+	export const myPack: ExtensionPack = {
 		id: '<id>',
 		extensionNames: ['CanonicalExtensionName' /*, aliases */],
 		tools: [/* tool descriptors */],
