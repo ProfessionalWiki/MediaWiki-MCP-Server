@@ -157,7 +157,7 @@ function buildPayload(
 export const comparePages: Tool<typeof inputSchema> = {
 	name: 'compare-pages',
 	description:
-		'Returns the changes between two versions of a wiki page as a compact text diff. Each side accepts a revision ID, page title (latest revision), or supplied wikitext; text-vs-text is rejected. Only the changes are returned over the wire. For the full text of both sides, fetch with get-page instead. If a title or revision ID does not exist, an error is returned. Set includeDiff=false for a cheap change-detection response that skips diff rendering and returns just the change flag, revision metadata, and size delta. Diff output is truncated at 50000 bytes with a trailing marker; a narrower revision range or includeDiff=false avoids truncation.',
+		'Returns the changes between two versions of a wiki page as a compact text diff. Each side accepts a revision ID, page title (latest revision), or supplied wikitext; text-vs-text is rejected. Only the changes are returned over the wire. For the full text of both sides, fetch with get-page instead. If a title or revision ID does not exist, an error is returned. Set includeDiff=false for a cheap change-detection response that skips diff rendering and returns just the change flag, revision metadata, and size delta. Diff output is truncated at 50000 bytes by default with a trailing marker; a narrower revision range or includeDiff=false avoids truncation.',
 	inputSchema,
 	annotations: {
 		title: 'Compare pages',

@@ -7,38 +7,60 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 
 ### Tools
 
+#### Page reads
+
+| Name | Description |
+|---|---|
+| `compare-pages` | Diff two versions of a wiki page by revision, title, or supplied wikitext. |
+| `get-category-members` | List members of a category (up to 500 per call, paginated via `continueFrom`). |
+| `get-file` | Fetch a file page. |
+| `get-page` | Fetch a wiki page. |
+| `get-page-history` | List recent revisions of a wiki page. |
+| `get-pages` | Fetch multiple wiki pages in one call (up to 50). |
+| `get-recent-changes` | List recent change events across the wiki, filterable by timestamp, namespace, user, tag, type, and hide flags (up to 50 per call, paginated via `continue`). |
+| `get-revision` | Fetch a specific revision of a page. |
+| `parse-wikitext` | Render wikitext to HTML without saving. Returns parse warnings, wikilinks, templates, and external URLs. |
+| `search-page` | Search wiki page titles and contents. |
+| `search-page-by-prefix` | Search page titles by prefix. |
+
+#### Page writes
+
 | Name | Description | Permissions |
 |---|---|---|
-| `add-wiki` | Add a wiki as an MCP resource from its URL. Disabled when `allowWikiManagement` is `false`. | - |
-| `bucket-query` | Run a [Bucket extension](https://github.com/weirdgloop/mediawiki-extensions-Bucket) Lua query. Enabled only when the wiki has Bucket installed. | - |
-| `cargo-describe-table` | List the fields of a [Cargo extension](https://www.mediawiki.org/wiki/Extension:Cargo) table with their types and list-flags. Enabled only when the wiki has Cargo installed. | - |
-| `cargo-list-tables` | List Cargo tables defined on the active wiki. Enabled only when the wiki has Cargo installed. | - |
-| `cargo-query` | Run a [Cargo extension](https://www.mediawiki.org/wiki/Extension:Cargo) SQL-style query. Enabled only when the wiki has Cargo installed. | - |
-| `compare-pages` | Diff two versions of a wiki page by revision, title, or supplied wikitext. | - |
-| `oauth-logout` | Remove stored OAuth tokens. Stdio only. | - |
-| `oauth-status` | List stored OAuth tokens with scopes and expiry (no token values). Stdio only. | - |
 | `create-page` 🔐 | Create a new wiki page. | `Create, edit, and move pages` |
 | `delete-page` 🔐 | Delete a wiki page. | `Delete pages, revisions, and log entries` |
-| `get-category-members` | List members of a category (up to 500 per call, paginated via `continueFrom`). | - |
-| `get-file` | Fetch a file page. | - |
-| `get-page` | Fetch a wiki page. | - |
-| `get-page-history` | List recent revisions of a wiki page. | - |
-| `get-pages` | Fetch multiple wiki pages in one call (up to 50). | - |
-| `get-recent-changes` | List recent change events across the wiki, filterable by timestamp, namespace, user, tag, type, and hide flags (up to 50 per call, paginated via `continue`). | - |
-| `get-revision` | Fetch a specific revision of a page. | - |
-| `parse-wikitext` | Render wikitext to HTML without saving. Returns parse warnings, wikilinks, templates, and external URLs. | - |
-| `remove-wiki` | Remove a wiki resource. Disabled when `allowWikiManagement` is `false` or fewer than two wikis are configured. | - |
-| `search-page` | Search wiki page titles and contents. | - |
-| `search-page-by-prefix` | Search page titles by prefix. | - |
-| `set-wiki` | Set the active wiki for the current session. Disabled when fewer than two wikis are configured. | - |
-| `smw-list-properties` | List Semantic MediaWiki properties with copy-paste templates for `smw-query`. Enabled only when the wiki has SMW installed. | - |
-| `smw-query` | Run a Semantic MediaWiki `#ask` query. Enabled only when the wiki has SMW installed. | - |
 | `undelete-page` 🔐 | Undelete a wiki page. | `Delete pages, revisions, and log entries` |
 | `update-file` 🔐 | Upload a new revision of an existing file from local disk. | `Upload, replace, and move files` |
 | `update-file-from-url` 🔐 | Upload a new revision of an existing file from a URL. | `Upload, replace, and move files` |
 | `update-page` 🔐 | Update an existing wiki page. | `Edit existing pages` |
 | `upload-file` 🔐 | Upload a file to the wiki from local disk. | `Upload new files` |
 | `upload-file-from-url` 🔐 | Upload a file to the wiki from a URL. | `Upload, replace, and move files` |
+
+#### Wiki management
+
+| Name | Description |
+|---|---|
+| `add-wiki` | Add a wiki as an MCP resource from its URL. Disabled when `allowWikiManagement` is `false`. |
+| `remove-wiki` | Remove a wiki resource. Disabled when `allowWikiManagement` is `false` or fewer than two wikis are configured. |
+| `set-wiki` | Set the active wiki for the current session. Disabled when fewer than two wikis are configured. |
+
+#### OAuth
+
+| Name | Description |
+|---|---|
+| `oauth-logout` | Remove stored OAuth tokens. Stdio only. |
+| `oauth-status` | List stored OAuth tokens with scopes and expiry (no token values). Stdio only. |
+
+#### Extension packs
+
+| Name | Description |
+|---|---|
+| `bucket-query` | Run a [Bucket extension](https://github.com/weirdgloop/mediawiki-extensions-Bucket) Lua query. Enabled only when the wiki has Bucket installed. |
+| `cargo-describe-table` | List the fields of a [Cargo extension](https://www.mediawiki.org/wiki/Extension:Cargo) table with their types and list-flags. Enabled only when the wiki has Cargo installed. |
+| `cargo-list-tables` | List Cargo tables defined on the active wiki. Enabled only when the wiki has Cargo installed. |
+| `cargo-query` | Run a [Cargo extension](https://www.mediawiki.org/wiki/Extension:Cargo) SQL-style query. Enabled only when the wiki has Cargo installed. |
+| `smw-list-properties` | List Semantic MediaWiki properties with copy-paste templates for `smw-query`. Enabled only when the wiki has SMW installed. |
+| `smw-query` | Run a Semantic MediaWiki `#ask` query. Enabled only when the wiki has SMW installed. |
 
 ### Resources
 

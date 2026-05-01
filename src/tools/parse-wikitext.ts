@@ -29,7 +29,7 @@ const inputSchema = {
 export const parseWikitext: Tool<typeof inputSchema> = {
 	name: 'parse-wikitext',
 	description:
-		'Renders wikitext through the live wiki without saving. Returns HTML, parse warnings, categories, wikilinks, templates, external URLs, and display title. Suited to dry-running a planned edit before create-page or update-page, or previewing standalone wikitext (template combinations, sanitizer checks) with no target page. HTML output is truncated at 50000 bytes with a trailing marker; a smaller wikitext fragment in a follow-up call returns the rest.',
+		'Renders wikitext through the live wiki without saving. Returns HTML, parse warnings, categories, wikilinks, templates, external URLs, and display title. Suited to dry-running a planned edit before create-page or update-page, or previewing standalone wikitext (template combinations, sanitizer checks) with no target page. HTML output is truncated at 50000 bytes by default with a trailing marker; a smaller wikitext fragment in a follow-up call returns the rest.',
 	inputSchema,
 	annotations: {
 		title: 'Preview wikitext',

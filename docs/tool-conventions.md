@@ -60,6 +60,13 @@ The JSON Schema generated from zod already tells the model:
 
 Do not restate this in prose. Prose is for context the schema cannot express.
 
+#### Quoting code, params, and enum values
+
+- **Tool names** appear bare in prose (`get-page`, not in backticks).
+- **Parameter names alone** appear bare (e.g., "paginate with continueFrom"). Use backticks only when the bare form would collide with an English word (e.g., the `wiki` parameter in `oauth-logout`).
+- **Parameter assignments** are bare for primitive RHS (`section=N`, `metadata=true`) and use single quotes for enum string values (`mode='append'`, `'new'`).
+- **Wiki syntax and code identifiers** use backticks: `[[Category:Person]]`, `_pageData`, `bucket("exchange")`, `MCP_CONTENT_MAX_BYTES`.
+
 #### Avoid tautology
 
 A description that restates the tool name adds zero information. `"Deletes a wiki page"` for `delete-page` is a bad description. A better description says what "delete" means in MediaWiki (deleted pages are recoverable via `undelete-page` until purge), what the tool returns, and what errors the caller might see.
@@ -128,7 +135,7 @@ Tools that return variable-size result sets or content bodies have a per-call ca
 - **Without continuation** (the only remedy is a narrower query): `"Result capped at N <items>. Additional <items> may exist — <narrow-hint>."`
 - **Content truncated** (the response body exceeded the byte budget): `"Content truncated at N of M bytes. [Available sections: 0 (Lead), 1 (<heading>), ....] <remedy>"` where `<remedy>` is a full sentence of the form `"To <purpose>, <action>."` (e.g. `"To read a specific section, call get-page again with section=N."`), matching the connector-phrase pattern used by the `more-available` shape.
 
-Descriptions for these tools state the cap explicitly. If continuation is supported, descriptions reference the continuation parameter by name so the LLM can pick the right parameter without inspecting the schema.
+Descriptions state the default cap with a "by default" qualifier (e.g., "truncated at 50000 bytes by default"). The qualifier is load-bearing because operators can override `DEFAULT_CONTENT_MAX_BYTES` via `MCP_CONTENT_MAX_BYTES`; without it, descriptions misrepresent customised deployments. If continuation is supported, descriptions reference the continuation parameter by name so the LLM can pick the right parameter without inspecting the schema.
 
 The byte budget for content bodies is centrally resolved via `resolveContentMaxBytes()` in `src/results/truncation.ts` — it reads the `MCP_CONTENT_MAX_BYTES` environment variable and falls back to `DEFAULT_CONTENT_MAX_BYTES` (50000). Tools do not invent their own limits. Section-aware tools (`get-page`, `get-pages`) include a section list in the marker so the caller can navigate without a follow-up "list sections" call.
 
@@ -237,3 +244,11 @@ When writing or updating a tool in these pairs, each side's description should e
 - **`compare-pages` vs. client-side diff** — `compare-pages` computes the diff server-side and returns a compact text diff; prefer it over fetching both sources and diffing locally.
 - **`upload-file` vs `update-file`** — create a new file (rejects if the title already exists) vs. upload a new revision of an existing file (rejects if the title does not exist).
 - **`upload-file-from-url` vs `update-file-from-url`** — same pairing for URL-source uploads.
+
+#### Extension-pack tool descriptions
+
+Tools in an extension pack (`src/tools/extensions/<id>/`) are registered only when the active wiki has the gate extension installed. Pack-specific overlays on the general description rules:
+
+- **Name the gate explicitly** — e.g., "Enabled only when the wiki has Cargo installed." Sets caller expectations about availability across wikis.
+- **Route between pack siblings.** When a pack ships discovery tools (`*-list-*`, `*-describe-*`) alongside a query tool, the query tool's description references the discovery tools by name. Sibling disambiguation (Part 1) applies as in any pair.
+- **Anchor domain syntax** when the tool surfaces a non-obvious dialect (`#ask` for SMW, JSON-bucket schemas for Bucket, SQL-style filters for Cargo). Brief inline examples beat prose.

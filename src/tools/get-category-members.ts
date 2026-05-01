@@ -41,7 +41,7 @@ const inputSchema = {
 export const getCategoryMembers: Tool<typeof inputSchema> = {
 	name: 'get-category-members',
 	description:
-		"Returns each member's page ID, namespace ID, and wiki page title. Optionally filter by member type (page, file, subcat) or by namespace ID — filters apply server-side before the cap. Returns up to 500 members per call; paginate with continueFrom (opaque cursor echoed from the previous response).",
+		"Lists members of a category, returning each member's page ID, namespace ID, and wiki page title. Optionally filter by member type (page, file, subcat) or by namespace ID — filters apply server-side before the cap. Returns up to 500 members per call; paginate with continueFrom (opaque cursor echoed from the previous response).",
 	inputSchema,
 	annotations: {
 		title: 'Get category members',
