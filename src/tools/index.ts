@@ -4,12 +4,7 @@ import { errorMessage } from '../errors/isErrnoException.js';
 import { logger } from '../runtime/logger.js';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext, ManagementContext } from '../runtime/context.js';
-import {
-	type Reconcile,
-	SMW_GATED_TOOLS,
-	BUCKET_GATED_TOOLS,
-	CARGO_GATED_TOOLS,
-} from '../runtime/reconcile.js';
+import type { Reconcile } from '../runtime/reconcile.js';
 import { dispatch } from '../runtime/dispatcher.js';
 import { register } from '../runtime/register.js';
 
@@ -24,12 +19,7 @@ import { comparePages } from './compare-pages.js';
 import { getFile } from './get-file.js';
 import { getRevision } from './get-revision.js';
 import { getCategoryMembers } from './get-category-members.js';
-import { smwQuery } from './smw-query.js';
-import { smwListProperties } from './smw-list-properties.js';
-import { bucketQuery } from './bucket-query.js';
-import { cargoListTables } from './cargo-list-tables.js';
-import { cargoDescribeTable } from './cargo-describe-table.js';
-import { cargoQuery } from './cargo-query.js';
+import { extensionPacks } from './extensions/index.js';
 import { createPage } from './create-page.js';
 import { updatePage } from './update-page.js';
 import { deletePage } from './delete-page.js';
@@ -61,12 +51,6 @@ export const standardTools: Tool<any>[] = [
 	getFile,
 	getRevision,
 	getCategoryMembers,
-	smwQuery,
-	smwListProperties,
-	bucketQuery,
-	cargoListTables,
-	cargoDescribeTable,
-	cargoQuery,
 	createPage,
 	updatePage,
 	deletePage,
@@ -89,7 +73,12 @@ export function registerAllTools(
 ): Map<string, RegisteredTool> {
 	const registered = new Map<string, RegisteredTool>();
 
-	for (const tool of standardTools) {
+	// oxlint-disable-next-line typescript/no-explicit-any
+	const allStandardTools: Tool<any>[] = [
+		...standardTools,
+		...extensionPacks.flatMap((p) => p.tools),
+	];
+	for (const tool of allStandardTools) {
 		try {
 			registered.set(tool.name, register(server, tool, dispatch(tool, ctx)));
 		} catch (error) {
@@ -110,10 +99,12 @@ export function registerAllTools(
 	// the extension detector confirms the relevant extension is installed on
 	// the active wiki. This avoids a race where tools/list arrives before the
 	// initial reconcile completes.
-	for (const name of [...SMW_GATED_TOOLS, ...BUCKET_GATED_TOOLS, ...CARGO_GATED_TOOLS]) {
-		const tool = registered.get(name);
-		if (tool && tool.enabled) {
-			tool.disable();
+	for (const pack of extensionPacks) {
+		for (const tool of pack.tools) {
+			const reg = registered.get(tool.name);
+			if (reg && reg.enabled) {
+				reg.disable();
+			}
 		}
 	}
 
