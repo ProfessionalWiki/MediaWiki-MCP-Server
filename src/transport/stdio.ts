@@ -37,7 +37,9 @@ async function main(): Promise<void> {
 main().catch((error) => {
 	// Bootstrap fail-safe: see the equivalent block in src/index.ts. Logger
 	// module not used here intentionally so a logger import failure can't
-	// suppress this path.
+	// suppress this path. Exit cleanly instead of re-throwing — `throw` from
+	// inside .catch creates a detached promise chain that fires as an
+	// unhandled-rejection warning on top of our own message.
 	console.error('Server error:', error);
-	throw error;
+	process.exit(1);
 });

@@ -12,7 +12,9 @@ async function main(): Promise<void> {
 main().catch((error) => {
 	// Bootstrap fail-safe: the logger module may itself be unimportable here
 	// (transitive failure during boot). Stay on console.error so this last-
-	// resort path always works.
+	// resort path always works. Re-throwing here would create a detached
+	// promise chain (the .catch derivative) and surface as an unhandled
+	// rejection on top of our own error message — exit cleanly instead.
 	console.error('Fatal error in main():', error);
-	throw error;
+	process.exit(1);
 });
