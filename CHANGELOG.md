@@ -8,55 +8,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Breaking changes
 
-- Bumped `engines.node` to `>=22.12.0` (was `>=18`) to align with the current Node LTS line. Node 20 reached EOL in April 2026 and Node 22 LTS is supported through April 2027. Downstream consumers pinned to Node 18 or 20 must upgrade.
+- Bumped `engines.node` to `>=22.12.0` (was `>=18`). Node 20 reached EOL in April 2026; Node 22 LTS is supported through April 2027. Downstream consumers pinned to Node 18 or 20 must upgrade.
 
 ### Added
 
-- Browser-based OAuth 2.0 login. Set `oauth2ClientId` (and, for MediaWiki, `oauth2CallbackPort`) on a wiki entry to opt in. On HTTP transport the server publishes `/.well-known/oauth-protected-resource` (RFC 9728) and returns `WWW-Authenticate: Bearer resource_metadata="…"` on 401s; OAuth-aware MCP clients drive auth-code+PKCE against the wiki. On stdio the server opens a browser the first time a tool call needs an OAuth token, runs a loopback callback on `127.0.0.1:<oauth2CallbackPort>`, and stores tokens in `~/.config/mediawiki-mcp/credentials.json` (mode 0600) — refreshed before expiry on subsequent calls. Static credentials in `config.json` continue to work for wikis that don't opt in.
-- `oauth-status` tool — lists wikis with stored OAuth tokens, their scopes, and expiry. Stdio only.
-- `oauth-logout` tool — removes stored OAuth tokens (one wiki or all). Stdio only.
-- `MCP_OAUTH_CREDENTIALS_FILE` env var — overrides the default token-store path.
-- `MCP_OAUTH_NO_BROWSER` env var — when set to `1`, skips `open()` and logs the auth URL to stderr instead.
-- `MCP_PUBLIC_URL` env var — overrides the request-derived public URL used in the protected-resource `resource` field for awkward proxy setups.
-- New per-wiki config field `oauth2ClientId` — OAuth 2.0 client identifier from `Special:OAuthConsumerRegistration/propose/oauth2`. Public client + PKCE only; no client secret.
-- New per-wiki config field `oauth2CallbackPort` — fixed loopback port for the OAuth callback. Required for MediaWiki's Extension:OAuth, whose OAuth 2.0 implementation exact-matches the registered redirect URI rather than honouring RFC 8252 §7.3 loopback port flexibility. The registered callback URL must be `http://127.0.0.1:<port>/oauth/callback` with the same port number set in this field. Omit only against authorization servers that follow RFC 8252.
-- `MCP_LOG_LEVEL` env var (default `debug`) sets the minimum severity for logger output. Filters both stderr telemetry and the `sendLoggingMessage` broadcast. Accepts the eight RFC 5424 levels plus `silent`. Invalid values throw on first log call.
-- `smw-query` tool — runs a Semantic MediaWiki `#ask` query and returns row-shaped results. Enabled only when the wiki has Semantic MediaWiki installed (auto-detected from `siteinfo`).
-- `smw-list-properties` tool — lists SMW properties with copy-paste templates for `smw-query`. Same gating.
-- `bucket-query` tool — runs a [Bucket extension](https://github.com/weirdgloop/mediawiki-extensions-Bucket) Lua query and returns row-shaped results. Enabled only when the wiki has Bucket installed (auto-detected from `siteinfo`).
-- `cargo-query`, `cargo-list-tables`, and `cargo-describe-table` tools for the [Cargo extension](https://www.mediawiki.org/wiki/Extension:Cargo). Each runs a Cargo API call (`cargoquery` / `cargotables` / `cargofields`); enabled only when the wiki has Cargo installed (auto-detected from `siteinfo`). Also recognised under the rebranded name `LIBRARIAN` used by wiki.gg-hosted wikis.
+- Browser-based OAuth 2.0 login. Set `oauth2ClientId` (and, for MediaWiki, `oauth2CallbackPort`) on a wiki entry to opt in. HTTP transport uses standard OAuth discovery (RFC 9728) plus `WWW-Authenticate` headers so OAuth-aware MCP clients can drive auth-code+PKCE flows. On stdio, the server opens a browser the first time a tool needs a token, stores the result in `~/.config/mediawiki-mcp/credentials.json`, and refreshes it before expiry. Static credentials in `config.json` continue to work for wikis that don't opt in.
+  - Two new stdio-only tools: `oauth-status` (lists wikis with stored tokens, scopes, and expiry — never the values) and `oauth-logout` (removes stored tokens, one wiki or all).
+  - Three new env vars: `MCP_OAUTH_CREDENTIALS_FILE` overrides the token-store path; `MCP_OAUTH_NO_BROWSER=1` skips the browser launch and logs the auth URL to stderr (useful in headless environments); `MCP_PUBLIC_URL` overrides the request-derived public URL for awkward proxy setups.
+  - Two new per-wiki config fields: `oauth2ClientId` (public-client identifier from `Special:OAuthConsumerRegistration/propose/oauth2`) and `oauth2CallbackPort` (loopback port for the OAuth callback URL — required for MediaWiki's Extension:OAuth, which exact-matches the redirect URI).
+- `MCP_LOG_LEVEL` env var (default `debug`) sets the minimum severity for logger output, filtering both stderr telemetry and the `sendLoggingMessage` broadcast. Accepts the eight RFC 5424 levels plus `silent`.
+- `smw-query` and `smw-list-properties` tools for [Semantic MediaWiki](https://github.com/SemanticMediaWiki/SemanticMediaWiki) — runs `#ask` queries and discovers SMW properties with copy-paste templates. Auto-detected from `siteinfo`; only registered on wikis that have SMW installed.
+- `bucket-query` tool for the [Bucket extension](https://github.com/weirdgloop/mediawiki-extensions-Bucket) — runs Lua-style queries and returns row-shaped results. Same gating.
+- `cargo-query`, `cargo-list-tables`, and `cargo-describe-table` tools for the [Cargo extension](https://www.mediawiki.org/wiki/Extension:Cargo). Each calls one Cargo API action (`cargoquery` / `cargotables` / `cargofields`); same gating, and also recognised under the rebranded name `LIBRARIAN` used by wiki.gg-hosted wikis.
 - Optional `GET /metrics` Prometheus endpoint on the HTTP transport, enabled with `MCP_METRICS=true`. Exposes tool-call counters, duration histograms, upstream status totals, active sessions, and readiness-probe failures.
-- `SIGTERM` and `SIGINT` now drain in-flight `/mcp` calls and close active StreamableHTTP sessions before exit, with a structured `event: "shutdown"` / `event: "shutdown_complete"` pair on stderr. Configurable via `MCP_SHUTDOWN_GRACE_MS` (default `10000`). Stdio transport closes its single transport on the same signals.
+- Graceful shutdown — `SIGTERM` and `SIGINT` drain in-flight `/mcp` calls and close active StreamableHTTP sessions before exit, emitting `event: "shutdown"` / `event: "shutdown_complete"` on stderr. Configurable via `MCP_SHUTDOWN_GRACE_MS` (default `10000`). Stdio transport closes its single transport on the same signals.
 - `MCP_MAX_REQUEST_BODY` env var (default `1mb`) caps HTTP request body size, replacing body-parser's silent 100 kB default that was rejecting long-form wikitext edits. Oversize requests return a JSON-RPC 413; the resolved value appears in the startup banner.
 - Published Docker image at `ghcr.io/professionalwiki/mediawiki-mcp-server`. Multi-arch (`linux/amd64`, `linux/arm64`); release builds carry SLSA provenance, SPDX SBOM, and a cosign keyless signature; edge builds (`master` tip) carry attestations only. Tag conventions and verification command in [`docs/deployment.md`](docs/deployment.md).
-- Git hooks via lefthook. Installed automatically by `npm install`. Pre-commit auto-formats staged files with oxfmt and verifies oxlint cleanliness; pre-push runs `tsgo --noEmit` and the vitest suite. Configured in `lefthook.yml`.
 
 ### Changed
 
-- Group extension-gated tools (SMW, Bucket, Cargo) into self-describing extension packs under `src/tools/extensions/<id>/`. `runtime/reconcile.ts` no longer hard-codes per-extension knowledge. No behavioural change to any tool — names, descriptions, telemetry, and gating are identical on the wire.
-- Resolved the type-aware lint warnings deferred from the TypeScript 7 upgrade. Tests are no longer subject to the type-assertion rules, and source code is tightened to satisfy them. Published packages are unaffected.
-- Build, watch, and type-check now run on the TypeScript 7 native compiler. Editors continue to use the TypeScript 6 language service. Published packages are unaffected.
-- Lint now runs type-aware checks and catches a class of bugs that syntactic lint misses: unawaited Promises, unbound class methods used as callbacks, and stringifying objects without a meaningful `toString`. Additional non-blocking warnings on type-assertion smells remain and will be tackled in a follow-up.
-- The Docker build context is now an allow-list (`src/`, `package.json`, `package-lock.json`, `tsconfig.json`, `server.json`) instead of the entire repository, configured via a new `.dockerignore`.
-- Reworked Docker image labels to follow OCI image-spec: dropped the deprecated `maintainer` label and the hand-maintained `image.version`; added `image.title`, `image.url`, `image.source`, `image.licenses`, and a per-build `image.revision` populated from a `GIT_SHA` build arg.
-- The production image now installs dependencies with `npm ci --omit=dev` instead of `npm install --production`. Builds fail if `package-lock.json` and `package.json` are out of sync.
-- `npm version` no longer touches `Dockerfile`. The `image.version` label it used to keep in sync has been removed; `scripts/sync-version.cjs` continues to update `server.json`, `mcpb/manifest.json`, and `gemini-extension.json`.
-- Replaced ESLint and `eslint-config-wikimedia` with oxlint and oxfmt. Coding-style settings live in `.oxlintrc.json` and `.oxfmtrc.json`. Code reformatted to `useTabs: true`, `singleQuote: true`, otherwise oxfmt defaults (trailing commas everywhere, no spaces inside parens or brackets, default print width).
-- Pinned the Dockerfile base image to a specific `node:lts-alpine` digest. Dependabot's new `docker` ecosystem entry tracks digest updates and opens PRs when Alpine/Node publish new images, so base-image patches reach published builds via auditable git history rather than silent rebuilds.
-- The Docker builder stage now installs dependencies with `npm ci --ignore-scripts`, matching the production stage. Stops third-party postinstall scripts from running during the build that the SLSA provenance attestation vouches for.
-- Server startup constructs wiki state explicitly rather than as a side effect of module imports. Internal restructuring; no user-visible behaviour change.
-- Reorganised user-facing docs: extracted `docs/operations.md` for day-2 concerns (logs, `/health`/`/ready`, metrics, graceful shutdown), moved per-request bearer and reverse-proxy documentation from `docs/configuration.md` into `docs/deployment.md`, slimmed the README's authentication section, consolidated manual-token and bot-password instructions in `docs/configuration.md`, and converted blockquote callouts to GitHub admonitions.
-
-### Removed
-
-- `.npmignore`. The `files` field in `package.json` already controls npm tarball contents.
+- Reorganised user-facing docs: extracted `docs/operations.md` for day-2 concerns (logs, `/health`/`/ready`, metrics, graceful shutdown); moved per-request bearer and reverse-proxy documentation from `docs/configuration.md` into `docs/deployment.md`; slimmed the README's authentication section; consolidated manual-token and bot-password instructions in `docs/configuration.md`; converted blockquote callouts to GitHub admonitions.
+- Hardened the Docker image. Build context is now an allow-list (`src/`, `package.json`, `package-lock.json`, `tsconfig.json`, `server.json`) rather than the entire repo. Image labels follow OCI image-spec: dropped the deprecated `maintainer` and hand-maintained `image.version`; added `image.title`, `image.url`, `image.source`, `image.licenses`, and a per-build `image.revision` populated from a `GIT_SHA` build arg. Both build stages now install dependencies with `npm ci --ignore-scripts` so third-party postinstall scripts can't run during the SLSA-attested build. The `node:lts-alpine` base is pinned by digest, with Dependabot tracking digest updates so base-image patches reach published builds via auditable git history.
+- Switched the dev toolchain to compiled tooling for substantially faster iteration: `tsgo` (Go-based TypeScript 7 native compiler) drives build/watch/type-check; oxlint and oxfmt (Rust-based) replace ESLint and Prettier. The new lint pipeline also runs type-aware checks, catching unawaited Promises, unbound methods used as callbacks, and accidental stringification of non-plain objects. Published packages are unaffected.
 
 ### Fixed
 
 - The dispatcher OAuth gate no longer fires for `add-wiki`, `set-wiki`, `remove-wiki`, `oauth-status`, or `oauth-logout`. These tools operate on server-local state (the wiki registry, the OAuth token store) and don't need a token for the active wiki. Without this fix, a wiki whose OAuth had gone stale would render those five tools unreachable — leaving no way to switch away from it or clear its tokens.
 - Read-only wikis now hide the `update-file` and `update-file-from-url` tools. They were previously left enabled because the read-only gate's tool list was missing the two `update-file*` entries.
 - Markdown payload formatter no longer renders class instances and other non-plain objects as the bare `[object Object]`.
-- `scripts/validate-server-json.cjs` now exits with status 1 on validation failure instead of leaving an unhandled rejection.
 
 ## [0.8.0] - 2026-04-28
 
