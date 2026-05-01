@@ -52,7 +52,7 @@ A pack is a self-describing module exposing tools that share an extension gate. 
 2. Create `src/tools/extensions/<id>/index.ts` exporting the pack:
 	```ts
 	import type { ExtensionPack } from '../types.js';
-	import { … } from './….js';
+	import { myTool } from './<id>-<verb>.js';
 
 	export const <id>Pack: ExtensionPack = {
 		id: '<id>',
