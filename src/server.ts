@@ -4,6 +4,7 @@ import { registerServer, unregisterServer } from './runtime/logger.js';
 import { registerAllTools } from './tools/index.js';
 import { registerAllResources } from './resources/index.js';
 import { reconcileTools } from './runtime/reconcile.js';
+import { extensionPacks } from './tools/extensions/index.js';
 import type { ToolContext } from './runtime/context.js';
 
 // https://github.com/nodejs/node/issues/51347#issuecomment-2111337854
@@ -64,6 +65,7 @@ export const createServer = async (ctx: ToolContext): Promise<McpServer> => {
 			wikiSelection: ctx.selection,
 			transport: ctx.transport,
 			extensions: ctx.extensions,
+			extensionPacks,
 		});
 		// Notify clients that the wiki resource list may have changed (e.g. after
 		// add-wiki / remove-wiki). Also covers tool-list changes since toggling a

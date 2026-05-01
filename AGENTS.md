@@ -4,7 +4,8 @@ Project context for AI coding agents working on this repo. For human users, star
 
 ## Repo layout
 
-- `src/tools/` — one file per MCP tool (descriptor + handler + registration).
+- `src/tools/` — one file per non-extension MCP tool (descriptor + handler + registration).
+- `src/tools/extensions/<id>/` — extension packs: tools gated on a specific MediaWiki extension (SMW / Bucket / Cargo / …), grouped under a per-pack module.
 - `src/runtime/` — context, dispatcher, register, reconcile, logger, constants.
 - `src/wikis/` — wiki registry, selection, mwn provider, discovery, error sanitiser.
 - `src/transport/` — stdio and streamable HTTP entry points, SSRF/upload guards, request context, low-level HTTP helpers.
@@ -42,6 +43,27 @@ A PR that adds, removes, or renames a tool — or that materially changes a tool
 - **`CHANGELOG.md`** — an entry under `## [Unreleased]` (Added / Changed / Removed / Breaking changes as appropriate, per [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)).
 
 Pure-internal refactors that don't change tool surface or behaviour don't need either.
+
+## Adding an extension pack
+
+A pack is a self-describing module exposing tools that share an extension gate. To add one:
+
+1. Create `src/tools/extensions/<id>/<id>-<verb>.ts` for each tool, following the conventions in `docs/tool-conventions.md`.
+2. Create `src/tools/extensions/<id>/index.ts` exporting the pack:
+	```ts
+	import type { ExtensionPack } from '../types.js';
+	import { myTool } from './<id>-<verb>.js';
+
+	// Convention: export name folds the id — `smwPack`, `bucketPack`, etc.
+	export const myPack: ExtensionPack = {
+		id: '<id>',
+		extensionNames: ['CanonicalExtensionName' /*, aliases */],
+		tools: [/* tool descriptors */],
+	};
+	```
+3. Add the pack to the `extensionPacks` array in `src/tools/extensions/index.ts`.
+
+Reconcile picks up the new pack automatically — no edits to `src/runtime/reconcile.ts`. README.md and CHANGELOG.md still need updating per the policy in "Adding or changing tools".
 
 ## Adding or changing environment variables
 

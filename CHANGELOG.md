@@ -33,6 +33,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Changed
 
+- Group extension-gated tools (SMW, Bucket, Cargo) into self-describing extension packs under `src/tools/extensions/<id>/`. `runtime/reconcile.ts` no longer hard-codes per-extension knowledge. No behavioural change to any tool — names, descriptions, telemetry, and gating are identical on the wire.
 - Resolved the type-aware lint warnings deferred from the TypeScript 7 upgrade. Tests are no longer subject to the type-assertion rules, and source code is tightened to satisfy them. Published packages are unaffected.
 - Build, watch, and type-check now run on the TypeScript 7 native compiler. Editors continue to use the TypeScript 6 language service. Published packages are unaffected.
 - Lint now runs type-aware checks and catches a class of bugs that syntactic lint misses: unawaited Promises, unbound class methods used as callbacks, and stringifying objects without a meaningful `toString`. Additional non-blocking warnings on type-assertion smells remain and will be tackled in a follow-up.

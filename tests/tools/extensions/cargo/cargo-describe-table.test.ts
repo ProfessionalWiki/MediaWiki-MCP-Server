@@ -1,10 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { createMockMwnError } from '../helpers/mock-mwn-error.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { cargoDescribeTable } from '../../src/tools/cargo-describe-table.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
+import { createMockMwn } from '../../../helpers/mock-mwn.js';
+import { createMockMwnError } from '../../../helpers/mock-mwn-error.js';
+import { fakeContext } from '../../../helpers/fakeContext.js';
+import { cargoDescribeTable } from '../../../../src/tools/extensions/cargo/cargo-describe-table.js';
+import { dispatch } from '../../../../src/runtime/dispatcher.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess,
+} from '../../../helpers/structuredResult.js';
 
 describe('cargo-describe-table', () => {
 	it('forwards table to action=cargofields and normalizes the response', async () => {

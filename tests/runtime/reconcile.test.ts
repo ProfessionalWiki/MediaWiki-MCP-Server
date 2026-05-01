@@ -6,6 +6,8 @@ import type { WikiSelection } from '../../src/wikis/wikiSelection.js';
 import type { ExtensionDetector } from '../../src/wikis/extensionDetector.js';
 import { reconcileTools, computeDesiredEnabledState } from '../../src/runtime/reconcile.js';
 import type { ToolGatingRule, ReconcileContext } from '../../src/runtime/reconcile.js';
+import type { ExtensionPack } from '../../src/tools/extensions/types.js';
+import type { Tool } from '../../src/runtime/tool.js';
 
 const WRITE_TOOL_NAMES = [
 	'create-page',
@@ -104,6 +106,29 @@ function makeFakeDetector(answers: Record<string, boolean> = {}): ExtensionDetec
 	};
 }
 
+function makeFakePack(
+	id: string,
+	extensionNames: readonly string[],
+	toolNames: readonly string[],
+): ExtensionPack {
+	return {
+		id,
+		extensionNames,
+		// Synthetic tools — only `name` matters for reconcile (gating works on names).
+		// oxlint-disable-next-line typescript/no-explicit-any
+		tools: toolNames.map((name) => ({ name }) as unknown as Tool<any>),
+	};
+}
+
+const SMW_PACK = makeFakePack('smw', ['SemanticMediaWiki'], ['smw-query', 'smw-list-properties']);
+const BUCKET_PACK = makeFakePack('bucket', ['Bucket'], ['bucket-query']);
+const CARGO_PACK = makeFakePack(
+	'cargo',
+	['Cargo', 'LIBRARIAN'],
+	['cargo-list-tables', 'cargo-describe-table', 'cargo-query'],
+);
+const ALL_PACKS: readonly ExtensionPack[] = [SMW_PACK, BUCKET_PACK, CARGO_PACK];
+
 describe('reconcileTools — applyReadOnlyRule', () => {
 	it('disables every write tool when the active wiki is readOnly', async () => {
 		const { tools, mocks } = makeToolMap(true);
@@ -118,6 +143,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
 		});
 		for (const name of WRITE_TOOL_NAMES) {
 			expect(mocks.get(name)!.disable).toHaveBeenCalledTimes(1);
@@ -138,6 +164,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
 		});
 		for (const name of NON_WRITE_TOOL_NAMES) {
 			expect(mocks.get(name)!.disable).not.toHaveBeenCalled();
@@ -158,6 +185,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
 		});
 		for (const name of WRITE_TOOL_NAMES) {
 			expect(mocks.get(name)!.enable).toHaveBeenCalledTimes(1);
@@ -177,6 +205,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
 		});
 		for (const name of WRITE_TOOL_NAMES) {
 			expect(mocks.get(name)!.enable).toHaveBeenCalledTimes(1);
@@ -192,6 +221,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 			wikiSelection: m1.selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
 		});
 		for (const m of mocks.values()) {
 			m.enable.mockClear();
@@ -203,6 +233,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 			wikiSelection: m2.selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
 		});
 		for (const m of mocks.values()) {
 			expect(m.enable).not.toHaveBeenCalled();
@@ -225,6 +256,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 				wikiSelection: selection,
 				transport: 'stdio',
 				extensions: makeFakeDetector(),
+				extensionPacks: ALL_PACKS,
 			}),
 		).resolves.not.toThrow();
 		for (const name of WRITE_TOOL_NAMES) {
@@ -249,6 +281,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
 		});
 		for (const name of ['add-wiki', 'remove-wiki', 'set-wiki']) {
 			expect(mocks.get(name)!.disable).toHaveBeenCalledTimes(1);
@@ -267,6 +300,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('add-wiki')!.enable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('remove-wiki')!.disable).not.toHaveBeenCalled();
@@ -285,6 +319,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('set-wiki')!.enable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('add-wiki')!.enable).not.toHaveBeenCalled();
@@ -303,6 +338,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
 		});
 		for (const name of ['add-wiki', 'remove-wiki', 'set-wiki']) {
 			expect(mocks.get(name)!.enable).toHaveBeenCalledTimes(1);
@@ -321,6 +357,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 			wikiSelection: m1.selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('set-wiki')!.enabled).toBe(false);
 
@@ -334,6 +371,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 			wikiSelection: m2.selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('set-wiki')!.enabled).toBe(true);
 	});
@@ -350,6 +388,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 			wikiSelection: m1.selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('remove-wiki')!.enabled).toBe(true);
 
@@ -363,6 +402,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 			wikiSelection: m2.selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('remove-wiki')!.enabled).toBe(false);
 	});
@@ -381,6 +421,7 @@ describe('reconcileTools — applyTransportRule', () => {
 			wikiSelection: selection,
 			transport: 'http',
 			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
 		});
 		for (const name of STDIO_ONLY_TOOL_NAMES) {
 			expect(mocks.get(name)!.disable).toHaveBeenCalledTimes(1);
@@ -400,6 +441,7 @@ describe('reconcileTools — applyTransportRule', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
 		});
 		for (const name of STDIO_ONLY_TOOL_NAMES) {
 			expect(mocks.get(name)!.enable).toHaveBeenCalledTimes(1);
@@ -419,6 +461,7 @@ describe('reconcileTools — applyTransportRule', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
 		});
 		for (const name of STDIO_ONLY_TOOL_NAMES) {
 			expect(mocks.get(name)!.enable).toHaveBeenCalledTimes(1);
@@ -437,6 +480,7 @@ describe('reconcileTools — applyTransportRule', () => {
 			wikiSelection: selection,
 			transport: 'http',
 			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
 		});
 		for (const name of NON_WRITE_TOOL_NAMES) {
 			expect(mocks.get(name)!.disable).not.toHaveBeenCalled();
@@ -460,6 +504,7 @@ describe('reconcileTools — AND semantics across rules', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
 		});
 		// create-page is write-gated → disabled.
 		expect(mocks.get('create-page')!.enabled).toBe(false);
@@ -597,6 +642,7 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector({}),
+			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('smw-query')!.disable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('smw-list-properties')!.disable).toHaveBeenCalledTimes(1);
@@ -615,6 +661,7 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector({ 'a:SemanticMediaWiki': true }),
+			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('smw-query')!.enable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('smw-list-properties')!.enable).toHaveBeenCalledTimes(1);
@@ -622,10 +669,10 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 
 	it('queries the detector with the active wiki key', async () => {
 		const { tools } = makeToolMapWithSmw(false);
-		const hasSpy = vi.fn(async () => true);
+		const hasAnySpy = vi.fn(async () => true);
 		const detector: ExtensionDetector = {
-			has: hasSpy,
-			hasAny: vi.fn(async () => false),
+			has: vi.fn(async () => false),
+			hasAny: hasAnySpy,
 			invalidate: vi.fn(),
 		};
 		const { registry, selection } = makeMocks({
@@ -638,8 +685,9 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: detector,
+			extensionPacks: ALL_PACKS,
 		});
-		expect(hasSpy).toHaveBeenCalledWith('a', 'SemanticMediaWiki');
+		expect(hasAnySpy).toHaveBeenCalledWith('a', ['SemanticMediaWiki']);
 	});
 });
 
@@ -670,6 +718,7 @@ describe('reconcileTools — applyBucketExtensionRule', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector({}),
+			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('bucket-query')!.disable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('get-page')!.disable).not.toHaveBeenCalled();
@@ -687,16 +736,17 @@ describe('reconcileTools — applyBucketExtensionRule', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector({ 'a:Bucket': true }),
+			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('bucket-query')!.enable).toHaveBeenCalledTimes(1);
 	});
 
-	it('queries the detector with the active wiki key and the string "Bucket"', async () => {
+	it('queries the detector with the active wiki key and ["Bucket"]', async () => {
 		const { tools } = makeToolMapWithBucket(false);
-		const hasSpy = vi.fn(async () => true);
+		const hasAnySpy = vi.fn(async () => true);
 		const detector: ExtensionDetector = {
-			has: hasSpy,
-			hasAny: vi.fn(async () => false),
+			has: vi.fn(async () => false),
+			hasAny: hasAnySpy,
 			invalidate: vi.fn(),
 		};
 		const { registry, selection } = makeMocks({
@@ -709,8 +759,9 @@ describe('reconcileTools — applyBucketExtensionRule', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: detector,
+			extensionPacks: ALL_PACKS,
 		});
-		expect(hasSpy).toHaveBeenCalledWith('a', 'Bucket');
+		expect(hasAnySpy).toHaveBeenCalledWith('a', ['Bucket']);
 	});
 });
 
@@ -741,6 +792,7 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector({}),
+			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('cargo-list-tables')!.disable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('cargo-describe-table')!.disable).toHaveBeenCalledTimes(1);
@@ -760,6 +812,7 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector({ 'a:Cargo': true }),
+			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('cargo-list-tables')!.enable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('cargo-describe-table')!.enable).toHaveBeenCalledTimes(1);
@@ -784,6 +837,7 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: detector,
+			extensionPacks: ALL_PACKS,
 		});
 		expect(hasAnySpy).toHaveBeenCalledWith('a', ['Cargo', 'LIBRARIAN']);
 	});
@@ -800,6 +854,7 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 			wikiSelection: selection,
 			transport: 'stdio',
 			extensions: makeFakeDetector({ 'a:LIBRARIAN': true }),
+			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('cargo-list-tables')!.enable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('cargo-describe-table')!.enable).toHaveBeenCalledTimes(1);
