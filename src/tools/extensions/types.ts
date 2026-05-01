@@ -11,7 +11,7 @@ export interface ExtensionPack {
 	readonly extensionNames: readonly string[];
 
 	/** Tools provided by this pack. The unifying property is the gate, not the
-	 *  transport — pack tools may use action API, rawRequest, or REST. */
+	 *  request mechanism — pack tools may use action API, rawRequest, or REST. */
 	// oxlint-disable-next-line typescript/no-explicit-any
 	readonly tools: readonly Tool<any>[];
 }
