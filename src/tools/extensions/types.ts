@@ -12,6 +12,8 @@ export interface ExtensionPack {
 
 	/** Tools provided by this pack. The unifying property is the gate, not the
 	 *  request mechanism — pack tools may use action API, rawRequest, or REST. */
+	// `Tool<any>[]` widens the heterogeneous-schema array; see `standardTools`
+	// in `src/tools/index.ts` for the variance rationale.
 	// oxlint-disable-next-line typescript/no-explicit-any
 	readonly tools: readonly Tool<any>[];
 }
