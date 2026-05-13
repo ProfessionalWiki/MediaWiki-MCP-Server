@@ -76,6 +76,11 @@ export class MwnProviderImpl implements MwnProvider {
 			} else if (username && password) {
 				options.username = username;
 				options.password = password;
+				// Force `assert=user` so MediaWiki returns `assertuserfailed` (instead of
+				// silently downgrading to anonymous) once the BotPassword session expires.
+				// mwn already auto-relogs in and retries on that code; without `assert`,
+				// writes would fail with `permissiondenied` and no recovery would occur.
+				options.defaultParams = { ...options.defaultParams, assert: 'user' };
 				instance = await Mwn.init(options);
 			} else {
 				instance = new Mwn(options);
