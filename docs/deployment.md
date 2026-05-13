@@ -10,6 +10,22 @@
 
 The server can run as a remote HTTP endpoint for clients that only accept URLs (e.g. hosted LLM chat products).
 
+## Endpoint
+
+MCP clients connect to the `/mcp` path on the configured host and port. For the local default:
+
+    http://localhost:3000/mcp
+
+For the Docker default:
+
+    http://localhost:8080/mcp
+
+Behind a reverse proxy, the same shape applies:
+
+    https://wiki.example.org/mcp
+
+The path is fixed and not configurable.
+
 ## Environment
 
 | Name | Default | Description |
@@ -175,7 +191,7 @@ docker run --rm -p 8080:8080 \
   ghcr.io/professionalwiki/mediawiki-mcp-server:latest
 ```
 
-The image sets `MCP_TRANSPORT=http`, `PORT=8080`, and `MCP_BIND=0.0.0.0` — `MCP_BIND` is set so container port forwarding reaches the listener, since `127.0.0.1` (the host-default) is per-netns and unreachable from the bridge network. It runs as a non-root user and exposes `/health` and `/ready` for orchestration probes.
+The image sets `MCP_TRANSPORT=http`, `PORT=8080`, and `MCP_BIND=0.0.0.0` — `MCP_BIND` is set so container port forwarding reaches the listener, since `127.0.0.1` (the host-default) is per-netns and unreachable from the bridge network. It runs as a non-root user and exposes `/mcp` for MCP traffic plus `/health` and `/ready` for orchestration probes.
 
 ### Build from source
 
