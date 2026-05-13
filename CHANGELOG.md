@@ -12,7 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Fixed
 
-- Bootstrap error path no longer leaks an unhandled-rejection warning when `main()` fails (e.g. config-loading errors). The fatal-error catch now exits with code 1 instead of re-throwing into a detached `.catch` chain.
+- Startup failures (e.g. config-loading errors) now exit with code 1 instead of leaking a Node unhandled-rejection warning on stderr.
 - Bot-password sessions are now renewed automatically when the MediaWiki session expires (default `$wgObjectCacheSessionExpiry` = 1 hour). Previously, write tools (e.g. `update-page`, `create-page`) failed with `permissiondenied` after the expiry and only a server restart recovered.
 
 ## [0.9.0] - 2026-05-01
