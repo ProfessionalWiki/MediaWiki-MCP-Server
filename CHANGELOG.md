@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Changed
+
+- Documented the `/mcp` endpoint path explicitly in `docs/deployment.md`.
+
 ### Fixed
 
 - Bootstrap error path no longer leaks an unhandled-rejection warning when `main()` fails (e.g. config-loading errors). The fatal-error catch now exits with code 1 instead of re-throwing into a detached `.catch` chain.
