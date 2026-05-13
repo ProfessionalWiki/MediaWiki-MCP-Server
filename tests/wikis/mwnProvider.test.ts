@@ -139,4 +139,48 @@ describe('MwnProviderImpl', () => {
 			}),
 		);
 	});
+
+	it('sets assert=user for BotPassword auth so mwn relogs in on session loss', async () => {
+		const reg = new WikiRegistryImpl(
+			{
+				a: { ...sample('a'), username: 'Bot@MCP', password: 'secret' },
+			},
+			true,
+		);
+		const sel = new WikiSelectionImpl('a', reg);
+		mockInit.mockResolvedValue({ id: 'bot' });
+		const provider = new MwnProviderImpl(reg, sel, () => undefined);
+		await provider.get();
+		expect(mockInit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				username: 'Bot@MCP',
+				password: 'secret',
+				defaultParams: expect.objectContaining({ assert: 'user' }),
+			}),
+		);
+	});
+
+	it('does not set assert=user for OAuth2 token auth', async () => {
+		const reg = new WikiRegistryImpl(
+			{
+				a: { ...sample('a'), token: 'config-token' },
+			},
+			true,
+		);
+		const sel = new WikiSelectionImpl('a', reg);
+		mockInit.mockResolvedValue({ id: 'oauth' });
+		const provider = new MwnProviderImpl(reg, sel, () => undefined);
+		await provider.get();
+		const options = mockInit.mock.calls[0]?.[0] as { defaultParams?: { assert?: unknown } };
+		expect(options.defaultParams?.assert).toBeUndefined();
+	});
+
+	it('does not set assert=user for anonymous mode', async () => {
+		const reg = new WikiRegistryImpl({ a: sample('a') }, true);
+		const sel = new WikiSelectionImpl('a', reg);
+		const provider = new MwnProviderImpl(reg, sel, () => undefined);
+		await provider.get();
+		const options = mockConstructor.mock.calls[0]?.[0] as { defaultParams?: { assert?: unknown } };
+		expect(options.defaultParams?.assert).toBeUndefined();
+	});
 });
