@@ -47,8 +47,8 @@ describe('dispatch OAuth integration', () => {
 
 		const ctx = fakeContext({
 			transport: 'stdio',
-			selection: {
-				getCurrent: () => ({
+			activeWiki: {
+				get: () => ({
 					key: 'test-wiki',
 					config: {
 						sitename: 'Test',
@@ -75,7 +75,7 @@ describe('dispatch OAuth integration', () => {
 
 		const ctx = fakeContext({
 			transport: 'stdio',
-			// default fakeContext selection has no oauth2ClientId
+			// default fakeContext activeWiki has no oauth2ClientId
 		});
 
 		const result = await dispatch(tokenCaptureTool, ctx)({});
@@ -94,8 +94,8 @@ describe('dispatch OAuth integration', () => {
 
 		const ctx = fakeContext({
 			transport: 'http',
-			selection: {
-				getCurrent: () => ({
+			activeWiki: {
+				get: () => ({
 					key: 'test-wiki',
 					config: {
 						sitename: 'Test',
@@ -123,8 +123,8 @@ describe('dispatch OAuth integration', () => {
 		// Point server at a non-existent URL so acquireToken's metadata fetch fails.
 		const ctx = fakeContext({
 			transport: 'stdio',
-			selection: {
-				getCurrent: () => ({
+			activeWiki: {
+				get: () => ({
 					key: 'broken-wiki',
 					config: {
 						sitename: 'Broken',
@@ -171,8 +171,8 @@ describe('dispatch OAuth integration', () => {
 			// just like the previous test. The bypass means the tool runs anyway.
 			const ctx = fakeContext({
 				transport: 'stdio',
-				selection: {
-					getCurrent: () => ({
+				activeWiki: {
+					get: () => ({
 						key: 'oauth-configured',
 						config: {
 							sitename: 'OAuth-Configured',

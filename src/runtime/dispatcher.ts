@@ -32,7 +32,7 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext =
 	ctx: TCtx,
 ): (args: z.infer<z.ZodObject<TSchema>>) => Promise<CallToolResult> {
 	return async (args) => {
-		const { key: wikiKey, config: wiki } = ctx.selection.getCurrent();
+		const { key: wikiKey, config: wiki } = ctx.activeWiki.get();
 		const useOauth =
 			ctx.transport === 'stdio' &&
 			!TOOLS_BYPASSING_ACTIVE_WIKI_AUTH.has(tool.name) &&
@@ -122,7 +122,7 @@ async function runDispatchInner<TSchema extends ZodRawShape, TCtx extends ToolCo
 		errorMessage: errorText,
 		runtimeToken: getRuntimeToken(),
 		sessionId: getSessionId(),
-		wikiKey: ctx.selection.getCurrent().key,
+		wikiKey: ctx.activeWiki.get().key,
 	});
 
 	return result;

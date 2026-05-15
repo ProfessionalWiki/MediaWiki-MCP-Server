@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 import { EditServiceImpl } from '../../src/services/editService.js';
-import type { WikiSelection } from '../../src/wikis/wikiSelection.js';
+import type { ActiveWiki } from '../../src/wikis/activeWiki.js';
 
-const fakeSelection = (tags: string | string[] | null = null): WikiSelection => ({
-	getCurrent: () => ({
+const fakeSelection = (tags: string | string[] | null = null): ActiveWiki => ({
+	get: () => ({
 		key: 'k',
 		config: {
 			server: 's',

@@ -41,7 +41,7 @@ export const removeWiki: Tool<typeof inputSchema, ManagementContext> = {
 			return ctx.format.invalidInput(`mcp://wikis/${wikiKey} not found in MCP resources`);
 		}
 
-		if (ctx.selection.getCurrent().key === wikiKey) {
+		if (ctx.activeWiki.get().key === wikiKey) {
 			return ctx.format.conflict(
 				'Cannot remove the currently active wiki. Please set a different wiki as the active wiki before removing this one.',
 			);

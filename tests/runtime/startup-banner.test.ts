@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { emitStartupBanner } from '../../src/runtime/banner.js';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
-import type { WikiSelection } from '../../src/wikis/wikiSelection.js';
+import type { ActiveWiki } from '../../src/wikis/activeWiki.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 
 const baseWikiConfig: WikiConfig = {
@@ -19,8 +19,8 @@ const mockWikiRegistry: WikiRegistry = {
 	isManagementAllowed: () => false,
 };
 
-const mockWikiSelection: WikiSelection = {
-	getCurrent: () => ({ key: 'a.example', config: baseWikiConfig }),
+const mockActiveWiki: ActiveWiki = {
+	get: () => ({ key: 'a.example', config: baseWikiConfig }),
 	setCurrent: () => {},
 	reset: () => {},
 };
@@ -52,7 +52,7 @@ describe('startup banner', () => {
 			{ transport: 'stdio' },
 			{
 				wikiRegistry: mockWikiRegistry,
-				wikiSelection: mockWikiSelection,
+				activeWiki: mockActiveWiki,
 				uploadDirs: mockUploadDirs,
 			},
 		);
@@ -88,7 +88,7 @@ describe('startup banner', () => {
 			},
 			{
 				wikiRegistry: mockWikiRegistry,
-				wikiSelection: mockWikiSelection,
+				activeWiki: mockActiveWiki,
 				uploadDirs: mockUploadDirs,
 			},
 		);
@@ -113,7 +113,7 @@ describe('startup banner', () => {
 			},
 			{
 				wikiRegistry: mockWikiRegistry,
-				wikiSelection: mockWikiSelection,
+				activeWiki: mockActiveWiki,
 				uploadDirs: mockUploadDirs,
 			},
 		);
@@ -141,7 +141,7 @@ describe('startup banner', () => {
 			{ transport: 'stdio' },
 			{
 				wikiRegistry: staticRegistry,
-				wikiSelection: mockWikiSelection,
+				activeWiki: mockActiveWiki,
 				uploadDirs: mockUploadDirs,
 			},
 		);

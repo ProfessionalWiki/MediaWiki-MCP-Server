@@ -36,8 +36,8 @@ describe('remove-wiki', () => {
 				remove,
 				isManagementAllowed: () => true,
 			},
-			selection: {
-				getCurrent: () => ({
+			activeWiki: {
+				get: () => ({
 					key: 'other.example.org',
 					config: wikiConfig(),
 				}),
@@ -100,8 +100,8 @@ describe('remove-wiki', () => {
 				remove,
 				isManagementAllowed: () => true,
 			},
-			selection: {
-				getCurrent: () => ({
+			activeWiki: {
+				get: () => ({
 					key: 'example.org',
 					config: wikiConfig(),
 				}),
@@ -129,8 +129,8 @@ describe('remove-wiki', () => {
 				remove,
 				isManagementAllowed: () => true,
 			},
-			selection: {
-				getCurrent: () => ({
+			activeWiki: {
+				get: () => ({
 					key: 'example.org',
 					config: wikiConfig(),
 				}),

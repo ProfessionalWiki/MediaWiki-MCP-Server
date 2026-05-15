@@ -1,7 +1,7 @@
 import type { ApiParams, Mwn } from 'mwn';
 import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { ApiUploadResponse } from 'mwn';
-import type { WikiSelection } from '../wikis/wikiSelection.js';
+import type { ActiveWiki } from '../wikis/activeWiki.js';
 
 export interface EditService {
 	/** Wraps mwn.request with CSRF + tag injection + formatversion=2. For action:edit and similar. */
@@ -21,11 +21,11 @@ export interface EditService {
 }
 
 export class EditServiceImpl implements EditService {
-	public constructor(private readonly selection: WikiSelection) {}
+	public constructor(private readonly activeWiki: ActiveWiki) {}
 
 	public async submit(mwn: Mwn, params: Record<string, unknown>): Promise<unknown> {
 		const token = await mwn.getCsrfToken();
-		const tags = this.selection.getCurrent().config.tags;
+		const tags = this.activeWiki.get().config.tags;
 		const fullParams: Record<string, unknown> = { ...params, token, formatversion: '2' };
 		if (tags !== null && tags !== undefined) {
 			fullParams.tags = tags;
@@ -41,7 +41,7 @@ export class EditServiceImpl implements EditService {
 		text: string,
 		params: ApiUploadParams,
 	): Promise<ApiUploadResponse> {
-		const tags = this.selection.getCurrent().config.tags;
+		const tags = this.activeWiki.get().config.tags;
 		const fullParams: ApiUploadParams = { ...params };
 		if (tags !== null && tags !== undefined) {
 			fullParams.tags = tags;
@@ -50,7 +50,7 @@ export class EditServiceImpl implements EditService {
 	}
 
 	public applyTags<T extends Record<string, unknown>>(options: T): T {
-		const tags = this.selection.getCurrent().config.tags;
+		const tags = this.activeWiki.get().config.tags;
 		if (tags === null || tags === undefined) {
 			return { ...options };
 		}

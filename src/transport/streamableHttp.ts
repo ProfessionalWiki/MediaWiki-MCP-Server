@@ -28,7 +28,7 @@ import { withRequestContext } from './requestContext.js';
 export { withRequestContext } from './requestContext.js';
 import { isCredentialConfigured, loadConfigFromFile } from '../config/loadConfig.js';
 import type { MwnProvider } from '../wikis/mwnProvider.js';
-import type { WikiSelection } from '../wikis/wikiSelection.js';
+import type { ActiveWiki } from '../wikis/activeWiki.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
 import { fetchMetadata } from '../auth/metadata.js';
 import { buildProtectedResource, resolvePublicBase } from '../auth/protectedResource.js';
@@ -130,7 +130,7 @@ function sendSessionBearerMismatch(res: Response): void {
 
 export function createOAuthProtectedResourceHandler(deps: {
 	wikiRegistry: WikiRegistry;
-	wikiSelection: WikiSelection;
+	activeWiki: ActiveWiki;
 }): RequestHandler {
 	return async (req, res, next) => {
 		try {
@@ -142,7 +142,7 @@ export function createOAuthProtectedResourceHandler(deps: {
 				res.status(404).end();
 				return;
 			}
-			const defaultKey = deps.wikiSelection.getCurrent().key;
+			const defaultKey = deps.activeWiki.get().key;
 			const defaultCfg = wikis[defaultKey];
 			if (!defaultCfg) {
 				res.status(404).end();
@@ -182,7 +182,7 @@ export function createOAuthProtectedResourceHandler(deps: {
 
 export interface McpPostHandlerOptions {
 	allowedOrigins?: string[];
-	wikiSelection?: WikiSelection;
+	activeWiki?: ActiveWiki;
 }
 
 export function createMcpPostHandler(
@@ -190,14 +190,14 @@ export function createMcpPostHandler(
 	createServerFn: () => ReturnType<typeof createServer>,
 	options: McpPostHandlerOptions = {},
 ): RequestHandler {
-	const { allowedOrigins, wikiSelection } = options;
+	const { allowedOrigins, activeWiki } = options;
 	return async (req, res) => {
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Express headers are string|string[]|undefined; MCP transport sends a single header
 		const sessionId = req.headers['mcp-session-id'] as string | undefined;
 		const bearer = extractBearerToken(req);
 
-		if (!bearer && wikiSelection) {
-			const cfg = wikiSelection.getCurrent().config;
+		if (!bearer && activeWiki) {
+			const cfg = activeWiki.get().config;
 			const oauthOnly = typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
 			const hasStatic =
 				isCredentialConfigured(cfg.token) ||
@@ -336,10 +336,10 @@ export function __resetReadyCacheForTesting(): void {
 }
 
 async function probeDefaultWiki(
-	wikiSelection: WikiSelection,
+	activeWiki: ActiveWiki,
 	mwnProvider: MwnProvider,
 ): Promise<ReadyCacheEntry> {
-	const wiki = wikiSelection.getCurrent().key;
+	const wiki = activeWiki.get().key;
 	const checkedAt = new Date().toISOString();
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	const timeout = new Promise<never>((_, reject) => {
@@ -397,13 +397,13 @@ export function mountMetricsEndpoint(app: express.Express): void {
 export function mountReadyEndpoint(
 	app: express.Express,
 	deps: {
-		wikiSelection: WikiSelection;
+		activeWiki: ActiveWiki;
 		mwnProvider: MwnProvider;
 	},
 ): void {
 	app.get('/ready', async (_req, res) => {
 		if (!readyCache || Date.now() >= readyCache.expiresAt) {
-			readyCache = await probeDefaultWiki(deps.wikiSelection, deps.mwnProvider);
+			readyCache = await probeDefaultWiki(deps.activeWiki, deps.mwnProvider);
 			// Count distinct probe failures, not cached replays — K8s readiness
 			// probes that fire every second would otherwise inflate the counter
 			// 5x against a 5s cache for the same underlying outage.
@@ -451,7 +451,7 @@ emitStartupBanner(
 	{ transport: 'http', http: { host, port, allowedHosts, allowedOrigins, maxRequestBody } },
 	{
 		wikiRegistry: state.wikiRegistry,
-		wikiSelection: state.wikiSelection,
+		activeWiki: state.activeWiki,
 		uploadDirs: state.uploadDirs,
 	},
 );
@@ -484,7 +484,7 @@ app.post(
 	'/mcp',
 	createMcpPostHandler(sessions, () => createServer(ctx), {
 		allowedOrigins,
-		wikiSelection: state.wikiSelection,
+		activeWiki: state.activeWiki,
 	}),
 );
 app.get('/mcp', sessionRequestHandler);
@@ -498,11 +498,11 @@ app.get(
 	'/.well-known/oauth-protected-resource',
 	createOAuthProtectedResourceHandler({
 		wikiRegistry: state.wikiRegistry,
-		wikiSelection: state.wikiSelection,
+		activeWiki: state.activeWiki,
 	}),
 );
 
-mountReadyEndpoint(app, { wikiSelection: state.wikiSelection, mwnProvider: state.mwnProvider });
+mountReadyEndpoint(app, { activeWiki: state.activeWiki, mwnProvider: state.mwnProvider });
 mountMetricsEndpoint(app);
 setSessionsProvider(() => Object.keys(sessions).length);
 

@@ -10,7 +10,7 @@ const mockRequest = vi.fn();
 //    config.json or a reachable wiki. These keep the *module's own* state
 //    benign so importing it doesn't crash.
 //
-// 2. The mockWikiSelection and mockMwnProvider objects below are passed
+// 2. The mockActiveWiki and mockMwnProvider objects below are passed
 //    explicitly to mountReadyEndpoint() in each test's makeApp(). The tests
 //    create their own express app independent of the module-level one, so
 //    these inline mocks are what actually drive the test logic. Do not
@@ -52,7 +52,7 @@ import {
 	__resetReadyCacheForTesting,
 	__probeDefaultWikiForTesting,
 } from '../../src/transport/streamableHttp.js';
-import type { WikiSelection } from '../../src/wikis/wikiSelection.js';
+import type { ActiveWiki } from '../../src/wikis/activeWiki.js';
 import type { MwnProvider } from '../../src/wikis/mwnProvider.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 
@@ -63,8 +63,8 @@ const exampleWikiConfig: WikiConfig = {
 	scriptpath: '/w',
 };
 
-const mockWikiSelection: WikiSelection = {
-	getCurrent: () => ({ key: 'example.org', config: exampleWikiConfig }),
+const mockActiveWiki: ActiveWiki = {
+	get: () => ({ key: 'example.org', config: exampleWikiConfig }),
 	setCurrent: () => {},
 	reset: () => {},
 };
@@ -77,7 +77,7 @@ const mockMwnProvider: MwnProvider = {
 
 function makeApp() {
 	const app = express();
-	mountReadyEndpoint(app, { wikiSelection: mockWikiSelection, mwnProvider: mockMwnProvider });
+	mountReadyEndpoint(app, { activeWiki: mockActiveWiki, mwnProvider: mockMwnProvider });
 	return app;
 }
 
@@ -126,7 +126,7 @@ describe('/ready', () => {
 		vi.useFakeTimers();
 		mockRequest.mockReturnValue(new Promise(() => undefined));
 
-		const probePromise = __probeDefaultWikiForTesting(mockWikiSelection, mockMwnProvider);
+		const probePromise = __probeDefaultWikiForTesting(mockActiveWiki, mockMwnProvider);
 		await vi.advanceTimersByTimeAsync(3001);
 		const entry = await probePromise;
 

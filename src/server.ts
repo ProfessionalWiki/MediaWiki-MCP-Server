@@ -62,7 +62,7 @@ export const createServer = async (ctx: ToolContext): Promise<McpServer> => {
 	const reconcile = async (): Promise<void> => {
 		await reconcileTools(tools, {
 			wikiRegistry: ctx.wikis,
-			wikiSelection: ctx.selection,
+			activeWiki: ctx.activeWiki,
 			transport: ctx.transport,
 			extensions: ctx.extensions,
 			extensionPacks,

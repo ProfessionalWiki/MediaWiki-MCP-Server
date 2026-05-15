@@ -35,8 +35,8 @@ describe('set-wiki', () => {
 				remove: () => {},
 				isManagementAllowed: () => true,
 			},
-			selection: {
-				getCurrent: () => ({ key: currentKey, config: wikiConfig() }),
+			activeWiki: {
+				get: () => ({ key: currentKey, config: wikiConfig() }),
 				setCurrent: (key: string) => {
 					setCurrent(key);
 					currentKey = key;

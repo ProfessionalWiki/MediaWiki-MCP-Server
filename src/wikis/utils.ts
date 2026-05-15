@@ -1,7 +1,7 @@
-import type { WikiSelection } from './wikiSelection.js';
+import type { ActiveWiki } from './activeWiki.js';
 
-export function getPageUrl(title: string, wikiSelection: WikiSelection): string {
-	const { server, articlepath } = wikiSelection.getCurrent().config;
+export function getPageUrl(title: string, activeWiki: ActiveWiki): string {
+	const { server, articlepath } = activeWiki.get().config;
 	// MediaWiki convention: spaces become underscores. encodeURI preserves
 	// '/' (subpages) and ':' (namespace prefixes) while encoding spaces and
 	// non-ASCII characters. Characters disallowed in MW titles ('#', '?',

@@ -60,8 +60,8 @@ async function connectClientAndServer(): Promise<{ client: Client; server: McpSe
 		remove: () => {},
 		isManagementAllowed: () => isManagementAllowedRef.current,
 	};
-	const wikiSelectionMock = {
-		getCurrent: () => ({ key: currentKey(), config: wikiStore.current }),
+	const activeWikiMock = {
+		get: () => ({ key: currentKey(), config: wikiStore.current }),
 		setCurrent: (key: string) => {
 			if (!wikiStore.byKey[key]) {
 				throw new Error(`Wiki "${key}" not found`);
@@ -78,14 +78,14 @@ async function connectClientAndServer(): Promise<{ client: Client; server: McpSe
 	const reconcile = () =>
 		reconcileTools(tools, {
 			wikiRegistry: wikiRegistryMock,
-			wikiSelection: wikiSelectionMock,
+			activeWiki: activeWikiMock,
 			transport: 'stdio',
 			extensions: fakeDetector,
 			extensionPacks,
 		});
 	const ctx = fakeContext({
 		wikis: wikiRegistryMock,
-		selection: wikiSelectionMock,
+		activeWiki: activeWikiMock,
 	});
 	const registered = registerAllTools(server, reconcile, ctx);
 	for (const [name, tool] of registered) {

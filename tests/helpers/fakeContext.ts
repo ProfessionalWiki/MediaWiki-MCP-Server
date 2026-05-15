@@ -18,8 +18,8 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 			remove: throws('wikis.remove') as never,
 			isManagementAllowed: () => true,
 		},
-		selection: {
-			getCurrent: () => ({
+		activeWiki: {
+			get: () => ({
 				key: 'test-wiki',
 				config: {
 					sitename: 'Test',
@@ -29,8 +29,8 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 					tags: null,
 				} as never,
 			}),
-			setCurrent: throws('selection.setCurrent') as never,
-			reset: throws('selection.reset') as never,
+			setCurrent: throws('activeWiki.setCurrent') as never,
+			reset: throws('activeWiki.reset') as never,
 		},
 		uploadDirs: { list: () => [] },
 		wikiCache: { invalidate: throws('wikiCache.invalidate') as never },

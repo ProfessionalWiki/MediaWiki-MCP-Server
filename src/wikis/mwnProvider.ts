@@ -4,7 +4,7 @@ import type { ExecSecret, WikiConfig } from '../config/loadConfig.js';
 import { runExecSecret } from './execSecret.js';
 import { redactAuthorizationHeader, wrapMwnErrors } from './mwnErrorSanitizer.js';
 import type { WikiRegistry } from './wikiRegistry.js';
-import type { WikiSelection } from './wikiSelection.js';
+import type { ActiveWiki } from './activeWiki.js';
 
 export interface MwnProvider {
 	get(wikiKey?: string): Promise<Mwn>;
@@ -23,7 +23,7 @@ export class MwnProviderImpl implements MwnProvider {
 
 	public constructor(
 		private readonly wikis: WikiRegistry,
-		private readonly selection: WikiSelection,
+		private readonly activeWiki: ActiveWiki,
 		private readonly getRuntimeToken: () => string | undefined,
 	) {}
 
@@ -37,7 +37,7 @@ export class MwnProviderImpl implements MwnProvider {
 				throw new Error(`Wiki "${wikiKey}" not found`);
 			}
 		} else {
-			({ key, config } = this.selection.getCurrent());
+			({ key, config } = this.activeWiki.get());
 		}
 		return this.getInstance(key, config);
 	}

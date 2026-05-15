@@ -39,10 +39,10 @@ export const setWiki: Tool<typeof inputSchema, ManagementContext> = {
 			return ctx.format.invalidInput(`mcp://wikis/${wikiKey} not found in MCP resources`);
 		}
 
-		ctx.selection.setCurrent(wikiKey);
+		ctx.activeWiki.setCurrent(wikiKey);
 		await ctx.reconcile();
 
-		const newConfig = ctx.selection.getCurrent().config;
+		const newConfig = ctx.activeWiki.get().config;
 		return ctx.format.ok({
 			wikiKey,
 			sitename: newConfig.sitename,

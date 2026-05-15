@@ -1,13 +1,13 @@
 import type { WikiConfig } from '../config/loadConfig.js';
 import type { WikiRegistry } from './wikiRegistry.js';
 
-export interface WikiSelection {
-	getCurrent(): { key: string; config: Readonly<WikiConfig> };
+export interface ActiveWiki {
+	get(): { key: string; config: Readonly<WikiConfig> };
 	setCurrent(key: string): void;
 	reset(): void;
 }
 
-export class WikiSelectionImpl implements WikiSelection {
+export class ActiveWikiImpl implements ActiveWiki {
 	private currentKey: string;
 
 	public constructor(
@@ -17,7 +17,7 @@ export class WikiSelectionImpl implements WikiSelection {
 		this.currentKey = defaultKey;
 	}
 
-	public getCurrent(): { key: string; config: Readonly<WikiConfig> } {
+	public get(): { key: string; config: Readonly<WikiConfig> } {
 		const config = this.registry.get(this.currentKey);
 		if (!config) {
 			throw new Error(`Wiki "${this.currentKey}" not found in registry`);
