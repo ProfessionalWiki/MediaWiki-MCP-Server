@@ -142,7 +142,7 @@ export function createOAuthProtectedResourceHandler(deps: {
 				res.status(404).end();
 				return;
 			}
-			const defaultKey = deps.activeWiki.get().key;
+			const defaultKey = deps.activeWiki.getDefaultKey();
 			const defaultCfg = wikis[defaultKey];
 			if (!defaultCfg) {
 				res.status(404).end();
@@ -339,7 +339,7 @@ async function probeDefaultWiki(
 	activeWiki: ActiveWiki,
 	mwnProvider: MwnProvider,
 ): Promise<ReadyCacheEntry> {
-	const wiki = activeWiki.get().key;
+	const wiki = activeWiki.getDefaultKey();
 	const checkedAt = new Date().toISOString();
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	const timeout = new Promise<never>((_, reject) => {

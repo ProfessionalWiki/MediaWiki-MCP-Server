@@ -39,7 +39,7 @@ export function emitStartupBanner(opts: CreateServerOptions, deps: BannerDeps): 
 		version: serverInfo.version,
 		transport: opts.transport,
 		auth_shape: classifyAuthShape(wikis, opts.transport),
-		default_wiki: deps.activeWiki.get().key,
+		default_wiki: deps.activeWiki.getDefaultKey(),
 		wikis: Object.keys(wikis),
 		allow_wiki_management: deps.wikiRegistry.isManagementAllowed(),
 		upload_dirs_configured: deps.uploadDirs.list().length > 0,
