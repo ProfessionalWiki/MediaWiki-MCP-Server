@@ -13,7 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Added
 
-- Optional `wiki` argument on every page, file, search, and history tool, naming the wiki that call acts on. Accepts a wiki key (e.g. `en.wikipedia.org`) or the full `mcp://wikis/{wikiKey}` URI.
+- Optional `wiki` argument on every tool that operates on a wiki (all except the wiki-management and OAuth tools), naming the wiki that call acts on. Accepts a wiki key (e.g. `en.wikipedia.org`) or the full `mcp://wikis/{wikiKey}` URI.
 - Tool responses now report the wiki the call ran against.
 
 ### Changed
