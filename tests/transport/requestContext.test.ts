@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
 	runtimeTokenStore,
+	getRequestWiki,
 	getRuntimeToken,
 	getSessionId,
+	withRequestContext,
+	withRequestFields,
 } from '../../src/transport/requestContext.js';
 
 describe('requestContext', () => {
@@ -101,5 +104,36 @@ describe('getSessionId', () => {
 
 		expect(results).toContain('a:session-a');
 		expect(results).toContain('b:session-b');
+	});
+});
+
+describe('request context wiki', () => {
+	it('getRequestWiki is undefined outside a context', () => {
+		expect(getRequestWiki()).toBeUndefined();
+	});
+
+	it('withRequestFields exposes wikiKey to getRequestWiki', async () => {
+		await withRequestFields({ wikiKey: 'fr.wikipedia.org' }, async () => {
+			expect(getRequestWiki()).toBe('fr.wikipedia.org');
+		});
+	});
+
+	it('withRequestFields merges onto an existing context without dropping fields', async () => {
+		await withRequestContext('tok', 'sess-1', async () => {
+			await withRequestFields({ wikiKey: 'de.wikipedia.org' }, async () => {
+				expect(getRequestWiki()).toBe('de.wikipedia.org');
+				expect(getRuntimeToken()).toBe('tok');
+				expect(getSessionId()).toBe('sess-1');
+			});
+		});
+	});
+
+	it('a later withRequestFields preserves wikiKey while adding a token', async () => {
+		await withRequestFields({ wikiKey: 'es.wikipedia.org' }, async () => {
+			await withRequestFields({ runtimeToken: 'bearer-xyz' }, async () => {
+				expect(getRequestWiki()).toBe('es.wikipedia.org');
+				expect(getRuntimeToken()).toBe('bearer-xyz');
+			});
+		});
 	});
 });
