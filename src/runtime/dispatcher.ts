@@ -13,6 +13,7 @@ import {
 	type ToolOutcome,
 } from './instrument.js';
 import { acquireToken } from '../auth/acquireToken.js';
+import { structuredResult } from '../results/response.js';
 
 // Tools that operate on server-local state (the wiki registry, the OAuth token
 // store) rather than a wiki's API. They must not be blocked by an OAuth gate
@@ -71,9 +72,11 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext =
 				}
 				// withRequestFields (not withRequestContext) so the resolved wikiKey
 				// set below survives into the token-scoped run.
-				return withRequestFields({ runtimeToken: token }, () => runDispatchInner(tool, ctx, args));
+				return withRequestFields({ runtimeToken: token }, () =>
+					runDispatchInner(tool, ctx, args, resolvedKey),
+				);
 			}
-			return runDispatchInner(tool, ctx, args);
+			return runDispatchInner(tool, ctx, args, resolvedKey);
 		};
 
 		if (resolvedKey !== undefined) {
@@ -87,6 +90,7 @@ async function runDispatchInner<TSchema extends ZodRawShape, TCtx extends ToolCo
 	tool: Tool<TSchema, TCtx>,
 	ctx: TCtx,
 	args: z.infer<z.ZodObject<TSchema>>,
+	resolvedKey?: string,
 ): Promise<CallToolResult> {
 	const started = performance.now();
 	let outcome: ToolOutcome = 'success';
@@ -134,6 +138,21 @@ async function runDispatchInner<TSchema extends ZodRawShape, TCtx extends ToolCo
 			code: overridden.code,
 		});
 		result = ctx.format.error(overridden.category, finalMessage, overridden.code);
+	}
+
+	// Echo the resolved wiki back to the caller. Re-wrap via structuredResult
+	// rather than mutating structuredContent so the rendered content[0].text
+	// stays in sync — a plain mutation would only touch the structured channel.
+	// Assumes no wiki-scoped tool emits its own top-level `wiki` field; the
+	// spread places the resolved key last, so it would silently override one.
+	if (
+		resolvedKey !== undefined &&
+		!result.isError &&
+		typeof result.structuredContent === 'object' &&
+		result.structuredContent !== null &&
+		!Array.isArray(result.structuredContent)
+	) {
+		result = structuredResult({ ...result.structuredContent, wiki: resolvedKey });
 	}
 
 	emitToolCall({

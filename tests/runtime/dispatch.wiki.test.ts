@@ -56,3 +56,27 @@ describe('dispatch wiki resolution', () => {
 		expect(ranAgainst(b)).toBe('de.wikipedia.org');
 	});
 });
+
+describe('dispatch wiki echo', () => {
+	it('stamps the resolved wiki onto a wiki-scoped success result', async () => {
+		const ctx = fakeContext();
+		const result = await dispatch(probe, ctx)({ wiki: 'fr.wikipedia.org' } as never);
+		expect((result.structuredContent as { wiki?: unknown }).wiki).toBe('fr.wikipedia.org');
+	});
+
+	it('does not stamp wiki onto a non-wiki-scoped tool', async () => {
+		const ctx = fakeContext();
+		const mgmt: Tool<Record<string, never>> = {
+			name: 'mgmt-probe',
+			description: 'non wiki tool',
+			inputSchema: {},
+			annotations: {} as never,
+			wikiScoped: false,
+			async handle(_args, c) {
+				return c.format.ok({ ok: true });
+			},
+		};
+		const result = await dispatch(mgmt, ctx)({} as never);
+		expect((result.structuredContent as { wiki?: unknown }).wiki).toBeUndefined();
+	});
+});
