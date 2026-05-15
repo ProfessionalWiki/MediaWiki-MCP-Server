@@ -118,6 +118,18 @@ export const defaultConfig: Config = {
 	},
 };
 
+/**
+ * A credential field whose value is produced by running an external command.
+ * Validated at config load (see parseExecSecret); the command itself runs
+ * lazily on first use of the wiki — see src/wikis/execSecret.ts.
+ */
+export interface ExecSecret {
+	exec: {
+		command: string;
+		args: string[];
+	};
+}
+
 const SECRET_FIELDS = ['token', 'username', 'password'] as const;
 type SecretFieldName = (typeof SECRET_FIELDS)[number];
 
