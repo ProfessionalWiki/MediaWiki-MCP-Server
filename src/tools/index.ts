@@ -30,7 +30,6 @@ import { updateFile } from './update-file.js';
 import { updateFileFromUrl } from './update-file-from-url.js';
 import { addWiki } from './add-wiki.js';
 import { removeWiki } from './remove-wiki.js';
-import { setWiki } from './set-wiki.js';
 import { oauthStatus } from './oauth-status.js';
 import { oauthLogout } from './oauth-logout.js';
 
@@ -64,7 +63,7 @@ const standardTools: Tool<any>[] = [
 ];
 
 // oxlint-disable-next-line typescript/no-explicit-any
-const managementTools: Tool<any, ManagementContext>[] = [addWiki, removeWiki, setWiki];
+const managementTools: Tool<any, ManagementContext>[] = [addWiki, removeWiki];
 
 export function registerAllTools(
 	server: McpServer,

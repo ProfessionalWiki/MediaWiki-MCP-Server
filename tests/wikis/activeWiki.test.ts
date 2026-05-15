@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { ActiveWikiImpl } from '../../src/wikis/activeWiki.js';
 import { WikiRegistryImpl } from '../../src/wikis/wikiRegistry.js';
+import { withRequestFields } from '../../src/transport/requestContext.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 
 const sample = (name: string): WikiConfig => ({
@@ -11,44 +12,32 @@ const sample = (name: string): WikiConfig => ({
 });
 
 describe('ActiveWikiImpl', () => {
-	it('get returns the default wiki initially', () => {
+	it('get returns the default wiki when no request wiki is set', () => {
 		const reg = new WikiRegistryImpl({ a: sample('a'), b: sample('b') }, true);
-		const sel = new ActiveWikiImpl('a', reg);
-		expect(sel.get().key).toBe('a');
-		expect(sel.get().config.sitename).toBe('a');
+		const activeWiki = new ActiveWikiImpl('a', reg);
+		expect(activeWiki.get().key).toBe('a');
+		expect(activeWiki.get().config.sitename).toBe('a');
 	});
 
-	it('get throws when the current wiki was removed from the registry', () => {
+	it('get follows the request-context wiki when one is set', async () => {
+		const reg = new WikiRegistryImpl({ a: sample('a'), b: sample('b') }, true);
+		const activeWiki = new ActiveWikiImpl('a', reg);
+		await withRequestFields({ wikiKey: 'b' }, async () => {
+			expect(activeWiki.get().key).toBe('b');
+			expect(activeWiki.get().config.sitename).toBe('b');
+		});
+	});
+
+	it('getDefaultKey returns the configured default', () => {
+		const reg = new WikiRegistryImpl({ a: sample('a'), b: sample('b') }, true);
+		const activeWiki = new ActiveWikiImpl('a', reg);
+		expect(activeWiki.getDefaultKey()).toBe('a');
+	});
+
+	it('get throws when the resolved wiki is not in the registry', () => {
 		const reg = new WikiRegistryImpl({ a: sample('a') }, true);
-		const sel = new ActiveWikiImpl('a', reg);
+		const activeWiki = new ActiveWikiImpl('a', reg);
 		reg.remove('a');
-		expect(() => sel.get()).toThrow(/not found/);
-	});
-
-	it('setCurrent switches to a known wiki', () => {
-		const reg = new WikiRegistryImpl({ a: sample('a'), b: sample('b') }, true);
-		const sel = new ActiveWikiImpl('a', reg);
-		sel.setCurrent('b');
-		expect(sel.get().key).toBe('b');
-	});
-
-	it('setCurrent throws for unknown wiki', () => {
-		const reg = new WikiRegistryImpl({ a: sample('a') }, true);
-		const sel = new ActiveWikiImpl('a', reg);
-		expect(() => sel.setCurrent('unknown')).toThrow(/not found/);
-	});
-
-	it('reset returns to the default', () => {
-		const reg = new WikiRegistryImpl({ a: sample('a'), b: sample('b') }, true);
-		const sel = new ActiveWikiImpl('a', reg);
-		sel.setCurrent('b');
-		sel.reset();
-		expect(sel.get().key).toBe('a');
-	});
-
-	it('reset throws when default is missing', () => {
-		const reg = new WikiRegistryImpl({}, true);
-		const sel = new ActiveWikiImpl('gone', reg);
-		expect(() => sel.reset()).toThrow(/not found/);
+		expect(() => activeWiki.get()).toThrow(/not found/);
 	});
 });

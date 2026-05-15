@@ -4,7 +4,8 @@ import type { Tool } from './tool.js';
 import type { ToolContext } from './context.js';
 import { applySpecialCase } from '../errors/specialCases.js';
 import { errorMessage } from '../errors/isErrnoException.js';
-import { getRuntimeToken, getSessionId, withRequestContext } from '../transport/requestContext.js';
+import { getRuntimeToken, getSessionId, withRequestFields } from '../transport/requestContext.js';
+import { isWikiScoped, normalizeWikiArg } from './wikiArg.js';
 import {
 	emitToolCall,
 	extractUpstreamStatus,
@@ -14,14 +15,13 @@ import {
 import { acquireToken } from '../auth/acquireToken.js';
 
 // Tools that operate on server-local state (the wiki registry, the OAuth token
-// store) rather than the active wiki's API. They must not be blocked by an
-// OAuth gate keyed on the active wiki — otherwise a wiki whose OAuth has gone
-// stale would render set-wiki, remove-wiki, and the oauth-* tools unreachable,
-// with no way for the caller to escape it. add-wiki targets a different wiki
-// entirely and equally has no business borrowing the active wiki's token.
+// store) rather than a wiki's API. They must not be blocked by an OAuth gate
+// keyed on the resolved wiki — otherwise a wiki whose OAuth has gone stale would
+// render remove-wiki and the oauth-* tools unreachable, with no way for the
+// caller to escape it. add-wiki targets a different wiki entirely and equally
+// has no business borrowing the resolved wiki's token.
 const TOOLS_BYPASSING_ACTIVE_WIKI_AUTH: ReadonlySet<string> = new Set([
 	'add-wiki',
-	'set-wiki',
 	'remove-wiki',
 	'oauth-status',
 	'oauth-logout',
@@ -32,29 +32,54 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext =
 	ctx: TCtx,
 ): (args: z.infer<z.ZodObject<TSchema>>) => Promise<CallToolResult> {
 	return async (args) => {
-		const { key: wikiKey, config: wiki } = ctx.activeWiki.get();
-		const useOauth =
-			ctx.transport === 'stdio' &&
-			!TOOLS_BYPASSING_ACTIVE_WIKI_AUTH.has(tool.name) &&
-			typeof wiki.oauth2ClientId === 'string' &&
-			wiki.oauth2ClientId.trim() !== '';
-
-		if (useOauth) {
-			let token: string;
-			try {
-				token = await acquireToken(wikiKey, {
-					wiki: { server: wiki.server, scriptpath: wiki.scriptpath },
-					oauth2ClientId: wiki.oauth2ClientId,
-					callbackPort:
-						typeof wiki.oauth2CallbackPort === 'number' ? wiki.oauth2CallbackPort : undefined,
-				});
-			} catch (err: unknown) {
-				const message = err instanceof Error ? err.message : String(err);
-				return ctx.format.error('authentication', `OAuth login required: ${message}`);
+		// Resolve the per-call wiki for wiki-scoped tools.
+		let resolvedKey: string | undefined;
+		if (isWikiScoped(tool)) {
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the `wiki` field is merged into the schema by register(); not in the static TSchema
+			const raw = (args as { wiki?: unknown }).wiki;
+			const requested =
+				typeof raw === 'string' && raw.trim() !== '' ? normalizeWikiArg(raw) : undefined;
+			resolvedKey = requested ?? ctx.activeWiki.getDefaultKey();
+			if (!ctx.wikis.get(resolvedKey)) {
+				const configured = Object.keys(ctx.wikis.getAll());
+				return ctx.format.invalidInput(
+					`Wiki "${resolvedKey}" not found. Configured wikis: ${configured.join(', ')}`,
+				);
 			}
-			return withRequestContext(token, undefined, () => runDispatchInner(tool, ctx, args));
 		}
-		return runDispatchInner(tool, ctx, args);
+
+		const body = async (): Promise<CallToolResult> => {
+			const { key: wikiKey, config: wiki } = ctx.activeWiki.get();
+			const useOauth =
+				ctx.transport === 'stdio' &&
+				!TOOLS_BYPASSING_ACTIVE_WIKI_AUTH.has(tool.name) &&
+				typeof wiki.oauth2ClientId === 'string' &&
+				wiki.oauth2ClientId.trim() !== '';
+
+			if (useOauth) {
+				let token: string;
+				try {
+					token = await acquireToken(wikiKey, {
+						wiki: { server: wiki.server, scriptpath: wiki.scriptpath },
+						oauth2ClientId: wiki.oauth2ClientId,
+						callbackPort:
+							typeof wiki.oauth2CallbackPort === 'number' ? wiki.oauth2CallbackPort : undefined,
+					});
+				} catch (err: unknown) {
+					const message = err instanceof Error ? err.message : String(err);
+					return ctx.format.error('authentication', `OAuth login required: ${message}`);
+				}
+				// withRequestFields (not withRequestContext) so the resolved wikiKey
+				// set below survives into the token-scoped run.
+				return withRequestFields({ runtimeToken: token }, () => runDispatchInner(tool, ctx, args));
+			}
+			return runDispatchInner(tool, ctx, args);
+		};
+
+		if (resolvedKey !== undefined) {
+			return withRequestFields({ wikiKey: resolvedKey }, body);
+		}
+		return body();
 	};
 }
 

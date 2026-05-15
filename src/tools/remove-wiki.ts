@@ -14,7 +14,7 @@ export const removeWiki: Tool<typeof inputSchema, ManagementContext> = {
 	name: 'remove-wiki',
 	wikiScoped: false,
 	description:
-		'Removes a wiki from the MCP resources. Clears any cached credentials and license metadata for the wiki. Fails if the specified wiki is currently active; call set-wiki to switch to a different wiki first.',
+		'Removes a wiki from the MCP resources. Clears any cached credentials and license metadata for the wiki. Fails if the specified wiki is the configured default wiki.',
 	inputSchema,
 	annotations: {
 		title: 'Remove wiki',
@@ -42,9 +42,9 @@ export const removeWiki: Tool<typeof inputSchema, ManagementContext> = {
 			return ctx.format.invalidInput(`mcp://wikis/${wikiKey} not found in MCP resources`);
 		}
 
-		if (ctx.activeWiki.get().key === wikiKey) {
+		if (ctx.activeWiki.getDefaultKey() === wikiKey) {
 			return ctx.format.conflict(
-				'Cannot remove the currently active wiki. Please set a different wiki as the active wiki before removing this one.',
+				'Cannot remove the configured default wiki. Change the default wiki in the server configuration before removing this one.',
 			);
 		}
 

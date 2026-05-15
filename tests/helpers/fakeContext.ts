@@ -3,34 +3,43 @@ import type { ToolContext, ManagementContext } from '../../src/runtime/context.j
 import { ResponseFormatterImpl } from '../../src/results/response.js';
 import { ErrorClassifierImpl } from '../../src/errors/classifyError.js';
 import { RevisionNormalizerImpl } from '../../src/services/revisionNormalize.js';
+import { getRequestWiki } from '../../src/transport/requestContext.js';
 
 const throws = (label: string) => () => {
 	throw new Error(`fakeContext: ${label} called but not stubbed`);
+};
+
+const testWikiConfig = {
+	sitename: 'Test',
+	server: 'https://test.wiki',
+	articlepath: '/wiki',
+	scriptpath: '/w',
+	tags: null,
+};
+
+// A small registry so dispatch()'s per-call wiki resolution can validate keys.
+const testWikiRegistry: Record<string, typeof testWikiConfig> = {
+	'test-wiki': testWikiConfig,
+	'fr.wikipedia.org': testWikiConfig,
+	'de.wikipedia.org': testWikiConfig,
 };
 
 export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 	return {
 		mwn: throws('mwn()') as never,
 		wikis: {
-			getAll: throws('wikis.getAll') as never,
-			get: throws('wikis.get') as never,
+			getAll: () => testWikiRegistry as never,
+			get: ((key: string) => testWikiRegistry[key]) as never,
 			add: throws('wikis.add') as never,
 			remove: throws('wikis.remove') as never,
 			isManagementAllowed: () => true,
 		},
 		activeWiki: {
-			get: () => ({
-				key: 'test-wiki',
-				config: {
-					sitename: 'Test',
-					server: 'https://test.wiki',
-					articlepath: '/wiki',
-					scriptpath: '/w',
-					tags: null,
-				} as never,
-			}),
-			setCurrent: throws('activeWiki.setCurrent') as never,
-			reset: throws('activeWiki.reset') as never,
+			get: () => {
+				const key = getRequestWiki() ?? 'test-wiki';
+				return { key, config: testWikiConfig as never };
+			},
+			getDefaultKey: () => 'test-wiki',
 		},
 		uploadDirs: { list: () => [] },
 		wikiCache: { invalidate: throws('wikiCache.invalidate') as never },

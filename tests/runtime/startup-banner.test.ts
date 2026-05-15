@@ -21,8 +21,7 @@ const mockWikiRegistry: WikiRegistry = {
 
 const mockActiveWiki: ActiveWiki = {
 	get: () => ({ key: 'a.example', config: baseWikiConfig }),
-	setCurrent: () => {},
-	reset: () => {},
+	getDefaultKey: () => 'a.example',
 };
 
 const mockUploadDirs = { list: () => [] };

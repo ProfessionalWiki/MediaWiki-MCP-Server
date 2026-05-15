@@ -41,8 +41,7 @@ describe('remove-wiki', () => {
 					key: 'other.example.org',
 					config: wikiConfig(),
 				}),
-				setCurrent: () => {},
-				reset: () => {},
+				getDefaultKey: () => 'other.example.org',
 			},
 		});
 		const result = await dispatch(removeWiki, ctx)({ uri: 'mcp://wikis/example.org' });
@@ -88,7 +87,7 @@ describe('remove-wiki', () => {
 		expect(reconcile).not.toHaveBeenCalled();
 	});
 
-	it('returns conflict when removing the active wiki', async () => {
+	it('returns conflict when removing the default wiki', async () => {
 		const reconcile = vi.fn();
 		const remove = vi.fn();
 		const ctx = fakeManagementContext({
@@ -105,19 +104,18 @@ describe('remove-wiki', () => {
 					key: 'example.org',
 					config: wikiConfig(),
 				}),
-				setCurrent: () => {},
-				reset: () => {},
+				getDefaultKey: () => 'example.org',
 			},
 		});
 		const result = await dispatch(removeWiki, ctx)({ uri: 'mcp://wikis/example.org' });
 
 		const envelope = assertStructuredError(result, 'conflict');
-		expect(envelope.message).toMatch(/currently active wiki/);
+		expect(envelope.message).toMatch(/default wiki/);
 		expect(reconcile).not.toHaveBeenCalled();
 		expect(remove).not.toHaveBeenCalled();
 	});
 
-	it('does not call reconcile when removing the currently active wiki', async () => {
+	it('does not call reconcile when removing the default wiki', async () => {
 		const reconcile = vi.fn();
 		const remove = vi.fn();
 		const ctx = fakeManagementContext({
@@ -134,8 +132,7 @@ describe('remove-wiki', () => {
 					key: 'example.org',
 					config: wikiConfig(),
 				}),
-				setCurrent: () => {},
-				reset: () => {},
+				getDefaultKey: () => 'example.org',
 			},
 		});
 		const result = await dispatch(removeWiki, ctx)({ uri: 'mcp://wikis/example.org' });

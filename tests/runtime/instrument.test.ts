@@ -211,7 +211,7 @@ describe('emitToolCall', () => {
 
 	it('omits target when extractor is undefined', () => {
 		emitToolCall({
-			toolName: 'set-wiki',
+			toolName: 'get-pages',
 			target: undefined,
 			args: {},
 			started: performance.now(),
@@ -480,7 +480,7 @@ describe('emitToolCall — metrics integration', () => {
 	it('passes upstreamStatus undefined through unchanged', () => {
 		const stderrSpy = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
 		emitToolCall({
-			toolName: 'set-wiki',
+			toolName: 'get-pages',
 			args: {},
 			started: performance.now(),
 			result: okResult(),

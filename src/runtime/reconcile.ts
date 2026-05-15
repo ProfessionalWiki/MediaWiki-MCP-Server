@@ -64,11 +64,6 @@ const STATIC_RULES: readonly ToolGatingRule[] = [
 		affects: ['remove-wiki'],
 		isAllowed: (c) => c.allowManagement && c.wikiCount >= 2,
 	},
-	{
-		name: 'set-wiki',
-		affects: ['set-wiki'],
-		isAllowed: (c) => c.wikiCount >= 2,
-	},
 ];
 
 function buildExtensionRules(packs: readonly ExtensionPack[]): readonly ToolGatingRule[] {

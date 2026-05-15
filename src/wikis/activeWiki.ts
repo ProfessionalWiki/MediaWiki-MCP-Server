@@ -1,41 +1,30 @@
 import type { WikiConfig } from '../config/loadConfig.js';
 import type { WikiRegistry } from './wikiRegistry.js';
+import { getRequestWiki } from '../transport/requestContext.js';
 
 export interface ActiveWiki {
+	// The wiki for the current call: the request-context wiki, else the default.
 	get(): { key: string; config: Readonly<WikiConfig> };
-	setCurrent(key: string): void;
-	reset(): void;
+	// The configured default wiki key (used to resolve calls with no `wiki` arg).
+	getDefaultKey(): string;
 }
 
 export class ActiveWikiImpl implements ActiveWiki {
-	private currentKey: string;
-
 	public constructor(
 		private readonly defaultKey: string,
 		private readonly registry: WikiRegistry,
-	) {
-		this.currentKey = defaultKey;
-	}
+	) {}
 
 	public get(): { key: string; config: Readonly<WikiConfig> } {
-		const config = this.registry.get(this.currentKey);
+		const key = getRequestWiki() ?? this.defaultKey;
+		const config = this.registry.get(key);
 		if (!config) {
-			throw new Error(`Wiki "${this.currentKey}" not found in registry`);
+			throw new Error(`Wiki "${key}" not found in registry`);
 		}
-		return { key: this.currentKey, config };
+		return { key, config };
 	}
 
-	public setCurrent(key: string): void {
-		if (!this.registry.get(key)) {
-			throw new Error(`Wiki "${key}" not found in config.json`);
-		}
-		this.currentKey = key;
-	}
-
-	public reset(): void {
-		if (!this.registry.get(this.defaultKey)) {
-			throw new Error(`Default wiki "${this.defaultKey}" not found in config.json`);
-		}
-		this.currentKey = this.defaultKey;
+	public getDefaultKey(): string {
+		return this.defaultKey;
 	}
 }

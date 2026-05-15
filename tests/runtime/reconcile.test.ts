@@ -21,7 +21,7 @@ const WRITE_TOOL_NAMES = [
 ];
 
 const NON_WRITE_TOOL_NAMES = ['get-page', 'search-page'];
-const WIKI_SET_TOOL_NAMES = ['add-wiki', 'remove-wiki', 'set-wiki'];
+const WIKI_SET_TOOL_NAMES = ['add-wiki', 'remove-wiki'];
 const STDIO_ONLY_TOOL_NAMES = ['oauth-status', 'oauth-logout'];
 
 interface MockTool {
@@ -90,8 +90,7 @@ function makeMocks({
 			key: Object.keys(wikis).find((k) => wikis[k] === activeWikiConfig) ?? 'a',
 			config: activeWikiConfig,
 		}),
-		setCurrent: () => {},
-		reset: () => {},
+		getDefaultKey: () => Object.keys(wikis).find((k) => wikis[k] === activeWikiConfig) ?? 'a',
 	};
 	return { registry, activeWiki };
 }
@@ -269,7 +268,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 });
 
 describe('reconcileTools — applyWikiSetRule', () => {
-	it('disables add-wiki, remove-wiki, set-wiki when count is 1 and management is disallowed', async () => {
+	it('disables add-wiki and remove-wiki when count is 1 and management is disallowed', async () => {
 		const { tools, mocks } = makeToolMap(true);
 		const { registry, activeWiki } = makeMocks({
 			activeWikiConfig: baseWiki,
@@ -283,7 +282,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
 		});
-		for (const name of ['add-wiki', 'remove-wiki', 'set-wiki']) {
+		for (const name of ['add-wiki', 'remove-wiki']) {
 			expect(mocks.get(name)!.disable).toHaveBeenCalledTimes(1);
 		}
 	});
@@ -304,29 +303,9 @@ describe('reconcileTools — applyWikiSetRule', () => {
 		});
 		expect(mocks.get('add-wiki')!.enable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('remove-wiki')!.disable).not.toHaveBeenCalled();
-		expect(mocks.get('set-wiki')!.disable).not.toHaveBeenCalled();
 	});
 
-	it('enables set-wiki when count is 2 even if management is disallowed', async () => {
-		const { tools, mocks } = makeToolMap(false);
-		const { registry, activeWiki } = makeMocks({
-			activeWikiConfig: baseWiki,
-			wikis: { a: baseWiki, b: baseWiki },
-			allowManagement: false,
-		});
-		await reconcileTools(tools, {
-			wikiRegistry: registry,
-			activeWiki: activeWiki,
-			transport: 'stdio',
-			extensions: makeFakeDetector(),
-			extensionPacks: ALL_PACKS,
-		});
-		expect(mocks.get('set-wiki')!.enable).toHaveBeenCalledTimes(1);
-		expect(mocks.get('add-wiki')!.enable).not.toHaveBeenCalled();
-		expect(mocks.get('remove-wiki')!.enable).not.toHaveBeenCalled();
-	});
-
-	it('enables all three when count is 2 and management is allowed', async () => {
+	it('enables add-wiki and remove-wiki when count is 2 and management is allowed', async () => {
 		const { tools, mocks } = makeToolMap(false);
 		const { registry, activeWiki } = makeMocks({
 			activeWikiConfig: baseWiki,
@@ -340,12 +319,12 @@ describe('reconcileTools — applyWikiSetRule', () => {
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
 		});
-		for (const name of ['add-wiki', 'remove-wiki', 'set-wiki']) {
+		for (const name of ['add-wiki', 'remove-wiki']) {
 			expect(mocks.get(name)!.enable).toHaveBeenCalledTimes(1);
 		}
 	});
 
-	it('transitions: count 1 to 2 enables set-wiki', async () => {
+	it('transitions: count 1 to 2 enables remove-wiki', async () => {
 		const { tools, mocks } = makeToolMap(false);
 		const m1 = makeMocks({
 			activeWikiConfig: baseWiki,
@@ -359,7 +338,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
 		});
-		expect(mocks.get('set-wiki')!.enabled).toBe(false);
+		expect(mocks.get('remove-wiki')!.enabled).toBe(false);
 
 		const m2 = makeMocks({
 			activeWikiConfig: baseWiki,
@@ -373,7 +352,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
 		});
-		expect(mocks.get('set-wiki')!.enabled).toBe(true);
+		expect(mocks.get('remove-wiki')!.enabled).toBe(true);
 	});
 
 	it('transitions: count 2 to 1 disables remove-wiki', async () => {

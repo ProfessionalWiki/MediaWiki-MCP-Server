@@ -66,8 +66,7 @@ const exampleWikiConfig: WikiConfig = {
 
 const mockActiveWiki: ActiveWiki = {
 	get: () => ({ key: 'example.org', config: exampleWikiConfig }),
-	setCurrent: () => {},
-	reset: () => {},
+	getDefaultKey: () => 'example.org',
 };
 
 const mockMwnProvider: MwnProvider = {

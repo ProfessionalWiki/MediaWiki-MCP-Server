@@ -3,7 +3,7 @@ import { createMockMwn } from '../helpers/mock-mwn.js';
 import { EditServiceImpl } from '../../src/services/editService.js';
 import type { ActiveWiki } from '../../src/wikis/activeWiki.js';
 
-const fakeSelection = (tags: string | string[] | null = null): ActiveWiki => ({
+const fakeActiveWiki = (tags: string | string[] | null = null): ActiveWiki => ({
 	get: () => ({
 		key: 'k',
 		config: {
@@ -14,12 +14,7 @@ const fakeSelection = (tags: string | string[] | null = null): ActiveWiki => ({
 			sitename: 'S',
 		} as never,
 	}),
-	setCurrent: () => {
-		throw new Error('unused');
-	},
-	reset: () => {
-		throw new Error('unused');
-	},
+	getDefaultKey: () => 'k',
 });
 
 describe('EditServiceImpl', () => {
@@ -28,7 +23,7 @@ describe('EditServiceImpl', () => {
 			getCsrfToken: vi.fn().mockResolvedValue('CSRFTOKEN'),
 			request: vi.fn().mockResolvedValue({ ok: true }),
 		});
-		const edit = new EditServiceImpl(fakeSelection('mcp-edit'));
+		const edit = new EditServiceImpl(fakeActiveWiki('mcp-edit'));
 		await edit.submit(mock as never, { action: 'edit', title: 'Foo', text: 'bar' });
 		expect(mock.request).toHaveBeenCalledWith({
 			action: 'edit',
@@ -45,7 +40,7 @@ describe('EditServiceImpl', () => {
 			getCsrfToken: vi.fn().mockResolvedValue('CSRFTOKEN'),
 			request: vi.fn().mockResolvedValue({}),
 		});
-		const edit = new EditServiceImpl(fakeSelection(null));
+		const edit = new EditServiceImpl(fakeActiveWiki(null));
 		await edit.submit(mock as never, { action: 'edit' });
 		expect(mock.request).toHaveBeenCalledWith({
 			action: 'edit',
@@ -55,13 +50,13 @@ describe('EditServiceImpl', () => {
 	});
 
 	it('applyTags returns options unchanged when tags is null', () => {
-		const edit = new EditServiceImpl(fakeSelection(null));
+		const edit = new EditServiceImpl(fakeActiveWiki(null));
 		const options = { reason: 'spam' };
 		expect(edit.applyTags(options)).toEqual({ reason: 'spam' });
 	});
 
 	it('applyTags adds tags when configured', () => {
-		const edit = new EditServiceImpl(fakeSelection(['mcp-edit']));
+		const edit = new EditServiceImpl(fakeActiveWiki(['mcp-edit']));
 		expect(edit.applyTags({ reason: 'spam' })).toEqual({
 			reason: 'spam',
 			tags: ['mcp-edit'],
@@ -69,7 +64,7 @@ describe('EditServiceImpl', () => {
 	});
 
 	it('applyTags returns a copy and does not mutate input', () => {
-		const edit = new EditServiceImpl(fakeSelection('mcp-edit'));
+		const edit = new EditServiceImpl(fakeActiveWiki('mcp-edit'));
 		const input = { reason: 'spam' };
 		const result = edit.applyTags(input);
 		expect(result).not.toBe(input);
@@ -80,7 +75,7 @@ describe('EditServiceImpl', () => {
 		const mock = createMockMwn({
 			upload: vi.fn().mockResolvedValue({ filename: 'F.png' }),
 		});
-		const edit = new EditServiceImpl(fakeSelection('mcp-upload'));
+		const edit = new EditServiceImpl(fakeActiveWiki('mcp-upload'));
 		await edit.submitUpload(mock as never, '/tmp/f', 'File:F.png', 'desc', { comment: 'c' });
 		expect(mock.upload).toHaveBeenCalledWith('/tmp/f', 'File:F.png', 'desc', {
 			comment: 'c',

@@ -56,8 +56,7 @@ function fakeRegistry(wikis: Record<string, Partial<WikiConfig>>): WikiRegistry 
 function fakeActiveWiki(key: string, cfg: Partial<WikiConfig>): ActiveWiki {
 	return {
 		get: () => ({ key, config: cfg as WikiConfig }),
-		setCurrent: () => {},
-		reset: () => {},
+		getDefaultKey: () => key,
 	} as unknown as ActiveWiki;
 }
 
