@@ -1,22 +1,26 @@
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('../../src/config/loadConfig.js', () => ({
-	loadConfigFromFile: () => ({
-		defaultWiki: 'test',
-		wikis: {
-			test: {
-				sitename: 'Test',
-				server: 'https://test.example',
-				articlepath: '/wiki',
-				scriptpath: '/w',
-				token: null,
-				username: null,
-				password: null,
+vi.mock('../../src/config/loadConfig.js', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('../../src/config/loadConfig.js')>();
+	return {
+		...actual,
+		loadConfigFromFile: () => ({
+			defaultWiki: 'test',
+			wikis: {
+				test: {
+					sitename: 'Test',
+					server: 'https://test.example',
+					articlepath: '/wiki',
+					scriptpath: '/w',
+					token: null,
+					username: null,
+					password: null,
+				},
 			},
-		},
-		uploadDirs: [],
-	}),
-}));
+			uploadDirs: [],
+		}),
+	};
+});
 
 vi.mock('../../src/wikis/mwnProvider.js', () => ({
 	MwnProviderImpl: class {

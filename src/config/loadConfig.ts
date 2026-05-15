@@ -129,6 +129,19 @@ export interface ExecSecret {
 	};
 }
 
+/**
+ * Whether a credential field is configured — i.e. carries a usable secret
+ * source. True for a non-empty string and for an {exec:…} object; false for
+ * an empty string, null, or undefined. Used to classify a wiki as having
+ * static credentials without resolving (running) an exec-backed secret.
+ */
+export function isCredentialConfigured(value: string | ExecSecret | null | undefined): boolean {
+	if (typeof value === 'string') {
+		return value.length > 0;
+	}
+	return value !== null && value !== undefined;
+}
+
 const SECRET_FIELDS = ['token', 'username', 'password'] as const;
 type SecretFieldName = (typeof SECRET_FIELDS)[number];
 
