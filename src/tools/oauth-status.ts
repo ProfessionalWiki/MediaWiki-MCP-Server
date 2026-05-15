@@ -5,6 +5,7 @@ import { createTokenStore } from '../auth/tokenStore.js';
 
 export const oauthStatus: Tool<Record<string, never>> = {
 	name: 'oauth-status',
+	wikiScoped: false,
 	description:
 		'Lists wikis with stored OAuth tokens, their scopes, and expiry. Stdio only. Never returns token values.',
 	inputSchema: {},

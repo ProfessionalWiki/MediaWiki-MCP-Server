@@ -19,5 +19,11 @@ export interface Tool<TSchema extends ZodRawShape, TCtx extends ToolContext = To
 	 * subject (e.g. get-pages, compare-pages, set-wiki).
 	 */
 	readonly target?: (args: z.infer<z.ZodObject<TSchema>>) => string;
+	/**
+	 * Whether this tool operates on a wiki and therefore accepts the per-call
+	 * `wiki` argument. Defaults to `true` when omitted. Registry-management and
+	 * OAuth-store tools set this to `false`.
+	 */
+	readonly wikiScoped?: boolean;
 	readonly handle: (args: z.infer<z.ZodObject<TSchema>>, ctx: TCtx) => Promise<CallToolResult>;
 }

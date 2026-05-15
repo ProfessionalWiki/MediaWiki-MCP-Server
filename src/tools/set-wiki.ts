@@ -12,6 +12,7 @@ const inputSchema = {
 
 export const setWiki: Tool<typeof inputSchema, ManagementContext> = {
 	name: 'set-wiki',
+	wikiScoped: false,
 	description:
 		"Selects the wiki to use for subsequent tool calls in this session. Required before interacting with a wiki that is not the configured default; the active wiki is consulted by every page, file, search, and history tool. Returns the new active wiki's sitename and server URL.",
 	inputSchema,

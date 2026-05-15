@@ -7,6 +7,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ZodRawShape, z } from 'zod';
 import type { Tool } from './tool.js';
 import type { ToolContext } from './context.js';
+import { buildToolInputSchema } from './wikiArg.js';
 
 export function register<TSchema extends ZodRawShape, TCtx extends ToolContext>(
 	server: McpServer,
@@ -17,7 +18,12 @@ export function register<TSchema extends ZodRawShape, TCtx extends ToolContext>(
 		tool.name,
 		{
 			description: tool.description,
-			inputSchema: tool.inputSchema,
+			// `buildToolInputSchema` returns a `ZodRawShape` (the descriptor's own
+			// shape, optionally with the shared `wiki` field merged in). The cast
+			// re-narrows it to `TSchema` for the SDK's generic boundary; the merged
+			// `wiki` field is an optional extra the handler simply ignores.
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- generic boundary; the merged schema is a superset of TSchema
+			inputSchema: buildToolInputSchema(tool) as TSchema,
 			annotations: tool.annotations,
 		},
 		// The SDK callback signature is `(args, extra) => ...`. Our descriptor
