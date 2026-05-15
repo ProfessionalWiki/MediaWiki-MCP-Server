@@ -7,6 +7,8 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 
 ### Tools
 
+Every page, file, search, and history tool accepts an optional `wiki` argument naming the wiki to act on — pass a wiki key (e.g. `en.wikipedia.org`) or the full `mcp://wikis/{wikiKey}` URI. Omit it to use the configured default wiki (see [Configuration](#configuration)). Each tool response reports the wiki the call ran against.
+
 #### Page reads
 
 | Name | Description |
@@ -42,7 +44,6 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 |---|---|
 | `add-wiki` | Add a wiki as an MCP resource from its URL. Disabled when `allowWikiManagement` is `false`. |
 | `remove-wiki` | Remove a wiki resource. Disabled when `allowWikiManagement` is `false` or fewer than two wikis are configured. |
-| `set-wiki` | Set the active wiki for the current session. Disabled when fewer than two wikis are configured. |
 
 #### OAuth
 
@@ -57,7 +58,7 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 |---|---|
 | `bucket-query` | Run a [Bucket extension](https://github.com/weirdgloop/mediawiki-extensions-Bucket) Lua query. Enabled only when the wiki has Bucket installed. |
 | `cargo-describe-table` | List the fields of a [Cargo extension](https://www.mediawiki.org/wiki/Extension:Cargo) table with their types and list-flags. Enabled only when the wiki has Cargo installed. |
-| `cargo-list-tables` | List Cargo tables defined on the active wiki. Enabled only when the wiki has Cargo installed. |
+| `cargo-list-tables` | List Cargo tables defined on the wiki. Enabled only when the wiki has Cargo installed. |
 | `cargo-query` | Run a [Cargo extension](https://www.mediawiki.org/wiki/Extension:Cargo) SQL-style query. Enabled only when the wiki has Cargo installed. |
 | `smw-list-properties` | List Semantic MediaWiki properties with copy-paste templates for `smw-query`. Enabled only when the wiki has SMW installed. |
 | `smw-query` | Run a Semantic MediaWiki `#ask` query. Enabled only when the wiki has SMW installed. |
@@ -125,7 +126,7 @@ For the full field reference, env-var substitution, secret sources, change tags,
 
 ## Authentication
 
-Tools marked 🔐 require authentication. They are also hidden from `tools/list` when the active wiki has `readOnly: true` — see [Deployment](#deployment).
+Tools marked 🔐 require authentication. They are also hidden from `tools/list` when the configured default wiki has `readOnly: true` — see [Deployment](#deployment).
 
 - **Browser-based OAuth (recommended).** Sign in through a browser tab the first time a tool needs auth. Set `oauth2ClientId` and `oauth2CallbackPort` per wiki — see [docs/configuration.md — OAuth (browser-based)](docs/configuration.md#oauth-browser-based).
 - **Per-request bearer token (HTTP).** Each request carries `Authorization: Bearer <token>`; the server forwards it to MediaWiki. See [docs/deployment.md — per-request bearer token](docs/deployment.md#per-request-bearer-token-http-transport).
