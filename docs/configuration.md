@@ -57,7 +57,7 @@ If a referenced variable is not set:
 
 ## Secret sources
 
-Secret fields can also run an external command at startup and use its output as the secret. This lets you fetch credentials from a password manager, keyring, or secret store without writing them to disk:
+Secret fields can also run an external command and use its output as the secret. This lets you fetch credentials from a password manager, keyring, or secret store without writing them to disk:
 
 ```json
 {
@@ -79,9 +79,9 @@ Secret fields can also run an external command at startup and use its output as 
 }
 ```
 
-The command runs directly without a shell, with `args` passed exactly as given. Its trimmed stdout becomes the secret value. A 10-second timeout applies.
+The command runs the first time that wiki is used — not at startup — directly without a shell, with `args` passed exactly as given. Its trimmed stdout becomes the secret value. A 10-second timeout applies, and the result is cached for the lifetime of the server process.
 
-If the command fails, times out, or prints nothing, the server exits at startup. Error messages identify the failing wiki and field — the secret value itself is never logged.
+If the command fails, times out, or prints nothing, the wiki cannot be used and tool calls against it return an authentication error identifying the wiki and field. Other wikis, and server startup, are unaffected. The secret value itself is never logged.
 
 Any CLI that prints a credential to stdout works: 1Password's `op`, `pass`, `secret-tool`, Bitwarden's `bw`, HashiCorp Vault, or a custom script.
 
