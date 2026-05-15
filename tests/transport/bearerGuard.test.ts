@@ -49,6 +49,17 @@ describe('hasStaticCredentials', () => {
 	it('is true when token and bot-password fields are all set', () => {
 		expect(hasStaticCredentials(wiki({ token: 't', username: 'u', password: 'p' }))).toBe(true);
 	});
+
+	it('is true when token is an ExecSecret object', () => {
+		const execToken = { exec: { command: 'op', args: ['read', 'x'] } };
+		expect(hasStaticCredentials(wiki({ token: execToken }))).toBe(true);
+	});
+
+	it('is true when username and password are both ExecSecret objects', () => {
+		const execUser = { exec: { command: 'op', args: ['read', 'user'] } };
+		const execPass = { exec: { command: 'op', args: ['read', 'pass'] } };
+		expect(hasStaticCredentials(wiki({ username: execUser, password: execPass }))).toBe(true);
+	});
 });
 
 describe('evaluateBearerGuard', () => {
@@ -112,6 +123,15 @@ describe('evaluateBearerGuard', () => {
 	it('returns ok regardless of MCP_ALLOW_STATIC_FALLBACK when no wiki has credentials', () => {
 		expect(evaluateBearerGuard({}, { MCP_ALLOW_STATIC_FALLBACK: 'true' })).toEqual({
 			kind: 'ok',
+		});
+	});
+
+	it('returns block for a wiki with an exec-backed token when MCP_ALLOW_STATIC_FALLBACK is unset', () => {
+		const execToken = { exec: { command: 'op', args: ['read', 'x'] } };
+		const wikis = { a: wiki({ token: execToken }) };
+		expect(evaluateBearerGuard(wikis, {})).toEqual({
+			kind: 'block',
+			wikis: ['a'],
 		});
 	});
 });

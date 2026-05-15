@@ -1,3 +1,5 @@
+import { CredentialResolutionError } from './credentialResolutionError.js';
+
 export type ErrorCategory =
 	| 'not_found'
 	| 'permission_denied'
@@ -64,6 +66,9 @@ const MESSAGE_FALLBACK_PATTERNS: readonly (readonly [RegExp, string])[] = [
 ];
 
 export function classifyError(err: unknown): { category: ErrorCategory; code?: string } {
+	if (err instanceof CredentialResolutionError) {
+		return { category: 'authentication' };
+	}
 	if (err !== null && typeof err === 'object') {
 		const code = (err as { code?: unknown }).code;
 		if (typeof code === 'string') {

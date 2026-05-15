@@ -1,4 +1,5 @@
 import type { WikiConfig } from '../config/loadConfig.js';
+import { isCredentialConfigured } from '../config/loadConfig.js';
 
 export interface BearerGuardEnv {
 	MCP_ALLOW_STATIC_FALLBACK?: string;
@@ -9,15 +10,11 @@ export type BearerGuardResult =
 	| { readonly kind: 'override'; readonly wikis: readonly string[] }
 	| { readonly kind: 'block'; readonly wikis: readonly string[] };
 
-function isNonEmptyString(value: unknown): value is string {
-	return typeof value === 'string' && value.length > 0;
-}
-
 export function hasStaticCredentials(wiki: WikiConfig): boolean {
-	if (isNonEmptyString(wiki.token)) {
+	if (isCredentialConfigured(wiki.token)) {
 		return true;
 	}
-	return isNonEmptyString(wiki.username) && isNonEmptyString(wiki.password);
+	return isCredentialConfigured(wiki.username) && isCredentialConfigured(wiki.password);
 }
 
 export function evaluateBearerGuard(

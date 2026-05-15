@@ -1,8 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { execFileSync } from 'child_process';
 import { logger } from '../runtime/logger.js';
-import { isErrnoException, errorMessage } from '../errors/isErrnoException.js';
+import { errorMessage } from '../errors/isErrnoException.js';
 
 export interface WikiConfig {
 	/**
@@ -26,15 +25,15 @@ export interface WikiConfig {
 	 * Used as a fallback when no Authorization header is supplied
 	 * by the MCP client on the HTTP request.
 	 */
-	token?: string | null;
+	token?: string | ExecSecret | null;
 	/**
 	 * Username requested from Special:BotPasswords.
 	 */
-	username?: string | null;
+	username?: string | ExecSecret | null;
 	/**
 	 * Password requested from Special:BotPasswords.
 	 */
-	password?: string | null;
+	password?: string | ExecSecret | null;
 	/**
 	 * OAuth 2.0 client identifier registered at
 	 * Special:OAuthConsumerRegistration/propose/oauth2 on this wiki.
@@ -118,6 +117,31 @@ export const defaultConfig: Config = {
 	},
 };
 
+/**
+ * A credential field whose value is produced by running an external command.
+ * Validated at config load (see parseExecSecret); the command itself runs
+ * lazily on first use of the wiki — see src/wikis/execSecret.ts.
+ */
+export interface ExecSecret {
+	exec: {
+		command: string;
+		args: string[];
+	};
+}
+
+/**
+ * Whether a credential field is configured — i.e. carries a usable secret
+ * source. True for a non-empty string and for an {exec:…} object; false for
+ * an empty string, null, or undefined. Used to classify a wiki as having
+ * static credentials without resolving (running) an exec-backed secret.
+ */
+export function isCredentialConfigured(value: string | ExecSecret | null | undefined): boolean {
+	if (typeof value === 'string') {
+		return value.length > 0;
+	}
+	return value !== null && value !== undefined;
+}
+
 const SECRET_FIELDS = ['token', 'username', 'password'] as const;
 type SecretFieldName = (typeof SECRET_FIELDS)[number];
 
@@ -155,7 +179,7 @@ function resolveSecretField(
 	raw: unknown,
 	wikiKey: string,
 	fieldName: SecretFieldName,
-): string | null | undefined {
+): string | ExecSecret | null | undefined {
 	if (raw === null || raw === undefined) {
 		return raw;
 	}
@@ -178,72 +202,35 @@ function resolveSecretField(
 		return raw;
 	}
 	if (typeof raw === 'object' && !Array.isArray(raw)) {
-		return runExec(raw, wikiKey, fieldName);
+		return parseExecSecret(raw, `wikis.${wikiKey}.${fieldName}`);
 	}
 	throw new Error(
 		`Config error: wikis.${wikiKey}.${fieldName} must be a string, null, or an {exec: …} object`,
 	);
 }
 
-function runExec(raw: unknown, wikiKey: string, fieldName: SecretFieldName): string {
-	const path = `wikis.${wikiKey}.${fieldName}`;
-	if (typeof raw !== 'object' || raw === null) {
-		throw new Error(`Config error: ${path} must be a string, null, or an {exec: …} object`);
+function parseExecSecret(raw: unknown, fieldPath: string): ExecSecret {
+	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+		throw new Error(`Config error: ${fieldPath} must be a string, null, or an {exec: …} object`);
 	}
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; ajv-validated WikiConfig parsing is a separate follow-up
 	const src = raw as { exec?: unknown };
 	if (typeof src.exec !== 'object' || src.exec === null || Array.isArray(src.exec)) {
-		throw new Error(`Config error: ${path} must be a string, null, or an {exec: …} object`);
+		throw new Error(`Config error: ${fieldPath} must be a string, null, or an {exec: …} object`);
 	}
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; ajv-validated WikiConfig parsing is a separate follow-up
 	const exec = src.exec as { command?: unknown; args?: unknown };
 	if (typeof exec.command !== 'string' || exec.command === '') {
-		throw new Error(`Config error: ${path}.exec.command must be a non-empty string`);
+		throw new Error(`Config error: ${fieldPath}.exec.command must be a non-empty string`);
 	}
 	if (
 		exec.args !== undefined &&
 		(!Array.isArray(exec.args) || !exec.args.every((a) => typeof a === 'string'))
 	) {
-		throw new Error(`Config error: ${path}.exec.args must be an array of strings`);
+		throw new Error(`Config error: ${fieldPath}.exec.args must be an array of strings`);
 	}
-	const command = exec.command;
-	const args = exec.args ?? [];
-
-	let stdout: string;
-	try {
-		stdout = execFileSync(command, args, {
-			timeout: 10_000,
-			encoding: 'utf-8',
-			stdio: ['ignore', 'pipe', 'pipe'],
-		});
-	} catch (err: unknown) {
-		if (!isErrnoException(err)) {
-			throw err;
-		}
-		if (err.code === 'ENOENT') {
-			throw new Error(`Config error: failed to fetch ${path}: command "${command}" not found`);
-		}
-		if (err.signal === 'SIGTERM' || err.code === 'ETIMEDOUT') {
-			throw new Error(
-				`Config error: failed to fetch ${path}: command "${command}" timed out after 10s`,
-			);
-		}
-		if (typeof err.status === 'number' && err.status !== 0) {
-			const stderrText = err.stderr
-				? (Buffer.isBuffer(err.stderr) ? err.stderr.toString('utf-8') : err.stderr).slice(0, 200)
-				: '';
-			throw new Error(
-				`Config error: failed to fetch ${path}: command "${command}" exited with status ${err.status}. stderr: ${stderrText}`,
-			);
-		}
-		throw new Error(`Config error: failed to fetch ${path}: ${err.message}`);
-	}
-
-	const trimmed = stdout.replace(/\r?\n+$/, '');
-	if (trimmed === '') {
-		throw new Error(
-			`Config error: failed to fetch ${path}: command "${command}" produced no output`,
-		);
-	}
-	return trimmed;
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; ajv-validated WikiConfig parsing is a separate follow-up
+	return { exec: { command: exec.command, args: (exec.args as string[]) ?? [] } };
 }
 
 function resolveUploadDirs(rawFromConfig: unknown): readonly string[] {

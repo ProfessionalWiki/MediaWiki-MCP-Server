@@ -26,7 +26,7 @@ import {
 import { withRequestContext } from './requestContext.js';
 
 export { withRequestContext } from './requestContext.js';
-import { loadConfigFromFile } from '../config/loadConfig.js';
+import { isCredentialConfigured, loadConfigFromFile } from '../config/loadConfig.js';
 import type { MwnProvider } from '../wikis/mwnProvider.js';
 import type { WikiSelection } from '../wikis/wikiSelection.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
@@ -200,11 +200,8 @@ export function createMcpPostHandler(
 			const cfg = wikiSelection.getCurrent().config;
 			const oauthOnly = typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
 			const hasStatic =
-				(typeof cfg.token === 'string' && cfg.token.trim() !== '') ||
-				(typeof cfg.username === 'string' &&
-					typeof cfg.password === 'string' &&
-					cfg.username.trim() !== '' &&
-					cfg.password.trim() !== '');
+				isCredentialConfigured(cfg.token) ||
+				(isCredentialConfigured(cfg.username) && isCredentialConfigured(cfg.password));
 			const fallbackAllowed = process.env.MCP_ALLOW_STATIC_FALLBACK === 'true';
 			if (oauthOnly && !(hasStatic && fallbackAllowed)) {
 				const protoHeader = req.headers['x-forwarded-proto'];

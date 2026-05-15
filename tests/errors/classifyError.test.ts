@@ -4,6 +4,7 @@ import { classifyError } from '../../src/errors/classifyError.js';
 import { errorResult } from '../../src/results/response.js';
 import { createMockMwnError } from '../helpers/mock-mwn-error.js';
 import { assertStructuredError } from '../helpers/structuredResult.js';
+import { CredentialResolutionError } from '../../src/errors/credentialResolutionError.js';
 
 describe('classifyError', () => {
 	describe('maps MW .code to category', () => {
@@ -89,6 +90,13 @@ describe('classifyError', () => {
 		['number', 42],
 	])('non-Error value (%s) → upstream_failure without code', (_label, value) => {
 		expect(classifyError(value)).toEqual({ category: 'upstream_failure' });
+	});
+
+	describe('CredentialResolutionError', () => {
+		it('classifies as authentication', () => {
+			const err = new CredentialResolutionError('Could not resolve the "token" credential');
+			expect(classifyError(err)).toEqual({ category: 'authentication' });
+		});
 	});
 });
 

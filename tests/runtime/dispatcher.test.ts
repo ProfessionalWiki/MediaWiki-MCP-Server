@@ -5,6 +5,9 @@ import type { Tool } from '../../src/runtime/tool.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 import { createMockMwnError } from '../helpers/mock-mwn-error.js';
 import { clearRegisteredServers } from '../../src/runtime/logger.js';
+import { CredentialResolutionError } from '../../src/errors/credentialResolutionError.js';
+import { getPage } from '../../src/tools/get-page.js';
+import { ContentFormat } from '../../src/results/contentFormat.js';
 
 const noopTool = (handle: Tool<{ x: z.ZodString }>['handle']): Tool<{ x: z.ZodString }> => ({
 	name: 'get-page',
@@ -95,6 +98,34 @@ describe('dispatcher', () => {
 		const result = await dispatch(tool, ctx)({ x: 'y' });
 		const envelope = JSON.parse((result.content[0] as { text: string }).text);
 		expect(envelope.message).toBe('Failed to update page: boom');
+	});
+
+	it('surfaces a CredentialResolutionError from the mwn provider as authentication category', async () => {
+		// Simulate an exec-backed credential command failing on first use of the wiki.
+		const credError = new CredentialResolutionError(
+			'exec command "false" exited with code 1 (no output)',
+		);
+		const ctx = fakeContext({
+			mwn: async () => {
+				throw credError;
+			},
+		});
+
+		const result = await dispatch(
+			getPage,
+			ctx,
+		)({
+			title: 'Test Page',
+			content: ContentFormat.source,
+			metadata: false,
+		});
+
+		expect(result.isError).toBe(true);
+		const envelope = JSON.parse((result.content[0] as { text: string }).text);
+		expect(envelope.category).toBe('authentication');
+		// The error message must not contain the secret/stdout — only safe text.
+		expect(envelope.message).not.toContain('secret');
+		expect(envelope.message).not.toContain('stdout');
 	});
 });
 

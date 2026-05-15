@@ -20,10 +20,16 @@ vi.mock('../../src/runtime/constants.js', () => ({
 	USER_AGENT: 'test-agent',
 }));
 
+const { mockRunExecSecret } = vi.hoisted(() => ({ mockRunExecSecret: vi.fn() }));
+vi.mock('../../src/wikis/execSecret.js', () => ({
+	runExecSecret: mockRunExecSecret,
+}));
+
 import { MwnProviderImpl } from '../../src/wikis/mwnProvider.js';
 import { WikiRegistryImpl } from '../../src/wikis/wikiRegistry.js';
 import { WikiSelectionImpl } from '../../src/wikis/wikiSelection.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
+import { CredentialResolutionError } from '../../src/errors/credentialResolutionError.js';
 
 const sample = (name: string): WikiConfig => ({
 	sitename: name,
@@ -38,6 +44,7 @@ describe('MwnProviderImpl', () => {
 		mockGetSiteInfo.mockReset();
 		mockInit.mockReset();
 		mockGetSiteInfo.mockResolvedValue(undefined);
+		mockRunExecSecret.mockReset();
 	});
 
 	it('caches non-runtime-token mwn instances per key', async () => {
@@ -182,5 +189,75 @@ describe('MwnProviderImpl', () => {
 		await provider.get();
 		const options = mockConstructor.mock.calls[0]?.[0] as { defaultParams?: { assert?: unknown } };
 		expect(options.defaultParams?.assert).toBeUndefined();
+	});
+
+	describe('lazy exec-backed credentials', () => {
+		const execWiki = (name: string): WikiConfig => ({
+			...sample(name),
+			token: { exec: { command: 'op', args: ['read', 'x'] } },
+		});
+
+		it('runs the exec command once on first use and reuses the cached value', async () => {
+			mockRunExecSecret.mockResolvedValue('exec-token');
+			mockInit.mockResolvedValue({ getSiteInfo: mockGetSiteInfo });
+			const reg = new WikiRegistryImpl({ a: execWiki('a') }, true);
+			const sel = new WikiSelectionImpl('a', reg);
+			const provider = new MwnProviderImpl(reg, sel, () => undefined);
+
+			await provider.get('a');
+			await provider.get('a');
+
+			expect(mockRunExecSecret).toHaveBeenCalledOnce();
+			expect(mockInit).toHaveBeenCalledWith(
+				expect.objectContaining({ OAuth2AccessToken: 'exec-token' }),
+			);
+		});
+
+		it('never runs the exec command for a wiki that is not used', async () => {
+			mockRunExecSecret.mockResolvedValue('exec-token');
+			const reg = new WikiRegistryImpl({ a: sample('a'), b: execWiki('b') }, true);
+			const sel = new WikiSelectionImpl('a', reg);
+			const provider = new MwnProviderImpl(reg, sel, () => undefined);
+
+			await provider.get('a');
+
+			expect(mockRunExecSecret).not.toHaveBeenCalled();
+		});
+
+		it('surfaces a failing exec command as a CredentialResolutionError', async () => {
+			mockRunExecSecret.mockRejectedValue(
+				new CredentialResolutionError('Could not resolve the "token" credential for wiki "a"'),
+			);
+			const reg = new WikiRegistryImpl({ a: execWiki('a') }, true);
+			const sel = new WikiSelectionImpl('a', reg);
+			const provider = new MwnProviderImpl(reg, sel, () => undefined);
+
+			await expect(provider.get('a')).rejects.toBeInstanceOf(CredentialResolutionError);
+		});
+
+		it('does not resolve config secrets when a runtime token is present', async () => {
+			mockInit.mockResolvedValue({ getSiteInfo: mockGetSiteInfo });
+			const reg = new WikiRegistryImpl({ a: execWiki('a') }, true);
+			const sel = new WikiSelectionImpl('a', reg);
+			const provider = new MwnProviderImpl(reg, sel, () => 'runtime-token');
+
+			await provider.get('a');
+
+			expect(mockRunExecSecret).not.toHaveBeenCalled();
+		});
+
+		it('retries a failing exec command on the next call', async () => {
+			mockRunExecSecret
+				.mockRejectedValueOnce(new CredentialResolutionError('transient'))
+				.mockResolvedValueOnce('exec-token');
+			mockInit.mockResolvedValue({ getSiteInfo: mockGetSiteInfo });
+			const reg = new WikiRegistryImpl({ a: execWiki('a') }, true);
+			const sel = new WikiSelectionImpl('a', reg);
+			const provider = new MwnProviderImpl(reg, sel, () => undefined);
+
+			await expect(provider.get('a')).rejects.toBeInstanceOf(CredentialResolutionError);
+			await provider.get('a');
+			expect(mockRunExecSecret).toHaveBeenCalledTimes(2);
+		});
 	});
 });

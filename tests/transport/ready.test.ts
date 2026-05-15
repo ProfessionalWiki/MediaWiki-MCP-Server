@@ -16,23 +16,27 @@ const mockRequest = vi.fn();
 //    these inline mocks are what actually drive the test logic. Do not
 //    collapse the two layers — they target different code paths.
 
-vi.mock('../../src/config/loadConfig.js', () => ({
-	loadConfigFromFile: () => ({
-		defaultWiki: 'example.org',
-		wikis: {
-			'example.org': {
-				sitename: 'Example',
-				server: 'https://example.org',
-				articlepath: '/wiki',
-				scriptpath: '/w',
-				token: null,
-				username: null,
-				password: null,
+vi.mock('../../src/config/loadConfig.js', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('../../src/config/loadConfig.js')>();
+	return {
+		...actual,
+		loadConfigFromFile: () => ({
+			defaultWiki: 'example.org',
+			wikis: {
+				'example.org': {
+					sitename: 'Example',
+					server: 'https://example.org',
+					articlepath: '/wiki',
+					scriptpath: '/w',
+					token: null,
+					username: null,
+					password: null,
+				},
 			},
-		},
-		uploadDirs: [],
-	}),
-}));
+			uploadDirs: [],
+		}),
+	};
+});
 
 vi.mock('../../src/wikis/mwnProvider.js', () => ({
 	MwnProviderImpl: class {
