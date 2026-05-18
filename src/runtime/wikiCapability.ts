@@ -46,10 +46,14 @@ export async function checkWikiCapability(
 	if (pack) {
 		const present = await ctx.extensions.hasAny(wikiKey, pack.extensionNames);
 		if (!present) {
-			return ctx.format.invalidInput(
-				`The ${pack.extensionNames[0]} extension is not installed on wiki "${wikiKey}". ` +
-					'Use list-wikis to see which wikis support it.',
-			);
+			// hasAny is false both when the extension is absent and when the
+			// probe failed; inspect() (same cache entry) tells them apart so the
+			// error doesn't claim "not installed" for a wiki that is merely down.
+			const { reachable } = await ctx.extensions.inspect(wikiKey);
+			const reason = reachable
+				? `The ${pack.extensionNames[0]} extension is not installed on wiki "${wikiKey}".`
+				: `Wiki "${wikiKey}" could not be reached to check for the ${pack.extensionNames[0]} extension.`;
+			return ctx.format.invalidInput(`${reason} Use list-wikis to see which wikis support it.`);
 		}
 	}
 	if (WRITE_TOOL_SET.has(toolName)) {

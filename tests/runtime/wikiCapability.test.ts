@@ -10,7 +10,7 @@ const rwWiki = {
 } as never;
 const roWiki = { ...rwWiki, readOnly: true } as never;
 
-function ctx(hasExt: boolean, wikiConfig: unknown) {
+function ctx(hasExt: boolean, wikiConfig: unknown, reachable = true) {
 	return fakeContext({
 		wikis: {
 			getAll: () => ({ w: wikiConfig }) as never,
@@ -23,7 +23,7 @@ function ctx(hasExt: boolean, wikiConfig: unknown) {
 			has: (async () => hasExt) as never,
 			hasAny: (async () => hasExt) as never,
 			invalidate: (() => {}) as never,
-			inspect: (async () => ({ reachable: true, extensions: new Set<string>() })) as never,
+			inspect: (async () => ({ reachable, extensions: new Set<string>() })) as never,
 		},
 	});
 }
@@ -33,6 +33,14 @@ describe('checkWikiCapability', () => {
 		const result = await checkWikiCapability('cargo-query', 'w', ctx(false, rwWiki));
 		expect(result?.isError).toBe(true);
 		expect(JSON.stringify(result?.content)).toContain('not installed');
+	});
+
+	it('reports an unreachable wiki rather than claiming the extension is missing', async () => {
+		const result = await checkWikiCapability('cargo-query', 'w', ctx(false, rwWiki, false));
+		expect(result?.isError).toBe(true);
+		const text = JSON.stringify(result?.content);
+		expect(text).toContain('could not be reached');
+		expect(text).not.toContain('not installed');
 	});
 
 	it('allows an extension tool when the wiki has the extension', async () => {
