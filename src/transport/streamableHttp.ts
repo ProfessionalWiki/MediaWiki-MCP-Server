@@ -30,7 +30,7 @@ import { isCredentialConfigured, loadConfigFromFile } from '../config/loadConfig
 import type { MwnProvider } from '../wikis/mwnProvider.js';
 import type { ActiveWiki } from '../wikis/activeWiki.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
-import { fetchMetadata } from '../auth/metadata.js';
+import { fetchMetadata, type AsMetadata } from '../auth/metadata.js';
 import { buildProtectedResource, resolvePublicBase } from '../auth/protectedResource.js';
 import { createAppState } from '../wikis/state.js';
 import { createServer } from '../server.js';
@@ -130,32 +130,33 @@ function sendSessionBearerMismatch(res: Response): void {
 
 export function createOAuthProtectedResourceHandler(deps: {
 	wikiRegistry: WikiRegistry;
-	activeWiki: ActiveWiki;
 }): RequestHandler {
 	return async (req, res, next) => {
 		try {
 			const wikis = deps.wikiRegistry.getAll();
-			const oauthEnabled = Object.values(wikis).some(
-				(w) => typeof w.oauth2ClientId === 'string' && w.oauth2ClientId.trim() !== '',
+			const oauthWikis = Object.entries(wikis).filter(
+				([, w]) => typeof w.oauth2ClientId === 'string' && w.oauth2ClientId.trim() !== '',
 			);
-			if (!oauthEnabled) {
+			if (oauthWikis.length === 0) {
 				res.status(404).end();
 				return;
 			}
-			const defaultKey = deps.activeWiki.getDefaultKey();
-			const defaultCfg = wikis[defaultKey];
-			if (!defaultCfg) {
-				res.status(404).end();
-				return;
-			}
-			let metadata;
-			try {
-				metadata = await fetchMetadata(defaultKey, {
-					server: defaultCfg.server,
-					scriptpath: defaultCfg.scriptpath,
+			const settled = await Promise.allSettled(
+				oauthWikis.map(([key, cfg]) =>
+					fetchMetadata(key, { server: cfg.server, scriptpath: cfg.scriptpath }),
+				),
+			);
+			const metadatas = settled
+				.filter((r): r is PromiseFulfilledResult<AsMetadata> => r.status === 'fulfilled')
+				.map((r) => r.value);
+			if (metadatas.length === 0) {
+				const reasons = settled
+					.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+					.map((r) => String(r.reason));
+				logger.warning('OAuth protected-resource discovery failed for all wikis', {
+					reasons,
 				});
-			} catch (err) {
-				res.status(503).json({ error: 'discovery_failed', detail: String(err) });
+				res.status(503).json({ error: 'discovery_failed' });
 				return;
 			}
 			const protoHeader = req.headers['x-forwarded-proto'];
@@ -164,8 +165,7 @@ export function createOAuthProtectedResourceHandler(deps: {
 				proto === 'https' || proto === 'http' ? proto : req.secure ? 'https' : 'http';
 			const doc = buildProtectedResource({
 				wikis,
-				defaultWiki: defaultKey,
-				metadata,
+				metadatas,
 				requestHost: req.headers.host ?? undefined,
 				requestProto,
 			});
@@ -498,7 +498,6 @@ app.get(
 	'/.well-known/oauth-protected-resource',
 	createOAuthProtectedResourceHandler({
 		wikiRegistry: state.wikiRegistry,
-		activeWiki: state.activeWiki,
 	}),
 );
 

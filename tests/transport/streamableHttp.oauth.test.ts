@@ -60,12 +60,12 @@ function fakeActiveWiki(key: string, cfg: Partial<WikiConfig>): ActiveWiki {
 	} as unknown as ActiveWiki;
 }
 
-function buildWellKnownApp(registry: WikiRegistry, activeWiki: ActiveWiki): Express {
+function buildWellKnownApp(registry: WikiRegistry): Express {
 	const app = express();
 	app.use(express.json());
 	app.get(
 		'/.well-known/oauth-protected-resource',
-		createOAuthProtectedResourceHandler({ wikiRegistry: registry, activeWiki: activeWiki }),
+		createOAuthProtectedResourceHandler({ wikiRegistry: registry }),
 	);
 	return app;
 }
@@ -101,8 +101,7 @@ describe('GET /.well-known/oauth-protected-resource', () => {
 			oauth2ClientId: 'my-client-id',
 		};
 		const registry = fakeRegistry({ mywiki: wikiCfg });
-		const activeWiki = fakeActiveWiki('mywiki', wikiCfg);
-		const app = buildWellKnownApp(registry, activeWiki);
+		const app = buildWellKnownApp(registry);
 
 		const res = await request(app).get('/.well-known/oauth-protected-resource');
 		expect(res.status).toBe(200);
@@ -120,8 +119,7 @@ describe('GET /.well-known/oauth-protected-resource', () => {
 			articlepath: '/wiki',
 		};
 		const registry = fakeRegistry({ plain: wikiCfg });
-		const activeWiki = fakeActiveWiki('plain', wikiCfg);
-		const app = buildWellKnownApp(registry, activeWiki);
+		const app = buildWellKnownApp(registry);
 
 		const res = await request(app).get('/.well-known/oauth-protected-resource');
 		expect(res.status).toBe(404);
@@ -136,8 +134,7 @@ describe('GET /.well-known/oauth-protected-resource', () => {
 			oauth2ClientId: '',
 		};
 		const registry = fakeRegistry({ empty: wikiCfg });
-		const activeWiki = fakeActiveWiki('empty', wikiCfg);
-		const app = buildWellKnownApp(registry, activeWiki);
+		const app = buildWellKnownApp(registry);
 
 		const res = await request(app).get('/.well-known/oauth-protected-resource');
 		expect(res.status).toBe(404);
@@ -153,8 +150,7 @@ describe('GET /.well-known/oauth-protected-resource', () => {
 			oauth2ClientId: 'my-client-id',
 		};
 		const registry = fakeRegistry({ mywiki: wikiCfg });
-		const activeWiki = fakeActiveWiki('mywiki', wikiCfg);
-		const app = buildWellKnownApp(registry, activeWiki);
+		const app = buildWellKnownApp(registry);
 
 		// MCP_PUBLIC_URL not set; resource is derived from host header and proto
 		const res = await request(app)
@@ -164,6 +160,95 @@ describe('GET /.well-known/oauth-protected-resource', () => {
 		expect(res.status).toBe(200);
 		// resource should use https
 		expect(res.body.resource).toMatch(/^https:\/\/mcp\.example\.org\//);
+	});
+
+	it('lists every OAuth wiki authorization server when two wikis use different servers', async () => {
+		fakeAs = await startFakeAs();
+		const fakeAs2 = await startFakeAs();
+		try {
+			const wikiCfgA: Partial<WikiConfig> = {
+				sitename: 'WikiA',
+				server: fakeAs.url,
+				scriptpath: '/w',
+				articlepath: '/wiki',
+				oauth2ClientId: 'client-a',
+			};
+			const wikiCfgB: Partial<WikiConfig> = {
+				sitename: 'WikiB',
+				server: fakeAs2.url,
+				scriptpath: '/w',
+				articlepath: '/wiki',
+				oauth2ClientId: 'client-b',
+			};
+			const registry = fakeRegistry({ wikiA: wikiCfgA, wikiB: wikiCfgB });
+			const app = buildWellKnownApp(registry);
+
+			const res = await request(app).get('/.well-known/oauth-protected-resource');
+			expect(res.status).toBe(200);
+			expect(res.body.authorization_servers).toContain(fakeAs.url);
+			expect(res.body.authorization_servers).toContain(fakeAs2.url);
+			expect(res.body.authorization_servers).toHaveLength(2);
+		} finally {
+			await fakeAs2.close();
+		}
+	});
+
+	it('still includes a reachable wiki AS when another wiki metadata fetch rejects', async () => {
+		fakeAs = await startFakeAs();
+		// A second AS that explicitly advertises a non-S256 PKCE method makes
+		// fetchMetadata reject with MetadataError; Promise.allSettled keeps it
+		// out of the document while the reachable wiki's AS survives.
+		const badAs = await startFakeAs({
+			wellKnownBody: { code_challenge_methods_supported: ['plain'] },
+		});
+		try {
+			const reachable: Partial<WikiConfig> = {
+				sitename: 'Reachable',
+				server: fakeAs.url,
+				scriptpath: '/w',
+				articlepath: '/wiki',
+				oauth2ClientId: 'client-ok',
+			};
+			const rejecting: Partial<WikiConfig> = {
+				sitename: 'Rejecting',
+				server: badAs.url,
+				scriptpath: '/w',
+				articlepath: '/wiki',
+				oauth2ClientId: 'client-bad',
+			};
+			const registry = fakeRegistry({ reachable: reachable, rejecting: rejecting });
+			const app = buildWellKnownApp(registry);
+
+			const res = await request(app).get('/.well-known/oauth-protected-resource');
+			expect(res.status).toBe(200);
+			expect(res.body.authorization_servers).toContain(fakeAs.url);
+			expect(res.body.authorization_servers).not.toContain(badAs.url);
+		} finally {
+			await badAs.close();
+		}
+	});
+
+	it('returns 503 when every OAuth wiki metadata fetch rejects', async () => {
+		const badAs = await startFakeAs({
+			wellKnownBody: { code_challenge_methods_supported: ['plain'] },
+		});
+		try {
+			const rejecting: Partial<WikiConfig> = {
+				sitename: 'Rejecting',
+				server: badAs.url,
+				scriptpath: '/w',
+				articlepath: '/wiki',
+				oauth2ClientId: 'client-bad',
+			};
+			const registry = fakeRegistry({ rejecting: rejecting });
+			const app = buildWellKnownApp(registry);
+
+			const res = await request(app).get('/.well-known/oauth-protected-resource');
+			expect(res.status).toBe(503);
+			expect(res.body.error).toBe('discovery_failed');
+		} finally {
+			await badAs.close();
+		}
 	});
 });
 

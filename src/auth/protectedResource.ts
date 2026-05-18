@@ -6,8 +6,7 @@ const RESOURCE_DOCUMENTATION =
 
 export interface ProtectedResourceInput {
 	wikis: Record<string, { oauth2ClientId?: string | null }>;
-	defaultWiki: string;
-	metadata: AsMetadata;
+	metadatas: readonly AsMetadata[];
 	requestHost: string | undefined;
 	requestProto: 'http' | 'https' | undefined;
 }
@@ -51,21 +50,23 @@ export function resolvePublicBase(
 export function buildProtectedResource(
 	input: ProtectedResourceInput,
 ): ProtectedResourceDoc | undefined {
-	if (!anyWikiHasOAuth(input.wikis)) {
+	if (!anyWikiHasOAuth(input.wikis) || input.metadatas.length === 0) {
 		return undefined;
 	}
 
 	const resource = resolvePublicBase(input.requestHost, input.requestProto);
+	const issuers = [...new Set(input.metadatas.map((m) => m.issuer))];
+	const scopes = [...new Set(input.metadatas.flatMap((m) => m.scopes_supported ?? []))];
 
 	const doc: ProtectedResourceDoc = {
 		resource,
-		authorization_servers: [input.metadata.issuer],
+		authorization_servers: issuers,
 		bearer_methods_supported: ['header'],
 		resource_documentation: RESOURCE_DOCUMENTATION,
 	};
 
-	if (Array.isArray(input.metadata.scopes_supported)) {
-		doc.scopes_supported = input.metadata.scopes_supported;
+	if (scopes.length > 0) {
+		doc.scopes_supported = scopes;
 	}
 
 	return doc;
