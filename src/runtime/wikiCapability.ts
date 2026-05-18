@@ -3,7 +3,7 @@ import type { ToolContext } from './context.js';
 import type { ExtensionPack } from '../tools/extensions/types.js';
 import { extensionPacks } from '../tools/extensions/index.js';
 import { getRuntimeToken } from '../transport/requestContext.js';
-import { isCredentialConfigured } from '../config/loadConfig.js';
+import { hasStaticCredentials } from '../transport/bearerGuard.js';
 
 // The wiki-mutating tools. Shared by reconcile's read-only rule and the
 // per-call capability guard.
@@ -47,14 +47,15 @@ export async function checkWikiCapability(
 	// HTTP transport: a call to an OAuth-only wiki with no usable token can only
 	// fail downstream with an opaque error. Reject it up front with discovery
 	// guidance. (On stdio the dispatcher's acquireToken gate drives OAuth, so
-	// this never fires there.)
+	// this never fires there.) On HTTP a wiki with static credentials only
+	// coexists with a running server when MCP_ALLOW_STATIC_FALLBACK is set —
+	// the startup bearer guard (evaluateBearerGuard) blocks startup otherwise —
+	// so this guard need not re-consult that env var.
 	if (ctx.transport === 'http') {
 		const cfg = ctx.wikis.get(wikiKey);
 		if (cfg) {
 			const oauthOnly = typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
-			const hasStatic =
-				isCredentialConfigured(cfg.token) ||
-				(isCredentialConfigured(cfg.username) && isCredentialConfigured(cfg.password));
+			const hasStatic = hasStaticCredentials(cfg);
 			if (oauthOnly && !hasStatic && getRuntimeToken() === undefined) {
 				return ctx.format.error(
 					'authentication',

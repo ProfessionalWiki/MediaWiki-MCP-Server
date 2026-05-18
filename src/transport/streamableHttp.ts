@@ -13,7 +13,7 @@ import {
 } from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
-import { evaluateBearerGuard } from './bearerGuard.js';
+import { evaluateBearerGuard, hasStaticCredentials } from './bearerGuard.js';
 import { LOCALHOST_HOSTS, resolveHttpConfig } from './httpConfig.js';
 import { logger } from '../runtime/logger.js';
 import {
@@ -26,11 +26,7 @@ import {
 import { withRequestContext } from './requestContext.js';
 
 export { withRequestContext } from './requestContext.js';
-import {
-	isCredentialConfigured,
-	loadConfigFromFile,
-	type WikiConfig,
-} from '../config/loadConfig.js';
+import { loadConfigFromFile, type WikiConfig } from '../config/loadConfig.js';
 import type { MwnProvider } from '../wikis/mwnProvider.js';
 import type { ActiveWiki } from '../wikis/activeWiki.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
@@ -181,9 +177,7 @@ function wikiNeedsAuth(cfg: WikiConfig, fallbackAllowed: boolean): boolean {
 	if (!oauthOnly) {
 		return false;
 	}
-	const hasStatic =
-		isCredentialConfigured(cfg.token) ||
-		(isCredentialConfigured(cfg.username) && isCredentialConfigured(cfg.password));
+	const hasStatic = hasStaticCredentials(cfg);
 	return !(hasStatic && fallbackAllowed);
 }
 
