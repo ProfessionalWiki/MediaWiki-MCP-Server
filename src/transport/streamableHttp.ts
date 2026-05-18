@@ -26,7 +26,11 @@ import {
 import { withRequestContext } from './requestContext.js';
 
 export { withRequestContext } from './requestContext.js';
-import { isCredentialConfigured, loadConfigFromFile } from '../config/loadConfig.js';
+import {
+	isCredentialConfigured,
+	loadConfigFromFile,
+	type WikiConfig,
+} from '../config/loadConfig.js';
 import type { MwnProvider } from '../wikis/mwnProvider.js';
 import type { ActiveWiki } from '../wikis/activeWiki.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
@@ -180,9 +184,21 @@ export function createOAuthProtectedResourceHandler(deps: {
 	};
 }
 
+// A wiki needs auth when it is OAuth-only with no usable static fallback.
+function wikiNeedsAuth(cfg: WikiConfig, fallbackAllowed: boolean): boolean {
+	const oauthOnly = typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
+	if (!oauthOnly) {
+		return false;
+	}
+	const hasStatic =
+		isCredentialConfigured(cfg.token) ||
+		(isCredentialConfigured(cfg.username) && isCredentialConfigured(cfg.password));
+	return !(hasStatic && fallbackAllowed);
+}
+
 export interface McpPostHandlerOptions {
 	allowedOrigins?: string[];
-	activeWiki?: ActiveWiki;
+	wikiRegistry?: WikiRegistry;
 }
 
 export function createMcpPostHandler(
@@ -190,20 +206,17 @@ export function createMcpPostHandler(
 	createServerFn: () => ReturnType<typeof createServer>,
 	options: McpPostHandlerOptions = {},
 ): RequestHandler {
-	const { allowedOrigins, activeWiki } = options;
+	const { allowedOrigins, wikiRegistry } = options;
 	return async (req, res) => {
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Express headers are string|string[]|undefined; MCP transport sends a single header
 		const sessionId = req.headers['mcp-session-id'] as string | undefined;
 		const bearer = extractBearerToken(req);
 
-		if (!bearer && activeWiki) {
-			const cfg = activeWiki.get().config;
-			const oauthOnly = typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
-			const hasStatic =
-				isCredentialConfigured(cfg.token) ||
-				(isCredentialConfigured(cfg.username) && isCredentialConfigured(cfg.password));
+		if (!bearer && wikiRegistry) {
+			const all = Object.values(wikiRegistry.getAll());
 			const fallbackAllowed = process.env.MCP_ALLOW_STATIC_FALLBACK === 'true';
-			if (oauthOnly && !(hasStatic && fallbackAllowed)) {
+			const allNeedAuth = all.length > 0 && all.every((cfg) => wikiNeedsAuth(cfg, fallbackAllowed));
+			if (allNeedAuth) {
 				const protoHeader = req.headers['x-forwarded-proto'];
 				const proto =
 					typeof protoHeader === 'string' ? protoHeader.split(',')[0]?.trim() : undefined;
@@ -484,7 +497,7 @@ app.post(
 	'/mcp',
 	createMcpPostHandler(sessions, () => createServer(ctx), {
 		allowedOrigins,
-		activeWiki: state.activeWiki,
+		wikiRegistry: state.wikiRegistry,
 	}),
 );
 app.get('/mcp', sessionRequestHandler);

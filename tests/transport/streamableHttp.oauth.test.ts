@@ -38,7 +38,6 @@ import {
 	type SessionRegistry,
 } from '../../src/transport/streamableHttp.js';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
-import type { ActiveWiki } from '../../src/wikis/activeWiki.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.js';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.js';
@@ -51,13 +50,6 @@ function fakeRegistry(wikis: Record<string, Partial<WikiConfig>>): WikiRegistry 
 		remove: () => {},
 		isManagementAllowed: () => false,
 	} as unknown as WikiRegistry;
-}
-
-function fakeActiveWiki(key: string, cfg: Partial<WikiConfig>): ActiveWiki {
-	return {
-		get: () => ({ key, config: cfg as WikiConfig }),
-		getDefaultKey: () => key,
-	} as unknown as ActiveWiki;
 }
 
 function buildWellKnownApp(registry: WikiRegistry): Express {
@@ -74,11 +66,11 @@ function stubCreateServer(): McpServer {
 	return new McpServer({ name: 'oauth-test-server', version: '0.0.0' }, { capabilities: {} });
 }
 
-function buildMcpApp(activeWiki: ActiveWiki): Express {
+function buildMcpApp(registry: WikiRegistry): Express {
 	const app = express();
 	app.use(express.json());
 	const sessions: SessionRegistry = {};
-	app.post('/mcp', createMcpPostHandler(sessions, stubCreateServer, { activeWiki: activeWiki }));
+	app.post('/mcp', createMcpPostHandler(sessions, stubCreateServer, { wikiRegistry: registry }));
 	return app;
 }
 
@@ -252,7 +244,7 @@ describe('GET /.well-known/oauth-protected-resource', () => {
 	});
 });
 
-describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
+describe('POST /mcp 401 short-circuit when every wiki requires auth', () => {
 	afterEach(() => {
 		delete process.env.MCP_ALLOW_STATIC_FALLBACK;
 		vi.unstubAllEnvs();
@@ -266,8 +258,7 @@ describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 			articlepath: '/wiki',
 			oauth2ClientId: 'client-id-123',
 		};
-		const activeWiki = fakeActiveWiki('mywiki', wikiCfg);
-		const app = buildMcpApp(activeWiki);
+		const app = buildMcpApp(fakeRegistry({ mywiki: wikiCfg }));
 
 		const res = await request(app)
 			.post('/mcp')
@@ -291,8 +282,7 @@ describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 			scriptpath: '/w',
 			articlepath: '/wiki',
 		};
-		const activeWiki = fakeActiveWiki('plain', wikiCfg);
-		const app = buildMcpApp(activeWiki);
+		const app = buildMcpApp(fakeRegistry({ plain: wikiCfg }));
 
 		const res = await request(app)
 			.post('/mcp')
@@ -302,8 +292,8 @@ describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 		expect(res.status).not.toBe(401);
 	});
 
-	it('does NOT return 401 when activeWiki is not provided to handler', async () => {
-		// If activeWiki is omitted entirely, the 401 check is skipped
+	it('does NOT return 401 when wikiRegistry is not provided to handler', async () => {
+		// If wikiRegistry is omitted entirely, the 401 check is skipped
 		const app = express();
 		app.use(express.json());
 		const sessions: SessionRegistry = {};
@@ -325,8 +315,7 @@ describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 			articlepath: '/wiki',
 			oauth2ClientId: 'client-id-123',
 		};
-		const activeWiki = fakeActiveWiki('mywiki', wikiCfg);
-		const app = buildMcpApp(activeWiki);
+		const app = buildMcpApp(fakeRegistry({ mywiki: wikiCfg }));
 
 		const res = await request(app)
 			.post('/mcp')
@@ -349,8 +338,7 @@ describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 			oauth2ClientId: 'client-id-456',
 			token: 'static-bot-token',
 		};
-		const activeWiki = fakeActiveWiki('fallback', wikiCfg);
-		const app = buildMcpApp(activeWiki);
+		const app = buildMcpApp(fakeRegistry({ fallback: wikiCfg }));
 
 		const res = await request(app)
 			.post('/mcp')
@@ -371,8 +359,7 @@ describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 			username: 'bot-user',
 			password: 'bot-pass',
 		};
-		const activeWiki = fakeActiveWiki('fallback2', wikiCfg);
-		const app = buildMcpApp(activeWiki);
+		const app = buildMcpApp(fakeRegistry({ fallback2: wikiCfg }));
 
 		const res = await request(app)
 			.post('/mcp')
@@ -391,8 +378,7 @@ describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 			articlepath: '/wiki',
 			oauth2ClientId: 'client-id-000',
 		};
-		const activeWiki = fakeActiveWiki('oauthonly', wikiCfg);
-		const app = buildMcpApp(activeWiki);
+		const app = buildMcpApp(fakeRegistry({ oauthonly: wikiCfg }));
 
 		const res = await request(app)
 			.post('/mcp')
@@ -410,8 +396,7 @@ describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 			articlepath: '/wiki',
 			oauth2ClientId: 'client-id-123',
 		};
-		const activeWiki = fakeActiveWiki('mywiki', wikiCfg);
-		const app = buildMcpApp(activeWiki);
+		const app = buildMcpApp(fakeRegistry({ mywiki: wikiCfg }));
 
 		const res = await request(app)
 			.post('/mcp')
@@ -434,8 +419,7 @@ describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 			articlepath: '/wiki',
 			oauth2ClientId: 'client-id-123',
 		};
-		const activeWiki = fakeActiveWiki('mywiki', wikiCfg);
-		const app = buildMcpApp(activeWiki);
+		const app = buildMcpApp(fakeRegistry({ mywiki: wikiCfg }));
 
 		const res = await request(app)
 			.post('/mcp')
@@ -447,5 +431,58 @@ describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 		const wwwAuth = res.headers['www-authenticate'] as string;
 		expect(wwwAuth).toContain('https://override.example.org/.well-known/oauth-protected-resource');
 		expect(wwwAuth).not.toContain('internal.example.org');
+	});
+
+	it('returns 401 when EVERY configured wiki is OAuth-only', async () => {
+		const wikiA: Partial<WikiConfig> = {
+			sitename: 'OAuthA',
+			server: 'https://a.example',
+			scriptpath: '/w',
+			articlepath: '/wiki',
+			oauth2ClientId: 'client-a',
+		};
+		const wikiB: Partial<WikiConfig> = {
+			sitename: 'OAuthB',
+			server: 'https://b.example',
+			scriptpath: '/w',
+			articlepath: '/wiki',
+			oauth2ClientId: 'client-b',
+		};
+		const app = buildMcpApp(fakeRegistry({ wikiA: wikiA, wikiB: wikiB }));
+
+		const res = await request(app)
+			.post('/mcp')
+			.set('Content-Type', 'application/json')
+			.send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+
+		expect(res.status).toBe(401);
+		expect(res.body?.error?.code).toBe(-32001);
+		const wwwAuth = res.headers['www-authenticate'];
+		expect(typeof wwwAuth).toBe('string');
+		expect(wwwAuth).toMatch(/Bearer realm="MediaWiki MCP Server"/);
+	});
+
+	it('does NOT return 401 when one wiki is OAuth-only but another needs no auth', async () => {
+		const oauthWiki: Partial<WikiConfig> = {
+			sitename: 'OAuthOnly',
+			server: 'https://oauth.example',
+			scriptpath: '/w',
+			articlepath: '/wiki',
+			oauth2ClientId: 'client-oauth',
+		};
+		const publicWiki: Partial<WikiConfig> = {
+			sitename: 'PublicWiki',
+			server: 'https://public.example',
+			scriptpath: '/w',
+			articlepath: '/wiki',
+		};
+		const app = buildMcpApp(fakeRegistry({ oauth: oauthWiki, public: publicWiki }));
+
+		const res = await request(app)
+			.post('/mcp')
+			.set('Content-Type', 'application/json')
+			.send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+
+		expect(res.status).not.toBe(401);
 	});
 });
