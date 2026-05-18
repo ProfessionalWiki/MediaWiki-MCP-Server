@@ -40,6 +40,7 @@ import {
 	payloadTooLargeHandler,
 	resolveMcpHostValidation,
 	type SessionRegistry,
+	touchSession,
 	withRequestContext,
 } from '../../src/transport/streamableHttp.js';
 import { getRuntimeToken, getSessionId } from '../../src/transport/requestContext.js';
@@ -458,6 +459,83 @@ describe('withRequestContext', () => {
 			expect(getRuntimeToken()).toBeUndefined();
 			expect(getSessionId()).toBe('sess-only');
 		});
+	});
+});
+
+describe('touchSession (idle expiry)', () => {
+	function sessionWithCloseSpy(): {
+		sessions: SessionRegistry;
+		close: ReturnType<typeof vi.fn>;
+	} {
+		const sessions: SessionRegistry = {};
+		// Mirror the real transport.close() -> onclose -> delete sessions[id] chain
+		// from createMcpPostHandler, so the test exercises registry removal too.
+		const transport = {
+			onclose: undefined as (() => void) | undefined,
+		} as unknown as SessionRegistry[string]['transport'] & { onclose?: () => void };
+		const close = vi.fn(() => {
+			transport.onclose?.();
+			return Promise.resolve();
+		});
+		(transport as { close: unknown }).close = close;
+		transport.onclose = () => {
+			delete sessions['sid-1'];
+		};
+		sessions['sid-1'] = { transport };
+		return { sessions, close };
+	}
+
+	it('closes the session transport once the timeout window elapses', () => {
+		vi.useFakeTimers();
+		try {
+			const { sessions, close } = sessionWithCloseSpy();
+			touchSession(sessions, 'sid-1', 1000);
+			expect(close).not.toHaveBeenCalled();
+			vi.advanceTimersByTime(1000);
+			expect(close).toHaveBeenCalledTimes(1);
+			expect(sessions['sid-1']).toBeUndefined();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('resets the idle timer on a subsequent touch', () => {
+		vi.useFakeTimers();
+		try {
+			const { sessions, close } = sessionWithCloseSpy();
+			touchSession(sessions, 'sid-1', 1000);
+			vi.advanceTimersByTime(600);
+			touchSession(sessions, 'sid-1', 1000);
+			vi.advanceTimersByTime(600);
+			expect(close).not.toHaveBeenCalled();
+			vi.advanceTimersByTime(400);
+			expect(close).toHaveBeenCalledTimes(1);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('never closes the session when the timeout is 0 (expiry disabled)', () => {
+		vi.useFakeTimers();
+		try {
+			const { sessions, close } = sessionWithCloseSpy();
+			touchSession(sessions, 'sid-1', 0);
+			expect(sessions['sid-1'].idleTimer).toBeUndefined();
+			vi.advanceTimersByTime(10_000_000);
+			expect(close).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('is a no-op for an unknown session id', () => {
+		vi.useFakeTimers();
+		try {
+			const { sessions } = sessionWithCloseSpy();
+			expect(() => touchSession(sessions, 'sid-unknown', 1000)).not.toThrow();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
 

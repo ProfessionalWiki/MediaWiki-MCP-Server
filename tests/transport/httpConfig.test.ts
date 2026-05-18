@@ -235,6 +235,42 @@ describe('resolveHttpConfig', () => {
 		});
 	});
 
+	describe('sessionIdleTimeoutMs', () => {
+		it('defaults to 1800000 (1800s) when MCP_SESSION_IDLE_TIMEOUT is unset', () => {
+			expect(resolveHttpConfig().sessionIdleTimeoutMs).toBe(1800000);
+		});
+
+		it('defaults to 1800000 when MCP_SESSION_IDLE_TIMEOUT is empty', () => {
+			vi.stubEnv('MCP_SESSION_IDLE_TIMEOUT', '');
+			expect(resolveHttpConfig().sessionIdleTimeoutMs).toBe(1800000);
+		});
+
+		it('defaults to 1800000 when MCP_SESSION_IDLE_TIMEOUT is whitespace', () => {
+			vi.stubEnv('MCP_SESSION_IDLE_TIMEOUT', '   ');
+			expect(resolveHttpConfig().sessionIdleTimeoutMs).toBe(1800000);
+		});
+
+		it('parses an explicit value in seconds to milliseconds', () => {
+			vi.stubEnv('MCP_SESSION_IDLE_TIMEOUT', '60');
+			expect(resolveHttpConfig().sessionIdleTimeoutMs).toBe(60000);
+		});
+
+		it('treats 0 as expiry disabled', () => {
+			vi.stubEnv('MCP_SESSION_IDLE_TIMEOUT', '0');
+			expect(resolveHttpConfig().sessionIdleTimeoutMs).toBe(0);
+		});
+
+		it('defaults to 1800000 when MCP_SESSION_IDLE_TIMEOUT is non-numeric', () => {
+			vi.stubEnv('MCP_SESSION_IDLE_TIMEOUT', 'abc');
+			expect(resolveHttpConfig().sessionIdleTimeoutMs).toBe(1800000);
+		});
+
+		it('defaults to 1800000 when MCP_SESSION_IDLE_TIMEOUT is negative', () => {
+			vi.stubEnv('MCP_SESSION_IDLE_TIMEOUT', '-5');
+			expect(resolveHttpConfig().sessionIdleTimeoutMs).toBe(1800000);
+		});
+	});
+
 	describe('warnings', () => {
 		it('is empty by default', () => {
 			expect(resolveHttpConfig().warnings).toEqual([]);

@@ -4,6 +4,7 @@ export interface HttpConfig {
 	allowedHosts: string[] | undefined;
 	allowedOrigins: string[] | undefined;
 	maxRequestBody: string;
+	sessionIdleTimeoutMs: number;
 	warnings: string[];
 }
 
@@ -13,6 +14,7 @@ const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 3000;
 const MAX_PORT = 65535;
 const DEFAULT_MAX_REQUEST_BODY = '1mb';
+const DEFAULT_SESSION_IDLE_TIMEOUT_S = 1800;
 
 // Mirrors body-parser's size grammar: optional decimal number followed by an
 // optional unit (bytes if omitted). Validating at startup prevents body-parser
@@ -38,6 +40,19 @@ function resolvePort(): number {
 		return DEFAULT_PORT;
 	}
 	return parsed;
+}
+
+function resolveSessionIdleTimeoutMs(): number {
+	const raw = process.env.MCP_SESSION_IDLE_TIMEOUT;
+	if (raw === undefined || raw.trim() === '') {
+		return DEFAULT_SESSION_IDLE_TIMEOUT_S * 1000;
+	}
+	const parsed = Number.parseInt(raw, 10);
+	// 0 disables expiry; negative or non-numeric → default.
+	if (!Number.isFinite(parsed) || parsed < 0) {
+		return DEFAULT_SESSION_IDLE_TIMEOUT_S * 1000;
+	}
+	return parsed * 1000;
 }
 
 function resolveAllowedHosts(): string[] | undefined {
@@ -113,6 +128,7 @@ export function resolveHttpConfig(): HttpConfig {
 		allowedHosts: resolveAllowedHosts(),
 		allowedOrigins: resolveAllowedOrigins(host, port),
 		maxRequestBody: body.value,
+		sessionIdleTimeoutMs: resolveSessionIdleTimeoutMs(),
 		warnings,
 	};
 }

@@ -98,6 +98,7 @@ Every tool that operates on a wiki accepts an optional `wiki` argument naming th
 | `MCP_PUBLIC_URL` | Override the request-derived public URL used in OAuth protected-resource discovery. Useful for reverse-proxy setups that rewrite the `Host` header. | `unset` |
 | `MCP_MAX_REQUEST_BODY` | Maximum HTTP request body size (StreamableHTTP transport). Accepts size strings like `512kb` or `1mb`. Oversize requests get a JSON-RPC 413. | `1mb` |
 | `MCP_METRICS` | Set to `true` to expose Prometheus metrics at `GET /metrics` on the HTTP transport. | `unset` |
+| `MCP_SESSION_IDLE_TIMEOUT` | Seconds an HTTP session may sit idle before it is closed and removed (StreamableHTTP transport). Any request resets the timer. `0` disables expiry. | `1800` |
 | `MCP_SHUTDOWN_GRACE_MS` | Maximum ms to wait for in-flight `/mcp` calls to drain on `SIGTERM` / `SIGINT`. See [docs/operations.md — Graceful shutdown](docs/operations.md#graceful-shutdown). | `10000` |
 | `MCP_TRANSPORT` | Type of MCP server transport (`stdio` or `http`) | `stdio` |
 | `PORT` | Port used for StreamableHTTP transport | `3000` |

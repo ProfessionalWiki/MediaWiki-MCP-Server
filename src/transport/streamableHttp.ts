@@ -75,7 +75,10 @@ export function resolveMcpHostValidation(
 	return undefined;
 }
 
-export type SessionEntry = { readonly transport: StreamableHTTPServerTransport };
+export type SessionEntry = {
+	readonly transport: StreamableHTTPServerTransport;
+	idleTimer?: ReturnType<typeof setTimeout>;
+};
 
 export type SessionRegistry = { [sessionId: string]: SessionEntry };
 
@@ -94,6 +97,30 @@ export function createInFlightCounter(): InFlightCounter {
 		next();
 	};
 	return { middleware, count: () => n };
+}
+
+// Resets a session's idle timer. When the timeout elapses with no activity the
+// transport is closed; its onclose handler removes the registry entry. A
+// timeout of 0 disables expiry.
+export function touchSession(
+	sessions: SessionRegistry,
+	sessionId: string,
+	idleTimeoutMs: number,
+): void {
+	const entry = sessions[sessionId];
+	if (!entry) {
+		return;
+	}
+	if (entry.idleTimer) {
+		clearTimeout(entry.idleTimer);
+	}
+	if (idleTimeoutMs <= 0) {
+		return;
+	}
+	entry.idleTimer = setTimeout(() => {
+		void sessions[sessionId]?.transport.close();
+	}, idleTimeoutMs);
+	entry.idleTimer.unref();
 }
 
 export function createOAuthProtectedResourceHandler(deps: {
@@ -163,6 +190,7 @@ function wikiNeedsAuth(cfg: WikiConfig, fallbackAllowed: boolean): boolean {
 export interface McpPostHandlerOptions {
 	allowedOrigins?: string[];
 	wikiRegistry?: WikiRegistry;
+	idleTimeoutMs?: number;
 }
 
 export function createMcpPostHandler(
@@ -170,7 +198,7 @@ export function createMcpPostHandler(
 	createServerFn: () => ReturnType<typeof createServer>,
 	options: McpPostHandlerOptions = {},
 ): RequestHandler {
-	const { allowedOrigins, wikiRegistry } = options;
+	const { allowedOrigins, wikiRegistry, idleTimeoutMs = 0 } = options;
 	return async (req, res) => {
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Express headers are string|string[]|undefined; MCP transport sends a single header
 		const sessionId = req.headers['mcp-session-id'] as string | undefined;
@@ -207,6 +235,7 @@ export function createMcpPostHandler(
 
 		if (sessionId && sessions[sessionId]) {
 			transport = sessions[sessionId].transport;
+			touchSession(sessions, sessionId, idleTimeoutMs);
 		} else if (!sessionId && isInitializeRequest(req.body)) {
 			transport = new StreamableHTTPServerTransport({
 				sessionIdGenerator: () => randomUUID(),
@@ -218,11 +247,16 @@ export function createMcpPostHandler(
 				allowedOrigins,
 				onsessioninitialized: (newSessionId) => {
 					sessions[newSessionId] = { transport };
+					touchSession(sessions, newSessionId, idleTimeoutMs);
 				},
 			});
 
 			transport.onclose = () => {
 				if (transport.sessionId) {
+					const entry = sessions[transport.sessionId];
+					if (entry?.idleTimer) {
+						clearTimeout(entry.idleTimer);
+					}
 					delete sessions[transport.sessionId];
 				}
 			};
@@ -247,7 +281,10 @@ export function createMcpPostHandler(
 	};
 }
 
-export function createSessionRequestHandler(sessions: SessionRegistry): RequestHandler {
+export function createSessionRequestHandler(
+	sessions: SessionRegistry,
+	idleTimeoutMs = 0,
+): RequestHandler {
 	return async (req, res) => {
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Express headers are string|string[]|undefined; MCP transport sends a single header
 		const sessionId = req.headers['mcp-session-id'] as string | undefined;
@@ -255,6 +292,7 @@ export function createSessionRequestHandler(sessions: SessionRegistry): RequestH
 			res.status(400).send('Invalid or missing session ID');
 			return;
 		}
+		touchSession(sessions, sessionId, idleTimeoutMs);
 
 		const entry = sessions[sessionId];
 		// The session id (a 122-bit randomUUID) is itself the session capability:
@@ -396,7 +434,8 @@ export function mountReadyEndpoint(
 // independent — placed after for visual grouping with the HTTP setup.
 const config = loadConfigFromFile();
 const state = createAppState(config);
-const { host, port, allowedHosts, allowedOrigins, maxRequestBody, warnings } = resolveHttpConfig();
+const { host, port, allowedHosts, allowedOrigins, maxRequestBody, sessionIdleTimeoutMs, warnings } =
+	resolveHttpConfig();
 const guard = evaluateBearerGuard(state.wikiRegistry.getAll(), process.env);
 if (guard.kind === 'block') {
 	logger.error(
@@ -449,7 +488,7 @@ if ((host === '0.0.0.0' || host === '::') && !allowedOrigins) {
 }
 
 const sessions: SessionRegistry = {};
-const sessionRequestHandler = createSessionRequestHandler(sessions);
+const sessionRequestHandler = createSessionRequestHandler(sessions, sessionIdleTimeoutMs);
 const ctx = createToolContext({ logger, state, transport: 'http' });
 
 const inFlight = createInFlightCounter();
@@ -460,6 +499,7 @@ app.post(
 	createMcpPostHandler(sessions, () => createServer(ctx), {
 		allowedOrigins,
 		wikiRegistry: state.wikiRegistry,
+		idleTimeoutMs: sessionIdleTimeoutMs,
 	}),
 );
 app.get('/mcp', sessionRequestHandler);
