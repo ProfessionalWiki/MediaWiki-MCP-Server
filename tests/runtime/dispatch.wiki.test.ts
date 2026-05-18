@@ -5,6 +5,7 @@ import type { Tool } from '../../src/runtime/tool.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 import { getRequestWiki } from '../../src/transport/requestContext.js';
 import { updatePage } from '../../src/tools/update-page.js';
+import { getPage } from '../../src/tools/get-page.js';
 import { cargoQuery } from '../../src/tools/extensions/cargo/cargo-query.js';
 
 // A minimal wiki-scoped tool that reports the wiki it ran against.
@@ -175,5 +176,32 @@ describe('dispatch capability guard', () => {
 		const result = await dispatch(cargoQuery, ctx)({ tables: 'Items' } as never);
 		expect(result.isError).toBe(true);
 		expect(JSON.stringify(result.content)).toContain('not installed');
+	});
+
+	it('blocks an HTTP call to an OAuth-only wiki with no usable token', async () => {
+		const oauthConfig = {
+			sitename: 'T',
+			server: 'https://t',
+			articlepath: '/wiki',
+			scriptpath: '/w',
+			oauth2ClientId: 'client-id',
+		};
+		const ctx = fakeContext({
+			transport: 'http',
+			wikis: {
+				getAll: () => ({ 'test-wiki': oauthConfig }) as never,
+				get: ((k: string) => (k === 'test-wiki' ? oauthConfig : undefined)) as never,
+				add: (() => {}) as never,
+				remove: (() => {}) as never,
+				isManagementAllowed: () => true,
+			},
+			activeWiki: {
+				get: () => ({ key: 'test-wiki', config: oauthConfig as never }),
+				getDefaultKey: () => 'test-wiki',
+			},
+		});
+		const result = await dispatch(getPage, ctx)({ title: 'X' } as never);
+		expect(result.isError).toBe(true);
+		expect(JSON.stringify(result.content)).toContain('requires OAuth');
 	});
 });

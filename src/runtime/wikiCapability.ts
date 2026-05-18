@@ -2,6 +2,8 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolContext } from './context.js';
 import type { ExtensionPack } from '../tools/extensions/types.js';
 import { extensionPacks } from '../tools/extensions/index.js';
+import { getRuntimeToken } from '../transport/requestContext.js';
+import { isCredentialConfigured } from '../config/loadConfig.js';
 
 // The wiki-mutating tools. Shared by reconcile's read-only rule and the
 // per-call capability guard.
@@ -42,6 +44,28 @@ export async function checkWikiCapability(
 	wikiKey: string,
 	ctx: ToolContext,
 ): Promise<CallToolResult | undefined> {
+	// HTTP transport: a call to an OAuth-only wiki with no usable token can only
+	// fail downstream with an opaque error. Reject it up front with discovery
+	// guidance. (On stdio the dispatcher's acquireToken gate drives OAuth, so
+	// this never fires there.)
+	if (ctx.transport === 'http') {
+		const cfg = ctx.wikis.get(wikiKey);
+		if (cfg) {
+			const oauthOnly = typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
+			const hasStatic =
+				isCredentialConfigured(cfg.token) ||
+				(isCredentialConfigured(cfg.username) && isCredentialConfigured(cfg.password));
+			if (oauthOnly && !hasStatic && getRuntimeToken() === undefined) {
+				return ctx.format.error(
+					'authentication',
+					`Wiki "${wikiKey}" requires OAuth authentication. ` +
+						"Send an Authorization: Bearer token for this wiki; see the server's " +
+						'/.well-known/oauth-protected-resource document, or list-wikis for the ' +
+						"wiki's authorization server.",
+				);
+			}
+		}
+	}
 	const pack = PACK_BY_TOOL.get(toolName);
 	if (pack) {
 		const present = await ctx.extensions.hasAny(wikiKey, pack.extensionNames);
