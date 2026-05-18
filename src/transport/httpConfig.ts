@@ -15,6 +15,10 @@ const DEFAULT_PORT = 3000;
 const MAX_PORT = 65535;
 const DEFAULT_MAX_REQUEST_BODY = '1mb';
 const DEFAULT_SESSION_IDLE_TIMEOUT_S = 1800;
+// setTimeout clamps delays above its 32-bit signed ceiling to 1ms, which would
+// expire every session almost immediately. Cap the resolved value at that
+// ceiling so a large MCP_SESSION_IDLE_TIMEOUT stays a long-but-valid delay.
+const MAX_SESSION_IDLE_TIMEOUT_MS = 2147483647;
 
 // Mirrors body-parser's size grammar: optional decimal number followed by an
 // optional unit (bytes if omitted). Validating at startup prevents body-parser
@@ -47,12 +51,18 @@ function resolveSessionIdleTimeoutMs(): number {
 	if (raw === undefined || raw.trim() === '') {
 		return DEFAULT_SESSION_IDLE_TIMEOUT_S * 1000;
 	}
-	const parsed = Number.parseInt(raw, 10);
-	// 0 disables expiry; negative or non-numeric → default.
-	if (!Number.isFinite(parsed) || parsed < 0) {
+	// Strict parse: require a plain run of digits so trailing garbage ('300abc')
+	// and scientific notation ('1e9') — both of which Number.parseInt silently
+	// truncates to a wrong value — fall back to the default instead. 0 disables
+	// expiry. Number.isInteger guards the (practically unreachable) overflow case.
+	const trimmed = raw.trim();
+	const seconds = Number(trimmed);
+	if (!/^\d+$/.test(trimmed) || !Number.isInteger(seconds)) {
 		return DEFAULT_SESSION_IDLE_TIMEOUT_S * 1000;
 	}
-	return parsed * 1000;
+	// Clamp to setTimeout's ceiling so an over-large value stays a valid delay
+	// instead of being clamped to 1ms by Node.
+	return Math.min(seconds * 1000, MAX_SESSION_IDLE_TIMEOUT_MS);
 }
 
 function resolveAllowedHosts(): string[] | undefined {

@@ -37,10 +37,11 @@ import {
 	createMcpPostHandler,
 	createSessionRequestHandler,
 	extractBearerToken,
+	markSessionActive,
+	markSessionIdle,
 	payloadTooLargeHandler,
 	resolveMcpHostValidation,
 	type SessionRegistry,
-	touchSession,
 	withRequestContext,
 } from '../../src/transport/streamableHttp.js';
 import { getRuntimeToken, getSessionId } from '../../src/transport/requestContext.js';
@@ -174,6 +175,7 @@ describe('session request handler (GET/DELETE)', () => {
 		return {
 			'sid-1': {
 				transport: {} as unknown as SessionRegistry[string]['transport'],
+				activeRequests: 0,
 			},
 		};
 	}
@@ -248,6 +250,7 @@ describe('POST to an existing session (per-request bearer)', () => {
 		return {
 			'sid-1': {
 				transport: {} as unknown as SessionRegistry[string]['transport'],
+				activeRequests: 0,
 			},
 		};
 	}
@@ -462,7 +465,7 @@ describe('withRequestContext', () => {
 	});
 });
 
-describe('touchSession (idle expiry)', () => {
+describe('markSessionActive / markSessionIdle (idle expiry)', () => {
 	function sessionWithCloseSpy(): {
 		sessions: SessionRegistry;
 		close: ReturnType<typeof vi.fn>;
@@ -481,15 +484,29 @@ describe('touchSession (idle expiry)', () => {
 		transport.onclose = () => {
 			delete sessions['sid-1'];
 		};
-		sessions['sid-1'] = { transport };
+		sessions['sid-1'] = { transport, activeRequests: 0 };
 		return { sessions, close };
 	}
 
-	it('closes the session transport once the timeout window elapses', () => {
+	it('does not close while a request is active (no timer armed)', () => {
 		vi.useFakeTimers();
 		try {
 			const { sessions, close } = sessionWithCloseSpy();
-			touchSession(sessions, 'sid-1', 1000);
+			markSessionActive(sessions, 'sid-1');
+			expect(sessions['sid-1'].idleTimer).toBeUndefined();
+			vi.advanceTimersByTime(10_000);
+			expect(close).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('arms the idle timer once the request goes idle, then closes and removes the entry', () => {
+		vi.useFakeTimers();
+		try {
+			const { sessions, close } = sessionWithCloseSpy();
+			markSessionActive(sessions, 'sid-1');
+			markSessionIdle(sessions, 'sid-1', 1000);
 			expect(close).not.toHaveBeenCalled();
 			vi.advanceTimersByTime(1000);
 			expect(close).toHaveBeenCalledTimes(1);
@@ -499,27 +516,33 @@ describe('touchSession (idle expiry)', () => {
 		}
 	});
 
-	it('resets the idle timer on a subsequent touch', () => {
+	it('keeps the session alive while at least one request is still in-flight', () => {
 		vi.useFakeTimers();
 		try {
 			const { sessions, close } = sessionWithCloseSpy();
-			touchSession(sessions, 'sid-1', 1000);
-			vi.advanceTimersByTime(600);
-			touchSession(sessions, 'sid-1', 1000);
-			vi.advanceTimersByTime(600);
+			// Two concurrent requests (e.g. a held-open GET SSE stream plus a POST).
+			markSessionActive(sessions, 'sid-1');
+			markSessionActive(sessions, 'sid-1');
+			// First one finishes — still one in-flight, no timer.
+			markSessionIdle(sessions, 'sid-1', 1000);
+			expect(sessions['sid-1'].idleTimer).toBeUndefined();
+			vi.advanceTimersByTime(5000);
 			expect(close).not.toHaveBeenCalled();
-			vi.advanceTimersByTime(400);
+			// Second one finishes — now idle, timer arms and fires.
+			markSessionIdle(sessions, 'sid-1', 1000);
+			vi.advanceTimersByTime(1000);
 			expect(close).toHaveBeenCalledTimes(1);
 		} finally {
 			vi.useRealTimers();
 		}
 	});
 
-	it('never closes the session when the timeout is 0 (expiry disabled)', () => {
+	it('never arms a timer when the timeout is 0 (expiry disabled)', () => {
 		vi.useFakeTimers();
 		try {
 			const { sessions, close } = sessionWithCloseSpy();
-			touchSession(sessions, 'sid-1', 0);
+			markSessionActive(sessions, 'sid-1');
+			markSessionIdle(sessions, 'sid-1', 0);
 			expect(sessions['sid-1'].idleTimer).toBeUndefined();
 			vi.advanceTimersByTime(10_000_000);
 			expect(close).not.toHaveBeenCalled();
@@ -532,7 +555,8 @@ describe('touchSession (idle expiry)', () => {
 		vi.useFakeTimers();
 		try {
 			const { sessions } = sessionWithCloseSpy();
-			expect(() => touchSession(sessions, 'sid-unknown', 1000)).not.toThrow();
+			expect(() => markSessionActive(sessions, 'sid-unknown')).not.toThrow();
+			expect(() => markSessionIdle(sessions, 'sid-unknown', 1000)).not.toThrow();
 		} finally {
 			vi.useRealTimers();
 		}

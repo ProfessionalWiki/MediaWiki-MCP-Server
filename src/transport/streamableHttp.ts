@@ -74,6 +74,7 @@ export function resolveMcpHostValidation(
 export type SessionEntry = {
 	readonly transport: StreamableHTTPServerTransport;
 	idleTimer?: ReturnType<typeof setTimeout>;
+	activeRequests: number;
 };
 
 export type SessionRegistry = { [sessionId: string]: SessionEntry };
@@ -95,10 +96,27 @@ export function createInFlightCounter(): InFlightCounter {
 	return { middleware, count: () => n };
 }
 
-// Resets a session's idle timer. When the timeout elapses with no activity the
-// transport is closed; its onclose handler removes the registry entry. A
-// timeout of 0 disables expiry.
-export function touchSession(
+// Marks a session as having an in-flight request or open response stream:
+// increments the active-request count and cancels any pending idle expiry.
+// Pair every call with markSessionIdle on the response's 'close' event.
+export function markSessionActive(sessions: SessionRegistry, sessionId: string): void {
+	const entry = sessions[sessionId];
+	if (!entry) {
+		return;
+	}
+	entry.activeRequests += 1;
+	if (entry.idleTimer) {
+		clearTimeout(entry.idleTimer);
+		entry.idleTimer = undefined;
+	}
+}
+
+// Marks one request/stream finished. When the session has no remaining
+// in-flight requests, arms the idle-expiry timer; when it elapses the transport
+// is closed and its onclose handler removes the registry entry. A timeout of 0
+// disables expiry. Because this runs on response 'close', a long-lived GET SSE
+// stream keeps the session active for as long as the client holds it open.
+export function markSessionIdle(
 	sessions: SessionRegistry,
 	sessionId: string,
 	idleTimeoutMs: number,
@@ -107,11 +125,12 @@ export function touchSession(
 	if (!entry) {
 		return;
 	}
+	entry.activeRequests = Math.max(0, entry.activeRequests - 1);
+	if (entry.activeRequests > 0 || idleTimeoutMs <= 0) {
+		return;
+	}
 	if (entry.idleTimer) {
 		clearTimeout(entry.idleTimer);
-	}
-	if (idleTimeoutMs <= 0) {
-		return;
 	}
 	entry.idleTimer = setTimeout(() => {
 		void sessions[sessionId]?.transport.close();
@@ -229,7 +248,9 @@ export function createMcpPostHandler(
 
 		if (sessionId && sessions[sessionId]) {
 			transport = sessions[sessionId].transport;
-			touchSession(sessions, sessionId, idleTimeoutMs);
+			// Existing session: the registry entry already exists, so count this
+			// request now and release it when the response closes.
+			markSessionActive(sessions, sessionId);
 		} else if (!sessionId && isInitializeRequest(req.body)) {
 			transport = new StreamableHTTPServerTransport({
 				sessionIdGenerator: () => randomUUID(),
@@ -239,9 +260,13 @@ export function createMcpPostHandler(
 				// _allowedHosts is undefined, regardless of the flag).
 				enableDnsRebindingProtection: allowedOrigins !== undefined,
 				allowedOrigins,
+				// onsessioninitialized fires during handleRequest below — the only
+				// point where the registry entry and transport.sessionId both
+				// exist. Seed activeRequests to 1 so the init POST counts as
+				// in-flight; the res.on('close') handler registered after
+				// handleRequest releases it.
 				onsessioninitialized: (newSessionId) => {
-					sessions[newSessionId] = { transport };
-					touchSession(sessions, newSessionId, idleTimeoutMs);
+					sessions[newSessionId] = { transport, activeRequests: 1 };
 				},
 			});
 
@@ -269,6 +294,17 @@ export function createMcpPostHandler(
 			return;
 		}
 
+		// Release the in-flight count when this response closes. transport.sessionId
+		// is populated by now for both branches (set synchronously during
+		// handleRequest for a new session). Registered before handleRequest so the
+		// 'close' listener is in place even if the response finishes synchronously.
+		res.on('close', () => {
+			const sid = transport.sessionId;
+			if (sid) {
+				markSessionIdle(sessions, sid, idleTimeoutMs);
+			}
+		});
+
 		await withRequestContext(bearer, transport.sessionId, () =>
 			transport.handleRequest(req, res, req.body),
 		);
@@ -286,7 +322,10 @@ export function createSessionRequestHandler(
 			res.status(400).send('Invalid or missing session ID');
 			return;
 		}
-		touchSession(sessions, sessionId, idleTimeoutMs);
+		// A held-open GET SSE stream stays counted as active until it closes, so
+		// markSessionIdle (and the idle timer) won't run while a client holds it.
+		markSessionActive(sessions, sessionId);
+		res.on('close', () => markSessionIdle(sessions, sessionId, idleTimeoutMs));
 
 		const entry = sessions[sessionId];
 		// The session id (a 122-bit randomUUID) is itself the session capability:

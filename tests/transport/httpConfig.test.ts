@@ -269,6 +269,19 @@ describe('resolveHttpConfig', () => {
 			vi.stubEnv('MCP_SESSION_IDLE_TIMEOUT', '-5');
 			expect(resolveHttpConfig().sessionIdleTimeoutMs).toBe(1800000);
 		});
+
+		it('clamps a value above the setTimeout ceiling to 2147483647ms', () => {
+			vi.stubEnv('MCP_SESSION_IDLE_TIMEOUT', '999999999999');
+			expect(resolveHttpConfig().sessionIdleTimeoutMs).toBe(2147483647);
+		});
+
+		it.each(['300abc', '1e9'])(
+			'falls back to 1800000 for the non-integer value %s (strict parsing)',
+			(value) => {
+				vi.stubEnv('MCP_SESSION_IDLE_TIMEOUT', value);
+				expect(resolveHttpConfig().sessionIdleTimeoutMs).toBe(1800000);
+			},
+		);
 	});
 
 	describe('warnings', () => {
