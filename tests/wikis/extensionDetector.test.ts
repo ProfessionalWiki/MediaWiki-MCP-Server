@@ -149,7 +149,24 @@ describe('ExtensionDetectorImpl', () => {
 				siprop: 'extensions',
 				format: 'json',
 			}),
+			expect.objectContaining({ signal: expect.any(AbortSignal) }),
 		);
+	});
+
+	it('treats an aborted/timed-out probe as a probe failure', async () => {
+		// AbortSignal.timeout surfaces as a rejection (DOMException / Error
+		// named 'TimeoutError' or 'AbortError') — it must land in probe()'s
+		// catch and resolve as a `failed` entry, exactly like any other failure.
+		const abortError = new Error('The operation was aborted');
+		abortError.name = 'TimeoutError';
+		vi.mocked(makeApiRequest).mockRejectedValueOnce(abortError);
+		const clock = fakeClock();
+		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
+
+		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(false);
+		const result = await detector.inspect('a');
+		expect(result.reachable).toBe(false);
+		expect(result.extensions.size).toBe(0);
 	});
 
 	it('returns false when the wiki key is unknown', async () => {
