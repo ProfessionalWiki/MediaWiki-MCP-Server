@@ -3,6 +3,7 @@ import type { WikiConfig } from '../config/loadConfig.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
 import type { ExtensionDetector } from '../wikis/extensionDetector.js';
 import type { ExtensionPack } from '../tools/extensions/types.js';
+import { WRITE_TOOL_NAMES } from './wikiCapability.js';
 
 export type Reconcile = () => Promise<void>;
 
@@ -26,17 +27,6 @@ export interface ToolGatingRule {
 	readonly affects: readonly string[];
 	readonly isAllowed: (ctx: ReconcileContext) => boolean | Promise<boolean>;
 }
-
-const WRITE_TOOL_NAMES: readonly string[] = [
-	'create-page',
-	'update-page',
-	'delete-page',
-	'undelete-page',
-	'upload-file',
-	'upload-file-from-url',
-	'update-file',
-	'update-file-from-url',
-];
 
 const STDIO_ONLY_TOOLS: readonly string[] = ['oauth-status', 'oauth-logout'];
 

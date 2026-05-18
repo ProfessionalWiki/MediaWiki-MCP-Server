@@ -4,6 +4,7 @@ import { dispatch } from '../../src/runtime/dispatcher.js';
 import type { Tool } from '../../src/runtime/tool.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 import { getRequestWiki } from '../../src/transport/requestContext.js';
+import { updatePage } from '../../src/tools/update-page.js';
 
 // A minimal wiki-scoped tool that reports the wiki it ran against.
 const probe: Tool<Record<string, never>> = {
@@ -112,5 +113,33 @@ describe('dispatch wiki echo', () => {
 		};
 		const result = await dispatch(mgmt, ctx)({} as never);
 		expect((result.structuredContent as { wiki?: unknown }).wiki).toBeUndefined();
+	});
+});
+
+describe('dispatch capability guard', () => {
+	it('blocks a write tool dispatched against a read-only wiki', async () => {
+		const roConfig = {
+			sitename: 'T',
+			server: 'https://t',
+			articlepath: '/wiki',
+			scriptpath: '/w',
+			readOnly: true,
+		};
+		const ctx = fakeContext({
+			wikis: {
+				getAll: () => ({ 'test-wiki': roConfig }) as never,
+				get: ((k: string) => (k === 'test-wiki' ? roConfig : undefined)) as never,
+				add: (() => {}) as never,
+				remove: (() => {}) as never,
+				isManagementAllowed: () => true,
+			},
+			activeWiki: {
+				get: () => ({ key: 'test-wiki', config: roConfig as never }),
+				getDefaultKey: () => 'test-wiki',
+			},
+		});
+		const result = await dispatch(updatePage, ctx)({ title: 'X', source: 'y' } as never);
+		expect(result.isError).toBe(true);
+		expect(JSON.stringify(result.content)).toContain('read-only');
 	});
 });

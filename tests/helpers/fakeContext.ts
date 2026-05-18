@@ -53,7 +53,10 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 		},
 		extensions: {
 			has: throws('extensions.has') as never,
-			hasAny: throws('extensions.hasAny') as never,
+			// The dispatch() capability guard calls hasAny for extension-pack
+			// tools; default to "present" so plain tool tests aren't blocked.
+			// Tests that exercise the guard override this explicitly.
+			hasAny: (async () => true) as never,
 			inspect: throws('extensions.inspect') as never,
 			invalidate: throws('extensions.invalidate') as never,
 		},

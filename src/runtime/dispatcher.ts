@@ -14,6 +14,7 @@ import {
 } from './instrument.js';
 import { acquireToken } from '../auth/acquireToken.js';
 import { structuredResult } from '../results/response.js';
+import { checkWikiCapability } from './wikiCapability.js';
 
 // Tools that operate on server-local state (the wiki registry, the OAuth token
 // store) rather than a wiki's API. They must not be blocked by an OAuth gate
@@ -49,6 +50,10 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext =
 				return ctx.format.invalidInput(
 					`Wiki "${resolvedKey}" not found. Configured wikis: ${configured.join(', ')}`,
 				);
+			}
+			const guardError = await checkWikiCapability(tool.name, resolvedKey, ctx);
+			if (guardError) {
+				return guardError;
 			}
 		}
 
