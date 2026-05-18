@@ -17,7 +17,7 @@ const serverInfo = createRequire(import.meta.url)('../server.json') as {
 
 const SERVER_NAME: string = 'mediawiki-mcp-server';
 
-const SERVER_INSTRUCTIONS: string = `Tools and resources for working with one or more MediaWiki wikis. Each configured wiki appears as an \`mcp://wikis/{wikiKey}\` resource. Every tool that operates on a wiki accepts an optional \`wiki\` argument naming the wiki to act on (the wiki-management and OAuth tools do not) — pass a wiki key (or its \`mcp://wikis/{wikiKey}\` URI). Omit it to use the configured default wiki. There is no stateful "current wiki": each call targets exactly the wiki it names, and every response reports the wiki it ran against.
+const SERVER_INSTRUCTIONS: string = `Tools and resources for working with one or more MediaWiki wikis. Each configured wiki appears as an \`mcp://wikis/{wikiKey}\` resource. Every tool that operates on a wiki accepts an optional \`wiki\` argument naming the wiki to act on (the wiki-management and OAuth tools do not) — pass a wiki key (or its \`mcp://wikis/{wikiKey}\` URI). Omit it to use the configured default wiki. There is no stateful "current wiki": each call targets exactly the wiki it names, and every response reports the wiki it ran against. Call \`list-wikis\` to discover the configured wikis, their keys, and which extension tools each one supports.
 
 Writes, deletes, and uploads use the caller's \`Authorization: Bearer\` token when present, falling back to credentials configured on the targeted wiki.
 
