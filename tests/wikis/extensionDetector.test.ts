@@ -218,4 +218,38 @@ describe('ExtensionDetectorImpl', () => {
 			expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(1);
 		});
 	});
+
+	it('inspect returns reachable=true with the detected extension set', async () => {
+		vi.mocked(makeApiRequest).mockResolvedValueOnce({
+			query: { extensions: [{ name: 'Cargo' }, { name: 'OAuth' }] },
+		});
+		const clock = fakeClock();
+		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
+
+		const result = await detector.inspect('a');
+		expect(result.reachable).toBe(true);
+		expect([...result.extensions].sort()).toEqual(['Cargo', 'OAuth']);
+	});
+
+	it('inspect returns reachable=false with an empty set when the probe fails', async () => {
+		vi.mocked(makeApiRequest).mockRejectedValueOnce(new Error('network down'));
+		const clock = fakeClock();
+		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
+
+		const result = await detector.inspect('a');
+		expect(result.reachable).toBe(false);
+		expect(result.extensions.size).toBe(0);
+	});
+
+	it('inspect reuses the cache — no second HTTP request after has()', async () => {
+		vi.mocked(makeApiRequest).mockResolvedValueOnce({
+			query: { extensions: [{ name: 'Cargo' }] },
+		});
+		const clock = fakeClock();
+		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
+
+		await detector.has('a', 'Cargo');
+		await detector.inspect('a');
+		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(1);
+	});
 });

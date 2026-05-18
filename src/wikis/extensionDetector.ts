@@ -14,6 +14,12 @@ export interface ExtensionDetector {
 	 * `LIBRARIAN` on wiki.gg-hosted wikis (Helldivers, Terraria, Ark, etc.).
 	 */
 	hasAny(wikiKey: string, extensionNames: readonly string[]): Promise<boolean>;
+	/**
+	 * Per-wiki snapshot for capability reporting. `reachable` is false when the
+	 * siteinfo probe failed, in which case `extensions` is empty. Shares the
+	 * same probe cache as has()/hasAny().
+	 */
+	inspect(wikiKey: string): Promise<{ reachable: boolean; extensions: ReadonlySet<string> }>;
 	invalidate(wikiKey: string): void;
 }
 
@@ -53,6 +59,16 @@ export class ExtensionDetectorImpl implements ExtensionDetector {
 			}
 		}
 		return false;
+	}
+
+	public async inspect(
+		wikiKey: string,
+	): Promise<{ reachable: boolean; extensions: ReadonlySet<string> }> {
+		const entry = await this.resolveEntry(wikiKey);
+		if (entry.kind === 'failed') {
+			return { reachable: false, extensions: new Set() };
+		}
+		return { reachable: true, extensions: entry.extensions };
 	}
 
 	public invalidate(wikiKey: string): void {

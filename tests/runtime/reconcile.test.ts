@@ -101,6 +101,7 @@ function makeFakeDetector(answers: Record<string, boolean> = {}): ExtensionDetec
 		hasAny: vi.fn(async (wikiKey: string, names: readonly string[]) =>
 			names.some((name) => answers[`${wikiKey}:${name}`] ?? false),
 		),
+		inspect: vi.fn(async () => ({ reachable: true, extensions: new Set<string>() })),
 		invalidate: vi.fn(),
 	};
 }
@@ -652,6 +653,7 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 		const detector: ExtensionDetector = {
 			has: vi.fn(async () => false),
 			hasAny: hasAnySpy,
+			inspect: vi.fn(async () => ({ reachable: true, extensions: new Set<string>() })),
 			invalidate: vi.fn(),
 		};
 		const { registry, activeWiki } = makeMocks({
@@ -726,6 +728,7 @@ describe('reconcileTools — applyBucketExtensionRule', () => {
 		const detector: ExtensionDetector = {
 			has: vi.fn(async () => false),
 			hasAny: hasAnySpy,
+			inspect: vi.fn(async () => ({ reachable: true, extensions: new Set<string>() })),
 			invalidate: vi.fn(),
 		};
 		const { registry, activeWiki } = makeMocks({
@@ -804,6 +807,7 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 		const detector: ExtensionDetector = {
 			has: vi.fn(async () => false),
 			hasAny: hasAnySpy,
+			inspect: vi.fn(async () => ({ reachable: true, extensions: new Set<string>() })),
 			invalidate: vi.fn(),
 		};
 		const { registry, activeWiki } = makeMocks({
