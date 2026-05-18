@@ -563,6 +563,125 @@ describe('markSessionActive / markSessionIdle (idle expiry)', () => {
 	});
 });
 
+describe('idle-counter wiring through the HTTP handlers', () => {
+	function stubCreateServer(): McpServer {
+		return new McpServer({ name: 'idle-wiring-server', version: '0.0.0' }, { capabilities: {} });
+	}
+
+	// supertest resolves its promise on the HTTP response, but the handler's
+	// markSessionIdle runs on the response's 'close' event, which can fire a
+	// tick later. Mirror the createInFlightCounter abort test's setImmediate
+	// drain so the post-close registry state is observable.
+	async function afterResponseClosed(): Promise<void> {
+		await new Promise((r) => setImmediate(r));
+	}
+
+	it('balances activeRequests back to 0 after a POST to an existing session', async () => {
+		const app = express();
+		app.use(express.json());
+		const handleRequest = vi.fn(
+			async (_req: unknown, res: { status: (n: number) => { end: () => void } }) => {
+				res.status(202).end();
+			},
+		);
+		// transport.sessionId must be populated: the POST handler's res.on('close')
+		// reads it to route markSessionIdle back to this registry entry.
+		const transport = {
+			sessionId: 'sid-1',
+			handleRequest,
+		} as unknown as SessionRegistry[string]['transport'];
+		const sessions: SessionRegistry = { 'sid-1': { transport, activeRequests: 0 } };
+		app.post('/mcp', createMcpPostHandler(sessions, stubCreateServer, { idleTimeoutMs: 0 }));
+
+		const res = await request(app)
+			.post('/mcp')
+			.set('mcp-session-id', 'sid-1')
+			.send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+		await afterResponseClosed();
+
+		expect(res.status).toBe(202);
+		// markSessionActive (+1) and the res.on('close') -> markSessionIdle (-1)
+		// balanced out — the request did not leak an in-flight count.
+		expect(sessions['sid-1'].activeRequests).toBe(0);
+	});
+
+	it('balances activeRequests back to 0 after a new-session initialize POST', async () => {
+		const app = express();
+		app.use(express.json());
+		const sessions: SessionRegistry = {};
+		app.post('/mcp', createMcpPostHandler(sessions, stubCreateServer, { idleTimeoutMs: 0 }));
+
+		const res = await request(app)
+			.post('/mcp')
+			.set('Accept', 'application/json, text/event-stream')
+			.send({
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'initialize',
+				params: {
+					protocolVersion: '2025-11-25',
+					capabilities: {},
+					clientInfo: { name: 'idle-wiring-client', version: '0.0.0' },
+				},
+			});
+		await afterResponseClosed();
+
+		expect(res.status).toBe(200);
+		const created = Object.keys(sessions);
+		expect(created).toHaveLength(1);
+		// onsessioninitialized seeds activeRequests: 1; the init request's
+		// res.on('close') -> markSessionIdle must decrement it back to 0
+		// rather than leaving the fresh session stuck at 1.
+		expect(sessions[created[0]].activeRequests).toBe(0);
+	});
+
+	it('balances activeRequests back to 0 after a GET to an existing session', async () => {
+		const app = express();
+		app.use(express.json());
+		const handleRequest = vi.fn(
+			async (_req: unknown, res: { status: (n: number) => { end: () => void } }) => {
+				res.status(204).end();
+			},
+		);
+		const transport = {
+			sessionId: 'sid-1',
+			handleRequest,
+		} as unknown as SessionRegistry[string]['transport'];
+		const sessions: SessionRegistry = { 'sid-1': { transport, activeRequests: 0 } };
+		app.get('/mcp', createSessionRequestHandler(sessions, 0));
+
+		const res = await request(app).get('/mcp').set('mcp-session-id', 'sid-1');
+		await afterResponseClosed();
+
+		expect(res.status).toBe(204);
+		// markSessionActive (+1) and res.on('close') -> markSessionIdle (-1)
+		// balanced out for the GET path too.
+		expect(sessions['sid-1'].activeRequests).toBe(0);
+	});
+
+	it('balances activeRequests back to 0 after a DELETE to an existing session', async () => {
+		const app = express();
+		app.use(express.json());
+		const handleRequest = vi.fn(
+			async (_req: unknown, res: { status: (n: number) => { end: () => void } }) => {
+				res.status(204).end();
+			},
+		);
+		const transport = {
+			sessionId: 'sid-1',
+			handleRequest,
+		} as unknown as SessionRegistry[string]['transport'];
+		const sessions: SessionRegistry = { 'sid-1': { transport, activeRequests: 0 } };
+		app.delete('/mcp', createSessionRequestHandler(sessions, 0));
+
+		const res = await request(app).delete('/mcp').set('mcp-session-id', 'sid-1');
+		await afterResponseClosed();
+
+		expect(res.status).toBe(204);
+		expect(sessions['sid-1'].activeRequests).toBe(0);
+	});
+});
+
 describe('createInFlightCounter', () => {
 	function buildApp(): Express {
 		const app = express();
