@@ -201,7 +201,7 @@ describe('MwnProviderImpl', () => {
 			mockRunExecSecret.mockResolvedValue('exec-token');
 			mockInit.mockResolvedValue({ getSiteInfo: mockGetSiteInfo });
 			const reg = new WikiRegistryImpl({ a: execWiki('a') }, true);
-			const sel = new WikiSelectionImpl('a', reg);
+			const sel = new ActiveWikiImpl('a', reg);
 			const provider = new MwnProviderImpl(reg, sel, () => undefined);
 
 			await provider.get('a');
@@ -216,7 +216,7 @@ describe('MwnProviderImpl', () => {
 		it('never runs the exec command for a wiki that is not used', async () => {
 			mockRunExecSecret.mockResolvedValue('exec-token');
 			const reg = new WikiRegistryImpl({ a: sample('a'), b: execWiki('b') }, true);
-			const sel = new WikiSelectionImpl('a', reg);
+			const sel = new ActiveWikiImpl('a', reg);
 			const provider = new MwnProviderImpl(reg, sel, () => undefined);
 
 			await provider.get('a');
@@ -229,7 +229,7 @@ describe('MwnProviderImpl', () => {
 				new CredentialResolutionError('Could not resolve the "token" credential for wiki "a"'),
 			);
 			const reg = new WikiRegistryImpl({ a: execWiki('a') }, true);
-			const sel = new WikiSelectionImpl('a', reg);
+			const sel = new ActiveWikiImpl('a', reg);
 			const provider = new MwnProviderImpl(reg, sel, () => undefined);
 
 			await expect(provider.get('a')).rejects.toBeInstanceOf(CredentialResolutionError);
@@ -238,7 +238,7 @@ describe('MwnProviderImpl', () => {
 		it('does not resolve config secrets when a runtime token is present', async () => {
 			mockInit.mockResolvedValue({ getSiteInfo: mockGetSiteInfo });
 			const reg = new WikiRegistryImpl({ a: execWiki('a') }, true);
-			const sel = new WikiSelectionImpl('a', reg);
+			const sel = new ActiveWikiImpl('a', reg);
 			const provider = new MwnProviderImpl(reg, sel, () => 'runtime-token');
 
 			await provider.get('a');
@@ -252,7 +252,7 @@ describe('MwnProviderImpl', () => {
 				.mockResolvedValueOnce('exec-token');
 			mockInit.mockResolvedValue({ getSiteInfo: mockGetSiteInfo });
 			const reg = new WikiRegistryImpl({ a: execWiki('a') }, true);
-			const sel = new WikiSelectionImpl('a', reg);
+			const sel = new ActiveWikiImpl('a', reg);
 			const provider = new MwnProviderImpl(reg, sel, () => undefined);
 
 			await expect(provider.get('a')).rejects.toBeInstanceOf(CredentialResolutionError);
