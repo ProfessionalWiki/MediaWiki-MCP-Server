@@ -19,6 +19,7 @@ import { comparePages } from './compare-pages.js';
 import { getFile } from './get-file.js';
 import { getRevision } from './get-revision.js';
 import { getCategoryMembers } from './get-category-members.js';
+import { listWikis } from './list-wikis.js';
 import { extensionPacks } from './extensions/index.js';
 import { createPage } from './create-page.js';
 import { updatePage } from './update-page.js';
@@ -50,6 +51,7 @@ const standardTools: Tool<any>[] = [
 	getFile,
 	getRevision,
 	getCategoryMembers,
+	listWikis,
 	createPage,
 	updatePage,
 	deletePage,

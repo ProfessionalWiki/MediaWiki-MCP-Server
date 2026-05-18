@@ -21,6 +21,7 @@ Every tool that operates on a wiki accepts an optional `wiki` argument naming th
 | `get-pages` | Fetch multiple wiki pages in one call (up to 50). |
 | `get-recent-changes` | List recent change events across the wiki, filterable by timestamp, namespace, user, tag, type, and hide flags (up to 50 per call, paginated via `continue`). |
 | `get-revision` | Fetch a specific revision of a page. |
+| `list-wikis` | List every configured wiki — its key, sitename, server, whether it is read-only or the default, whether it is reachable, and which extension-gated tools work on it. |
 | `parse-wikitext` | Render wikitext to HTML without saving. Returns parse warnings, wikilinks, templates, and external URLs. |
 | `search-page` | Search wiki page titles and contents. |
 | `search-page-by-prefix` | Search page titles by prefix. |

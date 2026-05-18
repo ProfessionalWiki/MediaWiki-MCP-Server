@@ -6,6 +6,15 @@ import { logger } from '../runtime/logger.js';
 const TTL_SUCCESS_MS = 60 * 60 * 1000; // 1 hour
 const TTL_FAILURE_MS = 60 * 1000; // 60 seconds
 
+// Bound the siteinfo probe so a TCP-level stall on an unreachable wiki fails
+// fast instead of hanging forever. This matters because the probe fans out
+// across EVERY configured wiki — startup reconcile() probes them all, and the
+// list-wikis tool re-probes them all on each call. Without a timeout, one
+// blackholed wiki would hang every list-wikis call and leave extension tools
+// permanently un-reconciled. A timed-out probe aborts the fetch with an abort
+// error, which lands in probe()'s catch and resolves as a `failed` entry.
+const PROBE_TIMEOUT_MS = 5_000;
+
 export interface ExtensionDetector {
 	has(wikiKey: string, extensionName: string): Promise<boolean>;
 	/**
@@ -14,6 +23,12 @@ export interface ExtensionDetector {
 	 * `LIBRARIAN` on wiki.gg-hosted wikis (Helldivers, Terraria, Ark, etc.).
 	 */
 	hasAny(wikiKey: string, extensionNames: readonly string[]): Promise<boolean>;
+	/**
+	 * Per-wiki snapshot for capability reporting. `reachable` is false when the
+	 * siteinfo probe failed, in which case `extensions` is empty. Shares the
+	 * same probe cache as has()/hasAny().
+	 */
+	inspect(wikiKey: string): Promise<{ reachable: boolean; extensions: ReadonlySet<string> }>;
 	invalidate(wikiKey: string): void;
 }
 
@@ -55,6 +70,16 @@ export class ExtensionDetectorImpl implements ExtensionDetector {
 		return false;
 	}
 
+	public async inspect(
+		wikiKey: string,
+	): Promise<{ reachable: boolean; extensions: ReadonlySet<string> }> {
+		const entry = await this.resolveEntry(wikiKey);
+		if (entry.kind === 'failed') {
+			return { reachable: false, extensions: new Set() };
+		}
+		return { reachable: true, extensions: entry.extensions };
+	}
+
 	public invalidate(wikiKey: string): void {
 		this.cache.delete(wikiKey);
 	}
@@ -90,12 +115,16 @@ export class ExtensionDetectorImpl implements ExtensionDetector {
 
 		const apiUrl = `${config.server}${config.scriptpath}/api.php`;
 		try {
-			const data = await makeApiRequest<ExtensionsResponse>(apiUrl, {
-				action: 'query',
-				meta: 'siteinfo',
-				siprop: 'extensions',
-				format: 'json',
-			});
+			const data = await makeApiRequest<ExtensionsResponse>(
+				apiUrl,
+				{
+					action: 'query',
+					meta: 'siteinfo',
+					siprop: 'extensions',
+					format: 'json',
+				},
+				{ signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) },
+			);
 			const list = data.query?.extensions;
 			if (!Array.isArray(list)) {
 				throw new Error('Malformed siteinfo extensions response');

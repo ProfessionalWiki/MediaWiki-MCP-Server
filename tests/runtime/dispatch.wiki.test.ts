@@ -4,6 +4,8 @@ import { dispatch } from '../../src/runtime/dispatcher.js';
 import type { Tool } from '../../src/runtime/tool.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 import { getRequestWiki } from '../../src/transport/requestContext.js';
+import { updatePage } from '../../src/tools/update-page.js';
+import { cargoQuery } from '../../src/tools/extensions/cargo/cargo-query.js';
 
 // A minimal wiki-scoped tool that reports the wiki it ran against.
 const probe: Tool<Record<string, never>> = {
@@ -112,5 +114,66 @@ describe('dispatch wiki echo', () => {
 		};
 		const result = await dispatch(mgmt, ctx)({} as never);
 		expect((result.structuredContent as { wiki?: unknown }).wiki).toBeUndefined();
+	});
+});
+
+describe('dispatch capability guard', () => {
+	it('blocks a write tool dispatched against a read-only wiki', async () => {
+		const roConfig = {
+			sitename: 'T',
+			server: 'https://t',
+			articlepath: '/wiki',
+			scriptpath: '/w',
+			readOnly: true,
+		};
+		const ctx = fakeContext({
+			wikis: {
+				getAll: () => ({ 'test-wiki': roConfig }) as never,
+				get: ((k: string) => (k === 'test-wiki' ? roConfig : undefined)) as never,
+				add: (() => {}) as never,
+				remove: (() => {}) as never,
+				isManagementAllowed: () => true,
+			},
+			activeWiki: {
+				get: () => ({ key: 'test-wiki', config: roConfig as never }),
+				getDefaultKey: () => 'test-wiki',
+			},
+		});
+		const result = await dispatch(updatePage, ctx)({ title: 'X', source: 'y' } as never);
+		expect(result.isError).toBe(true);
+		expect(JSON.stringify(result.content)).toContain('read-only');
+	});
+
+	it('blocks an extension tool dispatched against a wiki lacking the extension', async () => {
+		const config = {
+			sitename: 'T',
+			server: 'https://t',
+			articlepath: '/wiki',
+			scriptpath: '/w',
+		};
+		const ctx = fakeContext({
+			wikis: {
+				getAll: () => ({ 'test-wiki': config }) as never,
+				get: ((k: string) => (k === 'test-wiki' ? config : undefined)) as never,
+				add: (() => {}) as never,
+				remove: (() => {}) as never,
+				isManagementAllowed: () => true,
+			},
+			activeWiki: {
+				get: () => ({ key: 'test-wiki', config: config as never }),
+				getDefaultKey: () => 'test-wiki',
+			},
+			extensions: {
+				has: (async () => false) as never,
+				hasAny: (async () => false) as never,
+				inspect: (async () => ({ reachable: true, extensions: new Set() })) as never,
+				invalidate: (() => {}) as never,
+			},
+		});
+		// The guard fires before the handler, so the only possible failure here
+		// is the capability guard's "not installed" — not a schema/handler error.
+		const result = await dispatch(cargoQuery, ctx)({ tables: 'Items' } as never);
+		expect(result.isError).toBe(true);
+		expect(JSON.stringify(result.content)).toContain('not installed');
 	});
 });

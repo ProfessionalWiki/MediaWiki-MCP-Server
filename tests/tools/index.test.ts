@@ -67,12 +67,12 @@ async function connectClientAndServer(): Promise<{ client: Client; server: McpSe
 	const fakeDetector: ExtensionDetector = {
 		has: vi.fn(async () => false),
 		hasAny: vi.fn(async () => false),
+		inspect: vi.fn(async () => ({ reachable: true, extensions: new Set<string>() })),
 		invalidate: vi.fn(),
 	};
 	const reconcile = () =>
 		reconcileTools(tools, {
 			wikiRegistry: wikiRegistryMock,
-			activeWiki: activeWikiMock,
 			transport: 'stdio',
 			extensions: fakeDetector,
 			extensionPacks,
@@ -197,7 +197,9 @@ describe('registerAllTools — per-wiki readOnly', () => {
 		}
 	});
 
-	it('omits write tools when the default wiki is readOnly', async () => {
+	it('keeps write tools listed when only a non-default wiki is writeable', async () => {
+		// Union gating: write tools stay offered while ANY configured wiki is
+		// writeable, even if the default wiki is read-only.
 		wikiStore.current = wikiB;
 		const { client } = await connectClientAndServer();
 
@@ -205,22 +207,47 @@ describe('registerAllTools — per-wiki readOnly', () => {
 		const names = tools.map((t) => t.name);
 
 		for (const w of WRITE_TOOLS) {
-			expect(names).not.toContain(w);
+			expect(names).toContain(w);
 		}
 		expect(names).toContain('get-page');
 	});
 
-	it('rejects a write tool call with a disabled error when the default wiki is readOnly', async () => {
+	it('omits write tools when every configured wiki is readOnly', async () => {
+		const originalByKey = wikiStore.byKey;
+		wikiStore.byKey = { b: wikiB };
 		wikiStore.current = wikiB;
-		const { client } = await connectClientAndServer();
+		try {
+			const { client } = await connectClientAndServer();
 
-		const result = await client.callTool({
-			name: 'create-page',
-			arguments: { title: 'Test', source: 'test' },
-		});
+			const { tools } = await client.listTools();
+			const names = tools.map((t) => t.name);
 
-		expect(result.isError).toBe(true);
-		const content = result.content as Array<{ type: string; text: string }>;
-		expect(content[0].text).toMatch(/Tool create-page disabled/);
+			for (const w of WRITE_TOOLS) {
+				expect(names).not.toContain(w);
+			}
+			expect(names).toContain('get-page');
+		} finally {
+			wikiStore.byKey = originalByKey;
+		}
+	});
+
+	it('rejects a write tool call with a disabled error when every configured wiki is readOnly', async () => {
+		const originalByKey = wikiStore.byKey;
+		wikiStore.byKey = { b: wikiB };
+		wikiStore.current = wikiB;
+		try {
+			const { client } = await connectClientAndServer();
+
+			const result = await client.callTool({
+				name: 'create-page',
+				arguments: { title: 'Test', source: 'test' },
+			});
+
+			expect(result.isError).toBe(true);
+			const content = result.content as Array<{ type: string; text: string }>;
+			expect(content[0].text).toMatch(/Tool create-page disabled/);
+		} finally {
+			wikiStore.byKey = originalByKey;
+		}
 	});
 });

@@ -10,6 +10,7 @@ async function fetchCore(
 		params?: Record<string, string>;
 		headers?: Record<string, string>;
 		method?: string;
+		signal?: AbortSignal;
 	},
 ): Promise<Response> {
 	let url = baseUrl;
@@ -43,6 +44,7 @@ async function fetchCore(
 			method: options?.method || 'GET',
 			redirect: 'manual',
 			agent,
+			signal: options?.signal,
 		});
 
 		if (response.status < 300 || response.status >= 400) {
@@ -73,10 +75,15 @@ async function fetchCore(
 	return finalResponse;
 }
 
-export async function makeApiRequest<T>(url: string, params?: Record<string, string>): Promise<T> {
+export async function makeApiRequest<T>(
+	url: string,
+	params?: Record<string, string>,
+	options?: { signal?: AbortSignal },
+): Promise<T> {
 	const response = await fetchCore(url, {
 		params,
 		headers: { Accept: 'application/json' },
+		signal: options?.signal,
 	});
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- HTTP response body; trusted JSON envelope at this boundary
 	return (await response.json()) as T;
