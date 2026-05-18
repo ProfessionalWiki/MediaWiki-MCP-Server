@@ -55,11 +55,36 @@ describe('dispatch wiki resolution', () => {
 		}
 	});
 
+	it('falls back to the default wiki for a bare mcp://wikis/ prefix', async () => {
+		const ctx = fakeContext();
+		const result = await dispatch(probe, ctx)({ wiki: 'mcp://wikis/' } as never);
+		expect(ranAgainst(result)).toBe('test-wiki');
+	});
+
+	it('falls back to the default wiki for a whitespace-only wiki argument', async () => {
+		const ctx = fakeContext();
+		const result = await dispatch(probe, ctx)({ wiki: '   ' } as never);
+		expect(ranAgainst(result)).toBe('test-wiki');
+	});
+
 	it('isolates concurrent calls targeting different wikis', async () => {
 		const ctx = fakeContext();
+		// A tool that yields to a real macrotask before reading the request
+		// wiki, so both dispatches are suspended at the timer at the same time —
+		// a leaked or shared wikiKey store would surface here.
+		const slowProbe: Tool<Record<string, never>> = {
+			name: 'slow-probe',
+			description: 'test probe that yields before reading the wiki',
+			inputSchema: {},
+			annotations: {} as never,
+			async handle(_args, ctx): Promise<CallToolResult> {
+				await new Promise((r) => setTimeout(r, 0));
+				return ctx.format.ok({ ranAgainst: getRequestWiki() });
+			},
+		};
 		const [a, b] = await Promise.all([
-			dispatch(probe, ctx)({ wiki: 'fr.wikipedia.org' } as never),
-			dispatch(probe, ctx)({ wiki: 'de.wikipedia.org' } as never),
+			dispatch(slowProbe, ctx)({ wiki: 'fr.wikipedia.org' } as never),
+			dispatch(slowProbe, ctx)({ wiki: 'de.wikipedia.org' } as never),
 		]);
 		expect(ranAgainst(a)).toBe('fr.wikipedia.org');
 		expect(ranAgainst(b)).toBe('de.wikipedia.org');

@@ -38,8 +38,11 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext =
 		if (isWikiScoped(tool)) {
 			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the `wiki` field is merged into the schema by register(); not in the static TSchema
 			const raw = (args as { wiki?: unknown }).wiki;
-			const requested =
-				typeof raw === 'string' && raw.trim() !== '' ? normalizeWikiArg(raw) : undefined;
+			// normalizeWikiArg trims and strips the mcp://wikis/ prefix, so a
+			// whitespace-only or bare-prefix value normalizes to '' — treat that
+			// as omitted and fall back to the default wiki.
+			const normalized = typeof raw === 'string' ? normalizeWikiArg(raw) : '';
+			const requested = normalized !== '' ? normalized : undefined;
 			resolvedKey = requested ?? ctx.activeWiki.getDefaultKey();
 			if (!ctx.wikis.get(resolvedKey)) {
 				const configured = Object.keys(ctx.wikis.getAll());
