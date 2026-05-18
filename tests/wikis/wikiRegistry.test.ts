@@ -65,4 +65,25 @@ describe('WikiRegistryImpl', () => {
 		reg.remove('a');
 		expect(wikis.a).toBeUndefined();
 	});
+
+	it('get returns undefined for prototype-chain keys', () => {
+		const reg = new WikiRegistryImpl({ a: sample('a') }, true);
+		expect(reg.get('constructor')).toBeUndefined();
+		expect(reg.get('__proto__')).toBeUndefined();
+		expect(reg.get('toString')).toBeUndefined();
+		expect(reg.get('hasOwnProperty')).toBeUndefined();
+		expect(reg.get('valueOf')).toBeUndefined();
+	});
+
+	it('get still returns the config for a real configured key', () => {
+		const reg = new WikiRegistryImpl({ a: sample('a') }, true);
+		expect(reg.get('a')?.sitename).toBe('a');
+	});
+
+	it('add rejects dangerous prototype-chain keys', () => {
+		const reg = new WikiRegistryImpl({}, true);
+		expect(() => reg.add('__proto__', sample('x'))).toThrow(/not allowed/i);
+		expect(() => reg.add('constructor', sample('x'))).toThrow(/not allowed/i);
+		expect(() => reg.add('prototype', sample('x'))).toThrow(/not allowed/i);
+	});
 });

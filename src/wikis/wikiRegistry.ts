@@ -26,14 +26,22 @@ export class WikiRegistryImpl implements WikiRegistry {
 	}
 
 	public get(key: string): Readonly<WikiConfig> | undefined {
-		return this.wikis[key];
+		// Own-key lookup only: a bare bracket access would resolve inherited
+		// Object.prototype members ('constructor', '__proto__', 'toString', …)
+		// to truthy values, letting bogus keys pass an existence check.
+		return Object.hasOwn(this.wikis, key) ? this.wikis[key] : undefined;
 	}
 
 	public add(key: string, config: WikiConfig): void {
 		if (!key || key.trim() === '') {
 			throw new Error('Wiki key cannot be empty');
 		}
-		if (this.wikis[key]) {
+		// Reject keys that would mutate the prototype chain when assigned via
+		// bracket notation, or otherwise alias an inherited member.
+		if (key === '__proto__' || key === 'prototype' || key === 'constructor') {
+			throw new Error(`Wiki key "${key}" is not allowed`);
+		}
+		if (Object.hasOwn(this.wikis, key)) {
 			throw new DuplicateWikiKeyError(key);
 		}
 		this.wikis[key] = config;

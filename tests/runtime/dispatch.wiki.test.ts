@@ -46,6 +46,15 @@ describe('dispatch wiki resolution', () => {
 		expect(JSON.stringify(result.content)).toContain('not found');
 	});
 
+	it('rejects prototype-chain keys with a not-found error', async () => {
+		const ctx = fakeContext();
+		for (const key of ['constructor', '__proto__', 'toString']) {
+			const result = await dispatch(probe, ctx)({ wiki: key } as never);
+			expect(result.isError).toBe(true);
+			expect(JSON.stringify(result.content)).toContain('not found');
+		}
+	});
+
 	it('isolates concurrent calls targeting different wikis', async () => {
 		const ctx = fakeContext();
 		const [a, b] = await Promise.all([

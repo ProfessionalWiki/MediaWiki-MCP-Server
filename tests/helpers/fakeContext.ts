@@ -29,7 +29,10 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 		mwn: throws('mwn()') as never,
 		wikis: {
 			getAll: () => testWikiRegistry as never,
-			get: ((key: string) => testWikiRegistry[key]) as never,
+			// Own-key lookup only, mirroring WikiRegistryImpl.get — a bare
+			// bracket access would resolve inherited Object.prototype members.
+			get: ((key: string) =>
+				Object.hasOwn(testWikiRegistry, key) ? testWikiRegistry[key] : undefined) as never,
 			add: throws('wikis.add') as never,
 			remove: throws('wikis.remove') as never,
 			isManagementAllowed: () => true,
