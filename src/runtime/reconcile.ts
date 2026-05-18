@@ -1,7 +1,6 @@
 import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { WikiConfig } from '../config/loadConfig.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
-import type { ActiveWiki } from '../wikis/activeWiki.js';
 import type { ExtensionDetector } from '../wikis/extensionDetector.js';
 import type { ExtensionPack } from '../tools/extensions/types.js';
 
@@ -9,15 +8,13 @@ export type Reconcile = () => Promise<void>;
 
 export interface ReconcileDeps {
 	readonly wikiRegistry: WikiRegistry;
-	readonly activeWiki: ActiveWiki;
 	readonly transport: 'http' | 'stdio';
 	readonly extensions: ExtensionDetector;
 	readonly extensionPacks: readonly ExtensionPack[];
 }
 
 export interface ReconcileContext {
-	readonly activeWikiKey: string;
-	readonly activeWiki: Readonly<WikiConfig>;
+	readonly allWikis: Readonly<Record<string, WikiConfig>>;
 	readonly wikiCount: number;
 	readonly allowManagement: boolean;
 	readonly transport: 'http' | 'stdio';
@@ -47,7 +44,10 @@ const STATIC_RULES: readonly ToolGatingRule[] = [
 	{
 		name: 'read-only',
 		affects: WRITE_TOOL_NAMES,
-		isAllowed: (c) => !c.activeWiki.readOnly,
+		// Union gating: write tools stay offered if ANY configured wiki is
+		// writable. The per-call capability guard rejects a write to a
+		// read-only wiki.
+		isAllowed: (c) => Object.values(c.allWikis).some((w) => w.readOnly !== true),
 	},
 	{
 		name: 'stdio-only',
@@ -70,16 +70,23 @@ function buildExtensionRules(packs: readonly ExtensionPack[]): readonly ToolGati
 	return packs.map((pack) => ({
 		name: `${pack.id}-extension`,
 		affects: pack.tools.map((t) => t.name),
-		isAllowed: (c) => c.extensions.hasAny(c.activeWikiKey, pack.extensionNames),
+		// Union gating: the pack's tools are offered if ANY configured wiki has
+		// the extension. The per-call capability guard rejects a call to a wiki
+		// that lacks it.
+		isAllowed: async (c) => {
+			const results = await Promise.all(
+				Object.keys(c.allWikis).map((key) => c.extensions.hasAny(key, pack.extensionNames)),
+			);
+			return results.some((r) => r);
+		},
 	}));
 }
 
 function buildContext(deps: ReconcileDeps): ReconcileContext {
-	const { key, config } = deps.activeWiki.get();
+	const allWikis = deps.wikiRegistry.getAll();
 	return {
-		activeWikiKey: key,
-		activeWiki: config,
-		wikiCount: Object.keys(deps.wikiRegistry.getAll()).length,
+		allWikis,
+		wikiCount: Object.keys(allWikis).length,
 		allowManagement: deps.wikiRegistry.isManagementAllowed(),
 		transport: deps.transport,
 		extensions: deps.extensions,
