@@ -26,7 +26,7 @@ describe('createToolContext', () => {
 		const ctx = createToolContext({ logger, state, transport: 'stdio' });
 		expect(ctx.mwn).toBeTypeOf('function');
 		expect(ctx.wikis).toBeDefined();
-		expect(ctx.selection).toBeDefined();
+		expect(ctx.activeWiki).toBeDefined();
 		expect(ctx.uploadDirs).toBeDefined();
 		expect(ctx.wikiCache).toBeDefined();
 		expect(typeof ctx.wikiCache.invalidate).toBe('function');

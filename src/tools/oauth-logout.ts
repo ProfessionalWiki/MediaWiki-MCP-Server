@@ -10,6 +10,7 @@ const inputSchema = {
 
 export const oauthLogout: Tool<typeof inputSchema> = {
 	name: 'oauth-logout',
+	wikiScoped: false,
 	description:
 		'Removes stored OAuth tokens. With no argument, removes all stored tokens; with `wiki`, removes only that wiki. Stdio only.',
 	inputSchema,

@@ -187,7 +187,7 @@ function buildPageEntry(
 		requestedTitle: requested,
 		pageId: page.pageid,
 		title: page.title,
-		url: getPageUrl(page.title, ctx.selection),
+		url: getPageUrl(page.title, ctx.activeWiki),
 		...(viaRedirect ? { redirectedFrom: requested } : {}),
 		...(args.metadata
 			? {

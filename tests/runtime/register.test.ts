@@ -26,10 +26,36 @@ describe('register', () => {
 			'foo',
 			{
 				description: 'd',
-				inputSchema: { a: expect.anything() },
+				// Wiki-scoped tools (the default) get the shared `wiki` field merged in.
+				inputSchema: { a: expect.anything(), wiki: expect.anything() },
 				annotations: tool.annotations,
 			},
 			handler,
+		);
+	});
+
+	it('omits the wiki field for non-wiki-scoped tools', () => {
+		const registerTool = vi.fn().mockReturnValue({ x: 1 });
+		const server = { registerTool } as never;
+		const tool: Tool<{ a: z.ZodString }> = {
+			name: 'foo',
+			description: 'd',
+			wikiScoped: false,
+			inputSchema: { a: z.string() },
+			annotations: {
+				title: 'F',
+				readOnlyHint: true,
+				destructiveHint: false,
+				idempotentHint: true,
+				openWorldHint: true,
+			},
+			handle: async () => ({ content: [] }),
+		};
+		register(server, tool, vi.fn());
+		expect(registerTool).toHaveBeenCalledWith(
+			'foo',
+			expect.objectContaining({ inputSchema: { a: expect.anything() } }),
+			expect.anything(),
 		);
 	});
 

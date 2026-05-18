@@ -1,7 +1,7 @@
 import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { WikiConfig } from '../config/loadConfig.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
-import type { WikiSelection } from '../wikis/wikiSelection.js';
+import type { ActiveWiki } from '../wikis/activeWiki.js';
 import type { ExtensionDetector } from '../wikis/extensionDetector.js';
 import type { ExtensionPack } from '../tools/extensions/types.js';
 
@@ -9,7 +9,7 @@ export type Reconcile = () => Promise<void>;
 
 export interface ReconcileDeps {
 	readonly wikiRegistry: WikiRegistry;
-	readonly wikiSelection: WikiSelection;
+	readonly activeWiki: ActiveWiki;
 	readonly transport: 'http' | 'stdio';
 	readonly extensions: ExtensionDetector;
 	readonly extensionPacks: readonly ExtensionPack[];
@@ -64,11 +64,6 @@ const STATIC_RULES: readonly ToolGatingRule[] = [
 		affects: ['remove-wiki'],
 		isAllowed: (c) => c.allowManagement && c.wikiCount >= 2,
 	},
-	{
-		name: 'set-wiki',
-		affects: ['set-wiki'],
-		isAllowed: (c) => c.wikiCount >= 2,
-	},
 ];
 
 function buildExtensionRules(packs: readonly ExtensionPack[]): readonly ToolGatingRule[] {
@@ -80,7 +75,7 @@ function buildExtensionRules(packs: readonly ExtensionPack[]): readonly ToolGati
 }
 
 function buildContext(deps: ReconcileDeps): ReconcileContext {
-	const { key, config } = deps.wikiSelection.getCurrent();
+	const { key, config } = deps.activeWiki.get();
 	return {
 		activeWikiKey: key,
 		activeWiki: config,

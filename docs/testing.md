@@ -84,7 +84,7 @@ npx @modelcontextprotocol/inspector --cli node dist/index.js \
   --uri 'mcp://wikis/en.wikipedia.org'
 ```
 
-Each invocation starts a fresh MCP session, so `set-wiki` does not persist between calls. Set `defaultWiki` in `config.json` to target a specific wiki.
+Pass an optional `wiki` argument (a wiki key such as `en.wikipedia.org`, or the full `mcp://wikis/{wikiKey}` URI) to target a specific wiki on a given call. Omit it to use the `defaultWiki` set in `config.json`.
 
 ## Using a local build from your MCP client
 

@@ -60,15 +60,9 @@ async function connectClientAndServer(): Promise<{ client: Client; server: McpSe
 		remove: () => {},
 		isManagementAllowed: () => isManagementAllowedRef.current,
 	};
-	const wikiSelectionMock = {
-		getCurrent: () => ({ key: currentKey(), config: wikiStore.current }),
-		setCurrent: (key: string) => {
-			if (!wikiStore.byKey[key]) {
-				throw new Error(`Wiki "${key}" not found`);
-			}
-			wikiStore.current = wikiStore.byKey[key];
-		},
-		reset: () => {},
+	const activeWikiMock = {
+		get: () => ({ key: currentKey(), config: wikiStore.current }),
+		getDefaultKey: () => currentKey(),
 	};
 	const fakeDetector: ExtensionDetector = {
 		has: vi.fn(async () => false),
@@ -78,14 +72,14 @@ async function connectClientAndServer(): Promise<{ client: Client; server: McpSe
 	const reconcile = () =>
 		reconcileTools(tools, {
 			wikiRegistry: wikiRegistryMock,
-			wikiSelection: wikiSelectionMock,
+			activeWiki: activeWikiMock,
 			transport: 'stdio',
 			extensions: fakeDetector,
 			extensionPacks,
 		});
 	const ctx = fakeContext({
 		wikis: wikiRegistryMock,
-		selection: wikiSelectionMock,
+		activeWiki: activeWikiMock,
 	});
 	const registered = registerAllTools(server, reconcile, ctx);
 	for (const [name, tool] of registered) {
@@ -116,7 +110,7 @@ describe('registerAllTools — wiki management gating', () => {
 		expect(names).toContain('get-page');
 	});
 
-	it('omits add-wiki and remove-wiki but keeps set-wiki when management is disallowed and 2+ wikis are configured', async () => {
+	it('omits add-wiki and remove-wiki when management is disallowed and 2+ wikis are configured', async () => {
 		isManagementAllowedRef.current = false;
 		const { client } = await connectClientAndServer();
 
@@ -126,10 +120,9 @@ describe('registerAllTools — wiki management gating', () => {
 		expect(names).not.toContain('add-wiki');
 		expect(names).not.toContain('remove-wiki');
 		expect(names).toContain('get-page');
-		expect(names).toContain('set-wiki');
 	});
 
-	it('hides set-wiki, add-wiki, and remove-wiki on the hosted single-wiki shape (1 wiki + management disallowed)', async () => {
+	it('hides add-wiki and remove-wiki on the hosted single-wiki shape (1 wiki + management disallowed)', async () => {
 		isManagementAllowedRef.current = false;
 		const originalByKey = wikiStore.byKey;
 		wikiStore.byKey = { a: wikiA };
@@ -141,7 +134,6 @@ describe('registerAllTools — wiki management gating', () => {
 
 			expect(names).not.toContain('add-wiki');
 			expect(names).not.toContain('remove-wiki');
-			expect(names).not.toContain('set-wiki');
 			expect(names).toContain('get-page');
 		} finally {
 			wikiStore.byKey = originalByKey;
@@ -162,17 +154,16 @@ describe('registerAllTools — wiki management gating', () => {
 		expect(content[0].text).toMatch(/Tool add-wiki disabled/);
 	});
 
-	it('shows set-wiki and remove-wiki when 2 wikis are configured and management is allowed', async () => {
+	it('shows remove-wiki when 2 wikis are configured and management is allowed', async () => {
 		isManagementAllowedRef.current = true;
 		const { client } = await connectClientAndServer();
 
 		const names = (await client.listTools()).tools.map((t) => t.name);
-		expect(names).toContain('set-wiki');
 		expect(names).toContain('remove-wiki');
 		expect(names).toContain('add-wiki');
 	});
 
-	it('hides set-wiki and remove-wiki when only 1 wiki is configured and management is allowed', async () => {
+	it('hides remove-wiki when only 1 wiki is configured and management is allowed', async () => {
 		isManagementAllowedRef.current = true;
 		const originalByKey = wikiStore.byKey;
 		wikiStore.byKey = { a: wikiA };
@@ -180,7 +171,6 @@ describe('registerAllTools — wiki management gating', () => {
 			const { client } = await connectClientAndServer();
 
 			const names = (await client.listTools()).tools.map((t) => t.name);
-			expect(names).not.toContain('set-wiki');
 			expect(names).not.toContain('remove-wiki');
 			expect(names).toContain('add-wiki');
 		} finally {
@@ -218,44 +208,9 @@ describe('registerAllTools — per-wiki readOnly', () => {
 			expect(names).not.toContain(w);
 		}
 		expect(names).toContain('get-page');
-		expect(names).toContain('set-wiki');
 	});
 
-	it('hides write tools after set-wiki switches to a readOnly wiki', async () => {
-		wikiStore.current = wikiA;
-		const { client } = await connectClientAndServer();
-
-		await client.callTool({
-			name: 'set-wiki',
-			arguments: { uri: 'mcp://wikis/b' },
-		});
-
-		const { tools } = await client.listTools();
-		const names = tools.map((t) => t.name);
-
-		for (const w of WRITE_TOOLS) {
-			expect(names).not.toContain(w);
-		}
-	});
-
-	it('restores write tools after set-wiki switches back to a writeable wiki', async () => {
-		wikiStore.current = wikiB;
-		const { client } = await connectClientAndServer();
-
-		await client.callTool({
-			name: 'set-wiki',
-			arguments: { uri: 'mcp://wikis/a' },
-		});
-
-		const { tools } = await client.listTools();
-		const names = tools.map((t) => t.name);
-
-		for (const w of WRITE_TOOLS) {
-			expect(names).toContain(w);
-		}
-	});
-
-	it('rejects a write tool call with a disabled error when the active wiki is readOnly', async () => {
+	it('rejects a write tool call with a disabled error when the default wiki is readOnly', async () => {
 		wikiStore.current = wikiB;
 		const { client } = await connectClientAndServer();
 

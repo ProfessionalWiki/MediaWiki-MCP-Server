@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
-import type { WikiSelection } from '../../src/wikis/wikiSelection.js';
+import type { ActiveWiki } from '../../src/wikis/activeWiki.js';
 import type { ExtensionDetector } from '../../src/wikis/extensionDetector.js';
 import { reconcileTools, computeDesiredEnabledState } from '../../src/runtime/reconcile.js';
 import type { ToolGatingRule, ReconcileContext } from '../../src/runtime/reconcile.js';
@@ -21,7 +21,7 @@ const WRITE_TOOL_NAMES = [
 ];
 
 const NON_WRITE_TOOL_NAMES = ['get-page', 'search-page'];
-const WIKI_SET_TOOL_NAMES = ['add-wiki', 'remove-wiki', 'set-wiki'];
+const WIKI_SET_TOOL_NAMES = ['add-wiki', 'remove-wiki'];
 const STDIO_ONLY_TOOL_NAMES = ['oauth-status', 'oauth-logout'];
 
 interface MockTool {
@@ -70,14 +70,14 @@ const baseWiki: WikiConfig = {
 };
 
 function makeMocks({
-	activeWiki,
+	activeWikiConfig,
 	wikis,
 	allowManagement,
 }: {
-	activeWiki: WikiConfig;
+	activeWikiConfig: WikiConfig;
 	wikis: Record<string, WikiConfig>;
 	allowManagement: boolean;
-}): { registry: WikiRegistry; selection: WikiSelection } {
+}): { registry: WikiRegistry; activeWiki: ActiveWiki } {
 	const registry: WikiRegistry = {
 		getAll: () => wikis,
 		get: (key: string) => wikis[key],
@@ -85,15 +85,14 @@ function makeMocks({
 		remove: () => {},
 		isManagementAllowed: () => allowManagement,
 	};
-	const selection: WikiSelection = {
-		getCurrent: () => ({
-			key: Object.keys(wikis).find((k) => wikis[k] === activeWiki) ?? 'a',
-			config: activeWiki,
+	const activeWiki: ActiveWiki = {
+		get: () => ({
+			key: Object.keys(wikis).find((k) => wikis[k] === activeWikiConfig) ?? 'a',
+			config: activeWikiConfig,
 		}),
-		setCurrent: () => {},
-		reset: () => {},
+		getDefaultKey: () => Object.keys(wikis).find((k) => wikis[k] === activeWikiConfig) ?? 'a',
 	};
-	return { registry, selection };
+	return { registry, activeWiki };
 }
 
 function makeFakeDetector(answers: Record<string, boolean> = {}): ExtensionDetector {
@@ -133,14 +132,14 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 	it('disables every write tool when the active wiki is readOnly', async () => {
 		const { tools, mocks } = makeToolMap(true);
 		const wiki = { ...baseWiki, readOnly: true };
-		const { registry, selection } = makeMocks({
-			activeWiki: wiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: wiki,
 			wikis: { a: wiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
@@ -154,14 +153,14 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 	it('does not touch non-write tools', async () => {
 		const { tools, mocks } = makeToolMap(true);
 		const wiki = { ...baseWiki, readOnly: true };
-		const { registry, selection } = makeMocks({
-			activeWiki: wiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: wiki,
 			wikis: { a: wiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
@@ -175,14 +174,14 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 	it('enables every write tool when the active wiki is not readOnly', async () => {
 		const { tools, mocks } = makeToolMap(false);
 		const wiki = { ...baseWiki, readOnly: false };
-		const { registry, selection } = makeMocks({
-			activeWiki: wiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: wiki,
 			wikis: { a: wiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
@@ -195,14 +194,14 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 
 	it('treats missing readOnly as non-readOnly', async () => {
 		const { tools, mocks } = makeToolMap(false);
-		const { registry, selection } = makeMocks({
-			activeWiki: baseWiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
@@ -215,10 +214,10 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 	it('is idempotent: a second call with identical state performs zero toggles', async () => {
 		const { tools, mocks } = makeToolMap(true);
 		const wiki = { ...baseWiki, readOnly: true };
-		const m1 = makeMocks({ activeWiki: wiki, wikis: { a: wiki }, allowManagement: true });
+		const m1 = makeMocks({ activeWikiConfig: wiki, wikis: { a: wiki }, allowManagement: true });
 		await reconcileTools(tools, {
 			wikiRegistry: m1.registry,
-			wikiSelection: m1.selection,
+			activeWiki: m1.activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
@@ -227,10 +226,10 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 			m.enable.mockClear();
 			m.disable.mockClear();
 		}
-		const m2 = makeMocks({ activeWiki: wiki, wikis: { a: wiki }, allowManagement: true });
+		const m2 = makeMocks({ activeWikiConfig: wiki, wikis: { a: wiki }, allowManagement: true });
 		await reconcileTools(tools, {
 			wikiRegistry: m2.registry,
-			wikiSelection: m2.selection,
+			activeWiki: m2.activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
@@ -245,15 +244,15 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 		const { tools, mocks } = makeToolMap(true);
 		tools.delete('upload-file');
 		const wiki = { ...baseWiki, readOnly: true };
-		const { registry, selection } = makeMocks({
-			activeWiki: wiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: wiki,
 			wikis: { a: wiki },
 			allowManagement: true,
 		});
 		await expect(
 			reconcileTools(tools, {
 				wikiRegistry: registry,
-				wikiSelection: selection,
+				activeWiki: activeWiki,
 				transport: 'stdio',
 				extensions: makeFakeDetector(),
 				extensionPacks: ALL_PACKS,
@@ -269,123 +268,103 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 });
 
 describe('reconcileTools — applyWikiSetRule', () => {
-	it('disables add-wiki, remove-wiki, set-wiki when count is 1 and management is disallowed', async () => {
+	it('disables add-wiki and remove-wiki when count is 1 and management is disallowed', async () => {
 		const { tools, mocks } = makeToolMap(true);
-		const { registry, selection } = makeMocks({
-			activeWiki: baseWiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: false,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
 		});
-		for (const name of ['add-wiki', 'remove-wiki', 'set-wiki']) {
+		for (const name of ['add-wiki', 'remove-wiki']) {
 			expect(mocks.get(name)!.disable).toHaveBeenCalledTimes(1);
 		}
 	});
 
 	it('enables add-wiki only when count is 1 and management is allowed', async () => {
 		const { tools, mocks } = makeToolMap(false);
-		const { registry, selection } = makeMocks({
-			activeWiki: baseWiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('add-wiki')!.enable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('remove-wiki')!.disable).not.toHaveBeenCalled();
-		expect(mocks.get('set-wiki')!.disable).not.toHaveBeenCalled();
 	});
 
-	it('enables set-wiki when count is 2 even if management is disallowed', async () => {
+	it('enables add-wiki and remove-wiki when count is 2 and management is allowed', async () => {
 		const { tools, mocks } = makeToolMap(false);
-		const { registry, selection } = makeMocks({
-			activeWiki: baseWiki,
-			wikis: { a: baseWiki, b: baseWiki },
-			allowManagement: false,
-		});
-		await reconcileTools(tools, {
-			wikiRegistry: registry,
-			wikiSelection: selection,
-			transport: 'stdio',
-			extensions: makeFakeDetector(),
-			extensionPacks: ALL_PACKS,
-		});
-		expect(mocks.get('set-wiki')!.enable).toHaveBeenCalledTimes(1);
-		expect(mocks.get('add-wiki')!.enable).not.toHaveBeenCalled();
-		expect(mocks.get('remove-wiki')!.enable).not.toHaveBeenCalled();
-	});
-
-	it('enables all three when count is 2 and management is allowed', async () => {
-		const { tools, mocks } = makeToolMap(false);
-		const { registry, selection } = makeMocks({
-			activeWiki: baseWiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki, b: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
 		});
-		for (const name of ['add-wiki', 'remove-wiki', 'set-wiki']) {
+		for (const name of ['add-wiki', 'remove-wiki']) {
 			expect(mocks.get(name)!.enable).toHaveBeenCalledTimes(1);
 		}
 	});
 
-	it('transitions: count 1 to 2 enables set-wiki', async () => {
+	it('transitions: count 1 to 2 enables remove-wiki', async () => {
 		const { tools, mocks } = makeToolMap(false);
 		const m1 = makeMocks({
-			activeWiki: baseWiki,
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: m1.registry,
-			wikiSelection: m1.selection,
+			activeWiki: m1.activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
 		});
-		expect(mocks.get('set-wiki')!.enabled).toBe(false);
+		expect(mocks.get('remove-wiki')!.enabled).toBe(false);
 
 		const m2 = makeMocks({
-			activeWiki: baseWiki,
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki, b: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: m2.registry,
-			wikiSelection: m2.selection,
+			activeWiki: m2.activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
 		});
-		expect(mocks.get('set-wiki')!.enabled).toBe(true);
+		expect(mocks.get('remove-wiki')!.enabled).toBe(true);
 	});
 
 	it('transitions: count 2 to 1 disables remove-wiki', async () => {
 		const { tools, mocks } = makeToolMap(true);
 		const m1 = makeMocks({
-			activeWiki: baseWiki,
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki, b: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: m1.registry,
-			wikiSelection: m1.selection,
+			activeWiki: m1.activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
@@ -393,13 +372,13 @@ describe('reconcileTools — applyWikiSetRule', () => {
 		expect(mocks.get('remove-wiki')!.enabled).toBe(true);
 
 		const m2 = makeMocks({
-			activeWiki: baseWiki,
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: m2.registry,
-			wikiSelection: m2.selection,
+			activeWiki: m2.activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
@@ -411,14 +390,14 @@ describe('reconcileTools — applyWikiSetRule', () => {
 describe('reconcileTools — applyTransportRule', () => {
 	it('hides oauth-* tools on HTTP transport', async () => {
 		const { tools, mocks } = makeToolMap(true);
-		const { registry, selection } = makeMocks({
-			activeWiki: baseWiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'http',
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
@@ -431,14 +410,14 @@ describe('reconcileTools — applyTransportRule', () => {
 
 	it('shows oauth-* tools on stdio transport', async () => {
 		const { tools, mocks } = makeToolMap(false);
-		const { registry, selection } = makeMocks({
-			activeWiki: baseWiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
@@ -451,14 +430,14 @@ describe('reconcileTools — applyTransportRule', () => {
 
 	it('defaults to stdio when transport is omitted', async () => {
 		const { tools, mocks } = makeToolMap(false);
-		const { registry, selection } = makeMocks({
-			activeWiki: baseWiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
@@ -470,14 +449,14 @@ describe('reconcileTools — applyTransportRule', () => {
 
 	it('does not touch non-oauth tools when applying transport rule', async () => {
 		const { tools, mocks } = makeToolMap(true);
-		const { registry, selection } = makeMocks({
-			activeWiki: baseWiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'http',
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
@@ -494,14 +473,14 @@ describe('reconcileTools — AND semantics across rules', () => {
 		// Force read-only=true (disables write tools) AND wikiCount=1 (disables remove-wiki).
 		const { tools, mocks } = makeToolMap(true);
 		const wiki = { ...baseWiki, readOnly: true };
-		const { registry, selection } = makeMocks({
-			activeWiki: wiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: wiki,
 			wikis: { a: wiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector(),
 			extensionPacks: ALL_PACKS,
@@ -632,14 +611,14 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 
 	it('disables both SMW tools when the detector resolves false', async () => {
 		const { tools, mocks } = makeToolMapWithSmw(true);
-		const { registry, selection } = makeMocks({
-			activeWiki: baseWiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector({}),
 			extensionPacks: ALL_PACKS,
@@ -651,14 +630,14 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 
 	it('enables both SMW tools when the detector resolves true', async () => {
 		const { tools, mocks } = makeToolMapWithSmw(false);
-		const { registry, selection } = makeMocks({
-			activeWiki: baseWiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector({ 'a:SemanticMediaWiki': true }),
 			extensionPacks: ALL_PACKS,
@@ -675,14 +654,14 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 			hasAny: hasAnySpy,
 			invalidate: vi.fn(),
 		};
-		const { registry, selection } = makeMocks({
-			activeWiki: baseWiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'stdio',
 			extensions: detector,
 			extensionPacks: ALL_PACKS,
@@ -708,14 +687,14 @@ describe('reconcileTools — applyBucketExtensionRule', () => {
 
 	it('disables bucket-query when the detector resolves false', async () => {
 		const { tools, mocks } = makeToolMapWithBucket(true);
-		const { registry, selection } = makeMocks({
-			activeWiki: baseWiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector({}),
 			extensionPacks: ALL_PACKS,
@@ -726,14 +705,14 @@ describe('reconcileTools — applyBucketExtensionRule', () => {
 
 	it('enables bucket-query when the detector resolves true', async () => {
 		const { tools, mocks } = makeToolMapWithBucket(false);
-		const { registry, selection } = makeMocks({
-			activeWiki: baseWiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector({ 'a:Bucket': true }),
 			extensionPacks: ALL_PACKS,
@@ -749,14 +728,14 @@ describe('reconcileTools — applyBucketExtensionRule', () => {
 			hasAny: hasAnySpy,
 			invalidate: vi.fn(),
 		};
-		const { registry, selection } = makeMocks({
-			activeWiki: baseWiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'stdio',
 			extensions: detector,
 			extensionPacks: ALL_PACKS,
@@ -782,14 +761,14 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 
 	it('disables all Cargo tools when the detector resolves false', async () => {
 		const { tools, mocks } = makeToolMapWithCargo(true);
-		const { registry, selection } = makeMocks({
-			activeWiki: baseWiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector({}),
 			extensionPacks: ALL_PACKS,
@@ -802,14 +781,14 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 
 	it('enables all Cargo tools when the detector resolves true', async () => {
 		const { tools, mocks } = makeToolMapWithCargo(false);
-		const { registry, selection } = makeMocks({
-			activeWiki: baseWiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector({ 'a:Cargo': true }),
 			extensionPacks: ALL_PACKS,
@@ -827,14 +806,14 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 			hasAny: hasAnySpy,
 			invalidate: vi.fn(),
 		};
-		const { registry, selection } = makeMocks({
-			activeWiki: baseWiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'stdio',
 			extensions: detector,
 			extensionPacks: ALL_PACKS,
@@ -844,14 +823,14 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 
 	it('enables all Cargo tools on a wiki.gg-rebranded LIBRARIAN install', async () => {
 		const { tools, mocks } = makeToolMapWithCargo(false);
-		const { registry, selection } = makeMocks({
-			activeWiki: baseWiki,
+		const { registry, activeWiki } = makeMocks({
+			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki },
 			allowManagement: true,
 		});
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
-			wikiSelection: selection,
+			activeWiki: activeWiki,
 			transport: 'stdio',
 			extensions: makeFakeDetector({ 'a:LIBRARIAN': true }),
 			extensionPacks: ALL_PACKS,

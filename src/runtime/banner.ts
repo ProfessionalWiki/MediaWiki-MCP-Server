@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { logger } from './logger.js';
 import { classifyAuthShape } from '../transport/bearerGuard.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
-import type { WikiSelection } from '../wikis/wikiSelection.js';
+import type { ActiveWiki } from '../wikis/activeWiki.js';
 import type { UploadDirs } from '../wikis/uploadDirs.js';
 
 // https://github.com/nodejs/node/issues/51347#issuecomment-2111337854
@@ -28,7 +28,7 @@ export type CreateServerOptions =
 
 export interface BannerDeps {
 	readonly wikiRegistry: WikiRegistry;
-	readonly wikiSelection: WikiSelection;
+	readonly activeWiki: ActiveWiki;
 	readonly uploadDirs: UploadDirs;
 }
 
@@ -39,7 +39,7 @@ export function emitStartupBanner(opts: CreateServerOptions, deps: BannerDeps): 
 		version: serverInfo.version,
 		transport: opts.transport,
 		auth_shape: classifyAuthShape(wikis, opts.transport),
-		default_wiki: deps.wikiSelection.getCurrent().key,
+		default_wiki: deps.activeWiki.getDefaultKey(),
 		wikis: Object.keys(wikis),
 		allow_wiki_management: deps.wikiRegistry.isManagementAllowed(),
 		upload_dirs_configured: deps.uploadDirs.list().length > 0,

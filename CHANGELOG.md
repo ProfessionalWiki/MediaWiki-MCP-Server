@@ -6,8 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Breaking changes
+
+- Removed the `set-wiki` tool. Pass the `wiki` argument on each tool call instead.
+- `remove-wiki` now refuses to remove the configured default wiki (it previously refused to remove the wiki that was currently selected).
+
+### Added
+
+- Optional `wiki` argument on every tool that operates on a wiki (all except the wiki-management and OAuth tools), naming the wiki that call acts on. Accepts a wiki key (e.g. `en.wikipedia.org`) or the full `mcp://wikis/{wikiKey}` URI.
+- Tool responses now report the wiki the call ran against.
+
 ### Changed
 
+- Tool calls target a wiki named per call, defaulting to the configured default wiki, instead of a server-side selection that had to be set first.
 - Wiki credentials backed by an `exec` command are now fetched the first time that wiki is used, instead of when the server starts. A slow or failing credential command no longer delays startup or prevents the server from starting — the error now appears only when that wiki is used.
 
 ## [0.9.1] - 2026-05-13

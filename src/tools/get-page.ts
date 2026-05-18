@@ -107,7 +107,7 @@ export const getPage: Tool<typeof inputSchema> = {
 				if (sections !== undefined) {
 					payload.sections = sections;
 				}
-				payload.url = getPageUrl(page.title, ctx.selection);
+				payload.url = getPageUrl(page.title, ctx.activeWiki);
 			}
 
 			if (needsSource && rev?.content !== undefined) {
@@ -153,7 +153,7 @@ export const getPage: Tool<typeof inputSchema> = {
 					if (parseResult.parse?.pageid !== undefined) {
 						payload.pageId = parseResult.parse.pageid;
 					}
-					payload.url = getPageUrl(resolvedTitle, ctx.selection);
+					payload.url = getPageUrl(resolvedTitle, ctx.activeWiki);
 				}
 
 				if (truncated.truncated) {

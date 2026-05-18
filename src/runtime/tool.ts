@@ -16,8 +16,14 @@ export interface Tool<TSchema extends ZodRawShape, TCtx extends ToolContext = To
 	 * Extracts a single identifier from the tool's input args (typically a page
 	 * title, search query, or URL) for the `target` field of the `tool_call`
 	 * telemetry event. Omitted for tools that don't have a single canonical
-	 * subject (e.g. get-pages, compare-pages, set-wiki).
+	 * subject (e.g. get-pages, compare-pages).
 	 */
 	readonly target?: (args: z.infer<z.ZodObject<TSchema>>) => string;
+	/**
+	 * Whether this tool operates on a wiki and therefore accepts the per-call
+	 * `wiki` argument. Defaults to `true` when omitted. Registry-management and
+	 * OAuth-store tools set this to `false`.
+	 */
+	readonly wikiScoped?: boolean;
 	readonly handle: (args: z.infer<z.ZodObject<TSchema>>, ctx: TCtx) => Promise<CallToolResult>;
 }

@@ -1,6 +1,6 @@
 import type { Mwn } from 'mwn';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
-import type { WikiSelection } from '../wikis/wikiSelection.js';
+import type { ActiveWiki } from '../wikis/activeWiki.js';
 import type { UploadDirs } from '../wikis/uploadDirs.js';
 import type { WikiCache } from '../wikis/wikiCache.js';
 import type { LicenseCache } from '../wikis/licenseCache.js';
@@ -15,7 +15,7 @@ import type { Logger } from './logger.js';
 export interface ToolContext {
 	readonly mwn: (wikiKey?: string) => Promise<Mwn>;
 	readonly wikis: WikiRegistry;
-	readonly selection: WikiSelection;
+	readonly activeWiki: ActiveWiki;
 	readonly uploadDirs: UploadDirs;
 	readonly wikiCache: WikiCache;
 	readonly licenseCache: LicenseCache;

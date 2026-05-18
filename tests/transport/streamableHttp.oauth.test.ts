@@ -38,7 +38,7 @@ import {
 	type SessionRegistry,
 } from '../../src/transport/streamableHttp.js';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
-import type { WikiSelection } from '../../src/wikis/wikiSelection.js';
+import type { ActiveWiki } from '../../src/wikis/activeWiki.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.js';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.js';
@@ -53,20 +53,19 @@ function fakeRegistry(wikis: Record<string, Partial<WikiConfig>>): WikiRegistry 
 	} as unknown as WikiRegistry;
 }
 
-function fakeSelection(key: string, cfg: Partial<WikiConfig>): WikiSelection {
+function fakeActiveWiki(key: string, cfg: Partial<WikiConfig>): ActiveWiki {
 	return {
-		getCurrent: () => ({ key, config: cfg as WikiConfig }),
-		setCurrent: () => {},
-		reset: () => {},
-	} as unknown as WikiSelection;
+		get: () => ({ key, config: cfg as WikiConfig }),
+		getDefaultKey: () => key,
+	} as unknown as ActiveWiki;
 }
 
-function buildWellKnownApp(registry: WikiRegistry, selection: WikiSelection): Express {
+function buildWellKnownApp(registry: WikiRegistry, activeWiki: ActiveWiki): Express {
 	const app = express();
 	app.use(express.json());
 	app.get(
 		'/.well-known/oauth-protected-resource',
-		createOAuthProtectedResourceHandler({ wikiRegistry: registry, wikiSelection: selection }),
+		createOAuthProtectedResourceHandler({ wikiRegistry: registry, activeWiki: activeWiki }),
 	);
 	return app;
 }
@@ -75,11 +74,11 @@ function stubCreateServer(): McpServer {
 	return new McpServer({ name: 'oauth-test-server', version: '0.0.0' }, { capabilities: {} });
 }
 
-function buildMcpApp(selection: WikiSelection): Express {
+function buildMcpApp(activeWiki: ActiveWiki): Express {
 	const app = express();
 	app.use(express.json());
 	const sessions: SessionRegistry = {};
-	app.post('/mcp', createMcpPostHandler(sessions, stubCreateServer, { wikiSelection: selection }));
+	app.post('/mcp', createMcpPostHandler(sessions, stubCreateServer, { activeWiki: activeWiki }));
 	return app;
 }
 
@@ -102,8 +101,8 @@ describe('GET /.well-known/oauth-protected-resource', () => {
 			oauth2ClientId: 'my-client-id',
 		};
 		const registry = fakeRegistry({ mywiki: wikiCfg });
-		const selection = fakeSelection('mywiki', wikiCfg);
-		const app = buildWellKnownApp(registry, selection);
+		const activeWiki = fakeActiveWiki('mywiki', wikiCfg);
+		const app = buildWellKnownApp(registry, activeWiki);
 
 		const res = await request(app).get('/.well-known/oauth-protected-resource');
 		expect(res.status).toBe(200);
@@ -121,8 +120,8 @@ describe('GET /.well-known/oauth-protected-resource', () => {
 			articlepath: '/wiki',
 		};
 		const registry = fakeRegistry({ plain: wikiCfg });
-		const selection = fakeSelection('plain', wikiCfg);
-		const app = buildWellKnownApp(registry, selection);
+		const activeWiki = fakeActiveWiki('plain', wikiCfg);
+		const app = buildWellKnownApp(registry, activeWiki);
 
 		const res = await request(app).get('/.well-known/oauth-protected-resource');
 		expect(res.status).toBe(404);
@@ -137,8 +136,8 @@ describe('GET /.well-known/oauth-protected-resource', () => {
 			oauth2ClientId: '',
 		};
 		const registry = fakeRegistry({ empty: wikiCfg });
-		const selection = fakeSelection('empty', wikiCfg);
-		const app = buildWellKnownApp(registry, selection);
+		const activeWiki = fakeActiveWiki('empty', wikiCfg);
+		const app = buildWellKnownApp(registry, activeWiki);
 
 		const res = await request(app).get('/.well-known/oauth-protected-resource');
 		expect(res.status).toBe(404);
@@ -154,8 +153,8 @@ describe('GET /.well-known/oauth-protected-resource', () => {
 			oauth2ClientId: 'my-client-id',
 		};
 		const registry = fakeRegistry({ mywiki: wikiCfg });
-		const selection = fakeSelection('mywiki', wikiCfg);
-		const app = buildWellKnownApp(registry, selection);
+		const activeWiki = fakeActiveWiki('mywiki', wikiCfg);
+		const app = buildWellKnownApp(registry, activeWiki);
 
 		// MCP_PUBLIC_URL not set; resource is derived from host header and proto
 		const res = await request(app)
@@ -182,8 +181,8 @@ describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 			articlepath: '/wiki',
 			oauth2ClientId: 'client-id-123',
 		};
-		const selection = fakeSelection('mywiki', wikiCfg);
-		const app = buildMcpApp(selection);
+		const activeWiki = fakeActiveWiki('mywiki', wikiCfg);
+		const app = buildMcpApp(activeWiki);
 
 		const res = await request(app)
 			.post('/mcp')
@@ -207,8 +206,8 @@ describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 			scriptpath: '/w',
 			articlepath: '/wiki',
 		};
-		const selection = fakeSelection('plain', wikiCfg);
-		const app = buildMcpApp(selection);
+		const activeWiki = fakeActiveWiki('plain', wikiCfg);
+		const app = buildMcpApp(activeWiki);
 
 		const res = await request(app)
 			.post('/mcp')
@@ -218,8 +217,8 @@ describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 		expect(res.status).not.toBe(401);
 	});
 
-	it('does NOT return 401 when wikiSelection is not provided to handler', async () => {
-		// If wikiSelection is omitted entirely, the 401 check is skipped
+	it('does NOT return 401 when activeWiki is not provided to handler', async () => {
+		// If activeWiki is omitted entirely, the 401 check is skipped
 		const app = express();
 		app.use(express.json());
 		const sessions: SessionRegistry = {};
@@ -241,8 +240,8 @@ describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 			articlepath: '/wiki',
 			oauth2ClientId: 'client-id-123',
 		};
-		const selection = fakeSelection('mywiki', wikiCfg);
-		const app = buildMcpApp(selection);
+		const activeWiki = fakeActiveWiki('mywiki', wikiCfg);
+		const app = buildMcpApp(activeWiki);
 
 		const res = await request(app)
 			.post('/mcp')
@@ -265,8 +264,8 @@ describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 			oauth2ClientId: 'client-id-456',
 			token: 'static-bot-token',
 		};
-		const selection = fakeSelection('fallback', wikiCfg);
-		const app = buildMcpApp(selection);
+		const activeWiki = fakeActiveWiki('fallback', wikiCfg);
+		const app = buildMcpApp(activeWiki);
 
 		const res = await request(app)
 			.post('/mcp')
@@ -287,8 +286,8 @@ describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 			username: 'bot-user',
 			password: 'bot-pass',
 		};
-		const selection = fakeSelection('fallback2', wikiCfg);
-		const app = buildMcpApp(selection);
+		const activeWiki = fakeActiveWiki('fallback2', wikiCfg);
+		const app = buildMcpApp(activeWiki);
 
 		const res = await request(app)
 			.post('/mcp')
@@ -307,8 +306,8 @@ describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 			articlepath: '/wiki',
 			oauth2ClientId: 'client-id-000',
 		};
-		const selection = fakeSelection('oauthonly', wikiCfg);
-		const app = buildMcpApp(selection);
+		const activeWiki = fakeActiveWiki('oauthonly', wikiCfg);
+		const app = buildMcpApp(activeWiki);
 
 		const res = await request(app)
 			.post('/mcp')
@@ -326,8 +325,8 @@ describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 			articlepath: '/wiki',
 			oauth2ClientId: 'client-id-123',
 		};
-		const selection = fakeSelection('mywiki', wikiCfg);
-		const app = buildMcpApp(selection);
+		const activeWiki = fakeActiveWiki('mywiki', wikiCfg);
+		const app = buildMcpApp(activeWiki);
 
 		const res = await request(app)
 			.post('/mcp')
@@ -350,8 +349,8 @@ describe('POST /mcp 401 short-circuit for OAuth-only wikis', () => {
 			articlepath: '/wiki',
 			oauth2ClientId: 'client-id-123',
 		};
-		const selection = fakeSelection('mywiki', wikiCfg);
-		const app = buildMcpApp(selection);
+		const activeWiki = fakeActiveWiki('mywiki', wikiCfg);
+		const app = buildMcpApp(activeWiki);
 
 		const res = await request(app)
 			.post('/mcp')

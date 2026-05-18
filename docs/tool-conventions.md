@@ -161,7 +161,7 @@ Semantics (from the MCP 2025-11-25 spec):
 - Pure read-only tools: `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: true` (for tools that read from the wiki).
 - Write tools that delete, overwrite, or remove: `readOnlyHint: false`, `destructiveHint: true`.
 - Write tools that only add (create, append, upload-new): `readOnlyHint: false`, `destructiveHint: false`.
-- If the tool does not make network calls and only mutates server-local state (e.g. selecting the active wiki), `openWorldHint: false`.
+- If the tool does not make network calls and only mutates server-local state (e.g. `add-wiki` / `remove-wiki` editing the wiki registry), `openWorldHint: false`.
 
 #### Tool titles
 
@@ -247,7 +247,7 @@ When writing or updating a tool in these pairs, each side's description should e
 
 #### Extension-pack tool descriptions
 
-Tools in an extension pack (`src/tools/extensions/<id>/`) are registered only when the active wiki has the gate extension installed. Pack-specific overlays on the general description rules:
+Tools in an extension pack (`src/tools/extensions/<id>/`) are registered only when the configured default wiki has the gate extension installed. Pack-specific overlays on the general description rules:
 
 - **Name the gate explicitly** — e.g., "Enabled only when the wiki has Cargo installed." Sets caller expectations about availability across wikis.
 - **Route between pack siblings.** When a pack ships discovery tools (`*-list-*`, `*-describe-*`) alongside a query tool, the query tool's description references the discovery tools by name. Sibling disambiguation (Part 1) applies as in any pair.
