@@ -37,11 +37,9 @@ import {
 	createMcpPostHandler,
 	createSessionRequestHandler,
 	extractBearerToken,
-	hashBearer,
 	payloadTooLargeHandler,
 	resolveMcpHostValidation,
 	type SessionRegistry,
-	verifySessionBearer,
 	withRequestContext,
 } from '../../src/transport/streamableHttp.js';
 import { getRuntimeToken, getSessionId } from '../../src/transport/requestContext.js';
@@ -78,47 +76,6 @@ describe('extractBearerToken', () => {
 	it('returns undefined if the first comma-joined value is not Bearer', () => {
 		expect(extractBearerToken(req(', Bearer abc'))).toBeUndefined();
 		expect(extractBearerToken(req('Basic xyz, Bearer abc'))).toBeUndefined();
-	});
-});
-
-describe('hashBearer', () => {
-	it('returns a 64-character hex string', () => {
-		expect(hashBearer('abc123')).toMatch(/^[0-9a-f]{64}$/);
-	});
-	it('is deterministic for the same token', () => {
-		expect(hashBearer('abc123')).toBe(hashBearer('abc123'));
-	});
-	it('produces different hashes for different tokens', () => {
-		expect(hashBearer('abc123')).not.toBe(hashBearer('xyz789'));
-	});
-	it('produces a distinct hash for undefined vs a present token', () => {
-		expect(hashBearer(undefined)).not.toBe(hashBearer(''));
-		expect(hashBearer(undefined)).not.toBe(hashBearer('abc'));
-	});
-	it('is deterministic for undefined', () => {
-		expect(hashBearer(undefined)).toBe(hashBearer(undefined));
-	});
-});
-
-describe('verifySessionBearer', () => {
-	it('returns true when the presented token matches the hashed original', () => {
-		expect(verifySessionBearer(hashBearer('abc123'), 'abc123')).toBe(true);
-	});
-	it('returns false when the presented token differs from the hashed original', () => {
-		expect(verifySessionBearer(hashBearer('abc123'), 'xyz789')).toBe(false);
-	});
-	it('returns false when the hash was of a token and the request has none', () => {
-		expect(verifySessionBearer(hashBearer('abc123'), undefined)).toBe(false);
-	});
-	it('returns false when the hash was of no token and the request has one', () => {
-		expect(verifySessionBearer(hashBearer(undefined), 'abc123')).toBe(false);
-	});
-	it('returns true when both original and presented are absent', () => {
-		expect(verifySessionBearer(hashBearer(undefined), undefined)).toBe(true);
-	});
-	it('returns false for a malformed stored hash without throwing', () => {
-		expect(() => verifySessionBearer('not-a-hash', 'abc123')).not.toThrow();
-		expect(verifySessionBearer('not-a-hash', 'abc123')).toBe(false);
 	});
 });
 
@@ -190,7 +147,7 @@ describe('host validation (scoped to /mcp)', () => {
 	});
 });
 
-describe('session-bearer binding (GET/DELETE handler)', () => {
+describe('session request handler (GET/DELETE)', () => {
 	function buildApp(sessions: SessionRegistry): {
 		app: Express;
 		handleRequest: ReturnType<typeof vi.fn>;
@@ -212,11 +169,10 @@ describe('session-bearer binding (GET/DELETE handler)', () => {
 		return { app, handleRequest };
 	}
 
-	function fakeSession(bearerHash: string): SessionRegistry {
+	function fakeSession(): SessionRegistry {
 		return {
 			'sid-1': {
 				transport: {} as unknown as SessionRegistry[string]['transport'],
-				bearerHash,
 			},
 		};
 	}
@@ -228,73 +184,94 @@ describe('session-bearer binding (GET/DELETE handler)', () => {
 	});
 
 	it('returns 400 when the session id is not known', async () => {
-		const { app } = buildApp(fakeSession(hashBearer('abc')));
+		const { app } = buildApp(fakeSession());
 		const res = await request(app).get('/mcp').set('mcp-session-id', 'sid-unknown');
 		expect(res.status).toBe(400);
 	});
 
-	it('forwards to transport.handleRequest when bearer matches the bound session', async () => {
-		const sessions = fakeSession(hashBearer('abc'));
-		const { app, handleRequest } = buildApp(sessions);
-		const res = await request(app)
-			.get('/mcp')
-			.set('mcp-session-id', 'sid-1')
-			.set('Authorization', 'Bearer abc');
-		expect(res.status).toBe(204);
-		expect(handleRequest).toHaveBeenCalledTimes(1);
-	});
-
-	it('returns 401 with a JSON-RPC error when the bearer differs from the bound session', async () => {
-		const sessions = fakeSession(hashBearer('abc'));
-		const { app, handleRequest } = buildApp(sessions);
-		const res = await request(app)
-			.get('/mcp')
-			.set('mcp-session-id', 'sid-1')
-			.set('Authorization', 'Bearer different');
-		expect(res.status).toBe(401);
-		expect(res.body?.error?.message).toMatch(/session/i);
-		expect(handleRequest).not.toHaveBeenCalled();
-	});
-
-	it('returns 401 when the session was bound with a bearer but the request has none', async () => {
-		const sessions = fakeSession(hashBearer('abc'));
-		const { app, handleRequest } = buildApp(sessions);
+	it('forwards a GET to transport.handleRequest with a valid session id and no bearer', async () => {
+		const { app, handleRequest } = buildApp(fakeSession());
 		const res = await request(app).get('/mcp').set('mcp-session-id', 'sid-1');
-		expect(res.status).toBe(401);
-		expect(handleRequest).not.toHaveBeenCalled();
-	});
-
-	it('returns 401 when the session was bound without a bearer but the request now supplies one', async () => {
-		const sessions = fakeSession(hashBearer(undefined));
-		const { app, handleRequest } = buildApp(sessions);
-		const res = await request(app)
-			.get('/mcp')
-			.set('mcp-session-id', 'sid-1')
-			.set('Authorization', 'Bearer abc');
-		expect(res.status).toBe(401);
-		expect(handleRequest).not.toHaveBeenCalled();
-	});
-
-	it('forwards a DELETE when bearer matches the bound session', async () => {
-		const sessions = fakeSession(hashBearer('abc'));
-		const { app, handleRequest } = buildApp(sessions);
-		const res = await request(app)
-			.delete('/mcp')
-			.set('mcp-session-id', 'sid-1')
-			.set('Authorization', 'Bearer abc');
 		expect(res.status).toBe(204);
 		expect(handleRequest).toHaveBeenCalledTimes(1);
 	});
 
-	it('rejects a DELETE with a mismatched bearer', async () => {
-		const sessions = fakeSession(hashBearer('abc'));
-		const { app, handleRequest } = buildApp(sessions);
+	it('forwards a GET regardless of which bearer it carries', async () => {
+		const { app, handleRequest } = buildApp(fakeSession());
 		const res = await request(app)
-			.delete('/mcp')
+			.get('/mcp')
 			.set('mcp-session-id', 'sid-1')
-			.set('Authorization', 'Bearer nope');
-		expect(res.status).toBe(401);
-		expect(handleRequest).not.toHaveBeenCalled();
+			.set('Authorization', 'Bearer any-token');
+		expect(res.status).toBe(204);
+		expect(handleRequest).toHaveBeenCalledTimes(1);
+	});
+
+	it('forwards a DELETE with a valid session id and no bearer', async () => {
+		const { app, handleRequest } = buildApp(fakeSession());
+		const res = await request(app).delete('/mcp').set('mcp-session-id', 'sid-1');
+		expect(res.status).toBe(204);
+		expect(handleRequest).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe('POST to an existing session (per-request bearer)', () => {
+	function buildApp(sessions: SessionRegistry): {
+		app: Express;
+		handleRequest: ReturnType<typeof vi.fn>;
+	} {
+		const app = express();
+		app.use(express.json());
+		const handleRequest = vi.fn(
+			async (
+				_req: unknown,
+				res: { status: (n: number) => { end: () => void } },
+				_body: unknown,
+			) => {
+				res.status(202).end();
+			},
+		);
+		for (const key of Object.keys(sessions)) {
+			(
+				sessions[key].transport as unknown as { handleRequest: typeof handleRequest }
+			).handleRequest = handleRequest;
+		}
+		app.post('/mcp', createMcpPostHandler(sessions, stubCreateServer));
+		return { app, handleRequest };
+	}
+
+	function stubCreateServer(): McpServer {
+		return new McpServer({ name: 'post-test-server', version: '0.0.0' }, { capabilities: {} });
+	}
+
+	function fakeSession(): SessionRegistry {
+		return {
+			'sid-1': {
+				transport: {} as unknown as SessionRegistry[string]['transport'],
+			},
+		};
+	}
+
+	it('accepts a POST carrying a bearer that differs from the one that initialized the session', async () => {
+		const { app, handleRequest } = buildApp(fakeSession());
+		const res = await request(app)
+			.post('/mcp')
+			.set('mcp-session-id', 'sid-1')
+			.set('Authorization', 'Bearer a-different-token')
+			.send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+		expect(res.status).not.toBe(401);
+		expect(res.status).toBe(202);
+		expect(handleRequest).toHaveBeenCalledTimes(1);
+	});
+
+	it('accepts a POST to an existing session with no bearer at all', async () => {
+		const { app, handleRequest } = buildApp(fakeSession());
+		const res = await request(app)
+			.post('/mcp')
+			.set('mcp-session-id', 'sid-1')
+			.send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+		expect(res.status).not.toBe(401);
+		expect(res.status).toBe(202);
+		expect(handleRequest).toHaveBeenCalledTimes(1);
 	});
 });
 

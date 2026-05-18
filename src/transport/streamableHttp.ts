@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import express, {
 	type ErrorRequestHandler,
 	type RequestHandler,
@@ -55,27 +55,6 @@ export function extractBearerToken(req: Request): string | undefined {
 	return token || undefined;
 }
 
-// Separate from any token value so "no bearer" and "empty string" cannot collide.
-const NO_BEARER_SENTINEL = ' no-bearer';
-
-export function hashBearer(token: string | undefined): string {
-	const input = token === undefined ? NO_BEARER_SENTINEL : `t:${token}`;
-	return createHash('sha256').update(input).digest('hex');
-}
-
-export function verifySessionBearer(storedHash: string, token: string | undefined): boolean {
-	// Buffer.from(..., 'hex') silently drops non-hex characters and
-	// truncates on odd length, so malformed input yields a short or
-	// empty buffer rather than throwing — the length check below
-	// rejects it before timingSafeEqual runs.
-	const a = Buffer.from(storedHash, 'hex');
-	const b = Buffer.from(hashBearer(token), 'hex');
-	if (a.length === 0 || a.length !== b.length) {
-		return false;
-	}
-	return timingSafeEqual(a, b);
-}
-
 export function resolveMcpHostValidation(
 	host: string,
 	allowedHosts: string[] | undefined,
@@ -96,10 +75,7 @@ export function resolveMcpHostValidation(
 	return undefined;
 }
 
-export type SessionEntry = {
-	readonly transport: StreamableHTTPServerTransport;
-	readonly bearerHash: string;
-};
+export type SessionEntry = { readonly transport: StreamableHTTPServerTransport };
 
 export type SessionRegistry = { [sessionId: string]: SessionEntry };
 
@@ -118,18 +94,6 @@ export function createInFlightCounter(): InFlightCounter {
 		next();
 	};
 	return { middleware, count: () => n };
-}
-
-function sendSessionBearerMismatch(res: Response): void {
-	res.status(401).json({
-		jsonrpc: '2.0',
-		error: {
-			code: -32001,
-			message:
-				'Unauthorized: session bearer does not match the token that initialized this session',
-		},
-		id: null,
-	});
 }
 
 export function createOAuthProtectedResourceHandler(deps: {
@@ -242,14 +206,8 @@ export function createMcpPostHandler(
 		let transport: StreamableHTTPServerTransport;
 
 		if (sessionId && sessions[sessionId]) {
-			const entry = sessions[sessionId];
-			if (!verifySessionBearer(entry.bearerHash, bearer)) {
-				sendSessionBearerMismatch(res);
-				return;
-			}
-			transport = entry.transport;
+			transport = sessions[sessionId].transport;
 		} else if (!sessionId && isInitializeRequest(req.body)) {
-			const initialBearerHash = hashBearer(bearer);
 			transport = new StreamableHTTPServerTransport({
 				sessionIdGenerator: () => randomUUID(),
 				// The SDK transport's Origin check is gated behind this flag.
@@ -259,7 +217,7 @@ export function createMcpPostHandler(
 				enableDnsRebindingProtection: allowedOrigins !== undefined,
 				allowedOrigins,
 				onsessioninitialized: (newSessionId) => {
-					sessions[newSessionId] = { transport, bearerHash: initialBearerHash };
+					sessions[newSessionId] = { transport };
 				},
 			});
 
@@ -299,11 +257,15 @@ export function createSessionRequestHandler(sessions: SessionRegistry): RequestH
 		}
 
 		const entry = sessions[sessionId];
+		// The session id (a 122-bit randomUUID) is itself the session capability:
+		// possession of a valid one authorizes GET/DELETE, with no bearer check.
+		// That is safe because every POST self-authenticates with its own per-
+		// request bearer (results return on that POST's own HTTP response), and
+		// the standalone GET SSE stream carries only global, non-client-specific
+		// notifications — so a session id alone grants nothing sensitive.
+		// The bearer is still extracted to thread into withRequestContext for
+		// consistency with the POST path.
 		const bearer = extractBearerToken(req);
-		if (!verifySessionBearer(entry.bearerHash, bearer)) {
-			sendSessionBearerMismatch(res);
-			return;
-		}
 		await withRequestContext(bearer, sessionId, () => entry.transport.handleRequest(req, res));
 	};
 }
