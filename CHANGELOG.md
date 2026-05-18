@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Added
 
+- `list-wikis` tool reporting every configured wiki — its key, sitename, server, whether it is read-only or the default, whether it is reachable, and which extension-gated tools work on it.
 - Optional `wiki` argument on every tool that operates on a wiki (all except the wiki-management and OAuth tools), naming the wiki that call acts on. Accepts a wiki key (e.g. `en.wikipedia.org`) or the full `mcp://wikis/{wikiKey}` URI.
 - Tool responses now report the wiki the call ran against.
 

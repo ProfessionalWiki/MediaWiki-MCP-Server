@@ -43,6 +43,7 @@ Every tool that operates on a wiki accepts an optional `wiki` argument naming th
 | Name | Description |
 |---|---|
 | `add-wiki` | Add a wiki as an MCP resource from its URL. Disabled when `allowWikiManagement` is `false`. |
+| `list-wikis` | List every configured wiki — its key, sitename, server, whether it is read-only or the default, whether it is reachable, and which extension-gated tools work on it. |
 | `remove-wiki` | Remove a wiki resource. Disabled when `allowWikiManagement` is `false` or fewer than two wikis are configured. |
 
 #### OAuth
