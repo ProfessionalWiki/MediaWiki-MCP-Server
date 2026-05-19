@@ -72,6 +72,12 @@
           "description": "Override the request-derived public URL used in the protected-resource discovery doc and WWW-Authenticate header. Set this when running behind a proxy that rewrites the request Host."
         },
         {
+          "name": "MCP_SESSION_IDLE_TIMEOUT",
+          "description": "Seconds an HTTP session may sit idle before it is closed and removed on the StreamableHTTP transport. Any request resets the timer. Set to 0 to disable expiry.",
+          "format": "number",
+          "default": "1800"
+        },
+        {
           "name": "MCP_SHUTDOWN_GRACE_MS",
           "description": "Maximum milliseconds to wait for in-flight /mcp calls to drain on SIGTERM/SIGINT before exiting. Capped at 600000.",
           "format": "number",
@@ -156,6 +162,12 @@
         {
           "name": "MCP_PUBLIC_URL",
           "description": "Override the request-derived public URL used in the protected-resource discovery doc and WWW-Authenticate header. Set this when running behind a proxy that rewrites the request Host."
+        },
+        {
+          "name": "MCP_SESSION_IDLE_TIMEOUT",
+          "description": "Seconds an HTTP session may sit idle before it is closed and removed on the StreamableHTTP transport. Any request resets the timer. Set to 0 to disable expiry.",
+          "format": "number",
+          "default": "1800"
         },
         {
           "name": "MCP_SHUTDOWN_GRACE_MS",

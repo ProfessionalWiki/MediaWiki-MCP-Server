@@ -13,15 +13,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Added
 
-- `list-wikis` tool reporting every configured wiki — its key, sitename, server, whether it is read-only or the default, whether it is reachable, and which extension-gated tools work on it.
+- `list-wikis` tool reporting every configured wiki — its key, sitename, server, whether it is read-only or the default, whether it is reachable, which extension-gated tools work on it, and, for an OAuth-configured wiki, its authorization server.
 - Optional `wiki` argument on every tool that operates on a wiki (all except the wiki-management and OAuth tools), naming the wiki that call acts on. Accepts a wiki key (e.g. `en.wikipedia.org`) or the full `mcp://wikis/{wikiKey}` URI.
 - Tool responses now report the wiki the call ran against.
+- `MCP_SESSION_IDLE_TIMEOUT` env var (default `1800` seconds) closes HTTP sessions that have been idle for the configured window. Any request resets the timer; setting it to `0` disables expiry.
 
 ### Changed
 
 - Tool calls target a wiki named per call, defaulting to the configured default wiki, instead of a server-side selection that had to be set first.
 - Extension-gated tools (`cargo-*`, `smw-*`, `bucket-query`) and the write tools are now offered whenever *any* configured wiki supports them, instead of only when the default wiki does. A call targeting a wiki that lacks the capability returns a clear error.
 - Wiki credentials backed by an `exec` command are now fetched the first time that wiki is used, instead of when the server starts. A slow or failing credential command no longer delays startup or prevents the server from starting — the error now appears only when that wiki is used.
+- The HTTP transport's OAuth discovery now covers every configured wiki: the `/.well-known/oauth-protected-resource` document advertises every OAuth wiki's authorization server, and a tokenless client is challenged only when no configured wiki is usable without a token — a deployment that mixes OAuth and non-OAuth wikis still serves tokenless clients.
+- An HTTP client may now send a different `Authorization: Bearer` token per request, so one session can work with wikis on different authorization servers. A call targeting an OAuth wiki with no usable token returns a clear authentication error.
 
 ## [0.9.1] - 2026-05-13
 

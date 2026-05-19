@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { createHash } from 'node:crypto';
 
 vi.mock('../../src/runtime/metrics.js', () => ({
 	recordToolCall: vi.fn(),
@@ -384,7 +385,8 @@ describe('emitToolCall', () => {
 		expect(captureToolCallLine(stderrSpy).caller).toMatch(/^sha256:[0-9a-f]{12}$/);
 	});
 
-	it('normalises session_id to first 12 hex chars with dashes stripped', () => {
+	it('hashes session_id to sha256:<12 hex>', () => {
+		const sessionId = 'f4e1d2c3-b4a5-dead-beef-abcdef012345';
 		emitToolCall({
 			toolName: 'get-page',
 			target: undefined,
@@ -395,11 +397,12 @@ describe('emitToolCall', () => {
 			upstreamStatus: undefined,
 			errorMessage: undefined,
 			runtimeToken: undefined,
-			sessionId: 'f4e1d2c3-b4a5-dead-beef-abcdef012345',
+			sessionId,
 			wikiKey: 'a.example',
 		});
 
-		expect(captureToolCallLine(stderrSpy).session_id).toBe('f4e1d2c3b4a5');
+		const expected = `sha256:${createHash('sha256').update(sessionId).digest('hex').slice(0, 12)}`;
+		expect(captureToolCallLine(stderrSpy).session_id).toBe(expected);
 	});
 
 	it('omits session_id when not provided', () => {

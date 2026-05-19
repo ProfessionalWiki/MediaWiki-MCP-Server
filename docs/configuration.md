@@ -183,7 +183,13 @@ If your wiki doesn't have an OAuth consumer set up, omit `oauth2ClientId`. Stati
 
 #### HTTP transport behaviour
 
-When you run the HTTP transport with at least one OAuth-enabled wiki, the server publishes `/.well-known/oauth-protected-resource` so OAuth-aware MCP clients (Claude Desktop, mcp-remote, Claude Code) can discover the wiki and run the consent flow themselves. Bearer-less requests get `401` with a `WWW-Authenticate` header pointing at the discovery document. Wikis without `oauth2ClientId` are unaffected.
+When you run the HTTP transport with at least one OAuth-enabled wiki, the server publishes `/.well-known/oauth-protected-resource` so OAuth-aware MCP clients (Claude Desktop, mcp-remote, Claude Code) can discover the wikis and run the consent flow themselves. The discovery document lists the authorization server of every OAuth-configured wiki, so a client can pick the one it needs. Wikis without `oauth2ClientId` are unaffected.
+
+A bearer-less request gets `401` with a `WWW-Authenticate` header pointing at the discovery document only when no configured wiki is usable without a token. A deployment that mixes OAuth and non-OAuth wikis still lets tokenless clients connect and use the wikis that don't require authentication.
+
+An HTTP client sends the `Authorization: Bearer` token appropriate to each call's target wiki. There is no per-session bearer pin: one session can carry tokens for wikis on different authorization servers, with a different token per request. The MCP session id is the session capability, so run the HTTP transport behind TLS. Idle sessions are closed after `MCP_SESSION_IDLE_TIMEOUT`, bounding how long a leaked session id stays usable.
+
+Use `list-wikis` to retrieve the wiki-to-authorization-server mapping — it reports each OAuth wiki's `authorizationServer`.
 
 If `MCP_ALLOW_STATIC_FALLBACK=true` and the wiki has static credentials, bearer-less requests fall back to those credentials instead of returning 401. Use this only if you specifically want a hybrid where OAuth-aware clients sign in per user but unauthenticated callers still get service through a shared identity.
 

@@ -140,7 +140,7 @@ describe('dispatch OAuth integration', () => {
 		expect(vi.mocked(openMod)).not.toHaveBeenCalled();
 	});
 
-	it('http + oauth2ClientId: does not call acquireToken / open', async () => {
+	it('http + oauth2ClientId with no token: capability guard rejects, no acquireToken / open', async () => {
 		fakeAs = await startFakeAs();
 		vi.mocked(openMod).mockImplementation(
 			fakeBrowserDriver(fakeAs.url, 'consent') as typeof openMod,
@@ -158,10 +158,11 @@ describe('dispatch OAuth integration', () => {
 		);
 
 		const result = await dispatch(tokenCaptureTool, ctx)({});
-		expect(result.isError).toBeUndefined();
-		// HTTP transport: no token acquired, getRuntimeToken() returns undefined
-		const text = (result.content[0] as { text: string }).text;
-		expect(text).toBe('');
+		// HTTP transport: an OAuth-only wiki with no usable token is rejected
+		// up front by the capability guard with an authentication error; the
+		// dispatcher never reaches the OAuth gate, so open() is never called.
+		expect(result.isError).toBe(true);
+		expect(JSON.stringify(result.content)).toContain('requires OAuth');
 		expect(vi.mocked(openMod)).not.toHaveBeenCalled();
 	});
 

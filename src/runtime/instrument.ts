@@ -138,7 +138,8 @@ export function emitToolCall<TArgs>(opts: EmitToolCallOptions<TArgs>): void {
 		data.target = targetValue;
 	}
 	if (opts.sessionId !== undefined) {
-		data.session_id = opts.sessionId.replace(/-/g, '').slice(0, 12);
+		const hex = createHash('sha256').update(opts.sessionId).digest('hex');
+		data.session_id = `sha256:${hex.slice(0, 12)}`;
 	}
 	if (opts.upstreamStatus !== undefined) {
 		data.upstream_status = opts.upstreamStatus;

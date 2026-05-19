@@ -22,8 +22,7 @@ const metadataWithScopes: AsMetadata = {
 function makeInput(overrides: Partial<ProtectedResourceInput> = {}): ProtectedResourceInput {
 	return {
 		wikis: { mywiki: { oauth2ClientId: 'client-abc' } },
-		defaultWiki: 'mywiki',
-		metadata: baseMetadata,
+		metadatas: [baseMetadata],
 		requestHost: 'mcp.example.org',
 		requestProto: 'https',
 		...overrides,
@@ -118,7 +117,7 @@ describe('buildProtectedResource', () => {
 	});
 
 	it('includes scopes_supported when AS metadata declares it', () => {
-		const result = buildProtectedResource(makeInput({ metadata: metadataWithScopes }));
+		const result = buildProtectedResource(makeInput({ metadatas: [metadataWithScopes] }));
 		expect(result?.scopes_supported).toEqual(['basic', 'editpage']);
 	});
 
@@ -139,5 +138,51 @@ describe('buildProtectedResource', () => {
 			}),
 		);
 		expect(result).toBeDefined();
+	});
+
+	it('lists every distinct issuer across multiple authorization servers', () => {
+		const doc = buildProtectedResource({
+			wikis: { a: { oauth2ClientId: 'ca' }, b: { oauth2ClientId: 'cb' } },
+			metadatas: [
+				{
+					issuer: 'https://a.example',
+					authorization_endpoint: 'x',
+					token_endpoint: 'y',
+					source: 'well-known',
+					synthesized: false,
+					scopes_supported: ['read'],
+				},
+				{
+					issuer: 'https://b.example',
+					authorization_endpoint: 'x',
+					token_endpoint: 'y',
+					source: 'well-known',
+					synthesized: false,
+					scopes_supported: ['write'],
+				},
+				{
+					issuer: 'https://a.example',
+					authorization_endpoint: 'x',
+					token_endpoint: 'y',
+					source: 'well-known',
+					synthesized: false,
+				},
+			],
+			requestHost: 'mcp.example',
+			requestProto: 'https',
+		});
+		expect(doc?.authorization_servers).toEqual(['https://a.example', 'https://b.example']);
+		expect(doc?.scopes_supported?.sort()).toEqual(['read', 'write']);
+	});
+
+	it('returns undefined when no metadata resolved', () => {
+		expect(
+			buildProtectedResource({
+				wikis: { a: { oauth2ClientId: 'ca' } },
+				metadatas: [],
+				requestHost: 'mcp.example',
+				requestProto: 'https',
+			}),
+		).toBeUndefined();
 	});
 });

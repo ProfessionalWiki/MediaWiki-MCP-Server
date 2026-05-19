@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import express, {
 	type ErrorRequestHandler,
 	type RequestHandler,
@@ -13,7 +13,7 @@ import {
 } from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
-import { evaluateBearerGuard } from './bearerGuard.js';
+import { evaluateBearerGuard, hasStaticCredentials } from './bearerGuard.js';
 import { LOCALHOST_HOSTS, resolveHttpConfig } from './httpConfig.js';
 import { logger } from '../runtime/logger.js';
 import {
@@ -26,11 +26,11 @@ import {
 import { withRequestContext } from './requestContext.js';
 
 export { withRequestContext } from './requestContext.js';
-import { isCredentialConfigured, loadConfigFromFile } from '../config/loadConfig.js';
+import { loadConfigFromFile, type WikiConfig } from '../config/loadConfig.js';
 import type { MwnProvider } from '../wikis/mwnProvider.js';
 import type { ActiveWiki } from '../wikis/activeWiki.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
-import { fetchMetadata } from '../auth/metadata.js';
+import { fetchMetadata, type AsMetadata } from '../auth/metadata.js';
 import { buildProtectedResource, resolvePublicBase } from '../auth/protectedResource.js';
 import { createAppState } from '../wikis/state.js';
 import { createServer } from '../server.js';
@@ -49,27 +49,6 @@ export function extractBearerToken(req: Request): string | undefined {
 	}
 	const token = first.slice(7).trim();
 	return token || undefined;
-}
-
-// Separate from any token value so "no bearer" and "empty string" cannot collide.
-const NO_BEARER_SENTINEL = ' no-bearer';
-
-export function hashBearer(token: string | undefined): string {
-	const input = token === undefined ? NO_BEARER_SENTINEL : `t:${token}`;
-	return createHash('sha256').update(input).digest('hex');
-}
-
-export function verifySessionBearer(storedHash: string, token: string | undefined): boolean {
-	// Buffer.from(..., 'hex') silently drops non-hex characters and
-	// truncates on odd length, so malformed input yields a short or
-	// empty buffer rather than throwing — the length check below
-	// rejects it before timingSafeEqual runs.
-	const a = Buffer.from(storedHash, 'hex');
-	const b = Buffer.from(hashBearer(token), 'hex');
-	if (a.length === 0 || a.length !== b.length) {
-		return false;
-	}
-	return timingSafeEqual(a, b);
 }
 
 export function resolveMcpHostValidation(
@@ -94,7 +73,8 @@ export function resolveMcpHostValidation(
 
 export type SessionEntry = {
 	readonly transport: StreamableHTTPServerTransport;
-	readonly bearerHash: string;
+	idleTimer?: ReturnType<typeof setTimeout>;
+	activeRequests: number;
 };
 
 export type SessionRegistry = { [sessionId: string]: SessionEntry };
@@ -116,46 +96,77 @@ export function createInFlightCounter(): InFlightCounter {
 	return { middleware, count: () => n };
 }
 
-function sendSessionBearerMismatch(res: Response): void {
-	res.status(401).json({
-		jsonrpc: '2.0',
-		error: {
-			code: -32001,
-			message:
-				'Unauthorized: session bearer does not match the token that initialized this session',
-		},
-		id: null,
-	});
+// Marks a session as having an in-flight request or open response stream:
+// increments the active-request count and cancels any pending idle expiry.
+// Pair every call with markSessionIdle on the response's 'close' event.
+export function markSessionActive(sessions: SessionRegistry, sessionId: string): void {
+	const entry = sessions[sessionId];
+	if (!entry) {
+		return;
+	}
+	entry.activeRequests += 1;
+	if (entry.idleTimer) {
+		clearTimeout(entry.idleTimer);
+		entry.idleTimer = undefined;
+	}
+}
+
+// Marks one request/stream finished. When the session has no remaining
+// in-flight requests, arms the idle-expiry timer; when it elapses the transport
+// is closed and its onclose handler removes the registry entry. A timeout of 0
+// disables expiry. Because this runs on response 'close', a long-lived GET SSE
+// stream keeps the session active for as long as the client holds it open.
+export function markSessionIdle(
+	sessions: SessionRegistry,
+	sessionId: string,
+	idleTimeoutMs: number,
+): void {
+	const entry = sessions[sessionId];
+	if (!entry) {
+		return;
+	}
+	entry.activeRequests = Math.max(0, entry.activeRequests - 1);
+	if (entry.activeRequests > 0 || idleTimeoutMs <= 0) {
+		return;
+	}
+	if (entry.idleTimer) {
+		clearTimeout(entry.idleTimer);
+	}
+	entry.idleTimer = setTimeout(() => {
+		void sessions[sessionId]?.transport.close();
+	}, idleTimeoutMs);
+	entry.idleTimer.unref();
 }
 
 export function createOAuthProtectedResourceHandler(deps: {
 	wikiRegistry: WikiRegistry;
-	activeWiki: ActiveWiki;
 }): RequestHandler {
 	return async (req, res, next) => {
 		try {
 			const wikis = deps.wikiRegistry.getAll();
-			const oauthEnabled = Object.values(wikis).some(
-				(w) => typeof w.oauth2ClientId === 'string' && w.oauth2ClientId.trim() !== '',
+			const oauthWikis = Object.entries(wikis).filter(
+				([, w]) => typeof w.oauth2ClientId === 'string' && w.oauth2ClientId.trim() !== '',
 			);
-			if (!oauthEnabled) {
+			if (oauthWikis.length === 0) {
 				res.status(404).end();
 				return;
 			}
-			const defaultKey = deps.activeWiki.getDefaultKey();
-			const defaultCfg = wikis[defaultKey];
-			if (!defaultCfg) {
-				res.status(404).end();
-				return;
-			}
-			let metadata;
-			try {
-				metadata = await fetchMetadata(defaultKey, {
-					server: defaultCfg.server,
-					scriptpath: defaultCfg.scriptpath,
+			const settled = await Promise.allSettled(
+				oauthWikis.map(([key, cfg]) =>
+					fetchMetadata(key, { server: cfg.server, scriptpath: cfg.scriptpath }),
+				),
+			);
+			const metadatas = settled
+				.filter((r): r is PromiseFulfilledResult<AsMetadata> => r.status === 'fulfilled')
+				.map((r) => r.value);
+			if (metadatas.length === 0) {
+				const reasons = settled
+					.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+					.map((r) => String(r.reason));
+				logger.warning('OAuth protected-resource discovery failed for all wikis', {
+					reasons,
 				});
-			} catch (err) {
-				res.status(503).json({ error: 'discovery_failed', detail: String(err) });
+				res.status(503).json({ error: 'discovery_failed' });
 				return;
 			}
 			const protoHeader = req.headers['x-forwarded-proto'];
@@ -164,8 +175,7 @@ export function createOAuthProtectedResourceHandler(deps: {
 				proto === 'https' || proto === 'http' ? proto : req.secure ? 'https' : 'http';
 			const doc = buildProtectedResource({
 				wikis,
-				defaultWiki: defaultKey,
-				metadata,
+				metadatas,
 				requestHost: req.headers.host ?? undefined,
 				requestProto,
 			});
@@ -180,9 +190,20 @@ export function createOAuthProtectedResourceHandler(deps: {
 	};
 }
 
+// A wiki needs auth when it is OAuth-only with no usable static fallback.
+function wikiNeedsAuth(cfg: WikiConfig, fallbackAllowed: boolean): boolean {
+	const oauthOnly = typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
+	if (!oauthOnly) {
+		return false;
+	}
+	const hasStatic = hasStaticCredentials(cfg);
+	return !(hasStatic && fallbackAllowed);
+}
+
 export interface McpPostHandlerOptions {
 	allowedOrigins?: string[];
-	activeWiki?: ActiveWiki;
+	wikiRegistry?: WikiRegistry;
+	idleTimeoutMs?: number;
 }
 
 export function createMcpPostHandler(
@@ -190,20 +211,17 @@ export function createMcpPostHandler(
 	createServerFn: () => ReturnType<typeof createServer>,
 	options: McpPostHandlerOptions = {},
 ): RequestHandler {
-	const { allowedOrigins, activeWiki } = options;
+	const { allowedOrigins, wikiRegistry, idleTimeoutMs = 0 } = options;
 	return async (req, res) => {
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Express headers are string|string[]|undefined; MCP transport sends a single header
 		const sessionId = req.headers['mcp-session-id'] as string | undefined;
 		const bearer = extractBearerToken(req);
 
-		if (!bearer && activeWiki) {
-			const cfg = activeWiki.get().config;
-			const oauthOnly = typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
-			const hasStatic =
-				isCredentialConfigured(cfg.token) ||
-				(isCredentialConfigured(cfg.username) && isCredentialConfigured(cfg.password));
+		if (!bearer && wikiRegistry) {
+			const all = Object.values(wikiRegistry.getAll());
 			const fallbackAllowed = process.env.MCP_ALLOW_STATIC_FALLBACK === 'true';
-			if (oauthOnly && !(hasStatic && fallbackAllowed)) {
+			const allNeedAuth = all.length > 0 && all.every((cfg) => wikiNeedsAuth(cfg, fallbackAllowed));
+			if (allNeedAuth) {
 				const protoHeader = req.headers['x-forwarded-proto'];
 				const proto =
 					typeof protoHeader === 'string' ? protoHeader.split(',')[0]?.trim() : undefined;
@@ -229,14 +247,11 @@ export function createMcpPostHandler(
 		let transport: StreamableHTTPServerTransport;
 
 		if (sessionId && sessions[sessionId]) {
-			const entry = sessions[sessionId];
-			if (!verifySessionBearer(entry.bearerHash, bearer)) {
-				sendSessionBearerMismatch(res);
-				return;
-			}
-			transport = entry.transport;
+			transport = sessions[sessionId].transport;
+			// Existing session: the registry entry already exists, so count this
+			// request now and release it when the response closes.
+			markSessionActive(sessions, sessionId);
 		} else if (!sessionId && isInitializeRequest(req.body)) {
-			const initialBearerHash = hashBearer(bearer);
 			transport = new StreamableHTTPServerTransport({
 				sessionIdGenerator: () => randomUUID(),
 				// The SDK transport's Origin check is gated behind this flag.
@@ -245,13 +260,22 @@ export function createMcpPostHandler(
 				// _allowedHosts is undefined, regardless of the flag).
 				enableDnsRebindingProtection: allowedOrigins !== undefined,
 				allowedOrigins,
+				// onsessioninitialized fires during handleRequest below — the only
+				// point where the registry entry and transport.sessionId both
+				// exist. Seed activeRequests to 1 so the init POST counts as
+				// in-flight; the res.on('close') handler registered after
+				// handleRequest releases it.
 				onsessioninitialized: (newSessionId) => {
-					sessions[newSessionId] = { transport, bearerHash: initialBearerHash };
+					sessions[newSessionId] = { transport, activeRequests: 1 };
 				},
 			});
 
 			transport.onclose = () => {
 				if (transport.sessionId) {
+					const entry = sessions[transport.sessionId];
+					if (entry?.idleTimer) {
+						clearTimeout(entry.idleTimer);
+					}
 					delete sessions[transport.sessionId];
 				}
 			};
@@ -270,13 +294,27 @@ export function createMcpPostHandler(
 			return;
 		}
 
+		// Release the in-flight count when this response closes. transport.sessionId
+		// is populated by now for both branches (set synchronously during
+		// handleRequest for a new session). Registered before handleRequest so the
+		// 'close' listener is in place even if the response finishes synchronously.
+		res.on('close', () => {
+			const sid = transport.sessionId;
+			if (sid) {
+				markSessionIdle(sessions, sid, idleTimeoutMs);
+			}
+		});
+
 		await withRequestContext(bearer, transport.sessionId, () =>
 			transport.handleRequest(req, res, req.body),
 		);
 	};
 }
 
-export function createSessionRequestHandler(sessions: SessionRegistry): RequestHandler {
+export function createSessionRequestHandler(
+	sessions: SessionRegistry,
+	idleTimeoutMs = 0,
+): RequestHandler {
 	return async (req, res) => {
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Express headers are string|string[]|undefined; MCP transport sends a single header
 		const sessionId = req.headers['mcp-session-id'] as string | undefined;
@@ -284,13 +322,21 @@ export function createSessionRequestHandler(sessions: SessionRegistry): RequestH
 			res.status(400).send('Invalid or missing session ID');
 			return;
 		}
+		// A held-open GET SSE stream stays counted as active until it closes, so
+		// markSessionIdle (and the idle timer) won't run while a client holds it.
+		markSessionActive(sessions, sessionId);
+		res.on('close', () => markSessionIdle(sessions, sessionId, idleTimeoutMs));
 
 		const entry = sessions[sessionId];
+		// The session id (a 122-bit randomUUID) is itself the session capability:
+		// possession of a valid one authorizes GET/DELETE, with no bearer check.
+		// That is safe because every POST self-authenticates with its own per-
+		// request bearer (results return on that POST's own HTTP response), and
+		// the standalone GET SSE stream carries only global, non-client-specific
+		// notifications — so a session id alone grants nothing sensitive.
+		// The bearer is still extracted to thread into withRequestContext for
+		// consistency with the POST path.
 		const bearer = extractBearerToken(req);
-		if (!verifySessionBearer(entry.bearerHash, bearer)) {
-			sendSessionBearerMismatch(res);
-			return;
-		}
 		await withRequestContext(bearer, sessionId, () => entry.transport.handleRequest(req, res));
 	};
 }
@@ -421,7 +467,8 @@ export function mountReadyEndpoint(
 // independent — placed after for visual grouping with the HTTP setup.
 const config = loadConfigFromFile();
 const state = createAppState(config);
-const { host, port, allowedHosts, allowedOrigins, maxRequestBody, warnings } = resolveHttpConfig();
+const { host, port, allowedHosts, allowedOrigins, maxRequestBody, sessionIdleTimeoutMs, warnings } =
+	resolveHttpConfig();
 const guard = evaluateBearerGuard(state.wikiRegistry.getAll(), process.env);
 if (guard.kind === 'block') {
 	logger.error(
@@ -474,7 +521,7 @@ if ((host === '0.0.0.0' || host === '::') && !allowedOrigins) {
 }
 
 const sessions: SessionRegistry = {};
-const sessionRequestHandler = createSessionRequestHandler(sessions);
+const sessionRequestHandler = createSessionRequestHandler(sessions, sessionIdleTimeoutMs);
 const ctx = createToolContext({ logger, state, transport: 'http' });
 
 const inFlight = createInFlightCounter();
@@ -484,7 +531,8 @@ app.post(
 	'/mcp',
 	createMcpPostHandler(sessions, () => createServer(ctx), {
 		allowedOrigins,
-		activeWiki: state.activeWiki,
+		wikiRegistry: state.wikiRegistry,
+		idleTimeoutMs: sessionIdleTimeoutMs,
 	}),
 );
 app.get('/mcp', sessionRequestHandler);
@@ -498,7 +546,6 @@ app.get(
 	'/.well-known/oauth-protected-resource',
 	createOAuthProtectedResourceHandler({
 		wikiRegistry: state.wikiRegistry,
-		activeWiki: state.activeWiki,
 	}),
 );
 

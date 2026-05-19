@@ -2,6 +2,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
 import { extensionPacks } from './extensions/index.js';
+import { fetchMetadata } from '../auth/metadata.js';
 
 interface WikiSummary {
 	key: string;
@@ -12,6 +13,8 @@ interface WikiSummary {
 	reachable: boolean;
 	// Tool names from every extension pack the wiki supports; order is not significant.
 	extensionTools: string[];
+	// AS issuer for an OAuth-configured wiki; absent otherwise.
+	authorizationServer?: string;
 }
 
 export const listWikis: Tool<Record<string, never>> = {
@@ -44,6 +47,18 @@ export const listWikis: Tool<Record<string, never>> = {
 						}
 					}
 				}
+				let authorizationServer: string | undefined;
+				if (typeof config.oauth2ClientId === 'string' && config.oauth2ClientId.trim() !== '') {
+					try {
+						const md = await fetchMetadata(key, {
+							server: config.server,
+							scriptpath: config.scriptpath,
+						});
+						authorizationServer = md.issuer;
+					} catch {
+						// Metadata unavailable — leave authorizationServer absent.
+					}
+				}
 				return {
 					key,
 					sitename: config.sitename,
@@ -52,6 +67,7 @@ export const listWikis: Tool<Record<string, never>> = {
 					isDefault: key === defaultKey,
 					reachable,
 					extensionTools,
+					...(authorizationServer !== undefined ? { authorizationServer } : {}),
 				};
 			}),
 		);
