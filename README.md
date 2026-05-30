@@ -32,6 +32,7 @@ Every tool that operates on a wiki accepts an optional `wiki` argument naming th
 |---|---|---|
 | `create-page` 🔐 | Create a new wiki page. | `Create, edit, and move pages` |
 | `delete-page` 🔐 | Delete a wiki page. | `Delete pages, revisions, and log entries` |
+| `move-page` 🔐 | Move (rename) a wiki page. | `Create, edit, and move pages` |
 | `undelete-page` 🔐 | Undelete a wiki page. | `Delete pages, revisions, and log entries` |
 | `update-file` 🔐 | Upload a new revision of an existing file from local disk. | `Upload, replace, and move files` |
 | `update-file-from-url` 🔐 | Upload a new revision of an existing file from a URL. | `Upload, replace, and move files` |

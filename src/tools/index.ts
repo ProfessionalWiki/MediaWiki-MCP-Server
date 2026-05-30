@@ -23,6 +23,7 @@ import { listWikis } from './list-wikis.js';
 import { extensionPacks } from './extensions/index.js';
 import { createPage } from './create-page.js';
 import { updatePage } from './update-page.js';
+import { movePage } from './move-page.js';
 import { deletePage } from './delete-page.js';
 import { undeletePage } from './undelete-page.js';
 import { uploadFile } from './upload-file.js';
@@ -54,6 +55,7 @@ const standardTools: Tool<any>[] = [
 	listWikis,
 	createPage,
 	updatePage,
+	movePage,
 	deletePage,
 	undeletePage,
 	uploadFile,
