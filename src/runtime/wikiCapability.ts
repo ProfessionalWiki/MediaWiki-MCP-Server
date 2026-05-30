@@ -9,6 +9,7 @@ import { hasStaticCredentials } from '../transport/bearerGuard.js';
 // per-call capability guard.
 export const WRITE_TOOL_NAMES: readonly string[] = [
 	'create-page',
+	'move-page',
 	'update-page',
 	'delete-page',
 	'undelete-page',
