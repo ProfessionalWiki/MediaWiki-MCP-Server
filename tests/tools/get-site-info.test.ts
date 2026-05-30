@@ -3,7 +3,7 @@ import { getSiteInfo } from '../../src/tools/get-site-info.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
-import { assertStructuredData } from '../helpers/structuredResult.js';
+import { assertStructuredData, assertStructuredError } from '../helpers/structuredResult.js';
 import type { LicenseInfo } from '../../src/wikis/siteInfoCache.js';
 
 function siteinfoResponse(generalOverrides: Record<string, unknown> = {}) {
@@ -29,7 +29,7 @@ function siteinfoResponse(generalOverrides: Record<string, unknown> = {}) {
 
 function ctxWith(
 	request: ReturnType<typeof vi.fn>,
-	opts: { extensions?: Set<string>; license?: LicenseInfo } = {},
+	opts: { extensions?: Set<string>; license?: LicenseInfo; reachable?: boolean } = {},
 ) {
 	const mwn = createMockMwn({ request });
 	return fakeContext({
@@ -48,7 +48,7 @@ function ctxWith(
 			has: (async () => false) as never,
 			hasAny: (async () => false) as never,
 			inspect: (async () => ({
-				reachable: true,
+				reachable: opts.reachable ?? true,
 				extensions: opts.extensions ?? new Set<string>(),
 			})) as never,
 			invalidate: (() => {}) as never,
@@ -183,5 +183,23 @@ describe('get-site-info', () => {
 		});
 		expect(request).toHaveBeenCalledTimes(2);
 		expect(request.mock.calls[1][0].siprop).toBe('statistics');
+	});
+
+	it('fails with upstream_failure when the siteinfo response lacks general data', async () => {
+		const request = vi.fn().mockResolvedValue({ query: {} });
+		const ctx = ctxWith(request);
+
+		const result = await dispatch(getSiteInfo, ctx)({} as never);
+
+		assertStructuredError(result, 'upstream_failure');
+	});
+
+	it('returns empty extensions when the wiki is unreachable for extension probing', async () => {
+		const request = vi.fn().mockResolvedValue(siteinfoResponse());
+		const ctx = ctxWith(request, { reachable: false });
+
+		const data = assertStructuredData(await dispatch(getSiteInfo, ctx)({} as never));
+
+		expect(data.extensions).toEqual([]);
 	});
 });
