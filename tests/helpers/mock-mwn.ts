@@ -7,6 +7,7 @@ export interface MockMwn {
 	save: ReturnType<typeof vi.fn>;
 	delete: ReturnType<typeof vi.fn>;
 	undelete: ReturnType<typeof vi.fn>;
+	move: ReturnType<typeof vi.fn>;
 	upload: ReturnType<typeof vi.fn>;
 	uploadFromUrl: ReturnType<typeof vi.fn>;
 	request: ReturnType<typeof vi.fn>;
@@ -31,6 +32,7 @@ export function createMockMwn(overrides: Partial<MockMwn> = {}): MockMwn {
 		save: vi.fn(),
 		delete: vi.fn(),
 		undelete: vi.fn(),
+		move: vi.fn(),
 		upload: vi.fn(),
 		uploadFromUrl: vi.fn(),
 		request: vi.fn(),
