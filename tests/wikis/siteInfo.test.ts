@@ -117,6 +117,42 @@ describe('resolveSiteInfo', () => {
 		expect(info.articlepath).toBe('');
 	});
 
+	it('coalesces concurrent cold-cache calls into a single siteinfo request', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				query: { general: { server: 'https://public.example', articlepath: '/wiki/$1' } },
+			}),
+		});
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			siteInfoCache: emptyCache() as never,
+		});
+
+		const [a, b] = await Promise.all([
+			resolveSiteInfo(ctx, 'test-wiki'),
+			resolveSiteInfo(ctx, 'test-wiki'),
+		]);
+
+		expect(a.server).toBe('https://public.example');
+		expect(b.server).toBe('https://public.example');
+		expect(mock.request).toHaveBeenCalledTimes(1);
+	});
+
+	it('falls back when siteinfo returns an empty server', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				query: { general: { server: '', articlepath: '/wiki/$1' } },
+			}),
+		});
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			siteInfoCache: emptyCache() as never,
+		});
+
+		const info = await resolveSiteInfo(ctx, 'test-wiki');
+		expect(info.server).toBe('https://test.wiki');
+	});
+
 	it('falls back to the configured articlepath when siteinfo omits it', async () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({

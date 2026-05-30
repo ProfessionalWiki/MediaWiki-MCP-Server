@@ -1,5 +1,5 @@
 import type { ToolContext } from '../runtime/context.js';
-import type { SiteInfo, LicenseInfo } from './siteInfoCache.js';
+import type { SiteInfo, LicenseInfo, SiteInfoCache } from './siteInfoCache.js';
 
 interface SiteInfoApiResponse {
 	query?: {
@@ -8,22 +8,21 @@ interface SiteInfoApiResponse {
 	};
 }
 
+// In-flight resolutions, so concurrent cold-cache misses for the same wiki
+// (e.g. a get-pages or search-page batch building one URL per result) share a
+// single siteinfo request instead of issuing one each. Mirrors the inflight
+// idiom in extensionDetector.ts. Keyed by the cache instance via a WeakMap so
+// each ToolContext — and each test — is isolated, and entries are dropped with
+// their cache rather than leaking.
+const inflightByCache = new WeakMap<SiteInfoCache, Map<string, Promise<SiteInfo>>>();
+
 // MediaWiki's siteinfo.general.server may be protocol-relative ("//host");
 // normalize to https, matching the convention in src/transport/ssrfGuard.ts.
 function normalizeServer(server: string): string {
 	return server.startsWith('//') ? 'https:' + server : server;
 }
 
-// Resolves the wiki's own public base (and license) from meta=siteinfo,
-// cached per wiki. Never throws: any failure falls back to the configured
-// server/articlepath without caching, so a transiently-unreachable wiki is
-// retried on the next call.
-export async function resolveSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInfo> {
-	const cached = ctx.siteInfoCache.get(wikiKey);
-	if (cached) {
-		return cached;
-	}
-
+async function fetchSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInfo> {
 	// config.server/articlepath are required strings on a known wiki, so the
 	// '' sentinels only apply to an unknown wikiKey. The sole production caller
 	// (the wikis resource) early-returns on unknown keys before reaching here,
@@ -44,8 +43,10 @@ export async function resolveSiteInfo(ctx: ToolContext, wikiKey: string): Promis
 			formatversion: '2',
 		})) as SiteInfoApiResponse;
 
+		// An empty server would yield relative links, so treat it as a miss and
+		// fall back to the configured value.
 		const general = response.query?.general;
-		if (!general || typeof general.server !== 'string') {
+		if (!general || typeof general.server !== 'string' || general.server === '') {
 			return fallback;
 		}
 
@@ -66,4 +67,31 @@ export async function resolveSiteInfo(ctx: ToolContext, wikiKey: string): Promis
 	} catch {
 		return fallback;
 	}
+}
+
+// Resolves the wiki's own public base (and license) from meta=siteinfo,
+// cached per wiki. Never throws: any failure falls back to the configured
+// server/articlepath without caching, so a transiently-unreachable wiki is
+// retried on the next call.
+export async function resolveSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInfo> {
+	const cached = ctx.siteInfoCache.get(wikiKey);
+	if (cached) {
+		return cached;
+	}
+
+	let inflight = inflightByCache.get(ctx.siteInfoCache);
+	if (!inflight) {
+		inflight = new Map();
+		inflightByCache.set(ctx.siteInfoCache, inflight);
+	}
+	const existing = inflight.get(wikiKey);
+	if (existing) {
+		return existing;
+	}
+
+	const promise = fetchSiteInfo(ctx, wikiKey).finally(() => {
+		inflight.delete(wikiKey);
+	});
+	inflight.set(wikiKey, promise);
+	return promise;
 }
