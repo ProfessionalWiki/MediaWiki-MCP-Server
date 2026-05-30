@@ -16,6 +16,7 @@ Every tool that operates on a wiki accepts an optional `wiki` argument naming th
 | `compare-pages` | Diff two versions of a wiki page by revision, title, or supplied wikitext. |
 | `get-category-members` | List members of a category (up to 500 per call, paginated via `continueFrom`). |
 | `get-file` | Fetch a file page. |
+| `get-links-here` | List pages that reference a wiki page — pages that link to it, embed it as a template, or display it as a file (select via `type`), including pages that reach it through a redirect. Up to 500 per call, paginated via `continueFrom`. |
 | `get-page` | Fetch a wiki page. |
 | `get-page-history` | List recent revisions of a wiki page. |
 | `get-pages` | Fetch multiple wiki pages in one call (up to 50). |
