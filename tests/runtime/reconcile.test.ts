@@ -21,7 +21,7 @@ const WRITE_TOOL_NAMES = [
 ];
 
 const NON_WRITE_TOOL_NAMES = ['get-page', 'search-page'];
-const WIKI_SET_TOOL_NAMES = ['add-wiki', 'remove-wiki'];
+const WIKI_SET_TOOL_NAMES = ['add-wiki', 'remove-wiki', 'list-wikis'];
 const STDIO_ONLY_TOOL_NAMES = ['oauth-status', 'oauth-logout'];
 
 interface MockTool {
@@ -386,6 +386,116 @@ describe('reconcileTools — applyWikiSetRule', () => {
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('remove-wiki')!.enabled).toBe(false);
+	});
+});
+
+describe('reconcileTools — applyListWikisRule', () => {
+	it('disables list-wikis when only one wiki is configured', async () => {
+		const { tools, mocks } = makeToolMap(true);
+		const { registry } = makeMocks({
+			activeWikiConfig: baseWiki,
+			wikis: { a: baseWiki },
+			allowManagement: false,
+		});
+		await reconcileTools(tools, {
+			wikiRegistry: registry,
+			transport: 'stdio',
+			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
+		});
+		expect(mocks.get('list-wikis')!.disable).toHaveBeenCalledTimes(1);
+		expect(mocks.get('list-wikis')!.enable).not.toHaveBeenCalled();
+	});
+
+	it('keeps list-wikis disabled with one wiki even when management is allowed', async () => {
+		const { tools, mocks } = makeToolMap(true);
+		const { registry } = makeMocks({
+			activeWikiConfig: baseWiki,
+			wikis: { a: baseWiki },
+			allowManagement: true,
+		});
+		await reconcileTools(tools, {
+			wikiRegistry: registry,
+			transport: 'stdio',
+			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
+		});
+		expect(mocks.get('list-wikis')!.disable).toHaveBeenCalledTimes(1);
+	});
+
+	it('enables list-wikis when two or more wikis are configured, regardless of management', async () => {
+		const { tools, mocks } = makeToolMap(false);
+		const { registry } = makeMocks({
+			activeWikiConfig: baseWiki,
+			wikis: { a: baseWiki, b: baseWiki },
+			allowManagement: false,
+		});
+		await reconcileTools(tools, {
+			wikiRegistry: registry,
+			transport: 'stdio',
+			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
+		});
+		expect(mocks.get('list-wikis')!.enable).toHaveBeenCalledTimes(1);
+		expect(mocks.get('list-wikis')!.disable).not.toHaveBeenCalled();
+	});
+
+	it('transitions: count 1 to 2 enables list-wikis', async () => {
+		const { tools, mocks } = makeToolMap(false);
+		const m1 = makeMocks({
+			activeWikiConfig: baseWiki,
+			wikis: { a: baseWiki },
+			allowManagement: true,
+		});
+		await reconcileTools(tools, {
+			wikiRegistry: m1.registry,
+			transport: 'stdio',
+			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
+		});
+		expect(mocks.get('list-wikis')!.enabled).toBe(false);
+
+		const m2 = makeMocks({
+			activeWikiConfig: baseWiki,
+			wikis: { a: baseWiki, b: baseWiki },
+			allowManagement: true,
+		});
+		await reconcileTools(tools, {
+			wikiRegistry: m2.registry,
+			transport: 'stdio',
+			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
+		});
+		expect(mocks.get('list-wikis')!.enabled).toBe(true);
+	});
+
+	it('transitions: count 2 to 1 disables list-wikis', async () => {
+		const { tools, mocks } = makeToolMap(true);
+		const m1 = makeMocks({
+			activeWikiConfig: baseWiki,
+			wikis: { a: baseWiki, b: baseWiki },
+			allowManagement: true,
+		});
+		await reconcileTools(tools, {
+			wikiRegistry: m1.registry,
+			transport: 'stdio',
+			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
+		});
+		expect(mocks.get('list-wikis')!.enabled).toBe(true);
+
+		const m2 = makeMocks({
+			activeWikiConfig: baseWiki,
+			wikis: { a: baseWiki },
+			allowManagement: true,
+		});
+		await reconcileTools(tools, {
+			wikiRegistry: m2.registry,
+			transport: 'stdio',
+			extensions: makeFakeDetector(),
+			extensionPacks: ALL_PACKS,
+		});
+		expect(mocks.get('list-wikis')!.enabled).toBe(false);
 	});
 });
 
