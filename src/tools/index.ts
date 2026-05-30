@@ -18,6 +18,7 @@ import { parseWikitext } from './parse-wikitext.js';
 import { comparePages } from './compare-pages.js';
 import { getFile } from './get-file.js';
 import { getRevision } from './get-revision.js';
+import { getSiteInfo } from './get-site-info.js';
 import { getCategoryMembers } from './get-category-members.js';
 import { getLinksHere } from './get-links-here.js';
 import { listWikis } from './list-wikis.js';
@@ -52,6 +53,7 @@ const standardTools: Tool<any>[] = [
 	comparePages,
 	getFile,
 	getRevision,
+	getSiteInfo,
 	getCategoryMembers,
 	getLinksHere,
 	listWikis,

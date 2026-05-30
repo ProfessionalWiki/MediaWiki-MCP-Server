@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Added
 
+- `get-site-info` tool: returns a wiki's MediaWiki version, content language, title case-sensitivity, maximum page size, namespace map, installed extensions, and content license; optionally page/article/user/edit statistics.
 - `move-page` tool that renames a wiki page (and, by default, its talk page), optionally moving subpages and suppressing the redirect left at the old title.
 - `get-links-here` tool that lists the pages referencing a target page — pages that link to it, embed it as a template, or display it as a file — including pages that reach it through a redirect.
 - `list-wikis` tool reporting every configured wiki — its key, sitename, server, whether it is read-only or the default, whether it is reachable, which extension-gated tools work on it, and, for an OAuth-configured wiki, its authorization server.

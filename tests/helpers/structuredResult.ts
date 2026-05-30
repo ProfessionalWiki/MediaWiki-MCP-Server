@@ -16,6 +16,14 @@ export function assertStructuredSuccess(result: CallToolResult): string {
 	return (result.content![0] as TextContent).text;
 }
 
+// oxlint-disable-next-line typescript/no-explicit-any -- structured payload shape is verified at runtime; any is intentional for test ergonomics
+export function assertStructuredData(result: CallToolResult): Record<string, any> {
+	expect(result.isError).toBeFalsy();
+	expect(result.structuredContent).toBeDefined();
+	// oxlint-disable-next-line typescript/no-explicit-any -- same rationale as return type
+	return result.structuredContent as Record<string, any>;
+}
+
 export function assertStructuredError(
 	result: CallToolResult,
 	category: ErrorEnvelope['category'],
