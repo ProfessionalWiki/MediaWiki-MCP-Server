@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- `get-file-data` tool: returns a wiki file's image inline (base64) so clients that can't reach the wiki host can still send the image to the model for visual analysis. Returns a scaled rendition sized by `width`; non-image files error and point to `get-file`.
+- `MCP_FILE_DATA_MAX_BYTES` environment variable: a hard ceiling on the encoded size of a `get-file-data` response (default 1 MB).
+
 ### Changed
 
 - The `list-wikis` tool is now hidden when only a single wiki is configured, where it has nothing to list and every call already defaults to that wiki. It appears once a second wiki is configured or added.
