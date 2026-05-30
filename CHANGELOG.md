@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Changed
 
+- URLs returned by the server — page links, and the `server` reported by `list-wikis` and the `mcp://wikis` resource — now use the wiki's own public address rather than the address configured for API access. This corrects links when the wiki is reached over an internal or Docker hostname. Links fall back to the configured address when the wiki is unreachable.
 - Tool calls target a wiki named per call, defaulting to the configured default wiki, instead of a server-side selection that had to be set first.
 - Extension-gated tools (`cargo-*`, `smw-*`, `bucket-query`) and the write tools are now offered whenever *any* configured wiki supports them, instead of only when the default wiki does. A call targeting a wiki that lacks the capability returns a clear error.
 - Wiki credentials backed by an `exec` command are now fetched the first time that wiki is used, instead of when the server starts. A slow or failing credential command no longer delays startup or prevents the server from starting — the error now appears only when that wiki is used.
