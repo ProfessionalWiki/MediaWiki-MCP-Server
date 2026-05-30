@@ -60,7 +60,7 @@ export const getFileData: Tool<typeof inputSchema> = {
 		idempotentHint: true,
 		openWorldHint: true,
 	} as ToolAnnotations,
-	failureVerb: 'retrieve file data',
+	failureVerb: 'fetch the file image',
 	target: (a) => a.title,
 
 	async handle({ title, width, format }, ctx: ToolContext): Promise<CallToolResult> {
@@ -121,11 +121,31 @@ export const getFileData: Tool<typeof inputSchema> = {
 		// maxRedirects caps the hop COUNT only; it does NOT address-validate redirect
 		// targets. Accepted for v1 given the wiki-derived URL; a host-scoped guard
 		// relaxation is a documented future hardening.
+		//
+		// rawRequest skips mwn.applyAuthentication, so the OAuth2 bearer is injected
+		// manually — but only when the file is same-origin as the wiki API, so the
+		// token is never leaked to a different-host file host (e.g. a foreign-repo
+		// CDN). Bot-password cookies flow via mwn's axios interceptor regardless.
+		const fetchHeaders: Record<string, string> = {};
+		if (
+			mwn.usingOAuth2 &&
+			typeof mwn.options.OAuth2AccessToken === 'string' &&
+			typeof mwn.options.apiUrl === 'string'
+		) {
+			try {
+				if (new URL(fetchUrl).origin === new URL(mwn.options.apiUrl).origin) {
+					fetchHeaders.Authorization = `Bearer ${mwn.options.OAuth2AccessToken}`;
+				}
+			} catch {
+				// Unparseable URL — skip bearer injection; the fetch surfaces any error.
+			}
+		}
 		const axiosResponse = await mwn.rawRequest({
 			url: fetchUrl,
 			method: 'GET',
 			responseType: 'arraybuffer',
 			maxRedirects: MAX_REDIRECTS,
+			headers: fetchHeaders,
 		});
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- axios arraybuffer body at this boundary
 		const buffer = Buffer.from(axiosResponse.data as ArrayBuffer);

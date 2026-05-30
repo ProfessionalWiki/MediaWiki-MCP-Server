@@ -74,6 +74,36 @@ describe('get-file-data', () => {
 		);
 	});
 
+	it('attaches the OAuth2 bearer when the file is same-origin as the wiki API', async () => {
+		const mock = mwnWith(IMAGE_INFO);
+		mock.usingOAuth2 = true;
+		mock.options = { apiUrl: 'https://test.wiki/w/api.php', OAuth2AccessToken: 'secret-token' };
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		await getFileData.handle({ title: 'Example.png', format: 'image' }, ctx);
+
+		expect(mock.rawRequest).toHaveBeenCalledWith(
+			expect.objectContaining({
+				headers: expect.objectContaining({ Authorization: 'Bearer secret-token' }),
+			}),
+		);
+	});
+
+	it('does not leak the bearer to a different-origin file host', async () => {
+		const mock = mwnWith({
+			...IMAGE_INFO,
+			thumburl: 'https://cdn.example.org/thumb/example.png/1024px-example.png',
+		});
+		mock.usingOAuth2 = true;
+		mock.options = { apiUrl: 'https://test.wiki/w/api.php', OAuth2AccessToken: 'secret-token' };
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		await getFileData.handle({ title: 'Example.png', format: 'image' }, ctx);
+
+		const firstCallArg = mock.rawRequest.mock.calls[0][0] as { headers?: Record<string, string> };
+		expect(firstCallArg.headers?.Authorization).toBeUndefined();
+	});
+
 	it('preserves the image block through the dispatcher (no structuredContent clobber)', async () => {
 		const mock = mwnWith(IMAGE_INFO);
 		const ctx = fakeContext({ mwn: async () => mock as never });
