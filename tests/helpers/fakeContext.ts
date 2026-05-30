@@ -46,11 +46,22 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 		},
 		uploadDirs: { list: () => [] },
 		wikiCache: { invalidate: throws('wikiCache.invalidate') as never },
-		licenseCache: {
-			get: () => undefined,
-			set: () => {},
-			delete: () => {},
-		},
+		siteInfoCache: (() => {
+			const map = new Map<string, { server: string; articlepath: string }>([
+				['test-wiki', { server: 'https://test.wiki', articlepath: '/wiki' }],
+				['fr.wikipedia.org', { server: 'https://test.wiki', articlepath: '/wiki' }],
+				['de.wikipedia.org', { server: 'https://test.wiki', articlepath: '/wiki' }],
+			]);
+			return {
+				get: (k: string) => map.get(k),
+				set: (k: string, v: { server: string; articlepath: string }) => {
+					map.set(k, v);
+				},
+				delete: (k: string) => {
+					map.delete(k);
+				},
+			};
+		})() as never,
 		extensions: {
 			has: throws('extensions.has') as never,
 			// The dispatch() capability guard calls hasAny for extension-pack

@@ -4,38 +4,11 @@ import type { Resource } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolContext } from '../runtime/context.js';
 import type { WikiConfig, PublicWikiConfig } from '../config/loadConfig.js';
 import { WIKI_RESOURCE_URI_PREFIX } from '../runtime/constants.js';
-import type { LicenseInfo } from '../wikis/licenseCache.js';
+import { resolveSiteInfo } from '../wikis/siteInfo.js';
 
 function sanitize(wikiConfig: Readonly<WikiConfig>): PublicWikiConfig {
 	const { token: _token, username: _username, password: _password, ...publicConfig } = wikiConfig;
 	return publicConfig;
-}
-
-async function getLicenseInfo(ctx: ToolContext, wikiKey: string): Promise<LicenseInfo | undefined> {
-	const cached = ctx.licenseCache.get(wikiKey);
-	if (cached) {
-		return cached;
-	}
-
-	try {
-		const mwn = await ctx.mwn(wikiKey);
-		const response = await mwn.request({
-			action: 'query',
-			meta: 'siteinfo',
-			siprop: 'rightsinfo',
-			formatversion: '2',
-		});
-
-		const rightsInfo = response.query?.rightsinfo;
-		if (rightsInfo?.url && rightsInfo.text) {
-			const info: LicenseInfo = { url: rightsInfo.url, title: rightsInfo.text };
-			ctx.licenseCache.set(wikiKey, info);
-			return info;
-		}
-	} catch {
-		// Graceful fallback if mwn is not initialized or the request fails.
-	}
-	return undefined;
 }
 
 export function registerAllResources(server: McpServer, ctx: ToolContext): void {
@@ -48,8 +21,11 @@ export function registerAllResources(server: McpServer, ctx: ToolContext): void 
 				resources.push({
 					uri: `${WIKI_RESOURCE_URI_PREFIX}${wikiKey}`,
 					name: `wikis/${wikiKey}`,
-					title: wikiConfig.sitename,
-					description: `Wiki "${wikiConfig.sitename}" hosted at ${wikiConfig.server}`,
+					// Cache read only — listing must not fan out a siteinfo fetch per
+					// wiki, so the description shows the configured server until a
+					// resource read warms the cache. The authoritative public server
+					// is resolved in the content handler below.
+					description: `Wiki "${wikiConfig.sitename}" hosted at ${ctx.siteInfoCache.get(wikiKey)?.server ?? wikiConfig.server}`,
 				});
 			}
 			return { resources };
@@ -68,9 +44,11 @@ export function registerAllResources(server: McpServer, ctx: ToolContext): void 
 		const sanitized = sanitize(wikiConfig);
 		const result: Record<string, unknown> = { ...sanitized };
 
-		const license = await getLicenseInfo(ctx, wikiKey);
-		if (license) {
-			result.license = license;
+		const siteInfo = await resolveSiteInfo(ctx, wikiKey);
+		result.server = siteInfo.server;
+		result.articlepath = siteInfo.articlepath;
+		if (siteInfo.license) {
+			result.license = siteInfo.license;
 		}
 
 		return {

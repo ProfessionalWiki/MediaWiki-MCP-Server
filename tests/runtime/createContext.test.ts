@@ -30,7 +30,7 @@ describe('createToolContext', () => {
 		expect(ctx.uploadDirs).toBeDefined();
 		expect(ctx.wikiCache).toBeDefined();
 		expect(typeof ctx.wikiCache.invalidate).toBe('function');
-		expect(ctx.licenseCache).toBeDefined();
+		expect(ctx.siteInfoCache).toBeDefined();
 		expect(ctx.extensions).toBeDefined();
 		expect(ctx.sections).toBeDefined();
 		expect(ctx.edit).toBeDefined();
