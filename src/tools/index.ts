@@ -17,6 +17,7 @@ import { searchPageByPrefix } from './search-page-by-prefix.js';
 import { parseWikitext } from './parse-wikitext.js';
 import { comparePages } from './compare-pages.js';
 import { getFile } from './get-file.js';
+import { getFileData } from './get-file-data.js';
 import { getRevision } from './get-revision.js';
 import { getSiteInfo } from './get-site-info.js';
 import { getCategoryMembers } from './get-category-members.js';
@@ -52,6 +53,7 @@ const standardTools: Tool<any>[] = [
 	parseWikitext,
 	comparePages,
 	getFile,
+	getFileData,
 	getRevision,
 	getSiteInfo,
 	getCategoryMembers,

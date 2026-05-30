@@ -16,6 +16,7 @@ Every tool that operates on a wiki accepts an optional `wiki` argument naming th
 | `compare-pages` | Diff two versions of a wiki page by revision, title, or supplied wikitext. |
 | `get-category-members` | List members of a category (up to 500 per call, paginated via `continueFrom`). |
 | `get-file` | Fetch a file page. |
+| `get-file-data` | Fetch a file's image bytes inline (base64) for visual analysis — for clients that can't reach the wiki host. Returns a scaled rendition (set `width`); non-renderable types (audio, video, binaries) error. For metadata or a download URL, use `get-file`. |
 | `get-links-here` | List pages that reference a wiki page — pages that link to it, embed it as a template, or display it as a file (select via `type`), including pages that reach it through a redirect. Up to 500 per call, paginated via `continueFrom`. |
 | `get-page` | Fetch a wiki page. |
 | `get-page-history` | List recent revisions of a wiki page. |
@@ -95,6 +96,7 @@ Every tool that operates on a wiki accepts an optional `wiki` argument naming th
 | `CONFIG` | Path to your configuration file | `config.json` |
 | `MCP_ALLOW_STATIC_FALLBACK` | Set to `true` to allow HTTP startup when `config.json` has static credentials. See [docs/deployment.md — Shape 2](docs/deployment.md#shape-2--single-wiki-per-user-oauth2-bearer-passthrough). | `unset` |
 | `MCP_CONTENT_MAX_BYTES` | Byte cap for content bodies (wikitext, rendered HTML, diffs). Tune to the target LLM client's tool-response budget. | `50000` |
+| `MCP_FILE_DATA_MAX_BYTES` | Hard cap on the base64-encoded size of a `get-file-data` response. A transport/safety backstop; tune the actual size per call with the tool's `width`. Over-cap calls error rather than truncate. | `1000000` |
 | `MCP_LOG_LEVEL` | Minimum severity for logger output. One of `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`, or `silent`. | `debug` |
 | `MCP_OAUTH_CREDENTIALS_FILE` | Override the default credentials store path. Default: `~/.config/mediawiki-mcp/credentials.json` (Linux/macOS) or `%APPDATA%\mediawiki-mcp\credentials.json` (Windows). | `unset` |
 | `MCP_OAUTH_NO_BROWSER` | Set to `1` to skip launching a browser during the OAuth flow; the auth URL is logged to stderr instead. Useful in headless environments. | `unset` |

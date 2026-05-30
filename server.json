@@ -34,6 +34,12 @@
           "default": "50000"
         },
         {
+          "name": "MCP_FILE_DATA_MAX_BYTES",
+          "description": "Hard cap on the base64-encoded size of a get-file-data response. A transport/safety backstop; callers tune actual size with the tool's width parameter. Over-cap responses error rather than truncate.",
+          "format": "number",
+          "default": "1000000"
+        },
+        {
           "name": "MCP_LOG_LEVEL",
           "description": "Minimum severity for logger output (stderr telemetry and sendLoggingMessage broadcast). Invalid values fail loudly on first log call.",
           "choices": [
@@ -124,6 +130,12 @@
           "description": "Byte cap for content bodies (wikitext, rendered HTML, diffs) returned by get-page, get-pages, parse-wikitext, and compare-pages. Oversized bodies are truncated with a trailing marker.",
           "format": "number",
           "default": "50000"
+        },
+        {
+          "name": "MCP_FILE_DATA_MAX_BYTES",
+          "description": "Hard cap on the base64-encoded size of a get-file-data response. A transport/safety backstop; callers tune actual size with the tool's width parameter. Over-cap responses error rather than truncate.",
+          "format": "number",
+          "default": "1000000"
         },
         {
           "name": "MCP_LOG_LEVEL",
