@@ -62,8 +62,8 @@ export async function checkWikiCapability(
 					'authentication',
 					`Wiki "${wikiKey}" requires OAuth authentication. ` +
 						"Send an Authorization: Bearer token for this wiki; see the server's " +
-						'/.well-known/oauth-protected-resource document, or list-wikis for the ' +
-						"wiki's authorization server.",
+						"/.well-known/oauth-protected-resource document for the wiki's " +
+						'authorization server.',
 				);
 			}
 		}

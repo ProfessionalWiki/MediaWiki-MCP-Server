@@ -54,6 +54,13 @@ const STATIC_RULES: readonly ToolGatingRule[] = [
 		affects: ['remove-wiki'],
 		isAllowed: (c) => c.allowManagement && c.wikiCount >= 2,
 	},
+	{
+		// Nothing to list when a single wiki is configured: every call defaults
+		// to it. Offered once a second wiki appears (reconcile re-runs on add).
+		name: 'list-wikis',
+		affects: ['list-wikis'],
+		isAllowed: (c) => c.wikiCount >= 2,
+	},
 ];
 
 function buildExtensionRules(packs: readonly ExtensionPack[]): readonly ToolGatingRule[] {
