@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Security
+
+- Updated dependencies to resolve known advisories, including a high-severity issue in the HTTP client used for outbound wiki requests.
+
 ### Breaking changes
 
 - Removed the `set-wiki` tool. Pass the `wiki` argument on each tool call instead.
