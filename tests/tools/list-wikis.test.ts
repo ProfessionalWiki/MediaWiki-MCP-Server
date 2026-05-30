@@ -110,6 +110,48 @@ describe('list-wikis', () => {
 		expect(fetchMetadata).not.toHaveBeenCalled();
 	});
 
+	it('reports the public siteinfo server, overriding the configured server', async () => {
+		const mock = {
+			request: vi.fn().mockResolvedValue({
+				query: { general: { server: 'https://public.example', articlepath: '/wiki/$1' } },
+			}),
+		};
+		const emptyMap = new Map();
+		const ctx = fakeContext({
+			wikis: {
+				getAll: () => ({ 'test-wiki': wikiConfig }) as never,
+				get: ((k: string) => (k === 'test-wiki' ? wikiConfig : undefined)) as never,
+				add: (() => {}) as never,
+				remove: (() => {}) as never,
+				isManagementAllowed: () => true,
+			},
+			activeWiki: {
+				get: () => ({ key: 'test-wiki', config: wikiConfig }),
+				getDefaultKey: () => 'test-wiki',
+			},
+			extensions: {
+				has: (async () => false) as never,
+				hasAny: (async () => false) as never,
+				invalidate: (() => {}) as never,
+				inspect: (async () => ({ reachable: true, extensions: new Set<string>() })) as never,
+			},
+			mwn: (async () => mock) as never,
+			siteInfoCache: {
+				get: (k: string) => emptyMap.get(k),
+				set: (k: string, v: unknown) => {
+					emptyMap.set(k, v);
+				},
+				delete: (k: string) => {
+					emptyMap.delete(k);
+				},
+			} as never,
+		});
+
+		const result = await dispatch(listWikis, ctx)({} as never);
+		const wiki = wikisOf(result).find((w) => w.key === 'test-wiki')!;
+		expect(wiki.server).toBe('https://public.example');
+	});
+
 	it('omits authorizationServer for a wiki whose metadata fetch fails, without failing the call', async () => {
 		fetchMetadata.mockImplementation((key: string) => {
 			if (key === 'broken-wiki') {

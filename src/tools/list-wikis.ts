@@ -3,6 +3,7 @@ import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
 import { extensionPacks } from './extensions/index.js';
 import { fetchMetadata } from '../auth/metadata.js';
+import { resolveSiteInfo } from '../wikis/siteInfo.js';
 
 interface WikiSummary {
 	key: string;
@@ -38,6 +39,7 @@ export const listWikis: Tool<Record<string, never>> = {
 		const wikis: WikiSummary[] = await Promise.all(
 			Object.keys(all).map(async (key): Promise<WikiSummary> => {
 				const config = all[key];
+				const { server: publicServer } = await resolveSiteInfo(ctx, key);
 				const { reachable, extensions } = await ctx.extensions.inspect(key);
 				const extensionTools: string[] = [];
 				for (const pack of extensionPacks) {
@@ -62,7 +64,7 @@ export const listWikis: Tool<Record<string, never>> = {
 				return {
 					key,
 					sitename: config.sitename,
-					server: config.server,
+					server: publicServer,
 					readOnly: config.readOnly === true,
 					isDefault: key === defaultKey,
 					reachable,
