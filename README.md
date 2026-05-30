@@ -68,7 +68,7 @@ Every tool that operates on a wiki accepts an optional `wiki` argument naming th
 
 ### Resources
 
-**`mcp://wikis/{wikiKey}`** — per-wiki resource exposing `sitename`, `server`, `articlepath`, `scriptpath`, and a `private` flag.
+**`mcp://wikis/{wikiKey}`** — per-wiki resource exposing `sitename`, `server` (the wiki's public address), `articlepath`, `scriptpath`, and a `private` flag.
 
 - Credentials (`token`, `username`, `password`) are never exposed in resource content.
 - After `add-wiki` or `remove-wiki`, the server sends `notifications/resources/list_changed` so clients refresh.
@@ -125,6 +125,8 @@ Create a `config.json` file to configure wiki connections. Use the `config.examp
   }
 }
 ```
+
+**Internal vs public address.** The `server` you configure is the address the MCP server uses to reach the wiki's API — it may be an internal hostname (e.g. `http://mediawiki` in Docker). URLs handed back to the AI (page links, the `server` field in `list-wikis` and `mcp://wikis` resources) are built from the wiki's own public address, so internal hostnames don't leak into links. If a wiki can't be reached, links fall back to the configured `server`.
 
 For the full field reference, env-var substitution, secret sources, change tags, upload directories, and authentication options, see [docs/configuration.md](docs/configuration.md).
 

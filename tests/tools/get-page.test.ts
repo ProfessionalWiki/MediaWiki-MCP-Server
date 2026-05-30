@@ -6,6 +6,7 @@ import { dispatch } from '../../src/runtime/dispatcher.js';
 import { ContentFormat } from '../../src/results/contentFormat.js';
 import { SectionServiceImpl } from '../../src/services/sectionService.js';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
+import type { SiteInfo } from '../../src/wikis/siteInfoCache.js';
 
 describe('get-page', () => {
 	it('returns page source using mwn.read()', async () => {
@@ -483,6 +484,42 @@ describe('get-page', () => {
 		expect(text).toContain('  Item noun: HTML');
 		expect(text).toContain('  Tool name: get-page');
 		expect(text).toContain('  Sections:\n  - (empty)\n  - Heading');
+	});
+
+	it('builds the page URL from the public siteinfo server, not the configured server', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockImplementation((params: { meta?: string; action?: string }) => {
+				if (params.meta === 'siteinfo') {
+					return Promise.resolve({
+						query: { general: { server: 'https://public.example', articlepath: '/wiki/$1' } },
+					});
+				}
+				// action=parse response for html content
+				return Promise.resolve({
+					parse: { text: '<p>Hello</p>', title: 'Test Page', pageid: 1 },
+				});
+			}),
+		});
+		const emptyMap = new Map<string, SiteInfo>();
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			siteInfoCache: {
+				get: (k: string) => emptyMap.get(k),
+				set: (k: string, v: SiteInfo) => {
+					emptyMap.set(k, v);
+				},
+				delete: (k: string) => {
+					emptyMap.delete(k);
+				},
+			} as never,
+		});
+
+		const result = await getPage.handle(
+			{ title: 'Test Page', content: ContentFormat.html, metadata: false },
+			ctx,
+		);
+		const text = assertStructuredSuccess(result);
+		expect(text).toContain('https://public.example/wiki/Test_Page');
 	});
 
 	it('html+metadata calls read once and returns both metadata and html', async () => {

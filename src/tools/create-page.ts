@@ -3,7 +3,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 import type { ApiEditPageParams } from 'types-mediawiki-api';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
-import { getPageUrl, formatEditComment } from '../wikis/utils.js';
+import { buildPageUrl, formatEditComment } from '../wikis/utils.js';
 
 const inputSchema = {
 	source: z.string().describe('Page content in the format specified by the contentModel parameter'),
@@ -56,7 +56,7 @@ export const createPage: Tool<typeof inputSchema> = {
 			latestRevisionId: result.newrevid,
 			latestRevisionTimestamp: result.newtimestamp,
 			contentModel: result.contentmodel,
-			url: getPageUrl(result.title, ctx.activeWiki),
+			url: await buildPageUrl(ctx, result.title),
 		});
 	},
 };

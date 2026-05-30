@@ -3,7 +3,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 import type { ApiSearchResult } from 'mwn';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
-import { getPageUrl } from '../wikis/utils.js';
+import { buildPageUrl } from '../wikis/utils.js';
 import type { TruncationInfo } from '../results/truncation.js';
 
 const inputSchema = {
@@ -61,16 +61,20 @@ export const searchPage: Tool<typeof inputSchema> = {
 				}
 			: null;
 
-		return ctx.format.ok({
-			results: searchResults.map((r) => ({
+		const results = await Promise.all(
+			searchResults.map(async (r) => ({
 				title: r.title,
 				pageId: r.pageid,
 				snippet: r.snippet,
 				size: r.size,
 				wordCount: (r as ApiSearchResult & { wordcount?: number }).wordcount,
 				timestamp: r.timestamp,
-				url: getPageUrl(r.title, ctx.activeWiki),
+				url: await buildPageUrl(ctx, r.title),
 			})),
+		);
+
+		return ctx.format.ok({
+			results,
 			...(truncation !== null ? { truncation } : {}),
 		});
 	},

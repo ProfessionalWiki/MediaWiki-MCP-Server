@@ -4,7 +4,7 @@ import type { ApiMoveResponse } from 'mwn';
 import type { ApiMoveParams } from 'types-mediawiki-api';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
-import { getPageUrl, formatEditComment } from '../wikis/utils.js';
+import { buildPageUrl, formatEditComment } from '../wikis/utils.js';
 
 const inputSchema = {
 	fromTitle: z.string().describe('Current title of the wiki page to move'),
@@ -82,7 +82,7 @@ export const movePage: Tool<typeof inputSchema> = {
 			talkFrom: data.talkfrom,
 			talkTo: data.talkto,
 			subpagesMoved: Array.isArray(data.subpages) ? data.subpages.length : undefined,
-			url: getPageUrl(to, ctx.activeWiki),
+			url: await buildPageUrl(ctx, to),
 		});
 	},
 };

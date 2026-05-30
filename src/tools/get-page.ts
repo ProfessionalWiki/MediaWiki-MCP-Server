@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
-import { getPageUrl } from '../wikis/utils.js';
+import { buildPageUrl } from '../wikis/utils.js';
 import { ContentFormat } from '../results/contentFormat.js';
 import { truncateByBytes, type TruncationInfo } from '../results/truncation.js';
 
@@ -107,7 +107,7 @@ export const getPage: Tool<typeof inputSchema> = {
 				if (sections !== undefined) {
 					payload.sections = sections;
 				}
-				payload.url = getPageUrl(page.title, ctx.activeWiki);
+				payload.url = await buildPageUrl(ctx, page.title);
 			}
 
 			if (needsSource && rev?.content !== undefined) {
@@ -153,7 +153,7 @@ export const getPage: Tool<typeof inputSchema> = {
 					if (parseResult.parse?.pageid !== undefined) {
 						payload.pageId = parseResult.parse.pageid;
 					}
-					payload.url = getPageUrl(resolvedTitle, ctx.activeWiki);
+					payload.url = await buildPageUrl(ctx, resolvedTitle);
 				}
 
 				if (truncated.truncated) {
