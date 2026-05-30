@@ -11,8 +11,8 @@
   "packages": [
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/releases/download/v0.9.1/MediaWiki-MCP-Server.mcpb",
-      "fileSha256": "3666cf96b0197c862a9d7c19617a3ca32586d1c63a1861df1f2c58c8fac8b87c",
+      "identifier": "https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/releases/download/v0.10.0/MediaWiki-MCP-Server.mcpb",
+      "fileSha256": "4b8a76e002ba14a48c3ee39427d30140d95fde8b4a85bf06b024bdbc8bd99b93",
       "transport": {
         "type": "stdio"
       },
@@ -103,7 +103,7 @@
     {
       "registryType": "npm",
       "identifier": "@professional-wiki/mediawiki-mcp-server",
-      "version": "0.9.1",
+      "version": "0.10.0",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
