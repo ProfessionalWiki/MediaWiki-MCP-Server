@@ -46,6 +46,32 @@ interface SiteInfoResponse {
 	};
 }
 
+interface Statistics {
+	pages: number;
+	articles: number;
+	edits: number;
+	images: number;
+	users: number;
+	activeusers: number;
+	admins: number;
+}
+
+interface StatisticsResponse {
+	query?: { statistics?: Partial<Statistics> };
+}
+
+function pickStatistics(raw: Partial<Statistics>): Statistics {
+	return {
+		pages: raw.pages ?? 0,
+		articles: raw.articles ?? 0,
+		edits: raw.edits ?? 0,
+		images: raw.images ?? 0,
+		users: raw.users ?? 0,
+		activeusers: raw.activeusers ?? 0,
+		admins: raw.admins ?? 0,
+	};
+}
+
 interface CompactGeneral {
 	sitename: string;
 	generator: string;
@@ -124,7 +150,7 @@ export const getSiteInfo: Tool<typeof inputSchema> = {
 	} as ToolAnnotations,
 	failureVerb: 'fetch site info',
 
-	async handle(_args: GetSiteInfoArgs, ctx: ToolContext): Promise<CallToolResult> {
+	async handle(args: GetSiteInfoArgs, ctx: ToolContext): Promise<CallToolResult> {
 		const { key } = ctx.activeWiki.get();
 		const mwn = await ctx.mwn();
 
@@ -158,6 +184,17 @@ export const getSiteInfo: Tool<typeof inputSchema> = {
 		};
 		if (siteInfo.license) {
 			result.license = siteInfo.license;
+		}
+
+		if (args.includeStatistics === true) {
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
+			const statsResponse = (await mwn.request({
+				action: 'query',
+				meta: 'siteinfo',
+				siprop: 'statistics',
+				formatversion: '2',
+			})) as StatisticsResponse;
+			result.statistics = pickStatistics(statsResponse.query?.statistics ?? {});
 		}
 
 		return ctx.format.ok(result);

@@ -137,4 +137,51 @@ describe('get-site-info', () => {
 
 		expect(data.namespaces['10'].aliases).toEqual(['T', 'Tpl']);
 	});
+
+	it('omits statistics by default and makes one siteinfo request', async () => {
+		const request = vi.fn().mockResolvedValue(siteinfoResponse());
+		const ctx = ctxWith(request);
+
+		const data = assertStructuredData(await dispatch(getSiteInfo, ctx)({} as never));
+
+		expect(data.statistics).toBeUndefined();
+		expect(request).toHaveBeenCalledTimes(1);
+		expect(request.mock.calls[0][0].siprop).not.toContain('statistics');
+	});
+
+	it('fetches statistics live when includeStatistics is true', async () => {
+		const request = vi
+			.fn()
+			.mockResolvedValueOnce(siteinfoResponse())
+			.mockResolvedValueOnce({
+				query: {
+					statistics: {
+						pages: 10,
+						articles: 4,
+						edits: 99,
+						images: 2,
+						users: 7,
+						activeusers: 3,
+						admins: 1,
+					},
+				},
+			});
+		const ctx = ctxWith(request);
+
+		const data = assertStructuredData(
+			await dispatch(getSiteInfo, ctx)({ includeStatistics: true } as never),
+		);
+
+		expect(data.statistics).toEqual({
+			pages: 10,
+			articles: 4,
+			edits: 99,
+			images: 2,
+			users: 7,
+			activeusers: 3,
+			admins: 1,
+		});
+		expect(request).toHaveBeenCalledTimes(2);
+		expect(request.mock.calls[1][0].siprop).toBe('statistics');
+	});
 });
