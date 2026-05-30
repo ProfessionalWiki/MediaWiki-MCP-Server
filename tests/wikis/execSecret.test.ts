@@ -63,7 +63,19 @@ describe('runExecSecret', () => {
 		});
 		await expect(
 			runExecSecret({ exec: { command: 'slow', args: [] } }, descriptor),
-		).rejects.toThrow('timed out after 10s');
+		).rejects.toThrow('timed out after 30s');
+	});
+
+	it('tells the caller to approve and retry on timeout', async () => {
+		mockExecFile((cb) => {
+			const e = new Error('timed out') as Error & { killed?: boolean; signal?: string };
+			e.killed = true;
+			e.signal = 'SIGTERM';
+			cb(e, '', '');
+		});
+		await expect(
+			runExecSecret({ exec: { command: 'slow', args: [] } }, descriptor),
+		).rejects.toThrow('approve the prompt and retry');
 	});
 
 	it('throws CredentialResolutionError on non-zero exit with truncated stderr', async () => {

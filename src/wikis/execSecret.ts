@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import type { ExecSecret } from '../config/loadConfig.js';
 import { CredentialResolutionError } from '../errors/credentialResolutionError.js';
 
-const TIMEOUT_MS = 10_000;
+const TIMEOUT_MS = 30_000;
 const STDERR_LIMIT = 200;
 
 function failureMessage(err: unknown, stderr: string, command: string, descriptor: string): string {
@@ -15,7 +15,7 @@ function failureMessage(err: unknown, stderr: string, command: string, descripto
 			return `Could not resolve ${descriptor}: command "${command}" not found`;
 		}
 		if (killed === true || signal === 'SIGTERM' || code === 'ETIMEDOUT') {
-			return `Could not resolve ${descriptor}: command "${command}" timed out after 10s`;
+			return `Could not resolve ${descriptor}: command "${command}" timed out after ${TIMEOUT_MS / 1000}s. If it prompts for interactive approval (e.g. a 1Password unlock), approve the prompt and retry — the command re-runs on the next attempt.`;
 		}
 		if (typeof code === 'number' && code !== 0) {
 			return `Could not resolve ${descriptor}: command "${command}" exited with status ${code}. stderr: ${stderr.slice(0, STDERR_LIMIT)}`;

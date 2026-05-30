@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Changed
 
 - The `list-wikis` tool is now hidden when only a single wiki is configured, where it has nothing to list and every call already defaults to that wiki. It appears once a second wiki is configured or added.
+- The timeout for an `exec`-backed credential command was raised from 10 to 30 seconds, giving an interactive unlock (such as a 1Password prompt) time to be approved. If the command still times out, the error now explains that approving the prompt and retrying re-runs it.
 
 ## [0.10.0] - 2026-05-30
 
