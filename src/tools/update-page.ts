@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
-import { getPageUrl, formatEditComment } from '../wikis/utils.js';
+import { buildPageUrl, formatEditComment } from '../wikis/utils.js';
 
 interface ApiEditResponse {
 	result?: string;
@@ -124,7 +124,7 @@ export const updatePage: Tool<typeof inputSchema> = {
 			latestRevisionId: edit.newrevid,
 			latestRevisionTimestamp: edit.newtimestamp,
 			contentModel: edit.contentmodel,
-			url: getPageUrl(resolvedTitle, ctx.activeWiki),
+			url: await buildPageUrl(ctx, resolvedTitle),
 		});
 	},
 };

@@ -3,7 +3,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 import type { ApiPage, ApiRevision } from 'mwn';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
-import { getPageUrl } from '../wikis/utils.js';
+import { buildPageUrl } from '../wikis/utils.js';
 import { ContentFormat } from '../results/contentFormat.js';
 
 const inputSchema = {
@@ -86,7 +86,7 @@ export const getRevision: Tool<typeof inputSchema> = {
 			payload.revisionId = rev.revid;
 			payload.pageId = page.pageid;
 			payload.title = page.title;
-			payload.url = getPageUrl(page.title, ctx.activeWiki);
+			payload.url = await buildPageUrl(ctx, page.title);
 
 			if (needsMetadata) {
 				payload.userid = rev.userid;
@@ -118,7 +118,7 @@ export const getRevision: Tool<typeof inputSchema> = {
 				}
 				if (parseResult.parse?.title !== undefined) {
 					payload.title = parseResult.parse.title;
-					payload.url = getPageUrl(parseResult.parse.title, ctx.activeWiki);
+					payload.url = await buildPageUrl(ctx, parseResult.parse.title);
 				}
 			}
 		}

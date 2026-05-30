@@ -3,7 +3,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 import type { Mwn } from 'mwn';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
-import { getPageUrl } from '../wikis/utils.js';
+import { buildPageUrl } from '../wikis/utils.js';
 import { truncateByBytes, type TruncationInfo } from '../results/truncation.js';
 
 const MAX_TITLES = 50;
@@ -173,7 +173,7 @@ async function fetchPages(
 	return result;
 }
 
-function buildPageEntry(
+async function buildPageEntry(
 	requested: string,
 	page: ApiPageLike,
 	viaRedirect: boolean,
@@ -181,13 +181,13 @@ function buildPageEntry(
 	entryIndex: number,
 	pending: PendingTruncation[],
 	ctx: ToolContext,
-): PageEntry {
+): Promise<PageEntry> {
 	const rev = page.revisions?.[0];
 	const entry: PageEntry = {
 		requestedTitle: requested,
 		pageId: page.pageid,
 		title: page.title,
-		url: getPageUrl(page.title, ctx.activeWiki),
+		url: await buildPageUrl(ctx, page.title),
 		...(viaRedirect ? { redirectedFrom: requested } : {}),
 		...(args.metadata
 			? {
@@ -235,12 +235,12 @@ async function applyTruncations(
 	});
 }
 
-function assembleEntries(
+async function assembleEntries(
 	args: GetPagesArgs,
 	fetched: FetchResult,
 	ctx: ToolContext,
-): { entries: PageEntry[]; missing: string[]; pending: PendingTruncation[] } {
-	const entries: PageEntry[] = [];
+): Promise<{ entries: PageEntry[]; missing: string[]; pending: PendingTruncation[] }> {
+	const entryPromises: Promise<PageEntry>[] = [];
 	const emitted = new Set<string>();
 	const missing: string[] = [];
 	const missingSeen = new Set<string>();
@@ -261,8 +261,11 @@ function assembleEntries(
 			continue;
 		}
 		emitted.add(page.title);
-		entries.push(buildPageEntry(requested, page, viaRedirect, args, entries.length, pending, ctx));
+		entryPromises.push(
+			buildPageEntry(requested, page, viaRedirect, args, entryPromises.length, pending, ctx),
+		);
 	}
+	const entries = await Promise.all(entryPromises);
 	return { entries, missing, pending };
 }
 
@@ -291,7 +294,7 @@ export const getPages: Tool<typeof inputSchema> = {
 				? 'ids|timestamp|contentmodel|content'
 				: 'ids|timestamp|contentmodel';
 		const fetched = await fetchPages(mwn, ctx, args, rvprop);
-		const { entries, missing, pending } = assembleEntries(args, fetched, ctx);
+		const { entries, missing, pending } = await assembleEntries(args, fetched, ctx);
 		await applyTruncations(mwn, ctx, entries, pending);
 
 		return ctx.format.ok({

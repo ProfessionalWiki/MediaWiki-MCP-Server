@@ -5,7 +5,7 @@ import type { ApiUploadResponse } from 'mwn';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
 import { errorMessage } from '../errors/isErrnoException.js';
-import { formatEditComment, getPageUrl } from '../wikis/utils.js';
+import { formatEditComment, buildPageUrl } from '../wikis/utils.js';
 
 const inputSchema = {
 	url: z.string().url().describe('URL of the file to upload'),
@@ -61,7 +61,7 @@ export const uploadFileFromUrl: Tool<typeof inputSchema> = {
 		const filename = data.filename ?? title.replace(/^File:/, '');
 		return ctx.format.ok({
 			filename,
-			pageUrl: imageinfo?.descriptionurl ?? getPageUrl(`File:${filename}`, ctx.activeWiki),
+			pageUrl: imageinfo?.descriptionurl ?? (await buildPageUrl(ctx, `File:${filename}`)),
 			...(imageinfo?.url !== undefined ? { fileUrl: imageinfo.url } : {}),
 		});
 	},

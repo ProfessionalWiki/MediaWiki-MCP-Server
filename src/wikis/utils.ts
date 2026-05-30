@@ -1,7 +1,9 @@
-import type { ActiveWiki } from './activeWiki.js';
+import type { ToolContext } from '../runtime/context.js';
+import { resolveSiteInfo } from './siteInfo.js';
 
-export function getPageUrl(title: string, activeWiki: ActiveWiki): string {
-	const { server, articlepath } = activeWiki.get().config;
+export async function buildPageUrl(ctx: ToolContext, title: string): Promise<string> {
+	const { key } = ctx.activeWiki.get();
+	const { server, articlepath } = await resolveSiteInfo(ctx, key);
 	// MediaWiki convention: spaces become underscores. encodeURI preserves
 	// '/' (subpages) and ':' (namespace prefixes) while encoding spaces and
 	// non-ASCII characters. Characters disallowed in MW titles ('#', '?',

@@ -4,6 +4,7 @@ import { fakeContext } from '../helpers/fakeContext.js';
 import { searchPage } from '../../src/tools/search-page.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
+import type { SiteInfo } from '../../src/wikis/siteInfoCache.js';
 
 describe('search-page', () => {
 	it('returns full-text search results with snippets', async () => {
@@ -118,6 +119,49 @@ describe('search-page', () => {
 
 		const text = assertStructuredSuccess(result);
 		expect(text).not.toContain('Truncation:');
+	});
+
+	it('builds result URLs from the public siteinfo server', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockImplementation((params: { meta?: string }) => {
+				if (params.meta === 'siteinfo') {
+					return Promise.resolve({
+						query: { general: { server: 'https://public.example', articlepath: '/wiki/$1' } },
+					});
+				}
+				return Promise.resolve({
+					query: {
+						search: [
+							{
+								ns: 0,
+								title: 'Test Page',
+								pageid: 1,
+								size: 1,
+								snippet: 's',
+								timestamp: '2026-01-01T00:00:00Z',
+							},
+						],
+					},
+				});
+			}),
+		});
+		const emptyMap = new Map<string, SiteInfo>();
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			siteInfoCache: {
+				get: (k: string) => emptyMap.get(k),
+				set: (k: string, v: SiteInfo) => {
+					emptyMap.set(k, v);
+				},
+				delete: (k: string) => {
+					emptyMap.delete(k);
+				},
+			} as never,
+		});
+
+		const result = await searchPage.handle({ query: 'test', limit: 10 }, ctx);
+		const text = assertStructuredSuccess(result);
+		expect(text).toMatch(/URL: https:\/\/public\.example\/wiki\/Test_Page/);
 	});
 
 	it('uses the effective default limit in truncation when limit is not provided', async () => {

@@ -5,7 +5,7 @@ import type { ApiUploadResponse } from 'mwn';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
 import { assertAllowedPath, UploadValidationError } from '../transport/uploadGuard.js';
-import { formatEditComment, getPageUrl } from '../wikis/utils.js';
+import { formatEditComment, buildPageUrl } from '../wikis/utils.js';
 
 const inputSchema = {
 	filepath: z.string().describe('File path on the local disk'),
@@ -60,7 +60,7 @@ export const uploadFile: Tool<typeof inputSchema> = {
 		const filename = data.filename ?? title.replace(/^File:/, '');
 		return ctx.format.ok({
 			filename,
-			pageUrl: imageinfo?.descriptionurl ?? getPageUrl(`File:${filename}`, ctx.activeWiki),
+			pageUrl: imageinfo?.descriptionurl ?? (await buildPageUrl(ctx, `File:${filename}`)),
 			...(imageinfo?.url !== undefined ? { fileUrl: imageinfo.url } : {}),
 		});
 	},
