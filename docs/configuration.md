@@ -79,9 +79,9 @@ Secret fields can also run an external command and use its output as the secret.
 }
 ```
 
-The command runs the first time that wiki is used — not at startup — directly without a shell, with `args` passed exactly as given. Its trimmed stdout becomes the secret value. A 10-second timeout applies, and the result is cached for the lifetime of the server process.
+The command runs the first time that wiki is used — not at startup — directly without a shell, with `args` passed exactly as given. Its trimmed stdout becomes the secret value. A 30-second timeout applies — long enough for an interactive unlock such as a 1Password prompt — and the result is cached for the lifetime of the server process.
 
-If the command fails, times out, or prints nothing, the wiki cannot be used and tool calls against it return an authentication error identifying the wiki and field. Other wikis, and server startup, are unaffected. The secret value itself is never logged.
+If the command fails, times out, or prints nothing, the wiki cannot be used and tool calls against it return an authentication error identifying the wiki and field. Other wikis, and server startup, are unaffected. When a timeout was caused by a slow interactive unlock, approve the prompt and retry — the command re-runs on the next call against that wiki. The secret value itself is never logged.
 
 Any CLI that prints a credential to stdout works: 1Password's `op`, `pass`, `secret-tool`, Bitwarden's `bw`, HashiCorp Vault, or a custom script.
 
