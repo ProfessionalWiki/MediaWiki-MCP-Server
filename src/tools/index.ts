@@ -23,6 +23,7 @@ import { getSiteInfo } from './get-site-info.js';
 import { getCategoryMembers } from './get-category-members.js';
 import { getLinksHere } from './get-links-here.js';
 import { listWikis } from './list-wikis.js';
+import { whoami } from './whoami.js';
 import { extensionPacks } from './extensions/index.js';
 import { createPage } from './create-page.js';
 import { updatePage } from './update-page.js';
@@ -59,6 +60,7 @@ const standardTools: Tool<any>[] = [
 	getCategoryMembers,
 	getLinksHere,
 	listWikis,
+	whoami,
 	createPage,
 	updatePage,
 	movePage,

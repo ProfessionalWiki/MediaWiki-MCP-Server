@@ -28,6 +28,7 @@ Every tool that operates on a wiki accepts an optional `wiki` argument naming th
 | `parse-wikitext` | Render wikitext to HTML without saving. Returns parse warnings, wikilinks, templates, and external URLs. |
 | `search-page` | Search wiki page titles and contents. |
 | `search-page-by-prefix` | Search page titles by prefix. |
+| `whoami` | Report the identity the current session is authenticated as on the targeted wiki — username, whether it is anonymous, and group memberships (optionally user rights). |
 
 #### Page writes
 
