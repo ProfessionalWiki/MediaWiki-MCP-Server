@@ -436,6 +436,9 @@ describe('get-recent-changes — field trimming', () => {
 		expect(a).not.toHaveProperty('minor');
 		expect(a).not.toHaveProperty('bot');
 		expect(a).not.toHaveProperty('isNew');
+		expect(a).not.toHaveProperty('anon');
+		expect(a).not.toHaveProperty('userhidden');
+		expect(a).not.toHaveProperty('commenthidden');
 		expect(a).not.toHaveProperty('comment');
 		expect(a).not.toHaveProperty('tags');
 		expect(a).not.toHaveProperty('oldlen');
