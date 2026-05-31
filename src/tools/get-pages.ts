@@ -14,7 +14,7 @@ export enum BatchContentFormat {
 }
 
 interface PageEntry {
-	requestedTitle: string;
+	requestedTitle?: string;
 	pageId?: number;
 	title?: string;
 	redirectedFrom?: string;
@@ -184,10 +184,10 @@ async function buildPageEntry(
 ): Promise<PageEntry> {
 	const rev = page.revisions?.[0];
 	const entry: PageEntry = {
-		requestedTitle: requested,
 		pageId: page.pageid,
 		title: page.title,
 		url: await buildPageUrl(ctx, page.title),
+		...(requested !== page.title ? { requestedTitle: requested } : {}),
 		...(viaRedirect ? { redirectedFrom: requested } : {}),
 		...(args.metadata
 			? {
@@ -271,7 +271,7 @@ async function assembleEntries(
 
 export const getPages: Tool<typeof inputSchema> = {
 	name: 'get-pages',
-	description: `Returns multiple wiki pages in one call (wikitext source or metadata only). Suited to reading a cluster of related pages, diffing a page family, or syncing pages to local storage. Accepts up to ${MAX_TITLES} titles; missing pages are reported inline (not as errors). Each page's content is truncated at 50000 bytes by default with a trailing marker listing available sections; get-page with section=N fetches a specific section. For a single page or HTML output, use get-page.`,
+	description: `Returns multiple wiki pages in one call (wikitext source or metadata only). Suited to reading a cluster of related pages, diffing a page family, or syncing pages to local storage. Accepts up to ${MAX_TITLES} titles; missing pages are reported inline (not as errors). Each page's content is truncated at 50000 bytes by default with a trailing marker listing available sections; get-page with section=N fetches a specific section. For a single page or HTML output, use get-page. requestedTitle is included only when it differs from the resolved title.`,
 	inputSchema,
 	annotations: {
 		title: 'Get pages',

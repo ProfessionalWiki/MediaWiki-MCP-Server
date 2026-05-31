@@ -4,7 +4,11 @@ import { fakeContext } from '../helpers/fakeContext.js';
 import { getPages, BatchContentFormat } from '../../src/tools/get-pages.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
 import { SectionServiceImpl } from '../../src/services/sectionService.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
+import {
+	assertStructuredData,
+	assertStructuredError,
+	assertStructuredSuccess,
+} from '../helpers/structuredResult.js';
 
 function massQueryPage(title: string, pageid: number, revid: number, content?: string) {
 	return {
@@ -144,17 +148,20 @@ describe('get-pages', () => {
 				'titles',
 			);
 
-			const text = assertStructuredSuccess(result);
+			assertStructuredSuccess(result);
 			// Order preserved: input title order, regardless of API response order.
-			const requestedTitles = [...text.matchAll(/Requested title: (.+)/g)].map((m) => m[1]);
-			expect(requestedTitles).toEqual([
+			const data = assertStructuredData(result);
+			expect(data.pages.map((p: Record<string, unknown>) => p.title)).toEqual([
 				'Module:Infobox',
 				'Module:Infobox/Person',
 				'Module:Infobox/Organization',
 			]);
-			const sources = [...text.matchAll(/Source: (.+)/g)].map((m) => m[1]);
-			expect(sources).toEqual(['A', 'B', 'C']);
-			expect(text).not.toContain('Missing:');
+			// No requestedTitle when it equals the resolved title.
+			for (const entry of data.pages as Record<string, unknown>[]) {
+				expect(entry).not.toHaveProperty('requestedTitle');
+			}
+			expect(data.pages.map((p: Record<string, unknown>) => p.source)).toEqual(['A', 'B', 'C']);
+			expect(data.missing).toBeUndefined();
 		});
 
 		it('mixed found + missing: emits found pages + missing array, no isError', async () => {
@@ -181,8 +188,12 @@ describe('get-pages', () => {
 			);
 
 			const text = assertStructuredSuccess(result);
-			const requestedTitles = [...text.matchAll(/Requested title: (.+)/g)].map((m) => m[1]);
-			expect(requestedTitles).toEqual(['Found1', 'Found2']);
+			const data = assertStructuredData(result);
+			expect(data.pages.map((p: Record<string, unknown>) => p.title)).toEqual(['Found1', 'Found2']);
+			// No requestedTitle when it equals the resolved title.
+			for (const entry of data.pages as Record<string, unknown>[]) {
+				expect(entry).not.toHaveProperty('requestedTitle');
+			}
 			expect(text).toContain('Missing:\n- NotReal');
 		});
 
@@ -233,12 +244,15 @@ describe('get-pages', () => {
 			);
 
 			const text = assertStructuredSuccess(result);
-			expect(text).toContain('Requested title: Foo');
-			expect(text).toContain('  Page ID: 1');
-			expect(text).toContain('  Title: Foo');
-			expect(text).toContain('  Latest revision ID: 101');
-			expect(text).toContain('  Content model: wikitext');
-			expect(text).toContain('  Source: body');
+			// No requestedTitle when it equals the resolved title.
+			expect(text).not.toContain('Requested title:');
+			const data = assertStructuredData(result);
+			expect(data.pages[0]).not.toHaveProperty('requestedTitle');
+			expect(text).toContain('Page ID: 1');
+			expect(text).toContain('Title: Foo');
+			expect(text).toContain('Latest revision ID: 101');
+			expect(text).toContain('Content model: wikitext');
+			expect(text).toContain('Source: body');
 			expect(text).not.toContain('Redirected from:');
 		});
 
@@ -262,9 +276,11 @@ describe('get-pages', () => {
 			);
 
 			const text = assertStructuredSuccess(result);
-			const requestedTitles = [...text.matchAll(/Requested title: (.+)/g)].map((m) => m[1]);
-			expect(requestedTitles).toHaveLength(1);
-			expect(text).toContain('  Page ID: 1');
+			const data = assertStructuredData(result);
+			expect(data.pages).toHaveLength(1);
+			// No requestedTitle when it equals the resolved title.
+			expect(data.pages[0]).not.toHaveProperty('requestedTitle');
+			expect(text).toContain('Page ID: 1');
 			expect(text).not.toContain('Source:');
 		});
 
@@ -287,9 +303,11 @@ describe('get-pages', () => {
 				ctx,
 			);
 
-			const text = assertStructuredSuccess(result);
-			const requestedTitles = [...text.matchAll(/Requested title: (.+)/g)].map((m) => m[1]);
-			expect(requestedTitles).toHaveLength(1);
+			assertStructuredSuccess(result);
+			const data = assertStructuredData(result);
+			expect(data.pages).toHaveLength(1);
+			// No requestedTitle when it equals the resolved title.
+			expect(data.pages[0]).not.toHaveProperty('requestedTitle');
 		});
 
 		it('mwn.massQuery throws → isError with wrapped message via dispatcher', async () => {
@@ -333,10 +351,14 @@ describe('get-pages', () => {
 			);
 
 			const text = assertStructuredSuccess(result);
+			// requestedTitle present because requested ('Src') differs from resolved ('Tgt').
 			expect(text).toContain('Requested title: Src');
 			expect(text).toContain('  Title: Tgt');
 			expect(text).toContain('  Redirected from: Src');
 			expect(text).toContain('  Source: target body');
+			const data = assertStructuredData(result);
+			expect(data.pages[0]).toHaveProperty('requestedTitle', 'Src');
+			expect(data.pages[0]).toHaveProperty('redirectedFrom', 'Src');
 		});
 
 		it('normalization only: no redirectedFrom', async () => {
@@ -360,9 +382,13 @@ describe('get-pages', () => {
 			);
 
 			const text = assertStructuredSuccess(result);
+			// requestedTitle present because requested ('foo') differs from resolved ('Foo').
 			expect(text).toContain('Requested title: foo');
 			expect(text).toContain('  Title: Foo');
 			expect(text).not.toContain('Redirected from:');
+			const data = assertStructuredData(result);
+			expect(data.pages[0]).toHaveProperty('requestedTitle', 'foo');
+			expect(data.pages[0]).not.toHaveProperty('redirectedFrom');
 		});
 
 		it('normalized-then-redirect chain: redirectedFrom is the requested title', async () => {
@@ -387,9 +413,13 @@ describe('get-pages', () => {
 			);
 
 			const text = assertStructuredSuccess(result);
+			// requestedTitle present because requested ('main page') differs from resolved ('Target').
 			expect(text).toContain('Requested title: main page');
 			expect(text).toContain('  Title: Target');
 			expect(text).toContain('  Redirected from: main page');
+			const data = assertStructuredData(result);
+			expect(data.pages[0]).toHaveProperty('requestedTitle', 'main page');
+			expect(data.pages[0]).toHaveProperty('redirectedFrom', 'main page');
 		});
 
 		it('redirect to missing target: requested title reported as missing', async () => {
@@ -440,9 +470,11 @@ describe('get-pages', () => {
 				ctx,
 			);
 
-			const text = assertStructuredSuccess(result);
-			const requestedTitles = [...text.matchAll(/Requested title: (.+)/g)].map((m) => m[1]);
-			expect(requestedTitles).toEqual(['Alias1']);
+			assertStructuredSuccess(result);
+			// One entry emitted; requestedTitle present because 'Alias1' differs from resolved 'Target'.
+			const data = assertStructuredData(result);
+			expect(data.pages).toHaveLength(1);
+			expect(data.pages[0]).toHaveProperty('requestedTitle', 'Alias1');
 		});
 	});
 
@@ -471,10 +503,13 @@ describe('get-pages', () => {
 			);
 
 			const text = assertStructuredSuccess(result);
-			expect(text).toContain('Requested title: Main Page');
-			expect(text).toContain('  Title: Main Page');
-			expect(text).toContain('  Source: #REDIRECT [[Target]]');
+			// No requestedTitle when it equals the resolved title.
+			expect(text).not.toContain('Requested title:');
+			expect(text).toContain('Title: Main Page');
+			expect(text).toContain('Source: #REDIRECT [[Target]]');
 			expect(text).not.toContain('Redirected from:');
+			const data = assertStructuredData(result);
+			expect(data.pages[0]).not.toHaveProperty('requestedTitle');
 		});
 
 		it('mwn.read throws → isError with wrapped message via dispatcher', async () => {
@@ -527,7 +562,8 @@ describe('get-pages', () => {
 			);
 
 			const text = assertStructuredSuccess(result);
-			expect(text).toMatch(/Requested title: Big[\s\S]*?Source:\n\nx{50000}\n {2}Truncation:/);
+			// No requestedTitle when title equals the requested title; first field is pageId.
+			expect(text).toMatch(/Page ID: 1[\s\S]*?Source:\n\nx{50000}\n {2}Truncation:/);
 			expect(text).toContain('    Reason: content-truncated');
 			expect(text).toContain('    Returned bytes: 50000');
 			expect(text).toContain('    Total bytes: 50001');
