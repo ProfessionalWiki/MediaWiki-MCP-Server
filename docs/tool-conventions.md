@@ -19,6 +19,10 @@ Anthropic's engineering guidance recommends consolidating multiple actions into 
 
 This codebase follows **one job per tool** (separate `create-page`, `update-page`, `delete-page`, `undelete-page`, etc.). Do not consolidate when adding new tools; match the existing pattern. This is an explicit choice, not an oversight.
 
+#### Tool names
+
+Tool names are verb-noun kebab-case (`get-page`, `create-page`, `list-wikis`). The identity-introspection tool is named `whoami` as a deliberate exception: it is a widely recognised idiom for "who is the current authenticated principal," and it answers a question about the session rather than fetching a named resource. Do not rename it to `get-*` for consistency.
+
 ### Descriptions
 
 #### Voice and opening
