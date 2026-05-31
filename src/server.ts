@@ -63,7 +63,7 @@ export const createServer = async (ctx: ToolContext): Promise<McpServer> => {
 		await reconcileTools(tools, {
 			wikiRegistry: ctx.wikis,
 			transport: ctx.transport,
-			extensions: ctx.extensions,
+			wikiProbe: ctx.wikiProbe,
 			extensionPacks,
 		});
 		// Notify clients that the wiki resource list may have changed (e.g. after

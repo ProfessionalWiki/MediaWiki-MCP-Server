@@ -3,7 +3,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
-import type { ExtensionDetector } from '../../src/wikis/extensionDetector.js';
+import type { WikiProbe } from '../../src/wikis/wikiProbe.js';
 import { reconcileTools } from '../../src/runtime/reconcile.js';
 import { extensionPacks } from '../../src/tools/extensions/index.js';
 import { registerAllTools } from '../../src/tools/index.js';
@@ -64,9 +64,9 @@ async function connectClientAndServer(): Promise<{ client: Client; server: McpSe
 		get: () => ({ key: currentKey(), config: wikiStore.current }),
 		getDefaultKey: () => currentKey(),
 	};
-	const fakeDetector: ExtensionDetector = {
-		has: vi.fn(async () => false),
-		hasAny: vi.fn(async () => false),
+	const fakeProbe: WikiProbe = {
+		hasExtension: vi.fn(async () => false),
+		hasAnyExtension: vi.fn(async () => false),
 		inspect: vi.fn(async () => ({ reachable: true, extensions: new Set<string>() })),
 		invalidate: vi.fn(),
 	};
@@ -74,7 +74,7 @@ async function connectClientAndServer(): Promise<{ client: Client; server: McpSe
 		reconcileTools(tools, {
 			wikiRegistry: wikiRegistryMock,
 			transport: 'stdio',
-			extensions: fakeDetector,
+			wikiProbe: fakeProbe,
 			extensionPacks,
 		});
 	const ctx = fakeContext({

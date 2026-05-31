@@ -174,7 +174,7 @@ export const getSiteInfo: Tool<typeof inputSchema> = {
 			general.case,
 		);
 
-		const { extensions } = await ctx.extensions.inspect(key);
+		const { extensions } = await ctx.wikiProbe.inspect(key);
 		const siteInfo = await resolveSiteInfo(ctx, key);
 
 		const result: Record<string, unknown> = {

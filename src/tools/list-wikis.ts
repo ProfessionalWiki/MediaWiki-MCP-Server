@@ -3,7 +3,6 @@ import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
 import { extensionPacks } from './extensions/index.js';
 import { fetchMetadata } from '../auth/metadata.js';
-import { resolveSiteInfo } from '../wikis/siteInfo.js';
 
 interface WikiSummary {
 	key: string;
@@ -39,8 +38,11 @@ export const listWikis: Tool<Record<string, never>> = {
 		const wikis: WikiSummary[] = await Promise.all(
 			Object.keys(all).map(async (key): Promise<WikiSummary> => {
 				const config = all[key];
-				const { server: publicServer } = await resolveSiteInfo(ctx, key);
-				const { reachable, extensions } = await ctx.extensions.inspect(key);
+				// Discovery reads only the anonymous probe — no credential
+				// resolution or login. The probe reports the wiki's live public
+				// server; fall back to the configured server when it is unreachable.
+				const { reachable, extensions, server } = await ctx.wikiProbe.inspect(key);
+				const publicServer = server ?? config.server;
 				const extensionTools: string[] = [];
 				for (const pack of extensionPacks) {
 					if (pack.extensionNames.some((name) => extensions.has(name))) {

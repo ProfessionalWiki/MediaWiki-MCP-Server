@@ -70,12 +70,12 @@ export async function checkWikiCapability(
 	}
 	const pack = PACK_BY_TOOL.get(toolName);
 	if (pack) {
-		const present = await ctx.extensions.hasAny(wikiKey, pack.extensionNames);
+		const present = await ctx.wikiProbe.hasAnyExtension(wikiKey, pack.extensionNames);
 		if (!present) {
-			// hasAny is false both when the extension is absent and when the
-			// probe failed; inspect() (same cache entry) tells them apart so the
+			// hasAnyExtension is false both when the extension is absent and when
+			// the probe failed; inspect() (same cache entry) tells them apart so the
 			// error doesn't claim "not installed" for a wiki that is merely down.
-			const { reachable } = await ctx.extensions.inspect(wikiKey);
+			const { reachable } = await ctx.wikiProbe.inspect(wikiKey);
 			const reason = reachable
 				? `The ${pack.extensionNames[0]} extension is not installed on wiki "${wikiKey}".`
 				: `Wiki "${wikiKey}" could not be reached to check for the ${pack.extensionNames[0]} extension.`;

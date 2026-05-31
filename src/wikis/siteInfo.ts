@@ -1,5 +1,6 @@
 import type { ToolContext } from '../runtime/context.js';
 import type { SiteInfo, LicenseInfo, SiteInfoCache } from './siteInfoCache.js';
+import { normalizeServer } from './normalizeServer.js';
 
 interface SiteInfoApiResponse {
 	query?: {
@@ -11,16 +12,10 @@ interface SiteInfoApiResponse {
 // In-flight resolutions, so concurrent cold-cache misses for the same wiki
 // (e.g. a get-pages or search-page batch building one URL per result) share a
 // single siteinfo request instead of issuing one each. Mirrors the inflight
-// idiom in extensionDetector.ts. Keyed by the cache instance via a WeakMap so
+// idiom in wikiProbe.ts. Keyed by the cache instance via a WeakMap so
 // each ToolContext — and each test — is isolated, and entries are dropped with
 // their cache rather than leaking.
 const inflightByCache = new WeakMap<SiteInfoCache, Map<string, Promise<SiteInfo>>>();
-
-// MediaWiki's siteinfo.general.server may be protocol-relative ("//host");
-// normalize to https, matching the convention in src/transport/ssrfGuard.ts.
-function normalizeServer(server: string): string {
-	return server.startsWith('//') ? 'https:' + server : server;
-}
 
 async function fetchSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInfo> {
 	// config.server/articlepath are required strings on a known wiki, so the

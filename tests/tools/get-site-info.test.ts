@@ -44,9 +44,9 @@ function ctxWith(
 			set: () => {},
 			delete: () => {},
 		},
-		extensions: {
-			has: (async () => false) as never,
-			hasAny: (async () => false) as never,
+		wikiProbe: {
+			hasExtension: (async () => false) as never,
+			hasAnyExtension: (async () => false) as never,
 			inspect: (async () => ({
 				reachable: opts.reachable ?? true,
 				extensions: opts.extensions ?? new Set<string>(),

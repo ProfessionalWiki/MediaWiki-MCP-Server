@@ -32,9 +32,9 @@ function ctx(
 			remove: (() => {}) as never,
 			isManagementAllowed: () => true,
 		},
-		extensions: {
-			has: (async () => hasExt) as never,
-			hasAny: (async () => hasExt) as never,
+		wikiProbe: {
+			hasExtension: (async () => hasExt) as never,
+			hasAnyExtension: (async () => hasExt) as never,
 			invalidate: (() => {}) as never,
 			inspect: (async () => ({ reachable, extensions: new Set<string>() })) as never,
 		},
