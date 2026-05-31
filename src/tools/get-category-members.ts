@@ -41,7 +41,7 @@ const inputSchema = {
 export const getCategoryMembers: Tool<typeof inputSchema> = {
 	name: 'get-category-members',
 	description:
-		"Lists members of a category, returning each member's page ID, namespace ID, and wiki page title. Optionally filter by member type (page, file, subcat) or by namespace ID — filters apply server-side before the cap. Returns up to 500 members per call; paginate with continueFrom (opaque cursor echoed from the previous response).",
+		"Lists members of a category, returning each member's page ID, namespace ID, and wiki page title. Optionally filter by member type (page, file, subcat) or by namespace ID — filters apply server-side before the cap. Returns up to 500 members per call; paginate with continueFrom (opaque cursor echoed from the previous response). A member's type is omitted when it is an ordinary page (present only for files and subcategories).",
 	inputSchema,
 	annotations: {
 		title: 'Get category members',
@@ -96,7 +96,7 @@ export const getCategoryMembers: Tool<typeof inputSchema> = {
 				title: m.title,
 				pageId: m.pageid,
 				namespace: m.ns,
-				...(m.type !== undefined ? { type: m.type } : {}),
+				...(m.type !== undefined && m.type !== 'page' ? { type: m.type } : {}),
 			})),
 			...(truncation !== null ? { truncation } : {}),
 		});

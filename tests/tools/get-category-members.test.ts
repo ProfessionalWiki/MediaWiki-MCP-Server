@@ -3,7 +3,11 @@ import { createMockMwn } from '../helpers/mock-mwn.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 import { getCategoryMembers } from '../../src/tools/get-category-members.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
+import {
+	assertStructuredData,
+	assertStructuredError,
+	assertStructuredSuccess,
+} from '../helpers/structuredResult.js';
 
 describe('get-category-members', () => {
 	it('prefixes a bare category name with "Category:" for cmtitle', async () => {
@@ -66,7 +70,7 @@ describe('get-category-members', () => {
 		});
 	});
 
-	it('returns each member as a structured entry with type surfaced', async () => {
+	it('returns each member as a structured entry with type omitted for pages', async () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({
 				query: {
@@ -86,7 +90,7 @@ describe('get-category-members', () => {
 		expect(text).toContain('Title: Alpha');
 		expect(text).toContain('Page ID: 1');
 		expect(text).toContain('Namespace: 0');
-		expect(text).toContain('Type: page');
+		expect(text).not.toContain('Type: page');
 		expect(text).toContain('Title: File:Bar.png');
 		expect(text).toContain('Page ID: 2');
 		expect(text).toContain('Namespace: 6');
@@ -164,5 +168,28 @@ describe('get-category-members', () => {
 
 		const envelope = assertStructuredError(result, 'upstream_failure');
 		expect(envelope.message).toContain('API error');
+	});
+
+	it('omits type for ordinary page members but keeps it for files and subcats', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				query: {
+					categorymembers: [
+						{ pageid: 1, ns: 0, title: 'Plain page', type: 'page' },
+						{ pageid: 2, ns: 6, title: 'File:F.png', type: 'file' },
+						{ pageid: 3, ns: 14, title: 'Category:Sub', type: 'subcat' },
+					],
+				},
+			}),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+		const data = assertStructuredData(
+			await dispatch(getCategoryMembers, ctx)({ category: 'C' } as never),
+		);
+		const [p, f, s] = data.members as Record<string, unknown>[];
+		expect(p).not.toHaveProperty('type');
+		expect(p).toMatchObject({ title: 'Plain page', pageId: 1, namespace: 0 });
+		expect(f).toHaveProperty('type', 'file');
+		expect(s).toHaveProperty('type', 'subcat');
 	});
 });
