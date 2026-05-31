@@ -62,14 +62,14 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 				},
 			};
 		})() as never,
-		extensions: {
-			has: throws('extensions.has') as never,
-			// The dispatch() capability guard calls hasAny for extension-pack
-			// tools; default to "present" so plain tool tests aren't blocked.
-			// Tests that exercise the guard override this explicitly.
-			hasAny: (async () => true) as never,
-			inspect: throws('extensions.inspect') as never,
-			invalidate: throws('extensions.invalidate') as never,
+		wikiProbe: {
+			hasExtension: throws('wikiProbe.hasExtension') as never,
+			// The dispatch() capability guard calls hasAnyExtension for
+			// extension-pack tools; default to "present" so plain tool tests aren't
+			// blocked. Tests that exercise the guard override this explicitly.
+			hasAnyExtension: (async () => true) as never,
+			inspect: throws('wikiProbe.inspect') as never,
+			invalidate: throws('wikiProbe.invalidate') as never,
 		},
 		sections: { list: throws('sections.list') as never },
 		edit: {

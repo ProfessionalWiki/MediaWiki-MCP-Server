@@ -16,10 +16,14 @@ const wikiConfig = {
 	scriptpath: '/w',
 } as never;
 
+// Shared so every test can assert listing never resolves credentials.
+const mwnSpy = vi.fn();
+
 function ctxWith(
 	extByWiki: Record<string, Set<string>>,
 	unreachable: Set<string> = new Set(),
 	wikis: Record<string, unknown> = { 'test-wiki': wikiConfig, 'cargo.wiki': wikiConfig },
+	serverByWiki: Record<string, string> = {},
 ) {
 	return fakeContext({
 		wikis: {
@@ -33,13 +37,17 @@ function ctxWith(
 			get: () => ({ key: 'test-wiki', config: wikiConfig }),
 			getDefaultKey: () => 'test-wiki',
 		},
-		extensions: {
-			has: (async () => false) as never,
-			hasAny: (async () => false) as never,
+		// list-wikis must never authenticate; route mwn through a spy so any
+		// accidental credential resolution is caught.
+		mwn: mwnSpy as never,
+		wikiProbe: {
+			hasExtension: (async () => false) as never,
+			hasAnyExtension: (async () => false) as never,
 			invalidate: (() => {}) as never,
 			inspect: (async (k: string) => ({
 				reachable: !unreachable.has(k),
 				extensions: extByWiki[k] ?? new Set<string>(),
+				...(serverByWiki[k] !== undefined ? { server: serverByWiki[k] } : {}),
 			})) as never,
 		},
 	});
@@ -52,6 +60,7 @@ function wikisOf(result: CallToolResult): Array<Record<string, unknown>> {
 describe('list-wikis', () => {
 	beforeEach(() => {
 		fetchMetadata.mockReset();
+		mwnSpy.mockReset();
 	});
 
 	it('returns every configured wiki with key, isDefault, readOnly, reachable', async () => {
@@ -110,46 +119,31 @@ describe('list-wikis', () => {
 		expect(fetchMetadata).not.toHaveBeenCalled();
 	});
 
-	it('reports the public siteinfo server, overriding the configured server', async () => {
-		const mock = {
-			request: vi.fn().mockResolvedValue({
-				query: { general: { server: 'https://public.example', articlepath: '/wiki/$1' } },
-			}),
-		};
-		const emptyMap = new Map();
-		const ctx = fakeContext({
-			wikis: {
-				getAll: () => ({ 'test-wiki': wikiConfig }) as never,
-				get: ((k: string) => (k === 'test-wiki' ? wikiConfig : undefined)) as never,
-				add: (() => {}) as never,
-				remove: (() => {}) as never,
-				isManagementAllowed: () => true,
+	it('reports the public server from the probe, overriding the configured server', async () => {
+		const ctx = ctxWith(
+			{},
+			new Set(),
+			{ 'test-wiki': wikiConfig },
+			{
+				'test-wiki': 'https://public.example',
 			},
-			activeWiki: {
-				get: () => ({ key: 'test-wiki', config: wikiConfig }),
-				getDefaultKey: () => 'test-wiki',
-			},
-			extensions: {
-				has: (async () => false) as never,
-				hasAny: (async () => false) as never,
-				invalidate: (() => {}) as never,
-				inspect: (async () => ({ reachable: true, extensions: new Set<string>() })) as never,
-			},
-			mwn: (async () => mock) as never,
-			siteInfoCache: {
-				get: (k: string) => emptyMap.get(k),
-				set: (k: string, v: unknown) => {
-					emptyMap.set(k, v);
-				},
-				delete: (k: string) => {
-					emptyMap.delete(k);
-				},
-			} as never,
-		});
-
+		);
 		const result = await dispatch(listWikis, ctx)({} as never);
 		const wiki = wikisOf(result).find((w) => w.key === 'test-wiki')!;
 		expect(wiki.server).toBe('https://public.example');
+	});
+
+	it('falls back to the configured server when the probe reports none', async () => {
+		// serverByWiki empty → the probe omits server → config.server is used.
+		const ctx = ctxWith({}, new Set(), { 'test-wiki': wikiConfig });
+		const result = await dispatch(listWikis, ctx)({} as never);
+		expect(wikisOf(result).find((w) => w.key === 'test-wiki')!.server).toBe('https://test.wiki');
+	});
+
+	it('lists wikis without resolving credentials — never calls ctx.mwn', async () => {
+		const ctx = ctxWith({ 'cargo.wiki': new Set(['Cargo']) });
+		await dispatch(listWikis, ctx)({} as never);
+		expect(mwnSpy).not.toHaveBeenCalled();
 	});
 
 	it('omits authorizationServer for a wiki whose metadata fetch fails, without failing the call', async () => {

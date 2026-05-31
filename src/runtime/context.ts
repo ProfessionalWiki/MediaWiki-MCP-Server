@@ -4,7 +4,7 @@ import type { ActiveWiki } from '../wikis/activeWiki.js';
 import type { UploadDirs } from '../wikis/uploadDirs.js';
 import type { WikiCache } from '../wikis/wikiCache.js';
 import type { SiteInfoCache } from '../wikis/siteInfoCache.js';
-import type { ExtensionDetector } from '../wikis/extensionDetector.js';
+import type { WikiProbe } from '../wikis/wikiProbe.js';
 import type { SectionService } from '../services/sectionService.js';
 import type { EditService } from '../services/editService.js';
 import type { RevisionNormalizer } from '../services/revisionNormalize.js';
@@ -19,7 +19,7 @@ export interface ToolContext {
 	readonly uploadDirs: UploadDirs;
 	readonly wikiCache: WikiCache;
 	readonly siteInfoCache: SiteInfoCache;
-	readonly extensions: ExtensionDetector;
+	readonly wikiProbe: WikiProbe;
 	readonly sections: SectionService;
 	readonly edit: EditService;
 	readonly revision: RevisionNormalizer;

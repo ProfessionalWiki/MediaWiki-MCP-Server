@@ -7,7 +7,7 @@ export interface ExtensionPack {
 
 	/** MediaWiki extension names accepted as proof the pack applies to the
 	 *  active wiki. Multiple entries handle aliases (Cargo / LIBRARIAN). The
-	 *  pack is allowed iff `extensions.hasAny(activeWikiKey, extensionNames)`. */
+	 *  pack is allowed iff `wikiProbe.hasAnyExtension(activeWikiKey, extensionNames)`. */
 	readonly extensionNames: readonly string[];
 
 	/** Tools provided by this pack. The unifying property is the gate, not the

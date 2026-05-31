@@ -1,7 +1,7 @@
 import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { WikiConfig } from '../config/loadConfig.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
-import type { ExtensionDetector } from '../wikis/extensionDetector.js';
+import type { WikiProbe } from '../wikis/wikiProbe.js';
 import type { ExtensionPack } from '../tools/extensions/types.js';
 import { WRITE_TOOL_NAMES } from './wikiCapability.js';
 
@@ -10,7 +10,7 @@ export type Reconcile = () => Promise<void>;
 export interface ReconcileDeps {
 	readonly wikiRegistry: WikiRegistry;
 	readonly transport: 'http' | 'stdio';
-	readonly extensions: ExtensionDetector;
+	readonly wikiProbe: WikiProbe;
 	readonly extensionPacks: readonly ExtensionPack[];
 }
 
@@ -19,7 +19,7 @@ export interface ReconcileContext {
 	readonly wikiCount: number;
 	readonly allowManagement: boolean;
 	readonly transport: 'http' | 'stdio';
-	readonly extensions: ExtensionDetector;
+	readonly wikiProbe: WikiProbe;
 }
 
 export interface ToolGatingRule {
@@ -72,7 +72,7 @@ function buildExtensionRules(packs: readonly ExtensionPack[]): readonly ToolGati
 		// that lacks it.
 		isAllowed: async (c) => {
 			const results = await Promise.all(
-				Object.keys(c.allWikis).map((key) => c.extensions.hasAny(key, pack.extensionNames)),
+				Object.keys(c.allWikis).map((key) => c.wikiProbe.hasAnyExtension(key, pack.extensionNames)),
 			);
 			return results.some((r) => r);
 		},
@@ -86,7 +86,7 @@ function buildContext(deps: ReconcileDeps): ReconcileContext {
 		wikiCount: Object.keys(allWikis).length,
 		allowManagement: deps.wikiRegistry.isManagementAllowed(),
 		transport: deps.transport,
-		extensions: deps.extensions,
+		wikiProbe: deps.wikiProbe,
 	};
 }
 

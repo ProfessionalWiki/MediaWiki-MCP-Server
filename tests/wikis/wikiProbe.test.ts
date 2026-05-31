@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ExtensionDetectorImpl } from '../../src/wikis/extensionDetector.js';
+import { WikiProbeImpl } from '../../src/wikis/wikiProbe.js';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 import { fakeClock } from '../helpers/fakeClock.js';
@@ -31,7 +31,7 @@ beforeEach(() => {
 	vi.mocked(makeApiRequest).mockReset();
 });
 
-describe('ExtensionDetectorImpl', () => {
+describe('WikiProbeImpl', () => {
 	it('returns true when the named extension is present in siteinfo.extensions', async () => {
 		vi.mocked(makeApiRequest).mockResolvedValueOnce({
 			query: {
@@ -42,23 +42,23 @@ describe('ExtensionDetectorImpl', () => {
 			},
 		});
 		const clock = fakeClock();
-		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
 
-		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(true);
-		expect(await detector.has('a', 'OAuth')).toBe(true);
-		expect(await detector.has('a', 'NonExistent')).toBe(false);
+		expect(await probe.hasExtension('a', 'SemanticMediaWiki')).toBe(true);
+		expect(await probe.hasExtension('a', 'OAuth')).toBe(true);
+		expect(await probe.hasExtension('a', 'NonExistent')).toBe(false);
 	});
 
-	it('issues exactly one HTTP request for multiple has() calls within TTL', async () => {
+	it('issues exactly one HTTP request for multiple hasExtension() calls within TTL', async () => {
 		vi.mocked(makeApiRequest).mockResolvedValueOnce({
 			query: { extensions: [{ name: 'SemanticMediaWiki' }] },
 		});
 		const clock = fakeClock();
-		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
 
-		await detector.has('a', 'SemanticMediaWiki');
-		await detector.has('a', 'SemanticMediaWiki');
-		await detector.has('a', 'OAuth');
+		await probe.hasExtension('a', 'SemanticMediaWiki');
+		await probe.hasExtension('a', 'SemanticMediaWiki');
+		await probe.hasExtension('a', 'OAuth');
 
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(1);
 	});
@@ -68,11 +68,11 @@ describe('ExtensionDetectorImpl', () => {
 			.mockResolvedValueOnce({ query: { extensions: [{ name: 'SemanticMediaWiki' }] } })
 			.mockResolvedValueOnce({ query: { extensions: [] } });
 		const clock = fakeClock();
-		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
 
-		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(true);
+		expect(await probe.hasExtension('a', 'SemanticMediaWiki')).toBe(true);
 		clock.advance(60 * 60 * 1000 + 1); // 1h + 1ms
-		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(false);
+		expect(await probe.hasExtension('a', 'SemanticMediaWiki')).toBe(false);
 
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(2);
 	});
@@ -80,12 +80,12 @@ describe('ExtensionDetectorImpl', () => {
 	it('caches a failed sentinel for 60 seconds on probe failure', async () => {
 		vi.mocked(makeApiRequest).mockRejectedValueOnce(new Error('network down'));
 		const clock = fakeClock();
-		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
 
-		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(false);
+		expect(await probe.hasExtension('a', 'SemanticMediaWiki')).toBe(false);
 		// Within 60s, no re-probe.
 		clock.advance(30_000);
-		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(false);
+		expect(await probe.hasExtension('a', 'SemanticMediaWiki')).toBe(false);
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(1);
 
 		// After 60s, retry.
@@ -93,7 +93,7 @@ describe('ExtensionDetectorImpl', () => {
 		vi.mocked(makeApiRequest).mockResolvedValueOnce({
 			query: { extensions: [{ name: 'SemanticMediaWiki' }] },
 		});
-		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(true);
+		expect(await probe.hasExtension('a', 'SemanticMediaWiki')).toBe(true);
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(2);
 	});
 
@@ -106,11 +106,11 @@ describe('ExtensionDetectorImpl', () => {
 				}),
 		);
 		const clock = fakeClock();
-		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
 
-		const p1 = detector.has('a', 'SemanticMediaWiki');
-		const p2 = detector.has('a', 'OAuth');
-		const p3 = detector.has('a', 'NotInstalled');
+		const p1 = probe.hasExtension('a', 'SemanticMediaWiki');
+		const p2 = probe.hasExtension('a', 'OAuth');
+		const p3 = probe.hasExtension('a', 'NotInstalled');
 
 		// All three calls share one in-flight probe.
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(1);
@@ -126,27 +126,27 @@ describe('ExtensionDetectorImpl', () => {
 			.mockResolvedValueOnce({ query: { extensions: [{ name: 'SemanticMediaWiki' }] } })
 			.mockResolvedValueOnce({ query: { extensions: [] } });
 		const clock = fakeClock();
-		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
 
-		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(true);
-		detector.invalidate('a');
-		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(false);
+		expect(await probe.hasExtension('a', 'SemanticMediaWiki')).toBe(true);
+		probe.invalidate('a');
+		expect(await probe.hasExtension('a', 'SemanticMediaWiki')).toBe(false);
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(2);
 	});
 
 	it('builds the API URL from server + scriptpath + /api.php', async () => {
 		vi.mocked(makeApiRequest).mockResolvedValueOnce({ query: { extensions: [] } });
 		const clock = fakeClock();
-		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
 
-		await detector.has('a', 'SemanticMediaWiki');
+		await probe.hasExtension('a', 'SemanticMediaWiki');
 
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledWith(
 			'https://test.wiki/w/api.php',
 			expect.objectContaining({
 				action: 'query',
 				meta: 'siteinfo',
-				siprop: 'extensions',
+				siprop: 'extensions|general|rightsinfo',
 				format: 'json',
 			}),
 			expect.objectContaining({ signal: expect.any(AbortSignal) }),
@@ -161,77 +161,77 @@ describe('ExtensionDetectorImpl', () => {
 		abortError.name = 'TimeoutError';
 		vi.mocked(makeApiRequest).mockRejectedValueOnce(abortError);
 		const clock = fakeClock();
-		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
 
-		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(false);
-		const result = await detector.inspect('a');
+		expect(await probe.hasExtension('a', 'SemanticMediaWiki')).toBe(false);
+		const result = await probe.inspect('a');
 		expect(result.reachable).toBe(false);
 		expect(result.extensions.size).toBe(0);
 	});
 
 	it('returns false when the wiki key is unknown', async () => {
 		const clock = fakeClock();
-		const detector = new ExtensionDetectorImpl(makeRegistry({}), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({}), clock.now);
 
-		expect(await detector.has('unknown', 'SemanticMediaWiki')).toBe(false);
+		expect(await probe.hasExtension('unknown', 'SemanticMediaWiki')).toBe(false);
 		expect(vi.mocked(makeApiRequest)).not.toHaveBeenCalled();
 	});
 
 	it('treats malformed responses as probe failures', async () => {
 		vi.mocked(makeApiRequest).mockResolvedValueOnce({ query: undefined });
 		const clock = fakeClock();
-		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
 
-		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(false);
+		expect(await probe.hasExtension('a', 'SemanticMediaWiki')).toBe(false);
 		// 60s short backoff applies.
 		clock.advance(30_000);
-		expect(await detector.has('a', 'SemanticMediaWiki')).toBe(false);
+		expect(await probe.hasExtension('a', 'SemanticMediaWiki')).toBe(false);
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(1);
 	});
 
-	describe('hasAny', () => {
+	describe('hasAnyExtension', () => {
 		it('returns true when any of the given names matches', async () => {
 			vi.mocked(makeApiRequest).mockResolvedValueOnce({
 				query: { extensions: [{ name: 'LIBRARIAN' }] },
 			});
-			const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }));
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
 
-			expect(await detector.hasAny('a', ['Cargo', 'LIBRARIAN'])).toBe(true);
+			expect(await probe.hasAnyExtension('a', ['Cargo', 'LIBRARIAN'])).toBe(true);
 		});
 
 		it('returns false when none of the given names match', async () => {
 			vi.mocked(makeApiRequest).mockResolvedValueOnce({
 				query: { extensions: [{ name: 'OAuth' }] },
 			});
-			const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }));
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
 
-			expect(await detector.hasAny('a', ['Cargo', 'LIBRARIAN'])).toBe(false);
+			expect(await probe.hasAnyExtension('a', ['Cargo', 'LIBRARIAN'])).toBe(false);
 		});
 
 		it('returns false on probe failure', async () => {
 			vi.mocked(makeApiRequest).mockRejectedValueOnce(new Error('network down'));
-			const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }));
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
 
-			expect(await detector.hasAny('a', ['Cargo', 'LIBRARIAN'])).toBe(false);
+			expect(await probe.hasAnyExtension('a', ['Cargo', 'LIBRARIAN'])).toBe(false);
 		});
 
 		it('returns false on an empty names list', async () => {
 			vi.mocked(makeApiRequest).mockResolvedValueOnce({
 				query: { extensions: [{ name: 'Cargo' }] },
 			});
-			const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }));
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
 
-			expect(await detector.hasAny('a', [])).toBe(false);
+			expect(await probe.hasAnyExtension('a', [])).toBe(false);
 		});
 
-		it('shares the same cache as has()', async () => {
+		it('shares the same cache as hasExtension()', async () => {
 			vi.mocked(makeApiRequest).mockResolvedValueOnce({
 				query: { extensions: [{ name: 'LIBRARIAN' }] },
 			});
-			const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }));
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
 
-			expect(await detector.has('a', 'OAuth')).toBe(false);
-			expect(await detector.hasAny('a', ['Cargo', 'LIBRARIAN'])).toBe(true);
+			expect(await probe.hasExtension('a', 'OAuth')).toBe(false);
+			expect(await probe.hasAnyExtension('a', ['Cargo', 'LIBRARIAN'])).toBe(true);
 			expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(1);
 		});
 	});
@@ -241,9 +241,9 @@ describe('ExtensionDetectorImpl', () => {
 			query: { extensions: [{ name: 'Cargo' }, { name: 'OAuth' }] },
 		});
 		const clock = fakeClock();
-		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
 
-		const result = await detector.inspect('a');
+		const result = await probe.inspect('a');
 		expect(result.reachable).toBe(true);
 		expect([...result.extensions].sort()).toEqual(['Cargo', 'OAuth']);
 	});
@@ -251,22 +251,89 @@ describe('ExtensionDetectorImpl', () => {
 	it('inspect returns reachable=false with an empty set when the probe fails', async () => {
 		vi.mocked(makeApiRequest).mockRejectedValueOnce(new Error('network down'));
 		const clock = fakeClock();
-		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
 
-		const result = await detector.inspect('a');
+		const result = await probe.inspect('a');
 		expect(result.reachable).toBe(false);
 		expect(result.extensions.size).toBe(0);
 	});
 
-	it('inspect reuses the cache — no second HTTP request after has()', async () => {
+	it('inspect reuses the cache — no second HTTP request after hasExtension()', async () => {
 		vi.mocked(makeApiRequest).mockResolvedValueOnce({
 			query: { extensions: [{ name: 'Cargo' }] },
 		});
 		const clock = fakeClock();
-		const detector = new ExtensionDetectorImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
 
-		await detector.has('a', 'Cargo');
-		await detector.inspect('a');
+		await probe.hasExtension('a', 'Cargo');
+		await probe.inspect('a');
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(1);
+	});
+
+	describe('public identity', () => {
+		it('inspect surfaces server, articlepath, and license from siteinfo', async () => {
+			vi.mocked(makeApiRequest).mockResolvedValueOnce({
+				query: {
+					extensions: [{ name: 'Cargo' }],
+					general: { server: 'https://public.example', articlepath: '/wiki/$1' },
+					rightsinfo: {
+						url: 'https://creativecommons.org/licenses/by-sa/4.0/',
+						text: 'CC BY-SA 4.0',
+					},
+				},
+			});
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
+
+			const result = await probe.inspect('a');
+			expect(result.reachable).toBe(true);
+			expect(result.server).toBe('https://public.example');
+			expect(result.articlepath).toBe('/wiki');
+			expect(result.license).toEqual({
+				url: 'https://creativecommons.org/licenses/by-sa/4.0/',
+				title: 'CC BY-SA 4.0',
+			});
+		});
+
+		it('normalizes a protocol-relative server to https', async () => {
+			vi.mocked(makeApiRequest).mockResolvedValueOnce({
+				query: { extensions: [], general: { server: '//public.example' } },
+			});
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
+
+			expect((await probe.inspect('a')).server).toBe('https://public.example');
+		});
+
+		it('omits identity fields absent from siteinfo on an otherwise successful probe', async () => {
+			vi.mocked(makeApiRequest).mockResolvedValueOnce({
+				query: { extensions: [{ name: 'Cargo' }] },
+			});
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
+
+			const result = await probe.inspect('a');
+			expect(result.reachable).toBe(true);
+			expect(result.server).toBeUndefined();
+			expect(result.articlepath).toBeUndefined();
+			expect(result.license).toBeUndefined();
+		});
+
+		it('omits the license when rightsinfo lacks a url or text', async () => {
+			vi.mocked(makeApiRequest).mockResolvedValueOnce({
+				query: { extensions: [], rightsinfo: { text: 'All rights reserved' } },
+			});
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
+
+			expect((await probe.inspect('a')).license).toBeUndefined();
+		});
+
+		it('omits identity fields when the probe fails', async () => {
+			vi.mocked(makeApiRequest).mockRejectedValueOnce(new Error('network down'));
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
+
+			const result = await probe.inspect('a');
+			expect(result.reachable).toBe(false);
+			expect(result.server).toBeUndefined();
+			expect(result.articlepath).toBeUndefined();
+			expect(result.license).toBeUndefined();
+		});
 	});
 });

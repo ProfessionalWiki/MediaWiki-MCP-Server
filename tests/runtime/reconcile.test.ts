@@ -3,7 +3,7 @@ import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
 import type { ActiveWiki } from '../../src/wikis/activeWiki.js';
-import type { ExtensionDetector } from '../../src/wikis/extensionDetector.js';
+import type { WikiProbe } from '../../src/wikis/wikiProbe.js';
 import { reconcileTools, computeDesiredEnabledState } from '../../src/runtime/reconcile.js';
 import type { ToolGatingRule, ReconcileContext } from '../../src/runtime/reconcile.js';
 import type { ExtensionPack } from '../../src/tools/extensions/types.js';
@@ -110,10 +110,12 @@ function makeMocks({
 	return { registry, activeWiki };
 }
 
-function makeFakeDetector(answers: Record<string, boolean> = {}): ExtensionDetector {
+function makeFakeProbe(answers: Record<string, boolean> = {}): WikiProbe {
 	return {
-		has: vi.fn(async (wikiKey: string, name: string) => answers[`${wikiKey}:${name}`] ?? false),
-		hasAny: vi.fn(async (wikiKey: string, names: readonly string[]) =>
+		hasExtension: vi.fn(
+			async (wikiKey: string, name: string) => answers[`${wikiKey}:${name}`] ?? false,
+		),
+		hasAnyExtension: vi.fn(async (wikiKey: string, names: readonly string[]) =>
 			names.some((name) => answers[`${wikiKey}:${name}`] ?? false),
 		),
 		inspect: vi.fn(async () => ({ reachable: true, extensions: new Set<string>() })),
@@ -156,7 +158,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		for (const name of WRITE_TOOL_NAMES) {
@@ -176,7 +178,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		for (const name of NON_WRITE_TOOL_NAMES) {
@@ -196,7 +198,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		for (const name of WRITE_TOOL_NAMES) {
@@ -215,7 +217,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		for (const name of WRITE_TOOL_NAMES) {
@@ -230,7 +232,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: m1.registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		for (const m of mocks.values()) {
@@ -241,7 +243,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: m2.registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		for (const m of mocks.values()) {
@@ -263,7 +265,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 			reconcileTools(tools, {
 				wikiRegistry: registry,
 				transport: 'stdio',
-				extensions: makeFakeDetector(),
+				wikiProbe: makeFakeProbe(),
 				extensionPacks: ALL_PACKS,
 			}),
 		).resolves.not.toThrow();
@@ -287,7 +289,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		for (const name of ['add-wiki', 'remove-wiki']) {
@@ -305,7 +307,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('add-wiki')!.enable).toHaveBeenCalledTimes(1);
@@ -322,7 +324,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		for (const name of ['add-wiki', 'remove-wiki']) {
@@ -340,7 +342,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: m1.registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('remove-wiki')!.enabled).toBe(false);
@@ -353,7 +355,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: m2.registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('remove-wiki')!.enabled).toBe(true);
@@ -369,7 +371,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: m1.registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('remove-wiki')!.enabled).toBe(true);
@@ -382,7 +384,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: m2.registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('remove-wiki')!.enabled).toBe(false);
@@ -400,7 +402,7 @@ describe('reconcileTools — applyListWikisRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('list-wikis')!.disable).toHaveBeenCalledTimes(1);
@@ -417,7 +419,7 @@ describe('reconcileTools — applyListWikisRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('list-wikis')!.disable).toHaveBeenCalledTimes(1);
@@ -433,7 +435,7 @@ describe('reconcileTools — applyListWikisRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('list-wikis')!.enable).toHaveBeenCalledTimes(1);
@@ -450,7 +452,7 @@ describe('reconcileTools — applyListWikisRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: m1.registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('list-wikis')!.enabled).toBe(false);
@@ -463,7 +465,7 @@ describe('reconcileTools — applyListWikisRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: m2.registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('list-wikis')!.enabled).toBe(true);
@@ -479,7 +481,7 @@ describe('reconcileTools — applyListWikisRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: m1.registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('list-wikis')!.enabled).toBe(true);
@@ -492,7 +494,7 @@ describe('reconcileTools — applyListWikisRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: m2.registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('list-wikis')!.enabled).toBe(false);
@@ -510,7 +512,7 @@ describe('reconcileTools — applyTransportRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'http',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		for (const name of STDIO_ONLY_TOOL_NAMES) {
@@ -529,7 +531,7 @@ describe('reconcileTools — applyTransportRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		for (const name of STDIO_ONLY_TOOL_NAMES) {
@@ -548,7 +550,7 @@ describe('reconcileTools — applyTransportRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		for (const name of STDIO_ONLY_TOOL_NAMES) {
@@ -566,7 +568,7 @@ describe('reconcileTools — applyTransportRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'http',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		for (const name of NON_WRITE_TOOL_NAMES) {
@@ -589,7 +591,7 @@ describe('reconcileTools — AND semantics across rules', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		// create-page is write-gated → disabled.
@@ -606,7 +608,7 @@ describe('reconcileTools — AND semantics across rules', () => {
 			wikiCount: 1,
 			allowManagement: true,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 		};
 		const slowAllow: ToolGatingRule = {
 			name: 'slow-allow',
@@ -640,7 +642,7 @@ describe('computeDesiredEnabledState — AND semantics for a single tool affecte
 		wikiCount: 1,
 		allowManagement: true,
 		transport: 'stdio',
-		extensions: makeFakeDetector(),
+		wikiProbe: makeFakeProbe(),
 	};
 
 	it('disables a tool when one of two affecting rules disallows, regardless of rule order', async () => {
@@ -724,7 +726,7 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector({}),
+			wikiProbe: makeFakeProbe({}),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('smw-query')!.disable).toHaveBeenCalledTimes(1);
@@ -742,7 +744,7 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector({ 'a:SemanticMediaWiki': true }),
+			wikiProbe: makeFakeProbe({ 'a:SemanticMediaWiki': true }),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('smw-query')!.enable).toHaveBeenCalledTimes(1);
@@ -752,9 +754,9 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 	it('queries the detector with the active wiki key', async () => {
 		const { tools } = makeToolMapWithSmw(false);
 		const hasAnySpy = vi.fn(async () => true);
-		const detector: ExtensionDetector = {
-			has: vi.fn(async () => false),
-			hasAny: hasAnySpy,
+		const probe: WikiProbe = {
+			hasExtension: vi.fn(async () => false),
+			hasAnyExtension: hasAnySpy,
 			inspect: vi.fn(async () => ({ reachable: true, extensions: new Set<string>() })),
 			invalidate: vi.fn(),
 		};
@@ -766,7 +768,7 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: detector,
+			wikiProbe: probe,
 			extensionPacks: ALL_PACKS,
 		});
 		expect(hasAnySpy).toHaveBeenCalledWith('a', ['SemanticMediaWiki']);
@@ -798,7 +800,7 @@ describe('reconcileTools — applyBucketExtensionRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector({}),
+			wikiProbe: makeFakeProbe({}),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('bucket-query')!.disable).toHaveBeenCalledTimes(1);
@@ -815,7 +817,7 @@ describe('reconcileTools — applyBucketExtensionRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector({ 'a:Bucket': true }),
+			wikiProbe: makeFakeProbe({ 'a:Bucket': true }),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('bucket-query')!.enable).toHaveBeenCalledTimes(1);
@@ -824,9 +826,9 @@ describe('reconcileTools — applyBucketExtensionRule', () => {
 	it('queries the detector with the active wiki key and ["Bucket"]', async () => {
 		const { tools } = makeToolMapWithBucket(false);
 		const hasAnySpy = vi.fn(async () => true);
-		const detector: ExtensionDetector = {
-			has: vi.fn(async () => false),
-			hasAny: hasAnySpy,
+		const probe: WikiProbe = {
+			hasExtension: vi.fn(async () => false),
+			hasAnyExtension: hasAnySpy,
 			inspect: vi.fn(async () => ({ reachable: true, extensions: new Set<string>() })),
 			invalidate: vi.fn(),
 		};
@@ -838,7 +840,7 @@ describe('reconcileTools — applyBucketExtensionRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: detector,
+			wikiProbe: probe,
 			extensionPacks: ALL_PACKS,
 		});
 		expect(hasAnySpy).toHaveBeenCalledWith('a', ['Bucket']);
@@ -870,7 +872,7 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector({}),
+			wikiProbe: makeFakeProbe({}),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('cargo-list-tables')!.disable).toHaveBeenCalledTimes(1);
@@ -889,7 +891,7 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector({ 'a:Cargo': true }),
+			wikiProbe: makeFakeProbe({ 'a:Cargo': true }),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('cargo-list-tables')!.enable).toHaveBeenCalledTimes(1);
@@ -900,9 +902,9 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 	it('queries the detector with the active wiki key and the canonical+wiki.gg names', async () => {
 		const { tools } = makeToolMapWithCargo(false);
 		const hasAnySpy = vi.fn(async () => true);
-		const detector: ExtensionDetector = {
-			has: vi.fn(async () => false),
-			hasAny: hasAnySpy,
+		const probe: WikiProbe = {
+			hasExtension: vi.fn(async () => false),
+			hasAnyExtension: hasAnySpy,
 			inspect: vi.fn(async () => ({ reachable: true, extensions: new Set<string>() })),
 			invalidate: vi.fn(),
 		};
@@ -914,7 +916,7 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: detector,
+			wikiProbe: probe,
 			extensionPacks: ALL_PACKS,
 		});
 		expect(hasAnySpy).toHaveBeenCalledWith('a', ['Cargo', 'LIBRARIAN']);
@@ -930,7 +932,7 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector({ 'a:LIBRARIAN': true }),
+			wikiProbe: makeFakeProbe({ 'a:LIBRARIAN': true }),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('cargo-list-tables')!.enable).toHaveBeenCalledTimes(1);
@@ -950,7 +952,7 @@ describe('reconcileTools — union gating', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector({ 'other:Cargo': true }),
+			wikiProbe: makeFakeProbe({ 'other:Cargo': true }),
 			extensionPacks: ALL_PACKS,
 		});
 		for (const name of ['cargo-query', 'cargo-list-tables', 'cargo-describe-table']) {
@@ -968,7 +970,7 @@ describe('reconcileTools — union gating', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector({}),
+			wikiProbe: makeFakeProbe({}),
 			extensionPacks: ALL_PACKS,
 		});
 		expect(mocks.get('cargo-query')!.enable).not.toHaveBeenCalled();
@@ -985,7 +987,7 @@ describe('reconcileTools — union gating', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		for (const name of WRITE_TOOL_NAMES) {
@@ -1004,7 +1006,7 @@ describe('reconcileTools — union gating', () => {
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
-			extensions: makeFakeDetector(),
+			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
 		for (const name of WRITE_TOOL_NAMES) {

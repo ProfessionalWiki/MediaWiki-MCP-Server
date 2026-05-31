@@ -5,7 +5,7 @@ import { ActiveWikiImpl, type ActiveWiki } from './activeWiki.js';
 import { UploadDirsImpl, type UploadDirs } from './uploadDirs.js';
 import { MwnProviderImpl, type MwnProvider } from './mwnProvider.js';
 import { SiteInfoCacheImpl, type SiteInfoCache } from './siteInfoCache.js';
-import { ExtensionDetectorImpl, type ExtensionDetector } from './extensionDetector.js';
+import { WikiProbeImpl, type WikiProbe } from './wikiProbe.js';
 
 export interface AppState {
 	readonly wikiRegistry: WikiRegistry;
@@ -13,7 +13,7 @@ export interface AppState {
 	readonly uploadDirs: UploadDirs;
 	readonly mwnProvider: MwnProvider;
 	readonly siteInfoCache: SiteInfoCache;
-	readonly extensionDetector: ExtensionDetector;
+	readonly wikiProbe: WikiProbe;
 }
 
 export function createAppState(config: Config): AppState {
@@ -22,6 +22,6 @@ export function createAppState(config: Config): AppState {
 	const uploadDirs = new UploadDirsImpl(config.uploadDirs);
 	const mwnProvider = new MwnProviderImpl(wikiRegistry, activeWiki, getRuntimeToken);
 	const siteInfoCache = new SiteInfoCacheImpl();
-	const extensionDetector = new ExtensionDetectorImpl(wikiRegistry);
-	return { wikiRegistry, activeWiki, uploadDirs, mwnProvider, siteInfoCache, extensionDetector };
+	const wikiProbe = new WikiProbeImpl(wikiRegistry);
+	return { wikiRegistry, activeWiki, uploadDirs, mwnProvider, siteInfoCache, wikiProbe };
 }

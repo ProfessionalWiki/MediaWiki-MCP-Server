@@ -164,9 +164,9 @@ describe('dispatch capability guard', () => {
 				get: () => ({ key: 'test-wiki', config: config as never }),
 				getDefaultKey: () => 'test-wiki',
 			},
-			extensions: {
-				has: (async () => false) as never,
-				hasAny: (async () => false) as never,
+			wikiProbe: {
+				hasExtension: (async () => false) as never,
+				hasAnyExtension: (async () => false) as never,
 				inspect: (async () => ({ reachable: true, extensions: new Set() })) as never,
 				invalidate: (() => {}) as never,
 			},

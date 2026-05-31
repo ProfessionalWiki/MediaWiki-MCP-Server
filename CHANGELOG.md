@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - The `list-wikis` tool is now hidden when only a single wiki is configured, where it has nothing to list and every call already defaults to that wiki. It appears once a second wiki is configured or added.
 - The timeout for an `exec`-backed credential command was raised from 10 to 30 seconds, giving an interactive unlock (such as a 1Password prompt) time to be approved. If the command still times out, the error now explains that approving the prompt and retrying re-runs it.
 - `exec`-backed credential commands now run one at a time instead of concurrently. Resolving secrets for several wikis at once (for example when listing wikis) previously launched every command together, so an interactive unlock such as a 1Password prompt appeared once per wiki; now the first command's unlock is reused by the rest, so a single prompt covers them all.
+- `list-wikis` no longer logs into or unlocks credentials for each configured wiki. It now reads each wiki's public site data anonymously, so listing wikis never triggers a credential prompt or a login — authentication happens only when you act on a wiki.
 
 ## [0.10.0] - 2026-05-30
 
