@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - List responses (`get-recent-changes`, `get-page-history`, `get-links-here`, `get-category-members`, `get-pages`) now omit default and empty fields to reduce response size: boolean flags appear only when `true`, empty comments and tag lists are dropped, recent changes report the size delta without the raw old/new lengths, a category member's `type` is omitted for ordinary pages, and `get-pages` omits `requestedTitle` when it matches the resolved title. Absent flags mean `false`.
 - The `list-wikis` tool is now hidden when only a single wiki is configured, where it has nothing to list and every call already defaults to that wiki. It appears once a second wiki is configured or added.
 - The timeout for an `exec`-backed credential command was raised from 10 to 30 seconds, giving an interactive unlock (such as a 1Password prompt) time to be approved. If the command still times out, the error now explains that approving the prompt and retrying re-runs it.
+- `exec`-backed credential commands now run one at a time instead of concurrently. Resolving secrets for several wikis at once (for example when listing wikis) previously launched every command together, so an interactive unlock such as a 1Password prompt appeared once per wiki; now the first command's unlock is reused by the rest, so a single prompt covers them all.
 
 ## [0.10.0] - 2026-05-30
 
