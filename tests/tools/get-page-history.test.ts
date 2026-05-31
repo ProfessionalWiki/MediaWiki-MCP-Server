@@ -3,7 +3,11 @@ import { createMockMwn } from '../helpers/mock-mwn.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 import { getPageHistory } from '../../src/tools/get-page-history.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
+import {
+	assertStructuredError,
+	assertStructuredSuccess,
+	assertStructuredData,
+} from '../helpers/structuredResult.js';
 
 describe('get-page-history', () => {
 	it('returns basic revision history', async () => {
@@ -39,7 +43,7 @@ describe('get-page-history', () => {
 		expect(text).toContain('Userid: 1');
 		expect(text).toContain('Comment: edit');
 		expect(text).toContain('Size: 500');
-		expect(text).toContain('Minor: false');
+		expect(text).not.toContain('Minor:');
 	});
 
 	it('maps olderThan to rvstartid (default rvdir=older) and skips boundary revision', async () => {
@@ -379,6 +383,55 @@ describe('get-page-history', () => {
 
 		const call = mock.request.mock.calls[0][0];
 		expect(call.rvdir).toBe('newer');
+	});
+
+	it('omits default minor flag, empty comment, and empty tags', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				query: {
+					pages: [
+						{
+							pageid: 1,
+							title: 'P',
+							revisions: [
+								{
+									revid: 5,
+									timestamp: '2026-01-01T00:00:00Z',
+									user: 'u',
+									userid: 2,
+									comment: '',
+									size: 10,
+									minor: false,
+									tags: [],
+								},
+								{
+									revid: 6,
+									timestamp: '2026-01-01T00:01:00Z',
+									user: 'u',
+									userid: 2,
+									comment: 'c',
+									size: 12,
+									minor: true,
+									tags: ['x'],
+								},
+							],
+						},
+					],
+				},
+			}),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+		const data = assertStructuredData(await dispatch(getPageHistory, ctx)({ title: 'P' } as never));
+		const [r0, r1] = data.revisions as Record<string, unknown>[];
+		expect(r0).not.toHaveProperty('minor');
+		expect(r0).not.toHaveProperty('comment');
+		expect(r0).not.toHaveProperty('tags');
+		expect(r0).toHaveProperty('revisionId', 5);
+		expect(r0).toHaveProperty('size', 10);
+		expect(r0).toHaveProperty('userid', 2);
+		expect(r1).toHaveProperty('minor', true);
+		expect(r1).toHaveProperty('comment', 'c');
+		expect(r1).toHaveProperty('tags', ['x']);
 	});
 
 	it('omits truncation when response.continue is absent', async () => {

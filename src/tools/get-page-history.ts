@@ -30,7 +30,7 @@ const inputSchema = {
 
 export const getPageHistory: Tool<typeof inputSchema> = {
 	name: 'get-page-history',
-	description: `Returns revision metadata (revision ID, timestamp, user, comment, size, minor flag) for a wiki page, in segments of ${PAGE_HISTORY_LIMIT} revisions, newest first. Paginate with olderThan or newerThan (mutually exclusive). If the title does not exist, an error is returned.`,
+	description: `Returns revision metadata (revision ID, timestamp, user, comment, size, minor flag) for a wiki page, in segments of ${PAGE_HISTORY_LIMIT} revisions, newest first. Paginate with olderThan or newerThan (mutually exclusive). If the title does not exist, an error is returned. Boolean flags appear only when true.`,
 	inputSchema,
 	annotations: {
 		title: 'Get page history',
@@ -109,16 +109,19 @@ export const getPageHistory: Tool<typeof inputSchema> = {
 		}
 
 		return ctx.format.ok({
-			revisions: filteredRevisions.map((r) => ({
-				revisionId: r.revid!,
-				timestamp: r.timestamp!,
-				user: r.user,
-				userid: r.userid,
-				comment: r.comment,
-				size: r.size,
-				minor: r.minor ?? false,
-				tags: (r as ApiRevision & { tags?: string[] }).tags,
-			})),
+			revisions: filteredRevisions.map((r) => {
+				const tags = (r as ApiRevision & { tags?: string[] }).tags;
+				return {
+					revisionId: r.revid!,
+					timestamp: r.timestamp!,
+					user: r.user,
+					userid: r.userid,
+					size: r.size,
+					...(r.comment ? { comment: r.comment } : {}),
+					...(r.minor ? { minor: true } : {}),
+					...(tags && tags.length > 0 ? { tags } : {}),
+				};
+			}),
 			...(truncation !== null ? { truncation } : {}),
 		});
 	},
