@@ -3,7 +3,11 @@ import { createMockMwn } from '../helpers/mock-mwn.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 import { getLinksHere, LinkType, RedirectFilter } from '../../src/tools/get-links-here.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
+import {
+	assertStructuredData,
+	assertStructuredError,
+	assertStructuredSuccess,
+} from '../helpers/structuredResult.js';
 
 // The SDK applies zod defaults in production; a direct handle() call does not,
 // and handle()'s arg type (zod output) makes defaulted fields required. This
@@ -222,5 +226,37 @@ describe('get-links-here', () => {
 
 		const envelope = assertStructuredError(result, 'upstream_failure');
 		expect(envelope.message).toContain('API boom');
+	});
+
+	it('omits the redirect flag when false', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				query: {
+					backlinks: [
+						{ pageid: 1, ns: 0, title: 'Plain', redirect: false },
+						{
+							pageid: 2,
+							ns: 0,
+							title: 'Redir',
+							redirect: true,
+							redirlinks: [{ pageid: 3, ns: 0, title: 'Via', redirect: false }],
+						},
+					],
+				},
+			}),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+		const data = assertStructuredData(
+			await dispatch(getLinksHere, ctx)({ title: 'T', type: 'wikilinks' } as never),
+		);
+		const links = data.links as Record<string, unknown>[];
+		const plain = links.find((l) => l.title === 'Plain')!;
+		const redir = links.find((l) => l.title === 'Redir')!;
+		const via = links.find((l) => l.title === 'Via')!;
+		expect(plain).not.toHaveProperty('redirect');
+		expect(plain).toMatchObject({ title: 'Plain', pageId: 1, namespace: 0 });
+		expect(redir).toHaveProperty('redirect', true);
+		expect(via).not.toHaveProperty('redirect');
+		expect(via).toHaveProperty('via', 'Redir');
 	});
 });
