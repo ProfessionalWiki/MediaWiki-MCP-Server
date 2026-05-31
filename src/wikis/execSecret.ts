@@ -24,6 +24,32 @@ function failureMessage(err: unknown, stderr: string, command: string, descripto
 	return `Could not resolve ${descriptor}: ${err instanceof Error ? err.message : typeof err === 'string' ? err : String(err)}`;
 }
 
+// Serialize exec-secret command runs process-wide. An interactive credential
+// helper — e.g. `op read` backed by the 1Password desktop app — prompts the
+// user to unlock on its first run; once that completes, the helper caches a
+// session that later runs reuse silently. Running them concurrently instead
+// races every run against that one unlock, so each prompts: resolving secrets
+// for N wikis at once (e.g. list-wikis fanning out over every wiki) yields N
+// dialogs. A single in-process queue collapses that to one prompt — the first
+// run unlocks, the rest reuse the warm session.
+//
+// The per-run timeout starts when execFile is invoked (on dequeue), not while
+// a run waits its turn, so a slow human unlock on the first prompt never eats
+// into a queued run's timeout budget.
+let queue: Promise<unknown> = Promise.resolve();
+
+function enqueue<T>(task: () => Promise<T>): Promise<T> {
+	const run = queue.then(task);
+	// Advance the chain past this run regardless of its outcome. The rejection
+	// handler here also marks `run`'s rejection as observed, so a caller that
+	// forgets to await never triggers an unhandled-rejection warning.
+	queue = run.then(
+		() => undefined,
+		() => undefined,
+	);
+	return run;
+}
+
 /**
  * Run an {exec:…} credential command and return its trimmed stdout.
  *
@@ -33,29 +59,36 @@ function failureMessage(err: unknown, stderr: string, command: string, descripto
  *
  * Uses the async (callback) form of execFile so a slow command never blocks
  * the Node event loop. The child's stdin is closed immediately so a command
- * that reads stdin sees EOF instead of hanging until the timeout. Failure
- * messages carry only the command name and truncated stderr — never stdout,
- * never the resolved secret.
+ * that reads stdin sees EOF instead of hanging until the timeout. Runs are
+ * serialized process-wide (see `enqueue`) so an interactive credential helper
+ * prompts once rather than once per concurrent resolution. Failure messages
+ * carry only the command name and truncated stderr — never stdout, never the
+ * resolved secret.
  */
 export async function runExecSecret(spec: ExecSecret, descriptor: string): Promise<string> {
 	const { command, args } = spec.exec;
-	const stdout = await new Promise<string>((resolve, reject) => {
-		const child = execFile(
-			command,
-			args,
-			{ timeout: TIMEOUT_MS, encoding: 'utf-8' },
-			(err, out, errOut) => {
-				if (err) {
-					reject(
-						new CredentialResolutionError(failureMessage(err, errOut ?? '', command, descriptor)),
-					);
-					return;
-				}
-				resolve(out);
-			},
-		);
-		child.stdin?.end();
-	});
+	const stdout = await enqueue(
+		() =>
+			new Promise<string>((resolve, reject) => {
+				const child = execFile(
+					command,
+					args,
+					{ timeout: TIMEOUT_MS, encoding: 'utf-8' },
+					(err, out, errOut) => {
+						if (err) {
+							reject(
+								new CredentialResolutionError(
+									failureMessage(err, errOut ?? '', command, descriptor),
+								),
+							);
+							return;
+						}
+						resolve(out);
+					},
+				);
+				child.stdin?.end();
+			}),
+	);
 
 	const trimmed = stdout.replace(/\r?\n+$/, '');
 	if (trimmed === '') {
