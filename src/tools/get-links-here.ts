@@ -78,7 +78,7 @@ const inputSchema = {
 export const getLinksHere: Tool<typeof inputSchema> = {
 	name: 'get-links-here',
 	description:
-		"Lists pages that reference a target wiki page, returning each referencing page's title, page ID, namespace ID, and whether it is a redirect. The type parameter selects the relationship — wikilinks (pages that link to the target), transclusions (pages that embed it, such as a template), or fileusage (pages that display it, for File pages) — one relationship per call. With expandRedirects, a referencing redirect also yields the pages that link through it (wikilinks and fileusage only), each tagged with the via redirect. Filter by namespace ID or by redirect status. For members of a category, use get-category-members; for full-text content search, use search-page. Returns up to 500 per call; paginate with continueFrom.",
+		"Lists pages that reference a target wiki page, returning each referencing page's title, page ID, namespace ID, and whether it is a redirect. The type parameter selects the relationship — wikilinks (pages that link to the target), transclusions (pages that embed it, such as a template), or fileusage (pages that display it, for File pages) — one relationship per call. With expandRedirects, a referencing redirect also yields the pages that link through it (wikilinks and fileusage only), each tagged with the via redirect. Filter by namespace ID or by redirect status. For members of a category, use get-category-members; for full-text content search, use search-page. Returns up to 500 per call; paginate with continueFrom. The redirect flag appears only when the referencing page is a redirect.",
 	inputSchema,
 	annotations: {
 		title: 'Get links here',
@@ -135,13 +135,13 @@ export const getLinksHere: Tool<typeof inputSchema> = {
 				title: entry.title,
 				pageId: entry.pageid,
 				namespace: entry.ns,
-				redirect: entry.redirect ?? false,
+				...(entry.redirect ? { redirect: true } : {}),
 			};
 			const indirect = (entry.redirlinks ?? []).map((child) => ({
 				title: child.title,
 				pageId: child.pageid,
 				namespace: child.ns,
-				redirect: child.redirect ?? false,
+				...(child.redirect ? { redirect: true } : {}),
 				via: entry.title,
 			}));
 			return [base, ...indirect];

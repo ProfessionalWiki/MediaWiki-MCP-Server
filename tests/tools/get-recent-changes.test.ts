@@ -4,7 +4,11 @@ import { fakeContext } from '../helpers/fakeContext.js';
 import type { ToolContext } from '../../src/runtime/context.js';
 import { getRecentChanges } from '../../src/tools/get-recent-changes.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
+import {
+	assertStructuredData,
+	assertStructuredError,
+	assertStructuredSuccess,
+} from '../helpers/structuredResult.js';
 
 const RC_PROP = 'user|userid|comment|flags|timestamp|title|ids|sizes|tags|loginfo';
 
@@ -197,8 +201,8 @@ describe('get-recent-changes — payload shape', () => {
 		expect(text).toContain('Userid: 42');
 		expect(text).toContain('Revision ID: 1234567');
 		expect(text).toContain('Old revision ID: 1234500');
-		expect(text).toContain('Newlen: 1523');
-		expect(text).toContain('Oldlen: 1500');
+		expect(text).not.toContain('Newlen:');
+		expect(text).not.toContain('Oldlen:');
 		expect(text).toContain('Size delta: 23');
 		expect(text).toContain('Comment: typo fix');
 		expect(text).toContain('Minor: true');
@@ -377,6 +381,74 @@ describe('get-recent-changes — payload shape', () => {
 
 		const text = assertStructuredSuccess(result);
 		expect(text).not.toContain('Unpatrolled:');
+	});
+});
+
+describe('get-recent-changes — field trimming', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it('omits default and redundant fields', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				query: {
+					recentchanges: [
+						{
+							type: 'edit',
+							title: 'A',
+							timestamp: '2026-01-01T00:00:00Z',
+							user: 'U',
+							userid: 2,
+							revid: 10,
+							old_revid: 9,
+							newlen: 100,
+							oldlen: 90,
+							comment: '',
+							minor: false,
+							bot: false,
+							new: false,
+							tags: [],
+						},
+						{
+							type: 'edit',
+							title: 'B',
+							timestamp: '2026-01-01T00:01:00Z',
+							user: 'U2',
+							userid: 3,
+							revid: 12,
+							old_revid: 11,
+							newlen: 50,
+							oldlen: 70,
+							comment: 'real comment',
+							minor: true,
+							bot: false,
+							new: false,
+							tags: ['x'],
+						},
+					],
+				},
+			}),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+		const data = assertStructuredData(await dispatch(getRecentChanges, ctx)({} as never));
+		const [a, b] = data.changes as Record<string, unknown>[];
+		expect(a).not.toHaveProperty('minor');
+		expect(a).not.toHaveProperty('bot');
+		expect(a).not.toHaveProperty('isNew');
+		expect(a).not.toHaveProperty('anon');
+		expect(a).not.toHaveProperty('userhidden');
+		expect(a).not.toHaveProperty('commenthidden');
+		expect(a).not.toHaveProperty('comment');
+		expect(a).not.toHaveProperty('tags');
+		expect(a).not.toHaveProperty('oldlen');
+		expect(a).not.toHaveProperty('newlen');
+		expect(a).toHaveProperty('sizeDelta', 10);
+		expect(a).toHaveProperty('userid', 2);
+		expect(b).toHaveProperty('minor', true);
+		expect(b).toHaveProperty('comment', 'real comment');
+		expect(b).toHaveProperty('tags', ['x']);
+		expect(b).toHaveProperty('sizeDelta', -20);
 	});
 });
 
