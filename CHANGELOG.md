@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Added
 
 - NeoWiki integration: tools to explore a NeoWiki knowledge graph — list schemas, inspect a schema's properties, search subjects by name, fetch a subject or a page's subjects, and run read-only Cypher queries. Available on wikis with the NeoWiki extension installed.
+- NeoWiki write tools: create a subject on a page (as a child or the main subject), replace a subject's label and statements, delete a subject, set or clear a page's main subject, and dry-run validate a proposed subject before writing. The four write tools require the `edit` right on the target wiki; validation is read-only. Available on wikis with the NeoWiki extension installed.
 - `get-file-data` tool: returns a wiki file's image inline (base64) so clients that can't reach the wiki host can still send the image to the model for visual analysis. Returns a scaled rendition sized by `width`. Images and files MediaWiki can rasterize (SVG, PDF, DjVu) come back as an image; non-renderable types (audio, video, binaries) error and point to `get-file`.
 - `MCP_FILE_DATA_MAX_BYTES` environment variable: a hard ceiling on the encoded size of a `get-file-data` response (default 1 MB).
 - `whoami` tool: reports which account the current session is acting as on a wiki — the username, whether the session is anonymous, and the user groups it belongs to (optionally the full rights list). Use it to confirm who edits will be attributed to before writing, for example when creating a page under your own user namespace.

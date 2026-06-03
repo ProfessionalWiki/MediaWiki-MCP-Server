@@ -155,4 +155,65 @@ describe('neowikiRequest', () => {
 			neowikiRequest(mock as never, { method: 'POST', path: '/query/cypher', body: {} }),
 		).rejects.toMatchObject({ category: 'upstream_failure' });
 	});
+
+	it('sends a PUT to the right URL', async () => {
+		const mock = createMockMwn({
+			rawRequest: vi.fn().mockResolvedValue({ data: { status: 'updated', subjectId: 's1' } }),
+		});
+		await neowikiRequest(mock as never, {
+			method: 'PUT',
+			path: '/subject/s1',
+			body: { label: 'X', statements: {} },
+		});
+		const call = mock.rawRequest.mock.calls[0][0] as Record<string, unknown>;
+		expect(call.url).toBe('https://test.wiki/w/rest.php/neowiki/v0/subject/s1');
+		expect(call.method).toBe('PUT');
+	});
+
+	it('sends a DELETE and tolerates an empty body', async () => {
+		const mock = createMockMwn({ rawRequest: vi.fn().mockResolvedValue({ data: '' }) });
+		const out = await neowikiRequest(mock as never, { method: 'DELETE', path: '/subject/s1' });
+		const call = mock.rawRequest.mock.calls[0][0] as Record<string, unknown>;
+		expect(call.method).toBe('DELETE');
+		expect(out).toBe('');
+	});
+
+	it('injects X-CSRF-TOKEN when csrf is set, and omits it otherwise', async () => {
+		const withCsrf = createMockMwn({
+			getCsrfToken: vi.fn().mockResolvedValue('csrf-tok'),
+			rawRequest: vi.fn().mockResolvedValue({ data: {} }),
+		});
+		await neowikiRequest(withCsrf as never, { method: 'DELETE', path: '/subject/s1', csrf: true });
+		const h1 = (withCsrf.rawRequest.mock.calls[0][0] as { headers: Record<string, string> })
+			.headers;
+		expect(h1['X-CSRF-TOKEN']).toBe('csrf-tok');
+		expect(withCsrf.getCsrfToken).toHaveBeenCalledTimes(1);
+
+		const noCsrf = createMockMwn({ rawRequest: vi.fn().mockResolvedValue({ data: {} }) });
+		await neowikiRequest(noCsrf as never, { method: 'GET', path: '/schemas' });
+		const h2 = (noCsrf.rawRequest.mock.calls[0][0] as { headers: Record<string, string> }).headers;
+		expect(h2['X-CSRF-TOKEN']).toBeUndefined();
+		expect(noCsrf.getCsrfToken).not.toHaveBeenCalled();
+	});
+
+	it('maps the write {status:error,message} envelope by HTTP status', async () => {
+		const cases: Array<[number, string]> = [
+			[400, 'invalid_input'],
+			[403, 'permission_denied'],
+			[404, 'not_found'],
+			[409, 'conflict'],
+			[429, 'rate_limited'],
+			[500, 'upstream_failure'],
+		];
+		for (const [status, category] of cases) {
+			const mock = createMockMwn({
+				rawRequest: vi
+					.fn()
+					.mockRejectedValue(httpError(status, { status: 'error', message: 'bad' })),
+			});
+			await expect(
+				neowikiRequest(mock as never, { method: 'PUT', path: '/subject/s1', body: {}, csrf: true }),
+			).rejects.toMatchObject({ category, message: 'bad' });
+		}
+	});
 });
