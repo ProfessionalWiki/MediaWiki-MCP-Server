@@ -94,11 +94,11 @@ export async function neowikiRequest(mwn: Mwn, spec: NeoWikiRequestSpec): Promis
 	if (mwn.usingOAuth2 && typeof mwn.options.OAuth2AccessToken === 'string') {
 		headers.Authorization = `Bearer ${mwn.options.OAuth2AccessToken}`;
 	}
+	if (spec.csrf === true) {
+		headers['X-CSRF-TOKEN'] = await mwn.getCsrfToken();
+	}
 
 	try {
-		if (spec.csrf === true) {
-			headers['X-CSRF-TOKEN'] = await mwn.getCsrfToken();
-		}
 		const response = await mwn.rawRequest({
 			url,
 			method: spec.method,
@@ -149,14 +149,11 @@ function classifyNeoWikiError(err: unknown): NeoWikiApiError {
 		}
 	}
 
-	if (status === 404) {
-		return new NeoWikiApiError('not_found', 'NeoWiki resource not found.');
-	}
-	if (status === 403) {
-		return new NeoWikiApiError('permission_denied', 'Permission denied by NeoWiki.');
-	}
-	if (status === 429) {
-		return new NeoWikiApiError('rate_limited', 'NeoWiki rate limit exceeded.');
+	// Bodyless / unrecognised-shape responses: map by HTTP status the same way as
+	// the message-bearing branch above, so the two paths can't disagree.
+	const statusCategory = categoryForStatus(status);
+	if (statusCategory !== undefined) {
+		return new NeoWikiApiError(statusCategory, `NeoWiki request failed (HTTP ${status}).`);
 	}
 
 	// Covers both axios network errors (no .response — timeout, ECONNREFUSED) and unrecognised body shapes.

@@ -203,6 +203,7 @@ describe('neowikiRequest', () => {
 			[404, 'not_found'],
 			[409, 'conflict'],
 			[429, 'rate_limited'],
+			[500, 'upstream_failure'],
 		];
 		for (const [status, category] of cases) {
 			const mock = createMockMwn({
