@@ -76,13 +76,6 @@ Each pack's tools register only on wikis where its extension is installed.
 | `cargo-describe-table` | List a Cargo table's fields with their types and list-flags. |
 | `cargo-query` | Run a Cargo SQL-style query. |
 
-**[Semantic MediaWiki](https://www.mediawiki.org/wiki/Extension:Semantic_MediaWiki)**
-
-| Name | Description |
-|---|---|
-| `smw-list-properties` | List Semantic MediaWiki properties with copy-paste templates for `smw-query`. |
-| `smw-query` | Run a Semantic MediaWiki `#ask` query. |
-
 **[NeoWiki](https://neowiki.ai/)**
 
 | Name | Description |
@@ -93,6 +86,13 @@ Each pack's tools register only on wikis where its extension is installed.
 | `neowiki-search-subjects` | Find subject IDs by label within a schema. |
 | `neowiki-get-subject` | Fetch one subject's structured data by ID. |
 | `neowiki-get-page-subjects` | List the subjects attached to a wiki page. |
+
+**[Semantic MediaWiki](https://www.mediawiki.org/wiki/Extension:Semantic_MediaWiki)**
+
+| Name | Description |
+|---|---|
+| `smw-list-properties` | List Semantic MediaWiki properties with copy-paste templates for `smw-query`. |
+| `smw-query` | Run a Semantic MediaWiki `#ask` query. |
 
 ### Resources
 
