@@ -26,6 +26,23 @@ describe('extensionPacks', () => {
 		expect(bucket?.extensionNames).toEqual(['Bucket']);
 	});
 
+	it('exposes the eleven NeoWiki tools including the write tools', () => {
+		const neowiki = extensionPacks.find((p) => p.id === 'neowiki');
+		expect(neowiki?.tools.map((t) => t.name)).toEqual([
+			'neowiki-list-schemas',
+			'neowiki-get-schema',
+			'neowiki-cypher-query',
+			'neowiki-search-subjects',
+			'neowiki-get-subject',
+			'neowiki-get-page-subjects',
+			'neowiki-create-subject',
+			'neowiki-update-subject',
+			'neowiki-delete-subject',
+			'neowiki-set-main-subject',
+			'neowiki-validate-subject',
+		]);
+	});
+
 	it('all tool names across packs are unique', () => {
 		const allNames = extensionPacks.flatMap((p) => p.tools.map((t) => t.name));
 		expect(new Set(allNames).size).toBe(allNames.length);

@@ -86,6 +86,11 @@ Each pack's tools register only on wikis where its extension is installed.
 | `neowiki-search-subjects` | Find subject IDs by label within a schema. |
 | `neowiki-get-subject` | Fetch one subject's structured data by ID. |
 | `neowiki-get-page-subjects` | List the subjects attached to a wiki page. |
+| `neowiki-create-subject` | Create a subject (child or main) on a page. Requires the `edit` right. |
+| `neowiki-update-subject` | Replace a subject's label and statements. Requires the `edit` right. |
+| `neowiki-delete-subject` | Delete a subject by ID. Requires the `edit` right. |
+| `neowiki-set-main-subject` | Set or clear a page's main subject. Requires the `edit` right. |
+| `neowiki-validate-subject` | Dry-run validate a proposed subject and return violations. |
 
 **[Semantic MediaWiki](https://www.mediawiki.org/wiki/Extension:Semantic_MediaWiki)**
 
