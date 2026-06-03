@@ -5,7 +5,9 @@ import type { ToolContext } from '../../../runtime/context.js';
 import type { TruncationInfo } from '../../../results/truncation.js';
 import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.js';
 
-const PAGE_LIMIT = 500;
+// The /schemas endpoint caps `limit` at 50 (rejects higher with a 400).
+// Paginate beyond that via the offset carried in continueFrom.
+const PAGE_LIMIT = 50;
 
 const inputSchema = {
 	continueFrom: z

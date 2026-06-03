@@ -19,7 +19,7 @@ describe('neowiki-list-schemas', () => {
 
 		const url = (mock.rawRequest.mock.calls[0][0] as { url: string }).url;
 		expect(url).toContain('/rest.php/neowiki/v0/schemas?');
-		expect(url).toContain('limit=500');
+		expect(url).toContain('limit=50');
 		expect(url).toContain('offset=0');
 		expect(assertStructuredSuccess(result)).toContain('Company');
 		expect(result.structuredContent).toMatchObject({
