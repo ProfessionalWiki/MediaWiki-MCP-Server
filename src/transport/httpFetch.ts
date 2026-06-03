@@ -1,8 +1,25 @@
 import fetch, { Response, FetchError } from 'node-fetch';
 import { USER_AGENT } from '../runtime/constants.js';
+import { isErrnoException } from '../errors/isErrnoException.js';
 import { assertPublicDestination, buildPinnedAgent, SsrfValidationError } from './ssrfGuard.js';
 
 const MAX_REDIRECTS = 5;
+
+// Node syscall error codes that mean "the server could not reach the source"
+// (DNS failure, connection refused/reset, unreachable/timed-out). These should
+// rescue to wiki-side copy-upload — the wiki may reach a host the server can't.
+// DNS failures (ENOTFOUND/EAI_AGAIN) surface from assertPublicDestination's
+// lookup BEFORE node-fetch runs, so they arrive as plain Errors with a code
+// rather than as a node-fetch FetchError.
+const RESCUABLE_SYSCALL_CODES = new Set([
+	'ENOTFOUND',
+	'EAI_AGAIN',
+	'ECONNREFUSED',
+	'ECONNRESET',
+	'ETIMEDOUT',
+	'EHOSTUNREACH',
+	'ENETUNREACH',
+]);
 
 const DEFAULT_UPLOAD_MAX_BYTES = 100 * 1024 * 1024; // 100 MB
 const FETCH_TIMEOUT_MS = 30_000;
@@ -198,5 +215,13 @@ export function shouldRescueToWiki(error: unknown): boolean {
 	) {
 		return true;
 	}
-	return error instanceof Error && error.name === 'AbortError';
+	if (isErrnoException(error)) {
+		if (error.name === 'AbortError') {
+			return true;
+		}
+		if (typeof error.code === 'string' && RESCUABLE_SYSCALL_CODES.has(error.code)) {
+			return true;
+		}
+	}
+	return false;
 }

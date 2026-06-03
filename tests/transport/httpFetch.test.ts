@@ -253,4 +253,22 @@ describe('shouldRescueToWiki', () => {
 		expect(shouldRescueToWiki(abort)).toBe(true);
 		expect(shouldRescueToWiki(new Error('other'))).toBe(false);
 	});
+
+	it('rescues on Node reachability syscall codes (DNS / connection failures)', () => {
+		// DNS failure surfaces from assertPublicDestination's lookup, before
+		// node-fetch — a plain Error with a syscall code, not a FetchError.
+		const dnsFail = Object.assign(new Error('getaddrinfo ENOTFOUND src.example'), {
+			code: 'ENOTFOUND',
+		});
+		expect(shouldRescueToWiki(dnsFail)).toBe(true);
+		const transientDns = Object.assign(new Error('getaddrinfo EAI_AGAIN src.example'), {
+			code: 'EAI_AGAIN',
+		});
+		expect(shouldRescueToWiki(transientDns)).toBe(true);
+		const refused = Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+		expect(shouldRescueToWiki(refused)).toBe(true);
+		// A coded error that is NOT a reachability failure must not rescue.
+		const other = Object.assign(new Error('boom'), { code: 'EPERM' });
+		expect(shouldRescueToWiki(other)).toBe(false);
+	});
 });
