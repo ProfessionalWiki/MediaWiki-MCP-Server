@@ -109,6 +109,9 @@ describe('EditServiceImpl', () => {
 			tags: 'mcp-upload',
 		});
 		expect(params.file).toMatchObject({ name: 'F.png' });
+		// The file part must be a Buffer — form-data rejects a plain Readable
+		// (no known length) with "Unknown stream" at request time.
+		expect(Buffer.isBuffer(params.file.stream)).toBe(true);
 		expect(opts).toEqual({ headers: { 'Content-Type': 'multipart/form-data' } });
 	});
 });

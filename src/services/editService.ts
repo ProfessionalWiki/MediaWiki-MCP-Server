@@ -1,4 +1,3 @@
-import { Readable } from 'node:stream';
 import type { ApiParams, Mwn } from 'mwn';
 import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { ApiUploadResponse } from 'mwn';
@@ -17,10 +16,10 @@ export interface EditService {
 		params: ApiUploadParams,
 	): Promise<ApiUploadResponse>;
 
-	/** Uploads in-memory bytes (or a stream) via a multipart action=upload — parallel to submitUpload but without a local filepath. Injects CSRF token, tags, and ignorewarnings. */
+	/** Uploads in-memory bytes via a multipart action=upload — parallel to submitUpload but without a local filepath. Injects CSRF token, tags, and ignorewarnings. The bytes are passed to form-data as a Buffer (a plain Readable has no length and form-data rejects it with "Unknown stream"). */
 	submitUploadFromBytes(
 		mwn: Mwn,
-		data: Buffer | Readable,
+		data: Buffer,
 		filename: string,
 		title: string,
 		text: string,
@@ -62,7 +61,7 @@ export class EditServiceImpl implements EditService {
 
 	public async submitUploadFromBytes(
 		mwn: Mwn,
-		data: Buffer | Readable,
+		data: Buffer,
 		filename: string,
 		title: string,
 		text: string,
@@ -70,10 +69,12 @@ export class EditServiceImpl implements EditService {
 	): Promise<ApiUploadResponse> {
 		const token = await mwn.getCsrfToken();
 		const tags = this.activeWiki.get().config.tags;
-		const stream = data instanceof Buffer ? Readable.from(data) : data;
+		// Pass the Buffer straight to mwn's multipart `file` field. form-data sizes
+		// a Buffer directly; a Readable (e.g. Readable.from(buffer)) has no known
+		// length and form-data rejects it with "Unknown stream".
 		const fullParams: Record<string, unknown> = {
 			action: 'upload',
-			file: { stream, name: filename },
+			file: { stream: data, name: filename },
 			filename: title,
 			text,
 			ignorewarnings: true,
