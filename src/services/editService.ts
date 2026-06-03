@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream';
 import type { ApiParams, Mwn } from 'mwn';
 import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { ApiUploadResponse } from 'mwn';
@@ -11,6 +12,16 @@ export interface EditService {
 	submitUpload(
 		mwn: Mwn,
 		filepath: string,
+		title: string,
+		text: string,
+		params: ApiUploadParams,
+	): Promise<ApiUploadResponse>;
+
+	/** Uploads in-memory bytes (or a stream) via a multipart action=upload — parallel to submitUpload but without a local filepath. Injects CSRF token, tags, and ignorewarnings. */
+	submitUploadFromBytes(
+		mwn: Mwn,
+		data: Buffer | Readable,
+		filename: string,
 		title: string,
 		text: string,
 		params: ApiUploadParams,
@@ -47,6 +58,36 @@ export class EditServiceImpl implements EditService {
 			fullParams.tags = tags;
 		}
 		return mwn.upload(filepath, title, text, fullParams);
+	}
+
+	public async submitUploadFromBytes(
+		mwn: Mwn,
+		data: Buffer | Readable,
+		filename: string,
+		title: string,
+		text: string,
+		params: ApiUploadParams,
+	): Promise<ApiUploadResponse> {
+		const token = await mwn.getCsrfToken();
+		const tags = this.activeWiki.get().config.tags;
+		const stream = data instanceof Buffer ? Readable.from(data) : data;
+		const fullParams: Record<string, unknown> = {
+			action: 'upload',
+			file: { stream, name: filename },
+			filename: title,
+			text,
+			ignorewarnings: true,
+			token,
+			...params,
+		};
+		if (tags !== null && tags !== undefined) {
+			fullParams.tags = tags;
+		}
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn ApiParams shape; the multipart `file` field is mwn's documented upload form
+		const response = (await mwn.request(fullParams as ApiParams, {
+			headers: { 'Content-Type': 'multipart/form-data' },
+		})) as { upload: ApiUploadResponse };
+		return response.upload;
 	}
 
 	public applyTags<T extends Record<string, unknown>>(options: T): T {
