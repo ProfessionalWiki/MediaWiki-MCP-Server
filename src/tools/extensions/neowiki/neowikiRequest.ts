@@ -15,11 +15,17 @@ export class NeoWikiApiError extends Error {
 }
 
 export interface NeoWikiRequestSpec {
-	readonly method: 'GET' | 'POST';
-	/** Path under `/neowiki/v0`, already URL-encoded, e.g. `/schema/Person`. */
+	readonly method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+	/** Path under `/neowiki/v0`, already URL-encoded, e.g. `/subject/s1`. */
 	readonly path: string;
 	readonly query?: Record<string, string>;
 	readonly body?: unknown;
+	/**
+	 * When true, fetch a CSRF token via `mwn.getCsrfToken()` and send it as the
+	 * `X-CSRF-TOKEN` header NeoWiki requires on every mutating endpoint. Omit for
+	 * reads and the `validate` dry-runs, which take no token.
+	 */
+	readonly csrf?: boolean;
 }
 
 // NeoWiki's `errorType` strings are stable across releases (per query-api docs);
@@ -35,6 +41,27 @@ const ERROR_TYPE_TO_CATEGORY: Record<string, ErrorCategory> = {
 	backendUnavailable: 'upstream_failure',
 	internalError: 'upstream_failure',
 };
+
+// The write endpoints (create/replace/delete/set-main) use a different error
+// envelope than the read endpoints — `{ status: "error", message }` with no
+// `errorType`. Map those by HTTP status; 5xx and unknown fall through to
+// upstream_failure so the internal-exception sanitisation below is preserved.
+function categoryForStatus(status: number | undefined): ErrorCategory | undefined {
+	switch (status) {
+		case 400:
+			return 'invalid_input';
+		case 403:
+			return 'permission_denied';
+		case 404:
+			return 'not_found';
+		case 409:
+			return 'conflict';
+		case 429:
+			return 'rate_limited';
+		default:
+			return undefined;
+	}
+}
 
 function restBaseFrom(apiUrl: string): string {
 	// apiUrl is `${server}${scriptpath}/api.php`; NeoWiki REST lives at
@@ -69,6 +96,9 @@ export async function neowikiRequest(mwn: Mwn, spec: NeoWikiRequestSpec): Promis
 	}
 
 	try {
+		if (spec.csrf === true) {
+			headers['X-CSRF-TOKEN'] = await mwn.getCsrfToken();
+		}
 		const response = await mwn.rawRequest({
 			url,
 			method: spec.method,
@@ -115,7 +145,7 @@ function classifyNeoWikiError(err: unknown): NeoWikiApiError {
 		// Internal RuntimeException: { message, exception: {…backtrace…} }.
 		// Surface the message only — never the backtrace.
 		if (typeof record.message === 'string') {
-			return new NeoWikiApiError('upstream_failure', record.message);
+			return new NeoWikiApiError(categoryForStatus(status) ?? 'upstream_failure', record.message);
 		}
 	}
 
