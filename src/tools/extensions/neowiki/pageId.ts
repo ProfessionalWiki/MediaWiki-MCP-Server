@@ -20,6 +20,9 @@ export async function resolvePageId(
 	ref: { title?: string; pageId?: number },
 ): Promise<number | null> {
 	if (ref.pageId !== undefined) {
+		// A caller-supplied pageId is trusted and passed through unverified (no
+		// existence check) — the round-trip is skipped and a bad id surfaces as the
+		// downstream endpoint's 404. Only the title path resolves via the API.
 		return ref.pageId;
 	}
 	if (ref.title === undefined) {
