@@ -127,6 +127,22 @@ describe('upload-file-from-url', () => {
 		expect(mock.uploadFromUrl).not.toHaveBeenCalled();
 	});
 
+	it('surfaces a permissiondenied from the server-side upload as permission_denied (no rescue)', async () => {
+		const mock = createMockMwn({ uploadFromUrl: vi.fn() });
+		const submit = vi
+			.fn()
+			.mockRejectedValue(createMockMwnError('permissiondenied', 'You do not have permission'));
+		const ctx = ctxWithServerUpload(mock, submit);
+
+		const result = await dispatch(
+			uploadFileFromUrl,
+			ctx,
+		)({ url: 'https://source.example/cat.jpg', title: 'File:Cat.jpg', text: '' });
+
+		assertStructuredError(result, 'permission_denied');
+		expect(mock.uploadFromUrl).not.toHaveBeenCalled();
+	});
+
 	it('when server cannot reach AND wiki copy-uploads disabled, returns a combined upstream_failure', async () => {
 		vi.mocked(fetchFileBytes).mockRejectedValue(new FetchError('timeout', 'system'));
 		const mock = createMockMwn({
