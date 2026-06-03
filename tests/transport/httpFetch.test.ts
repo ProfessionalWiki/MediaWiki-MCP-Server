@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Response } from 'node-fetch';
 
 vi.mock('node-fetch', async () => {
 	const actual = await vi.importActual<typeof import('node-fetch')>('node-fetch');
@@ -9,14 +8,27 @@ vi.mock('node-fetch', async () => {
 	};
 });
 
-vi.mock('../../src/transport/ssrfGuard.js', () => ({
-	assertPublicDestination: vi.fn(),
-	buildPinnedAgent: vi.fn(),
-}));
+vi.mock('../../src/transport/ssrfGuard.js', async () => {
+	const actual = await vi.importActual<typeof import('../../src/transport/ssrfGuard.js')>(
+		'../../src/transport/ssrfGuard.js',
+	);
+	return { ...actual, assertPublicDestination: vi.fn(), buildPinnedAgent: vi.fn() };
+});
 
-import fetch from 'node-fetch';
-import { assertPublicDestination, buildPinnedAgent } from '../../src/transport/ssrfGuard.js';
-import { makeApiRequest, fetchPageHtml } from '../../src/transport/httpFetch.js';
+import fetch, { Response, FetchError } from 'node-fetch';
+import {
+	assertPublicDestination,
+	buildPinnedAgent,
+	SsrfValidationError,
+} from '../../src/transport/ssrfGuard.js';
+import {
+	makeApiRequest,
+	fetchPageHtml,
+	fetchFileBytes,
+	shouldRescueToWiki,
+	HttpStatusError,
+	FileTooLargeError,
+} from '../../src/transport/httpFetch.js';
 
 describe('utils.fetchCore (via makeApiRequest / fetchPageHtml)', () => {
 	beforeEach(() => {
@@ -188,5 +200,75 @@ describe('utils.fetchCore (via makeApiRequest / fetchPageHtml)', () => {
 		expect(
 			fetch.mock ? fetch.mock.calls.length : vi.mocked(fetch).mock.calls.length,
 		).toBeLessThanOrEqual(6);
+	});
+});
+
+describe('fetchFileBytes', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.mocked(assertPublicDestination).mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+		vi.mocked(buildPinnedAgent).mockReturnValue({ __pinned: true } as never);
+	});
+
+	it('returns the body bytes when under the cap', async () => {
+		vi.mocked(fetch).mockResolvedValueOnce(
+			new Response(Buffer.from('hello'), { status: 200, headers: { 'content-length': '5' } }),
+		);
+		const buf = await fetchFileBytes('https://src.example/cat.jpg', { maxBytes: 1024 });
+		expect(buf.toString()).toBe('hello');
+	});
+
+	it('throws FileTooLargeError when content-length exceeds the cap', async () => {
+		vi.mocked(fetch).mockResolvedValueOnce(
+			new Response(Buffer.from('hello'), { status: 200, headers: { 'content-length': '5' } }),
+		);
+		await expect(
+			fetchFileBytes('https://src.example/big.bin', { maxBytes: 3 }),
+		).rejects.toBeInstanceOf(FileTooLargeError);
+	});
+
+	it('throws FileTooLargeError when the streamed body exceeds the cap', async () => {
+		vi.mocked(fetch).mockResolvedValueOnce(new Response(Buffer.from('hello'), { status: 200 }));
+		await expect(
+			fetchFileBytes('https://src.example/big.bin', { maxBytes: 3 }),
+		).rejects.toBeInstanceOf(FileTooLargeError);
+	});
+
+	it('throws HttpStatusError on a non-2xx source response', async () => {
+		vi.mocked(fetch).mockResolvedValueOnce(new Response('nope', { status: 404 }));
+		await expect(fetchFileBytes('https://src.example/missing.jpg')).rejects.toBeInstanceOf(
+			HttpStatusError,
+		);
+	});
+});
+
+describe('shouldRescueToWiki', () => {
+	it('rescues on reachability/size failures, not on HTTP status', () => {
+		expect(shouldRescueToWiki(new HttpStatusError(404, 'https://x/'))).toBe(false);
+		expect(shouldRescueToWiki(new FileTooLargeError(10, 5))).toBe(true);
+		expect(shouldRescueToWiki(new SsrfValidationError('nope'))).toBe(true);
+		expect(shouldRescueToWiki(new FetchError('boom', 'system'))).toBe(true);
+		const abort = new Error('aborted');
+		abort.name = 'AbortError';
+		expect(shouldRescueToWiki(abort)).toBe(true);
+		expect(shouldRescueToWiki(new Error('other'))).toBe(false);
+	});
+
+	it('rescues on Node reachability syscall codes (DNS / connection failures)', () => {
+		// DNS failure surfaces from assertPublicDestination's lookup, before
+		// node-fetch — a plain Error with a syscall code, not a FetchError.
+		const dnsFail = Object.assign(new Error('getaddrinfo ENOTFOUND src.example'), {
+			code: 'ENOTFOUND',
+		});
+		expect(shouldRescueToWiki(dnsFail)).toBe(true);
+		const transientDns = Object.assign(new Error('getaddrinfo EAI_AGAIN src.example'), {
+			code: 'EAI_AGAIN',
+		});
+		expect(shouldRescueToWiki(transientDns)).toBe(true);
+		const refused = Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+		expect(shouldRescueToWiki(refused)).toBe(true);
+		// A coded error that is NOT a reachability failure must not rescue.
+		const other = Object.assign(new Error('boom'), { code: 'EPERM' });
+		expect(shouldRescueToWiki(other)).toBe(false);
 	});
 });

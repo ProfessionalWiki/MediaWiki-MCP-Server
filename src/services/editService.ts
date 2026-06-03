@@ -16,6 +16,16 @@ export interface EditService {
 		params: ApiUploadParams,
 	): Promise<ApiUploadResponse>;
 
+	/** Uploads in-memory bytes via a multipart action=upload — parallel to submitUpload but without a local filepath. Injects CSRF token, tags, and ignorewarnings. The bytes are passed to form-data as a Buffer (a plain Readable has no length and form-data rejects it with "Unknown stream"). */
+	submitUploadFromBytes(
+		mwn: Mwn,
+		data: Buffer,
+		filename: string,
+		title: string,
+		text: string,
+		params: ApiUploadParams,
+	): Promise<ApiUploadResponse>;
+
 	/** Pure helper: returns options with tags injected from the targeted wiki's config. Used by mwn.create/delete/undelete callers. */
 	applyTags<T extends Record<string, unknown>>(options: T): T;
 }
@@ -47,6 +57,38 @@ export class EditServiceImpl implements EditService {
 			fullParams.tags = tags;
 		}
 		return mwn.upload(filepath, title, text, fullParams);
+	}
+
+	public async submitUploadFromBytes(
+		mwn: Mwn,
+		data: Buffer,
+		filename: string,
+		title: string,
+		text: string,
+		params: ApiUploadParams,
+	): Promise<ApiUploadResponse> {
+		const token = await mwn.getCsrfToken();
+		const tags = this.activeWiki.get().config.tags;
+		// Pass the Buffer straight to mwn's multipart `file` field. form-data sizes
+		// a Buffer directly; a Readable (e.g. Readable.from(buffer)) has no known
+		// length and form-data rejects it with "Unknown stream".
+		const fullParams: Record<string, unknown> = {
+			action: 'upload',
+			file: { stream: data, name: filename },
+			filename: title,
+			text,
+			ignorewarnings: true,
+			token,
+			...params,
+		};
+		if (tags !== null && tags !== undefined) {
+			fullParams.tags = tags;
+		}
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn ApiParams shape; the multipart `file` field is mwn's documented upload form
+		const response = (await mwn.request(fullParams as ApiParams, {
+			headers: { 'Content-Type': 'multipart/form-data' },
+		})) as { upload: ApiUploadResponse };
+		return response.upload;
 	}
 
 	public applyTags<T extends Record<string, unknown>>(options: T): T {

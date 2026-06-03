@@ -5,6 +5,7 @@ import type { ApiUploadResponse } from 'mwn';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
 import { errorMessage } from '../errors/isErrnoException.js';
+import { fetchFileBytes, shouldRescueToWiki } from '../transport/httpFetch.js';
 import { formatEditComment, buildPageUrl } from '../wikis/utils.js';
 
 const inputSchema = {
@@ -17,7 +18,7 @@ const inputSchema = {
 export const uploadFileFromUrl: Tool<typeof inputSchema> = {
 	name: 'upload-file-from-url',
 	description:
-		"Fetches a file from a remote web URL and uploads it into the wiki's File namespace, returning the resulting file title and URL. The upload appears in the wiki's upload log. Requires the wiki to have upload-by-URL enabled; if it is disabled, download the file locally and use upload-file instead. Fails if a file with the target title already exists. To replace an existing file with a new revision, use update-file-from-url.",
+		"Fetches a file from a remote web URL and uploads it into the wiki's File namespace, returning the resulting file title and URL. The upload appears in the wiki's upload log. Works whether or not the wiki has upload-by-URL enabled: the server retrieves the file and uploads it directly, falling back to wiki-side fetching only when it cannot reach the URL itself. Fails if a file with the target title already exists. To replace an existing file with a new revision, use update-file-from-url.",
 	inputSchema,
 	annotations: {
 		title: 'Upload file from URL',
@@ -34,23 +35,39 @@ export const uploadFileFromUrl: Tool<typeof inputSchema> = {
 		const baseParams: ApiUploadParams = {
 			comment: formatEditComment('upload-file-from-url', comment),
 		};
-		const params = ctx.edit.applyTags<ApiUploadParams>(baseParams);
+
+		// Server-first: fetch the bytes ourselves (SSRF-guarded, size-capped) and
+		// upload via a normal multipart request, so the wiki needs no copy-upload
+		// config or upload_by_url right.
+		let bytes: Buffer | undefined;
+		try {
+			bytes = await fetchFileBytes(url);
+		} catch (error) {
+			if (!shouldRescueToWiki(error)) {
+				throw error;
+			}
+			// Reachability/size failure → fall through to wiki-side copy-upload.
+		}
 
 		let data: ApiUploadResponse;
-		try {
-			data = await mwn.uploadFromUrl(url, title, text, params);
-		} catch (error) {
-			const errorText = errorMessage(error);
-			// Prevent the LLM from attempting to find an existing image on the wiki
-			// after failing to upload by URL.
-			if (errorText.includes('copyuploaddisabled')) {
-				return ctx.format.error(
-					'invalid_input',
-					'Upload by URL is disabled on this wiki. Download the file locally, then use upload-file with the local file path.',
-					'copyuploaddisabled',
-				);
+		if (bytes !== undefined) {
+			const partName = title.replace(/^File:/, '');
+			data = await ctx.edit.submitUploadFromBytes(mwn, bytes, partName, title, text, baseParams);
+		} else {
+			const params = ctx.edit.applyTags<ApiUploadParams>(baseParams);
+			try {
+				data = await mwn.uploadFromUrl(url, title, text, params);
+			} catch (error) {
+				const errorText = errorMessage(error);
+				if (errorText.includes('copyuploaddisabled')) {
+					return ctx.format.error(
+						'upstream_failure',
+						`Could not retrieve the file from ${url}: the server could not reach it and the wiki has upload-by-URL disabled.`,
+						'copyuploaddisabled',
+					);
+				}
+				throw error;
 			}
-			throw error;
 		}
 
 		const imageinfo = (

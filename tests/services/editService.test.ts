@@ -82,4 +82,36 @@ describe('EditServiceImpl', () => {
 			tags: 'mcp-upload',
 		});
 	});
+
+	it('submitUploadFromBytes posts a multipart upload with token, tags, and ignorewarnings', async () => {
+		const mock = createMockMwn({
+			getCsrfToken: vi.fn().mockResolvedValue('CSRFTOKEN'),
+			request: vi.fn().mockResolvedValue({ upload: { result: 'Success', filename: 'F.png' } }),
+		});
+		const edit = new EditServiceImpl(fakeActiveWiki('mcp-upload'));
+		const result = await edit.submitUploadFromBytes(
+			mock as never,
+			Buffer.from('bytes'),
+			'F.png',
+			'File:F.png',
+			'desc',
+			{ comment: 'c' },
+		);
+		expect(result).toEqual({ result: 'Success', filename: 'F.png' });
+		const [params, opts] = mock.request.mock.calls[0];
+		expect(params).toMatchObject({
+			action: 'upload',
+			filename: 'File:F.png',
+			text: 'desc',
+			comment: 'c',
+			ignorewarnings: true,
+			token: 'CSRFTOKEN',
+			tags: 'mcp-upload',
+		});
+		expect(params.file).toMatchObject({ name: 'F.png' });
+		// The file part must be a Buffer — form-data rejects a plain Readable
+		// (no known length) with "Unknown stream" at request time.
+		expect(Buffer.isBuffer(params.file.stream)).toBe(true);
+		expect(opts).toEqual({ headers: { 'Content-Type': 'multipart/form-data' } });
+	});
 });
