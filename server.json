@@ -99,6 +99,12 @@
           "default": "stdio"
         },
         {
+          "name": "MCP_UPLOAD_MAX_BYTES",
+          "description": "Memory cap on the server-side fetch used by upload-file-from-url and update-file-from-url. Files larger than this are routed to the wiki's own copy-upload instead of being buffered by the server. Guards this server's memory, not the wiki's $wgMaxUploadSize.",
+          "format": "number",
+          "default": "104857600"
+        },
+        {
           "name": "PORT",
           "description": "Port used for StreamableHTTP transport",
           "format": "number",
@@ -195,6 +201,12 @@
             "http"
           ],
           "default": "stdio"
+        },
+        {
+          "name": "MCP_UPLOAD_MAX_BYTES",
+          "description": "Memory cap on the server-side fetch used by upload-file-from-url and update-file-from-url. Files larger than this are routed to the wiki's own copy-upload instead of being buffered by the server. Guards this server's memory, not the wiki's $wgMaxUploadSize.",
+          "format": "number",
+          "default": "104857600"
         },
         {
           "name": "PORT",

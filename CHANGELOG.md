@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `get-file-data` tool: returns a wiki file's image inline (base64) so clients that can't reach the wiki host can still send the image to the model for visual analysis. Returns a scaled rendition sized by `width`. Images and files MediaWiki can rasterize (SVG, PDF, DjVu) come back as an image; non-renderable types (audio, video, binaries) error and point to `get-file`.
 - `MCP_FILE_DATA_MAX_BYTES` environment variable: a hard ceiling on the encoded size of a `get-file-data` response (default 1 MB).
 - `whoami` tool: reports which account the current session is acting as on a wiki — the username, whether the session is anonymous, and the user groups it belongs to (optionally the full rights list). Use it to confirm who edits will be attributed to before writing, for example when creating a page under your own user namespace.
+- `MCP_UPLOAD_MAX_BYTES` environment variable: caps the size the server buffers when fetching a URL for `upload-file-from-url` / `update-file-from-url` (default 100 MB). Larger files are handed to the wiki's own copy-upload.
 
 ### Changed
 
@@ -19,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - The timeout for an `exec`-backed credential command was raised from 10 to 30 seconds, giving an interactive unlock (such as a 1Password prompt) time to be approved. If the command still times out, the error now explains that approving the prompt and retrying re-runs it.
 - `exec`-backed credential commands now run one at a time instead of concurrently. Resolving secrets for several wikis at once (for example when listing wikis) previously launched every command together, so an interactive unlock such as a 1Password prompt appeared once per wiki; now the first command's unlock is reused by the rest, so a single prompt covers them all.
 - `list-wikis` no longer logs into or unlocks credentials for each configured wiki. It now reads each wiki's public site data anonymously, so listing wikis never triggers a credential prompt or a login — authentication happens only when you act on a wiki.
+- `upload-file-from-url` and `update-file-from-url` now work on wikis without upload-by-URL enabled. The server fetches the file and uploads it directly, only asking the wiki to fetch the URL when the server cannot reach it (for example a private, server-unreachable address). Previously these tools failed unless the wiki had copy-uploads enabled and the account held the `upload_by_url` right.
 
 ## [0.10.0] - 2026-05-30
 
