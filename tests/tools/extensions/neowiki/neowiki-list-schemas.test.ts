@@ -19,6 +19,8 @@ describe('neowiki-list-schemas', () => {
 
 		const url = (mock.rawRequest.mock.calls[0][0] as { url: string }).url;
 		expect(url).toContain('/rest.php/neowiki/v0/schemas?');
+		expect(url).toContain('limit=500');
+		expect(url).toContain('offset=0');
 		expect(assertStructuredSuccess(result)).toContain('Company');
 		expect(result.structuredContent).toMatchObject({
 			schemas: [{ name: 'Company', propertyCount: 10 }],
@@ -37,5 +39,13 @@ describe('neowiki-list-schemas', () => {
 		expect(result.structuredContent).toMatchObject({
 			truncation: { reason: 'more-available', continueWith: { param: 'continueFrom', value: '1' } },
 		});
+	});
+
+	it('rejects a non-integer continueFrom', async () => {
+		const mock = createMockMwn({ rawRequest: vi.fn() });
+		const ctx = fakeContext({ mwn: async () => mock as never });
+		const result = await neowikiListSchemas.handle({ continueFrom: 'abc' }, ctx);
+		expect(result.isError).toBe(true);
+		expect(mock.rawRequest).not.toHaveBeenCalled();
 	});
 });
