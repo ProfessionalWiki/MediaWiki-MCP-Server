@@ -6,6 +6,7 @@ import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
 import { errorMessage } from '../errors/isErrnoException.js';
 import { assertFileExists, FileNotFoundError } from '../transport/fileExistence.js';
+import { fetchFileBytes, shouldRescueToWiki } from '../transport/httpFetch.js';
 import { formatEditComment, buildPageUrl } from '../wikis/utils.js';
 
 const inputSchema = {
@@ -17,7 +18,7 @@ const inputSchema = {
 export const updateFileFromUrl: Tool<typeof inputSchema> = {
 	name: 'update-file-from-url',
 	description:
-		"Fetches a file from a remote web URL and uploads it as a new revision of an existing file, preserving prior revisions in the file history, and returns the file title and URL. The upload appears in the wiki's upload log. Replaces the file content (bytes) only; for editing the wikitext on a file's description page, use update-page. Requires the wiki to have upload-by-URL enabled; if it is disabled, download the file locally and use update-file instead. Fails if no file exists at the target title; for the initial upload, use upload-file-from-url.",
+		"Fetches a file from a remote web URL and uploads it as a new revision of an existing file, preserving prior revisions in the file history, and returns the file title and URL. The upload appears in the wiki's upload log. Replaces the file content (bytes) only; for editing the wikitext on a file's description page, use update-page. Works whether or not the wiki has upload-by-URL enabled: the server retrieves the file and uploads it directly, falling back to wiki-side fetching only when it cannot reach the URL itself. Fails if no file exists at the target title; for the initial upload, use upload-file-from-url.",
 	inputSchema,
 	annotations: {
 		title: 'Update file from URL',
@@ -46,24 +47,38 @@ export const updateFileFromUrl: Tool<typeof inputSchema> = {
 			comment: formatEditComment('update-file-from-url', comment),
 			ignorewarnings: true,
 		};
-		const params = ctx.edit.applyTags<ApiUploadParams>(baseParams);
+
+		// Server-first: fetch the bytes ourselves (SSRF-guarded, size-capped) and
+		// upload via a normal multipart request; fall back to wiki-side fetching
+		// only when we can't reach the URL.
+		let bytes: Buffer | undefined;
+		try {
+			bytes = await fetchFileBytes(url);
+		} catch (error) {
+			if (!shouldRescueToWiki(error)) {
+				throw error;
+			}
+		}
 
 		let data: ApiUploadResponse;
-		try {
-			data = await mwn.uploadFromUrl(url, title, '', params);
-		} catch (error) {
-			const errorText = errorMessage(error);
-			// Mirror upload-file-from-url: redirect the model away from retrying via URL when
-			// the wiki has copyuploads disabled. Routing hint points at the update-file (local)
-			// sibling for this tool's update intent.
-			if (errorText.includes('copyuploaddisabled')) {
-				return ctx.format.error(
-					'invalid_input',
-					'Upload by URL is disabled on this wiki. Download the file locally, then use update-file with the local file path.',
-					'copyuploaddisabled',
-				);
+		if (bytes !== undefined) {
+			const partName = title.replace(/^File:/, '');
+			data = await ctx.edit.submitUploadFromBytes(mwn, bytes, partName, title, '', baseParams);
+		} else {
+			const params = ctx.edit.applyTags<ApiUploadParams>(baseParams);
+			try {
+				data = await mwn.uploadFromUrl(url, title, '', params);
+			} catch (error) {
+				const errorText = errorMessage(error);
+				if (errorText.includes('copyuploaddisabled')) {
+					return ctx.format.error(
+						'upstream_failure',
+						`Could not retrieve the file from ${url}: the server could not reach it and the wiki has upload-by-URL disabled.`,
+						'copyuploaddisabled',
+					);
+				}
+				throw error;
 			}
-			throw error;
 		}
 
 		const imageinfo = (
