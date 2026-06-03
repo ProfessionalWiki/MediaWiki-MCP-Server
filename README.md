@@ -60,20 +60,39 @@ Every tool that operates on a wiki accepts an optional `wiki` argument naming th
 
 #### Extension packs
 
+Each pack's tools register only on wikis where its extension is installed.
+
+**[Bucket](https://github.com/weirdgloop/mediawiki-extensions-Bucket)**
+
 | Name | Description |
 |---|---|
-| `bucket-query` | Run a [Bucket extension](https://github.com/weirdgloop/mediawiki-extensions-Bucket) Lua query. Enabled only when the wiki has Bucket installed. |
-| `cargo-describe-table` | List the fields of a [Cargo extension](https://www.mediawiki.org/wiki/Extension:Cargo) table with their types and list-flags. Enabled only when the wiki has Cargo installed. |
-| `cargo-list-tables` | List Cargo tables defined on the wiki. Enabled only when the wiki has Cargo installed. |
-| `cargo-query` | Run a [Cargo extension](https://www.mediawiki.org/wiki/Extension:Cargo) SQL-style query. Enabled only when the wiki has Cargo installed. |
-| `smw-list-properties` | List Semantic MediaWiki properties with copy-paste templates for `smw-query`. Enabled only when the wiki has SMW installed. |
-| `smw-query` | Run a Semantic MediaWiki `#ask` query. Enabled only when the wiki has SMW installed. |
-| `neowiki-list-schemas` | List [NeoWiki](https://neowiki.ai/) schemas (entity types) and their property counts. Enabled only when the wiki has NeoWiki installed. |
-| `neowiki-get-schema` | Get one [NeoWiki](https://neowiki.ai/) schema's property definitions, relations, and select options. Enabled only when the wiki has NeoWiki installed. |
-| `neowiki-cypher-query` | Run a read-only Cypher query against the [NeoWiki](https://neowiki.ai/) knowledge graph. Enabled only when the wiki has NeoWiki installed. |
-| `neowiki-search-subjects` | Find [NeoWiki](https://neowiki.ai/) subject IDs by label within a schema. Enabled only when the wiki has NeoWiki installed. |
-| `neowiki-get-subject` | Fetch one [NeoWiki](https://neowiki.ai/) subject's structured data by ID. Enabled only when the wiki has NeoWiki installed. |
-| `neowiki-get-page-subjects` | List the [NeoWiki](https://neowiki.ai/) subjects attached to a wiki page. Enabled only when the wiki has NeoWiki installed. |
+| `bucket-query` | Run a Bucket Lua query. |
+
+**[Cargo](https://www.mediawiki.org/wiki/Extension:Cargo)**
+
+| Name | Description |
+|---|---|
+| `cargo-list-tables` | List Cargo tables defined on the wiki. |
+| `cargo-describe-table` | List a Cargo table's fields with their types and list-flags. |
+| `cargo-query` | Run a Cargo SQL-style query. |
+
+**[NeoWiki](https://neowiki.ai/)**
+
+| Name | Description |
+|---|---|
+| `neowiki-list-schemas` | List schemas (entity types) and their property counts. |
+| `neowiki-get-schema` | Get one schema's property definitions, relations, and select options. |
+| `neowiki-cypher-query` | Run a read-only Cypher query against the knowledge graph. |
+| `neowiki-search-subjects` | Find subject IDs by label within a schema. |
+| `neowiki-get-subject` | Fetch one subject's structured data by ID. |
+| `neowiki-get-page-subjects` | List the subjects attached to a wiki page. |
+
+**[Semantic MediaWiki](https://www.mediawiki.org/wiki/Extension:Semantic_MediaWiki)**
+
+| Name | Description |
+|---|---|
+| `smw-list-properties` | List Semantic MediaWiki properties with copy-paste templates for `smw-query`. |
+| `smw-query` | Run a Semantic MediaWiki `#ask` query. |
 
 ### Resources
 
