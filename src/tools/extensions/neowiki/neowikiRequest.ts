@@ -84,11 +84,13 @@ export async function neowikiRequest(mwn: Mwn, spec: NeoWikiRequestSpec): Promis
 
 function classifyNeoWikiError(err: unknown): NeoWikiApiError {
 	// axios throws on non-2xx with `err.response.{status,data}`.
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- axios error shape at this boundary
 	const response = (err as { response?: { status?: number; data?: unknown } }).response;
 	const status = response?.status;
 	const data = response?.data;
 
 	if (data !== null && typeof data === 'object') {
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- verified non-null object above; narrow to inspect keys
 		const record = data as Record<string, unknown>;
 
 		const errorType = record.errorType;
@@ -101,6 +103,7 @@ function classifyNeoWikiError(err: unknown): NeoWikiApiError {
 		// REST param-validation envelope: { error, messageTranslations: { en } }.
 		if (typeof record.error === 'string') {
 			const translations = record.messageTranslations;
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- messageTranslations sub-object shape at this boundary
 			const en =
 				translations !== null && typeof translations === 'object'
 					? (translations as { en?: unknown }).en
@@ -126,6 +129,7 @@ function classifyNeoWikiError(err: unknown): NeoWikiApiError {
 		return new NeoWikiApiError('rate_limited', 'NeoWiki rate limit exceeded.');
 	}
 
+	// Covers both axios network errors (no .response — timeout, ECONNREFUSED) and unrecognised body shapes.
 	const message = err instanceof Error ? err.message : String(err);
 	return new NeoWikiApiError('upstream_failure', message);
 }

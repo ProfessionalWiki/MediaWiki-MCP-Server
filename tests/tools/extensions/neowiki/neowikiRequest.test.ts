@@ -137,4 +137,22 @@ describe('neowikiRequest', () => {
 		expect(res.isError).toBe(true);
 		expect(() => neowikiErrorResult(new Error('boom'), ctx)).toThrow('boom');
 	});
+
+	it('throws upstream_failure when apiUrl is not set', async () => {
+		const mock = createMockMwn({ options: { apiUrl: '' } });
+		await expect(
+			neowikiRequest(mock as never, { method: 'GET', path: '/schemas' }),
+		).rejects.toMatchObject({ category: 'upstream_failure' });
+	});
+
+	it('falls back to upstream_failure for an unknown errorType', async () => {
+		const mock = createMockMwn({
+			rawRequest: vi
+				.fn()
+				.mockRejectedValue(httpError(500, { errorType: 'someFutureType', message: 'x' })),
+		});
+		await expect(
+			neowikiRequest(mock as never, { method: 'POST', path: '/query/cypher', body: {} }),
+		).rejects.toMatchObject({ category: 'upstream_failure' });
+	});
 });
