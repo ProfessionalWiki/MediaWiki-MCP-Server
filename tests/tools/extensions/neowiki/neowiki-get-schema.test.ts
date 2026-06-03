@@ -49,4 +49,13 @@ describe('neowiki-get-schema', () => {
 		const result = await neowikiGetSchema.handle({ name: 'Nope' }, ctx);
 		assertStructuredError(result, 'not_found');
 	});
+
+	it('URL-encodes the schema name', async () => {
+		const mock = createMockMwn({ rawRequest: vi.fn().mockResolvedValue({ data: { schema: {} } }) });
+		const ctx = fakeContext({ mwn: async () => mock as never });
+		await neowikiGetSchema.handle({ name: 'Schema Name' }, ctx);
+		expect((mock.rawRequest.mock.calls[0][0] as { url: string }).url).toContain(
+			'/schema/Schema%20Name',
+		);
+	});
 });
