@@ -4,6 +4,7 @@ import type { Tool } from '../../../runtime/tool.js';
 import type { ToolContext } from '../../../runtime/context.js';
 import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.js';
 import { flattenSubject } from './neowiki-get-subject.js';
+import { resolvePageId, hasOnePageRef } from './pageId.js';
 
 const inputSchema = {
 	title: z
@@ -18,10 +19,6 @@ const inputSchema = {
 		.optional()
 		.describe('Numeric MediaWiki page ID. Provide this OR title, not both.'),
 } as const;
-
-interface PageInfoResponse {
-	query?: { pages?: Array<{ pageid?: number; missing?: boolean; title?: string }> };
-}
 
 interface SubjectData {
 	id?: string;
@@ -52,28 +49,15 @@ export const neowikiGetPageSubjects: Tool<typeof inputSchema> = {
 	target: (a) => a.title ?? (a.pageId !== undefined ? String(a.pageId) : ''),
 
 	async handle({ title, pageId }, ctx: ToolContext): Promise<CallToolResult> {
-		if ((title === undefined) === (pageId === undefined)) {
+		if (!hasOnePageRef({ title, pageId })) {
 			return ctx.format.invalidInput('Provide exactly one of title or pageId.');
 		}
 
 		const mwn = await ctx.mwn();
 		try {
-			let resolvedPageId = pageId;
-			if (resolvedPageId === undefined) {
-				const info = (await mwn.request({
-					action: 'query',
-					// title is defined here: the XOR guard above ensures title is set when pageId is absent
-					// oxlint-disable-next-line typescript/no-non-null-assertion -- narrowed by XOR guard above
-					titles: title!,
-					formatversion: 2,
-					format: 'json',
-					// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- action=query info response shape; trusted at this boundary
-				})) as PageInfoResponse;
-				const page = info.query?.pages?.[0];
-				if (page === undefined || page.missing === true || typeof page.pageid !== 'number') {
-					return ctx.format.notFound(`Page "${title}" not found`);
-				}
-				resolvedPageId = page.pageid;
+			const resolvedPageId = await resolvePageId(mwn, { title, pageId });
+			if (resolvedPageId === null) {
+				return ctx.format.notFound(`Page "${title}" not found`);
 			}
 
 			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /page/{id}/subjects response shape; trusted at this boundary
