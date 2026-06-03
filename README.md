@@ -68,6 +68,12 @@ Every tool that operates on a wiki accepts an optional `wiki` argument naming th
 | `cargo-query` | Run a [Cargo extension](https://www.mediawiki.org/wiki/Extension:Cargo) SQL-style query. Enabled only when the wiki has Cargo installed. |
 | `smw-list-properties` | List Semantic MediaWiki properties with copy-paste templates for `smw-query`. Enabled only when the wiki has SMW installed. |
 | `smw-query` | Run a Semantic MediaWiki `#ask` query. Enabled only when the wiki has SMW installed. |
+| `neowiki-list-schemas` | List NeoWiki schemas (entity types) and their property counts. Enabled only when the wiki has NeoWiki installed. |
+| `neowiki-get-schema` | Get one NeoWiki schema's property definitions, relations, and select options. Enabled only when the wiki has NeoWiki installed. |
+| `neowiki-cypher-query` | Run a read-only Cypher query against the NeoWiki knowledge graph. Enabled only when the wiki has NeoWiki installed. |
+| `neowiki-search-subjects` | Find NeoWiki subject IDs by label within a schema. Enabled only when the wiki has NeoWiki installed. |
+| `neowiki-get-subject` | Fetch one NeoWiki subject's structured data by ID. Enabled only when the wiki has NeoWiki installed. |
+| `neowiki-get-page-subjects` | List the NeoWiki subjects attached to a wiki page. Enabled only when the wiki has NeoWiki installed. |
 
 ### Resources
 

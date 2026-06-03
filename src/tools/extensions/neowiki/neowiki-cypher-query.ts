@@ -13,7 +13,7 @@ const inputSchema = {
 			'A single read-only Cypher statement. Backtick-escape property names with spaces (`s.`Birth year``). Do NOT RETURN whole nodes — project scalar properties and cast temporals with toString().',
 		),
 	parameters: z
-		.record(z.unknown())
+		.record(z.string(), z.unknown())
 		.optional()
 		.describe(
 			'Parameter map referenced as $name in the query. Prefer this over string concatenation.',

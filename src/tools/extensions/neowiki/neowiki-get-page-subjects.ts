@@ -62,7 +62,9 @@ export const neowikiGetPageSubjects: Tool<typeof inputSchema> = {
 			if (resolvedPageId === undefined) {
 				const info = (await mwn.request({
 					action: 'query',
-					titles: title,
+					// title is defined here: the XOR guard above ensures title is set when pageId is absent
+					// oxlint-disable-next-line typescript/no-non-null-assertion -- narrowed by XOR guard above
+					titles: title!,
 					formatversion: 2,
 					format: 'json',
 					// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- action=query info response shape; trusted at this boundary
