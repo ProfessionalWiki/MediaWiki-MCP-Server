@@ -41,6 +41,15 @@ describe('neowiki-list-schemas', () => {
 		});
 	});
 
+	it('does not emit truncation when the page is empty even if totalRows is higher', async () => {
+		const mock = createMockMwn({
+			rawRequest: vi.fn().mockResolvedValue({ data: { schemas: [], totalRows: 17 } }),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+		const result = await neowikiListSchemas.handle({}, ctx);
+		expect(result.structuredContent).not.toHaveProperty('truncation');
+	});
+
 	it('rejects a non-integer continueFrom', async () => {
 		const mock = createMockMwn({ rawRequest: vi.fn() });
 		const ctx = fakeContext({ mwn: async () => mock as never });

@@ -63,8 +63,11 @@ export const neowikiListSchemas: Tool<typeof inputSchema> = {
 			const schemas = Array.isArray(data.schemas) ? data.schemas : [];
 			const totalRows = typeof data.totalRows === 'number' ? data.totalRows : schemas.length;
 
+			// Require a non-empty page before advancing: a degenerate response
+			// (0 rows but totalRows still > offset) must not hand back a token
+			// that never advances, which would loop a paginating client forever.
 			const truncation: TruncationInfo | null =
-				offset + schemas.length < totalRows
+				schemas.length > 0 && offset + schemas.length < totalRows
 					? {
 							reason: 'more-available',
 							returnedCount: schemas.length,
