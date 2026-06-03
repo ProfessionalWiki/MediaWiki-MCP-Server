@@ -2,8 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { extensionPacks } from '../../../src/tools/extensions/index.js';
 
 describe('extensionPacks', () => {
-	it('contains smw, bucket, and cargo in registration order', () => {
-		expect(extensionPacks.map((p) => p.id)).toEqual(['smw', 'bucket', 'cargo']);
+	it('contains smw, bucket, cargo, and neowiki in registration order', () => {
+		expect(extensionPacks.map((p) => p.id)).toEqual(['smw', 'bucket', 'cargo', 'neowiki']);
+	});
+
+	it('lists NeoWiki as the NeoWiki extension name', () => {
+		const neowiki = extensionPacks.find((p) => p.id === 'neowiki');
+		expect(neowiki?.extensionNames).toEqual(['NeoWiki']);
 	});
 
 	it('lists Cargo and LIBRARIAN as Cargo extension names', () => {
