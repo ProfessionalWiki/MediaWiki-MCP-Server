@@ -62,19 +62,12 @@ Every tool that operates on a wiki accepts an optional `wiki` argument naming th
 
 Each pack's tools register only on wikis where its extension is installed.
 
-**[Bucket](https://github.com/weirdgloop/mediawiki-extensions-Bucket)**
+**[Semantic MediaWiki](https://www.mediawiki.org/wiki/Extension:Semantic_MediaWiki)**
 
 | Name | Description |
 |---|---|
-| `bucket-query` | Run a Bucket Lua query. |
-
-**[Cargo](https://www.mediawiki.org/wiki/Extension:Cargo)**
-
-| Name | Description |
-|---|---|
-| `cargo-list-tables` | List Cargo tables defined on the wiki. |
-| `cargo-describe-table` | List a Cargo table's fields with their types and list-flags. |
-| `cargo-query` | Run a Cargo SQL-style query. |
+| `smw-list-properties` | List Semantic MediaWiki properties with copy-paste templates for `smw-query`. |
+| `smw-query` | Run a Semantic MediaWiki `#ask` query. |
 
 **[NeoWiki](https://neowiki.ai/)**
 
@@ -92,12 +85,19 @@ Each pack's tools register only on wikis where its extension is installed.
 | `neowiki-set-main-subject` | Set or clear a page's main subject. Requires the `edit` right. |
 | `neowiki-validate-subject` | Dry-run validate a proposed subject and return violations. |
 
-**[Semantic MediaWiki](https://www.mediawiki.org/wiki/Extension:Semantic_MediaWiki)**
+**[Bucket](https://github.com/weirdgloop/mediawiki-extensions-Bucket)**
 
 | Name | Description |
 |---|---|
-| `smw-list-properties` | List Semantic MediaWiki properties with copy-paste templates for `smw-query`. |
-| `smw-query` | Run a Semantic MediaWiki `#ask` query. |
+| `bucket-query` | Run a Bucket Lua query. |
+
+**[Cargo](https://www.mediawiki.org/wiki/Extension:Cargo)**
+
+| Name | Description |
+|---|---|
+| `cargo-list-tables` | List Cargo tables defined on the wiki. |
+| `cargo-describe-table` | List a Cargo table's fields with their types and list-flags. |
+| `cargo-query` | Run a Cargo SQL-style query. |
 
 ### Resources
 
