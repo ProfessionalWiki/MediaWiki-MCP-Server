@@ -45,6 +45,12 @@ const inputSchema = {
 		.string()
 		.optional()
 		.describe("Heading for a new section; required when section='new', rejected otherwise."),
+	bot: z
+		.boolean()
+		.optional()
+		.describe(
+			'Marks the edit as a bot edit, which Special:RecentChanges hides by default. Takes effect only when the authenticated account has the `bot` right (granted by the bot group, or by the high-volume grant on a bot password or OAuth consumer); without it the edit saves unflagged and the response reports botMarked: false. Use when performing bulk or automated edit runs, or when the user requests it.',
+		),
 } as const;
 
 type UpdatePageArgs = z.infer<z.ZodObject<typeof inputSchema>>;
@@ -70,6 +76,7 @@ function buildEditParams({
 	section,
 	mode,
 	sectionTitle,
+	bot,
 }: UpdatePageArgs): Record<string, string | number | boolean> {
 	const sourceField =
 		mode === 'append' ? 'appendtext' : mode === 'prepend' ? 'prependtext' : 'text';
@@ -82,6 +89,7 @@ function buildEditParams({
 		...(latestId !== undefined ? { baserevid: latestId } : {}),
 		...(section !== undefined ? { section: String(section) } : {}),
 		...(sectionTitle !== undefined ? { sectiontitle: sectionTitle } : {}),
+		...(bot === true ? { bot: true } : {}),
 	};
 }
 
@@ -124,6 +132,7 @@ export const updatePage: Tool<typeof inputSchema> = {
 			latestRevisionId: edit.newrevid,
 			latestRevisionTimestamp: edit.newtimestamp,
 			contentModel: edit.contentmodel,
+			...(args.bot === true ? { botMarked: await ctx.edit.botRight(mwn) } : {}),
 			url: await buildPageUrl(ctx, resolvedTitle),
 		});
 	},
