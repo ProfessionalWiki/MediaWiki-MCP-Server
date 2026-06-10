@@ -33,7 +33,9 @@ export interface EditService {
 	 * Reports whether the authenticated account holds the `bot` right on the
 	 * targeted wiki — i.e. whether a bot-flagged edit will actually be marked.
 	 * Resolves undefined when the rights probe fails; a probe failure never
-	 * blocks a write. The probe is cached per Mwn instance.
+	 * blocks a write. The probe is cached per Mwn instance; sessions that
+	 * authenticate with a per-request bearer token get a fresh Mwn per call,
+	 * so the probe re-runs for each bot-flagged edit there.
 	 */
 	botRight(mwn: Mwn): Promise<boolean | undefined>;
 }
@@ -53,8 +55,12 @@ export class EditServiceImpl implements EditService {
 			return await pending;
 		} catch {
 			// Drop the failed probe so the next bot-flagged edit retries instead
-			// of pinning the failure for the lifetime of the Mwn instance.
-			this.botRightCache.delete(mwn);
+			// of pinning the failure for the lifetime of the Mwn instance. The
+			// identity check keeps a late rejection from evicting a newer probe
+			// that another caller has already reseeded.
+			if (this.botRightCache.get(mwn) === pending) {
+				this.botRightCache.delete(mwn);
+			}
 			return undefined;
 		}
 	}
