@@ -28,10 +28,47 @@ export interface EditService {
 
 	/** Pure helper: returns options with tags injected from the targeted wiki's config. Used by mwn.create/delete/undelete callers. */
 	applyTags<T extends Record<string, unknown>>(options: T): T;
+
+	/**
+	 * Reports whether the authenticated account holds the `bot` right on the
+	 * targeted wiki — i.e. whether a bot-flagged edit will actually be marked.
+	 * Resolves undefined when the rights probe fails; a probe failure never
+	 * blocks a write. The probe is cached per Mwn instance.
+	 */
+	botRight(mwn: Mwn): Promise<boolean | undefined>;
 }
 
 export class EditServiceImpl implements EditService {
 	public constructor(private readonly activeWiki: ActiveWiki) {}
+
+	private readonly botRightCache = new WeakMap<Mwn, Promise<boolean>>();
+
+	public async botRight(mwn: Mwn): Promise<boolean | undefined> {
+		let pending = this.botRightCache.get(mwn);
+		if (!pending) {
+			pending = this.queryBotRight(mwn);
+			this.botRightCache.set(mwn, pending);
+		}
+		try {
+			return await pending;
+		} catch {
+			// Drop the failed probe so the next bot-flagged edit retries instead
+			// of pinning the failure for the lifetime of the Mwn instance.
+			this.botRightCache.delete(mwn);
+			return undefined;
+		}
+	}
+
+	private async queryBotRight(mwn: Mwn): Promise<boolean> {
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
+		const response = (await mwn.request({
+			action: 'query',
+			meta: 'userinfo',
+			uiprop: 'rights',
+			formatversion: '2',
+		})) as { query?: { userinfo?: { rights?: string[] } } };
+		return response.query?.userinfo?.rights?.includes('bot') ?? false;
+	}
 
 	public async submit(mwn: Mwn, params: Record<string, unknown>): Promise<unknown> {
 		const token = await mwn.getCsrfToken();
