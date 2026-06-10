@@ -83,6 +83,53 @@ describe('EditServiceImpl', () => {
 		});
 	});
 
+	describe('botRight', () => {
+		it('returns true when userinfo rights include bot', async () => {
+			const mock = createMockMwn({
+				request: vi
+					.fn()
+					.mockResolvedValue({ query: { userinfo: { rights: ['edit', 'bot', 'read'] } } }),
+			});
+			const edit = new EditServiceImpl(fakeActiveWiki());
+			await expect(edit.botRight(mock as never)).resolves.toBe(true);
+			expect(mock.request).toHaveBeenCalledWith({
+				action: 'query',
+				meta: 'userinfo',
+				uiprop: 'rights',
+				formatversion: '2',
+			});
+		});
+
+		it('returns false when userinfo rights lack bot', async () => {
+			const mock = createMockMwn({
+				request: vi.fn().mockResolvedValue({ query: { userinfo: { rights: ['edit', 'read'] } } }),
+			});
+			const edit = new EditServiceImpl(fakeActiveWiki());
+			await expect(edit.botRight(mock as never)).resolves.toBe(false);
+		});
+
+		it('caches the probe per Mwn instance', async () => {
+			const request = vi.fn().mockResolvedValue({ query: { userinfo: { rights: ['bot'] } } });
+			const mock = createMockMwn({ request });
+			const edit = new EditServiceImpl(fakeActiveWiki());
+			await edit.botRight(mock as never);
+			await edit.botRight(mock as never);
+			expect(request).toHaveBeenCalledTimes(1);
+		});
+
+		it('resolves undefined when the probe fails, and retries on the next call', async () => {
+			const request = vi
+				.fn()
+				.mockRejectedValueOnce(new Error('network down'))
+				.mockResolvedValueOnce({ query: { userinfo: { rights: ['bot'] } } });
+			const mock = createMockMwn({ request });
+			const edit = new EditServiceImpl(fakeActiveWiki());
+			await expect(edit.botRight(mock as never)).resolves.toBeUndefined();
+			await expect(edit.botRight(mock as never)).resolves.toBe(true);
+			expect(request).toHaveBeenCalledTimes(2);
+		});
+	});
+
 	it('submitUploadFromBytes posts a multipart upload with token, tags, and ignorewarnings', async () => {
 		const mock = createMockMwn({
 			getCsrfToken: vi.fn().mockResolvedValue('CSRFTOKEN'),

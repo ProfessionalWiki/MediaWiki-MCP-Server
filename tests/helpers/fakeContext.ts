@@ -77,6 +77,7 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 			submitUpload: throws('edit.submitUpload') as never,
 			submitUploadFromBytes: throws('edit.submitUploadFromBytes') as never,
 			applyTags: (o) => ({ ...o }),
+			botRight: throws('edit.botRight') as never,
 		},
 		revision: new RevisionNormalizerImpl(),
 		format: new ResponseFormatterImpl(),

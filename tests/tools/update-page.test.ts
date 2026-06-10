@@ -31,15 +31,17 @@ function fakeEdit(response: unknown = successResponse()) {
 		.mockImplementation(async (_m: never, params: Record<string, unknown>) =>
 			mock.request({ ...params, token: 'csrf-token', formatversion: '2' }),
 		);
+	const botRight = vi.fn().mockResolvedValue(true);
 	const ctx = fakeContext({
 		mwn: async () => mock as never,
 		edit: {
 			submit: submit as never,
 			submitUpload: vi.fn() as never,
 			applyTags: (o: object) => ({ ...o }),
+			botRight: botRight as never,
 		},
 	});
-	return { mock, request, submit, ctx };
+	return { mock, request, submit, botRight, ctx };
 }
 
 describe('update-page', () => {
@@ -383,6 +385,81 @@ describe('update-page', () => {
 
 			const envelope = assertStructuredError(result, 'invalid_input');
 			expect(envelope.message).toContain("mode is not compatible with section='new'");
+		});
+	});
+
+	describe('bot flag', () => {
+		it('forwards bot=true and reports botMarked true when the account has the bot right', async () => {
+			const { submit, botRight, ctx } = fakeEdit();
+
+			const result = await updatePage.handle(
+				{ title: 'My Page', source: 'content', bot: true },
+				ctx,
+			);
+
+			expect(submit.mock.calls[0][1]).toMatchObject({ bot: true });
+			const text = assertStructuredSuccess(result);
+			expect(text).toContain('Bot marked: true');
+			expect(botRight).toHaveBeenCalled();
+		});
+
+		it('reports botMarked false when the account lacks the bot right', async () => {
+			const { botRight, ctx } = fakeEdit();
+			botRight.mockResolvedValue(false);
+
+			const result = await updatePage.handle(
+				{ title: 'My Page', source: 'content', bot: true },
+				ctx,
+			);
+
+			const text = assertStructuredSuccess(result);
+			expect(text).toContain('Bot marked: false');
+		});
+
+		it('omits botMarked when the rights probe fails', async () => {
+			const { botRight, ctx } = fakeEdit();
+			botRight.mockResolvedValue(undefined);
+
+			const result = await updatePage.handle(
+				{ title: 'My Page', source: 'content', bot: true },
+				ctx,
+			);
+
+			const text = assertStructuredSuccess(result);
+			expect(text).not.toContain('Bot marked');
+		});
+
+		it('omits the bot param and skips the rights probe when bot is not requested', async () => {
+			const { submit, botRight, ctx } = fakeEdit();
+
+			await updatePage.handle({ title: 'My Page', source: 'content' }, ctx);
+
+			expect(submit.mock.calls[0][1]).not.toHaveProperty('bot');
+			expect(botRight).not.toHaveBeenCalled();
+		});
+
+		it('treats bot=false like an unflagged edit', async () => {
+			const { submit, botRight, ctx } = fakeEdit();
+
+			await updatePage.handle({ title: 'My Page', source: 'content', bot: false }, ctx);
+
+			expect(submit.mock.calls[0][1]).not.toHaveProperty('bot');
+			expect(botRight).not.toHaveBeenCalled();
+		});
+
+		it('composes with section and mode paths', async () => {
+			const { submit, ctx } = fakeEdit();
+
+			await updatePage.handle(
+				{ title: 'My Page', source: '\n* row', section: 2, mode: 'append', bot: true },
+				ctx,
+			);
+
+			expect(submit.mock.calls[0][1]).toMatchObject({
+				section: '2',
+				appendtext: '\n* row',
+				bot: true,
+			});
 		});
 	});
 });
