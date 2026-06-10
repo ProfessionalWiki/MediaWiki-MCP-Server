@@ -170,4 +170,82 @@ describe('create-page', () => {
 		const opts = mock.create.mock.calls[0][3];
 		expect(opts).not.toHaveProperty('tags');
 	});
+
+	describe('bot flag', () => {
+		function fakeCreate() {
+			const mock = createMockMwn({
+				create: vi.fn().mockResolvedValue({
+					result: 'Success',
+					pageid: 12,
+					title: 'Bot Page',
+					contentmodel: 'wikitext',
+					oldrevid: 0,
+					newrevid: 3,
+					newtimestamp: '2026-01-01T00:00:00Z',
+				}),
+			});
+			const botRight = vi.fn().mockResolvedValue(true);
+			const ctx = fakeContext({
+				mwn: async () => mock as never,
+				edit: {
+					submit: vi.fn() as never,
+					submitUpload: vi.fn() as never,
+					applyTags: (o: object) => ({ ...o }),
+					botRight: botRight as never,
+				},
+			});
+			return { mock, botRight, ctx };
+		}
+
+		it('forwards bot=true in create options and reports botMarked true', async () => {
+			const { mock, botRight, ctx } = fakeCreate();
+
+			const result = await createPage.handle(
+				{ source: 'Hello', title: 'Bot Page', bot: true },
+				ctx,
+			);
+
+			const opts = mock.create.mock.calls[0][3];
+			expect(opts).toMatchObject({ bot: true });
+			const text = assertStructuredSuccess(result);
+			expect(text).toContain('Bot marked: true');
+			expect(botRight).toHaveBeenCalled();
+		});
+
+		it('reports botMarked false when the account lacks the bot right', async () => {
+			const { botRight, ctx } = fakeCreate();
+			botRight.mockResolvedValue(false);
+
+			const result = await createPage.handle(
+				{ source: 'Hello', title: 'Bot Page', bot: true },
+				ctx,
+			);
+
+			const text = assertStructuredSuccess(result);
+			expect(text).toContain('Bot marked: false');
+		});
+
+		it('omits botMarked when the rights probe fails', async () => {
+			const { botRight, ctx } = fakeCreate();
+			botRight.mockResolvedValue(undefined);
+
+			const result = await createPage.handle(
+				{ source: 'Hello', title: 'Bot Page', bot: true },
+				ctx,
+			);
+
+			const text = assertStructuredSuccess(result);
+			expect(text).not.toContain('Bot marked');
+		});
+
+		it('omits the bot option and skips the rights probe when bot is not requested', async () => {
+			const { mock, botRight, ctx } = fakeCreate();
+
+			await createPage.handle({ source: 'Hello', title: 'Bot Page' }, ctx);
+
+			const opts = mock.create.mock.calls[0][3];
+			expect(opts).not.toHaveProperty('bot');
+			expect(botRight).not.toHaveBeenCalled();
+		});
+	});
 });
