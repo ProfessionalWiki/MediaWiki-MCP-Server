@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- `MCP_TRUSTED_HOSTS` environment variable: a comma-separated allowlist of hosts exempt from the outbound SSRF guard's public-IP check, letting you deliberately point the server at an internal destination — such as a Docker-network alias like `mediawiki.svc` behind a reverse proxy. Without it, the anonymous siteinfo probe to a private address is refused, so extension-gated tools (Cargo, Semantic MediaWiki, Bucket, NeoWiki) never register and `get-site-info` reports no extensions. A bare host matches any port and `host:port` matches only that port; matching is exact, and a listed host is still DNS-resolved and pinned. Separate from the inbound `MCP_ALLOWED_HOSTS` Host-header allowlist. (#410)
+
 ## [0.11.0] - 2026-06-10
 
 ### Added
