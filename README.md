@@ -138,6 +138,7 @@ Each pack's tools register only on wikis where its extension is installed.
 | `MCP_SESSION_IDLE_TIMEOUT` | Seconds an HTTP session may sit idle before it is closed and removed (StreamableHTTP transport). Any request resets the timer. `0` disables expiry. | `1800` |
 | `MCP_SHUTDOWN_GRACE_MS` | Maximum ms to wait for in-flight `/mcp` calls to drain on `SIGTERM` / `SIGINT`. See [docs/operations.md — Graceful shutdown](docs/operations.md#graceful-shutdown). | `10000` |
 | `MCP_TRANSPORT` | Type of MCP server transport (`stdio` or `http`) | `stdio` |
+| `MCP_TRUSTED_HOSTS` | Comma-separated hosts exempt from the **outbound** SSRF guard's public-IP check — for deliberately pointing the server at an internal destination such as a Docker-network alias (`mediawiki.svc`). Distinct from the inbound `MCP_ALLOWED_HOSTS`; see [Security](#security). | `unset` |
 | `PORT` | Port used for StreamableHTTP transport | `3000` |
 
 ## Configuration
@@ -308,6 +309,7 @@ Defaults are safe for single-user use. Before exposing the HTTP transport to oth
 - **Trust the proxy, not the header.** The server forwards any `Authorization: Bearer` header straight to MediaWiki — authentication is the reverse proxy's job. Terminate TLS there, and don't expose the MCP port directly on an untrusted network. See [docs/deployment.md — reverse proxy requirements](docs/deployment.md#reverse-proxy-requirements).
 - **Pair `MCP_BIND` with `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS`.** The HTTP transport binds to `127.0.0.1` by default. When you open it up with `MCP_BIND=0.0.0.0`, set `MCP_ALLOWED_HOSTS` to the hostnames your proxy forwards and `MCP_ALLOWED_ORIGINS` to the browser origins allowed to call the server — these block DNS-rebinding and cross-origin attacks respectively.
 - **Uploads are opt-in.** `upload-file` is disabled until you list allowed directories in `uploadDirs` or `MCP_UPLOAD_DIRS`. See [docs/configuration.md — upload directories](docs/configuration.md#upload-directories).
+- **Internal destinations need `MCP_TRUSTED_HOSTS`.** Outbound fetches — the anonymous siteinfo probe, wiki discovery, `*-file-from-url` — are SSRF-guarded: a destination resolving to a private or loopback address is refused. To deliberately run against an internal host — e.g. a Docker-network alias like `mediawiki.svc` that bypasses your public proxy — list it in `MCP_TRUSTED_HOSTS` to exempt it from the public-IP check. The host is still resolved and pinned, and the guard stays on for every other destination. This is the **outbound** counterpart to the inbound `MCP_ALLOWED_HOSTS` (Host-header) check — the two are unrelated despite the similar names.
 
 Report a vulnerability via GitHub's [security advisory form](https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/security/advisories/new) — full policy in [SECURITY.md](SECURITY.md).
 

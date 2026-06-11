@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('node:dns/promises', () => ({
 	lookup: vi.fn(),
@@ -117,6 +117,72 @@ describe('ssrfGuard.assertPublicDestination', () => {
 			Object.assign(new Error('getaddrinfo ENOTFOUND nope.invalid'), { code: 'ENOTFOUND' }),
 		);
 		await expect(assertPublicDestination('https://nope.invalid/')).rejects.toThrow(/ENOTFOUND/);
+	});
+});
+
+describe('ssrfGuard.assertPublicDestination with MCP_TRUSTED_HOSTS', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	afterEach(() => {
+		delete process.env.MCP_TRUSTED_HOSTS;
+	});
+
+	it('allows a trusted host that resolves to a private IP, still returning the addresses for pinning', async () => {
+		process.env.MCP_TRUSTED_HOSTS = 'mediawiki.svc';
+		const addrs = [{ address: '172.18.0.5', family: 4 }];
+		vi.mocked(lookup).mockResolvedValue(addrs);
+
+		const result = await assertPublicDestination('http://mediawiki.svc:80/w/api.php');
+
+		expect(result).toEqual(addrs);
+		// Still resolves the name — pinning (buildPinnedAgent) depends on these addresses.
+		expect(lookup).toHaveBeenCalledWith('mediawiki.svc', { all: true });
+	});
+
+	it('still rejects a non-listed private host while an allowlist is set', async () => {
+		process.env.MCP_TRUSTED_HOSTS = 'mediawiki.svc';
+		vi.mocked(lookup).mockResolvedValue([{ address: '10.0.0.5', family: 4 }]);
+		await expect(assertPublicDestination('http://other.svc/')).rejects.toThrow(/10\.0\.0\.5/);
+	});
+
+	it('matches the allowlist exactly, not as a suffix (no mediawiki.svc.evil.com bypass)', async () => {
+		process.env.MCP_TRUSTED_HOSTS = 'mediawiki.svc';
+		vi.mocked(lookup).mockResolvedValue([{ address: '172.18.0.5', family: 4 }]);
+		await expect(assertPublicDestination('http://mediawiki.svc.evil.com/')).rejects.toThrow(
+			/172\.18\.0\.5/,
+		);
+	});
+
+	it('still requires DNS to resolve to at least one address for a trusted host', async () => {
+		process.env.MCP_TRUSTED_HOSTS = 'mediawiki.svc';
+		vi.mocked(lookup).mockResolvedValue([]);
+		await expect(assertPublicDestination('http://mediawiki.svc/')).rejects.toThrow(/no addresses/i);
+	});
+
+	it('honours a host:port entry only for the matching port', async () => {
+		process.env.MCP_TRUSTED_HOSTS = 'mediawiki.svc:8080';
+		vi.mocked(lookup).mockResolvedValue([{ address: '172.18.0.5', family: 4 }]);
+		await expect(assertPublicDestination('http://mediawiki.svc:8080/')).resolves.toEqual([
+			{ address: '172.18.0.5', family: 4 },
+		]);
+		await expect(assertPublicDestination('http://mediawiki.svc:9999/')).rejects.toThrow(
+			/172\.18\.0\.5/,
+		);
+	});
+
+	it('trims and case-folds comma-separated entries', async () => {
+		process.env.MCP_TRUSTED_HOSTS = ' Foo.Internal , Mediawiki.SVC ';
+		vi.mocked(lookup).mockResolvedValue([{ address: '172.18.0.5', family: 4 }]);
+		await expect(assertPublicDestination('http://mediawiki.svc/')).resolves.toEqual([
+			{ address: '172.18.0.5', family: 4 },
+		]);
+	});
+
+	it('has no effect when unset (guard stays on for private IPs)', async () => {
+		vi.mocked(lookup).mockResolvedValue([{ address: '172.18.0.5', family: 4 }]);
+		await expect(assertPublicDestination('http://mediawiki.svc/')).rejects.toThrow(/172\.18\.0\.5/);
 	});
 });
 
