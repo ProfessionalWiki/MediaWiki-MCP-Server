@@ -36,6 +36,7 @@ The path is fixed and not configurable.
 | `MCP_SHUTDOWN_GRACE_MS` | `10000` | Drain timeout in ms on `SIGTERM` / `SIGINT`. See [Graceful shutdown](operations.md#graceful-shutdown). |
 | `MCP_ALLOWED_HOSTS` | auto on localhost | Comma-separated Host-header allowlist. See [Reverse proxy requirements](#reverse-proxy-requirements). |
 | `MCP_ALLOWED_ORIGINS` | auto on localhost | Comma-separated `Origin`-header allowlist. See [Reverse proxy requirements](#reverse-proxy-requirements). |
+| `MCP_TRUSTED_HOSTS` | unset | Comma-separated **outbound** SSRF-guard exemptions for internal destinations (e.g. `mediawiki.svc`). See [Outbound SSRF guard](#outbound-ssrf-guard). |
 | `MCP_MAX_REQUEST_BODY` | `1mb` | HTTP request body cap. Accepts size strings (`b`, `kb`, `mb`, `gb`). |
 
 `MCP_MAX_REQUEST_BODY` matches nginx's `client_max_body_size 1m`. Raise it if `update-page` calls return 413 on legitimately large edits or your wiki has raised `$wgMaxArticleSize` (MediaWiki default 2 MB). Lower it for a tighter DoS guard.
@@ -141,6 +142,19 @@ Matching is exact string equality against what the browser sends. These values a
 When in doubt, open your deployed site in a browser and log `window.location.origin` — copy that value verbatim.
 
 Both allowlists apply only to `/mcp`. The `/health` endpoint is always reachable so container healthchecks and liveness probes (which hit `http://localhost:<port>/health`) keep working regardless of what you put in `MCP_ALLOWED_HOSTS` or `MCP_ALLOWED_ORIGINS`.
+
+### Outbound SSRF guard
+
+The server makes a few outbound fetches — the anonymous siteinfo probe (which gates extension tools and fills the `extensions` field of `get-site-info`), wiki discovery, and `*-file-from-url` uploads. These are SSRF-guarded: a destination resolving to a private, loopback, or other non-public address is refused. This stops a client-supplied URL from steering the server at internal infrastructure or cloud metadata.
+
+Running deliberately against an internal host trips this guard — the common Docker case, where a wiki's `server` is a network alias such as `http://mediawiki.svc` chosen to bypass a public reverse proxy. The probe is refused, so extension tools silently disappear and `get-site-info` reports no extensions. List the host in `MCP_TRUSTED_HOSTS` to exempt it from the public-IP check. Entries are comma-separated and match exactly — case-folded, no wildcards or suffixes:
+
+- a **bare host** (`mediawiki.svc`) matches any port;
+- a **`host:port`** entry matches only that port.
+
+The exemption skips **only** the public-IP check. The host is still DNS-resolved and its addresses are still pinned, and the guard stays on for every other destination. A listed host is trusted for **every** outbound fetch — wiki discovery and `*-file-from-url`, not only the probe — so list only hosts you control; exact matching means a client cannot reach anything beyond that one declared destination.
+
+`MCP_TRUSTED_HOSTS` is the **outbound** counterpart to `MCP_ALLOWED_HOSTS` (the inbound Host-header check) — the two are unrelated despite the similar names.
 
 ## Docker
 

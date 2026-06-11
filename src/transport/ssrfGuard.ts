@@ -18,6 +18,27 @@ const EXTRA_BLOCKED_V6: Record<string, [ipaddr.IPv6, number]> = {
 	deprecated6bone: [ipaddr.IPv6.parse('3ffe::'), 16],
 };
 
+// Operator-controlled allowlist (MCP_TRUSTED_HOSTS) of hosts whose resolved
+// address is permitted to be non-public — e.g. an internal Docker-network alias
+// like `mediawiki.svc` the operator deliberately pointed the server at. Read from
+// the environment on each call so it stays testable and reflects runtime config.
+// Entries are comma-separated, trimmed and case-folded. A bare host (e.g.
+// `mediawiki.svc`) matches that host on any port; a `host:port` entry matches
+// only that port. Matching is exact — no wildcard/suffix — so a public host such
+// as `mediawiki.svc.attacker.com` can never match a `mediawiki.svc` entry.
+function readTrustedHosts(): Set<string> {
+	const raw = process.env.MCP_TRUSTED_HOSTS;
+	if (raw === undefined || raw === '') {
+		return new Set();
+	}
+	return new Set(
+		raw
+			.split(',')
+			.map((entry) => entry.trim().toLowerCase())
+			.filter((entry) => entry !== ''),
+	);
+}
+
 export async function assertPublicDestination(urlString: string): Promise<LookupAddress[]> {
 	// MediaWiki's siteinfo.general.server uses protocol-relative URLs (e.g.
 	// '//en.wikipedia.org'). Normalise to https so the guard accepts them.
@@ -40,6 +61,20 @@ export async function assertPublicDestination(urlString: string): Promise<Lookup
 			`DNS lookup for "${hostname}" returned no addresses: ${normalized}`,
 		);
 	}
+
+	// Operator-allowlisted host: skip ONLY the public-address assertion. We still
+	// resolved the name above and still return those addresses, so fetchCore pins
+	// them via buildPinnedAgent — preserving DNS-rebinding/TOCTOU defense even for
+	// the trusted host. url.host omits a protocol-default port (so a bare-host
+	// entry matches default-port URLs); the stripped hostname matches any port.
+	const trusted = readTrustedHosts();
+	if (
+		trusted.size > 0 &&
+		(trusted.has(hostname.toLowerCase()) || trusted.has(url.host.toLowerCase()))
+	) {
+		return addresses;
+	}
+
 	for (const { address } of addresses) {
 		assertAddressIsUnicast(address, normalized);
 	}
