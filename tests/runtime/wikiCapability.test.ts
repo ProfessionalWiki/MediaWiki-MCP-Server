@@ -70,6 +70,18 @@ describe('checkWikiCapability', () => {
 		expect(await checkWikiCapability('update-page', 'w', ctx(true, rwWiki))).toBeUndefined();
 	});
 
+	it('rejects an extension write tool against a read-only wiki', async () => {
+		const result = await checkWikiCapability('neowiki-create-subject', 'w', ctx(true, roWiki));
+		expect(result?.isError).toBe(true);
+		expect(JSON.stringify(result?.content)).toContain('read-only');
+	});
+
+	it('allows an extension read tool against a read-only wiki', async () => {
+		expect(
+			await checkWikiCapability('neowiki-cypher-query', 'w', ctx(true, roWiki)),
+		).toBeUndefined();
+	});
+
 	it('returns undefined for a plain read tool', async () => {
 		expect(await checkWikiCapability('get-page', 'w', ctx(false, rwWiki))).toBeUndefined();
 	});
