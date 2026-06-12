@@ -6,6 +6,7 @@ import type { ActiveWiki } from '../../src/wikis/activeWiki.js';
 import type { WikiProbe } from '../../src/wikis/wikiProbe.js';
 import { reconcileTools, computeDesiredEnabledState } from '../../src/runtime/reconcile.js';
 import type { ToolGatingRule, ReconcileContext } from '../../src/runtime/reconcile.js';
+import { neowikiPack } from '../../src/tools/extensions/neowiki/index.js';
 import type { ExtensionPack } from '../../src/tools/extensions/types.js';
 import type { Tool } from '../../src/runtime/tool.js';
 
@@ -185,6 +186,29 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 			expect(mocks.get(name)!.disable).not.toHaveBeenCalled();
 			expect(mocks.get(name)!.enable).not.toHaveBeenCalled();
 		}
+	});
+
+	it('disables extension-pack write tools when the active wiki is readOnly', async () => {
+		const writeMock = makeMockTool(true);
+		const readMock = makeMockTool(true);
+		const tools = new Map<string, RegisteredTool>([
+			['neowiki-create-subject', writeMock as unknown as RegisteredTool],
+			['neowiki-list-schemas', readMock as unknown as RegisteredTool],
+		]);
+		const wiki = { ...baseWiki, readOnly: true };
+		const { registry } = makeMocks({
+			activeWikiConfig: wiki,
+			wikis: { a: wiki },
+			allowManagement: true,
+		});
+		await reconcileTools(tools, {
+			wikiRegistry: registry,
+			transport: 'stdio',
+			wikiProbe: makeFakeProbe({ 'a:NeoWiki': true }),
+			extensionPacks: [neowikiPack],
+		});
+		expect(writeMock.disable).toHaveBeenCalledTimes(1);
+		expect(readMock.disable).not.toHaveBeenCalled();
 	});
 
 	it('enables every write tool when the active wiki is not readOnly', async () => {

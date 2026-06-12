@@ -5,9 +5,7 @@ import { extensionPacks } from '../tools/extensions/index.js';
 import { getRuntimeToken } from '../transport/requestContext.js';
 import { hasStaticCredentials } from '../transport/bearerGuard.js';
 
-// The wiki-mutating tools. Shared by reconcile's read-only rule and the
-// per-call capability guard.
-export const WRITE_TOOL_NAMES: readonly string[] = [
+const CORE_WRITE_TOOL_NAMES: readonly string[] = [
 	'create-page',
 	'move-page',
 	'update-page',
@@ -17,6 +15,17 @@ export const WRITE_TOOL_NAMES: readonly string[] = [
 	'upload-file-from-url',
 	'update-file',
 	'update-file-from-url',
+];
+
+const EXTENSION_WRITE_TOOL_NAMES: readonly string[] = extensionPacks.flatMap((pack) =>
+	pack.tools.filter((tool) => tool.annotations.readOnlyHint === false).map((tool) => tool.name),
+);
+
+// The wiki-mutating tools. Shared by reconcile's read-only rule and the
+// per-call capability guard.
+export const WRITE_TOOL_NAMES: readonly string[] = [
+	...CORE_WRITE_TOOL_NAMES,
+	...EXTENSION_WRITE_TOOL_NAMES,
 ];
 
 const WRITE_TOOL_SET: ReadonlySet<string> = new Set(WRITE_TOOL_NAMES);

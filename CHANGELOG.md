@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Fixed
+
+- Extension-pack write tools (NeoWiki's `create-subject`, `update-subject`, `delete-subject`, and `set-main-subject`) are now hidden from `tools/list` and rejected by the per-call guard when the active wiki is configured `readOnly`, the same as core write tools. Previously the read-only gate covered only the core writes, so a read-only endpoint still advertised and dispatched extension-pack writes; an actual write was then stopped only by the wiki's own permissions. Write tools are identified by their `readOnlyHint: false` annotation, so future packs are covered automatically. (#411)
+
 ## [0.12.0] - 2026-06-11
 
 ### Added
