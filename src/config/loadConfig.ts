@@ -61,10 +61,10 @@ export interface WikiConfig {
 	 */
 	private?: boolean;
 	/**
-	 * When true, the six write tools (create-page, update-page,
-	 * delete-page, undelete-page, upload-file, upload-file-from-url)
-	 * are hidden from tools/list while this wiki is the active wiki.
-	 * Defaults to false.
+	 * When true, write tools — the core page/file writes plus extension-pack
+	 * writes (identified by readOnlyHint: false) — are rejected for this wiki
+	 * by the per-call guard, and hidden from tools/list when no configured
+	 * wiki is writable. Defaults to false.
 	 */
 	readOnly?: boolean;
 	/**
