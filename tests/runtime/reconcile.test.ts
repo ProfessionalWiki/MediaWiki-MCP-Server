@@ -6,19 +6,9 @@ import type { ActiveWiki } from '../../src/wikis/activeWiki.js';
 import type { WikiProbe } from '../../src/wikis/wikiProbe.js';
 import { reconcileTools, computeDesiredEnabledState } from '../../src/runtime/reconcile.js';
 import type { ToolGatingRule, ReconcileContext } from '../../src/runtime/reconcile.js';
+import { WRITE_TOOL_NAMES } from '../../src/runtime/wikiCapability.js';
 import type { ExtensionPack } from '../../src/tools/extensions/types.js';
 import type { Tool } from '../../src/runtime/tool.js';
-
-const WRITE_TOOL_NAMES = [
-	'create-page',
-	'update-page',
-	'delete-page',
-	'undelete-page',
-	'upload-file',
-	'upload-file-from-url',
-	'update-file',
-	'update-file-from-url',
-];
 
 const NON_WRITE_TOOL_NAMES = ['get-page', 'search-page'];
 const WIKI_SET_TOOL_NAMES = ['add-wiki', 'remove-wiki', 'list-wikis'];
@@ -275,6 +265,70 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 			}
 			expect(mocks.get(name)!.disable).toHaveBeenCalledTimes(1);
 		}
+	});
+});
+
+describe('reconcileTools — read-only gating of extension write tools', () => {
+	const NEOWIKI_WRITE_TOOL = 'neowiki-create-subject';
+	const NEOWIKI_READ_TOOL = 'neowiki-cypher-query';
+	const NEOWIKI_PACK = makeFakePack(
+		'neowiki',
+		['NeoWiki'],
+		[NEOWIKI_WRITE_TOOL, NEOWIKI_READ_TOOL],
+	);
+
+	function makeNeowikiToolMap(initiallyEnabled: boolean): {
+		tools: Map<string, RegisteredTool>;
+		mocks: Map<string, MockTool>;
+	} {
+		const mocks = new Map<string, MockTool>();
+		const tools = new Map<string, RegisteredTool>();
+		for (const name of [NEOWIKI_WRITE_TOOL, NEOWIKI_READ_TOOL]) {
+			const mock = makeMockTool(initiallyEnabled);
+			mocks.set(name, mock);
+			tools.set(name, mock as unknown as RegisteredTool);
+		}
+		return { tools, mocks };
+	}
+
+	it('hides an extension write tool from tools/list on a read-only wiki while keeping the read tool', async () => {
+		const { tools, mocks } = makeNeowikiToolMap(true);
+		const wiki = { ...baseWiki, readOnly: true };
+		const { registry } = makeMocks({
+			activeWikiConfig: wiki,
+			wikis: { a: wiki },
+			allowManagement: true,
+		});
+		await reconcileTools(tools, {
+			wikiRegistry: registry,
+			transport: 'stdio',
+			wikiProbe: makeFakeProbe({ 'a:NeoWiki': true }),
+			extensionPacks: [NEOWIKI_PACK],
+		});
+		// The read-only rule keys off the production WRITE_TOOL_NAMES, which now
+		// includes extension writes — so the write tool is gated even though the
+		// extension is present, while the read tool stays offered.
+		expect(mocks.get(NEOWIKI_WRITE_TOOL)!.enabled).toBe(false);
+		expect(mocks.get(NEOWIKI_WRITE_TOOL)!.disable).toHaveBeenCalledTimes(1);
+		expect(mocks.get(NEOWIKI_READ_TOOL)!.enabled).toBe(true);
+		expect(mocks.get(NEOWIKI_READ_TOOL)!.disable).not.toHaveBeenCalled();
+	});
+
+	it('offers extension write tools on a writable wiki with the extension present', async () => {
+		const { tools, mocks } = makeNeowikiToolMap(false);
+		const { registry } = makeMocks({
+			activeWikiConfig: baseWiki,
+			wikis: { a: baseWiki },
+			allowManagement: true,
+		});
+		await reconcileTools(tools, {
+			wikiRegistry: registry,
+			transport: 'stdio',
+			wikiProbe: makeFakeProbe({ 'a:NeoWiki': true }),
+			extensionPacks: [NEOWIKI_PACK],
+		});
+		expect(mocks.get(NEOWIKI_WRITE_TOOL)!.enabled).toBe(true);
+		expect(mocks.get(NEOWIKI_READ_TOOL)!.enabled).toBe(true);
 	});
 });
 

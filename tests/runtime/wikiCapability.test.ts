@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkWikiCapability } from '../../src/runtime/wikiCapability.js';
+import { checkWikiCapability, WRITE_TOOL_NAMES } from '../../src/runtime/wikiCapability.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 import { withRequestFields } from '../../src/transport/requestContext.js';
 
@@ -70,6 +70,18 @@ describe('checkWikiCapability', () => {
 		expect(await checkWikiCapability('update-page', 'w', ctx(true, rwWiki))).toBeUndefined();
 	});
 
+	it('rejects an extension write tool against a read-only wiki', async () => {
+		const result = await checkWikiCapability('neowiki-create-subject', 'w', ctx(true, roWiki));
+		expect(result?.isError).toBe(true);
+		expect(JSON.stringify(result?.content)).toContain('read-only');
+	});
+
+	it('allows an extension read tool against a read-only wiki', async () => {
+		expect(
+			await checkWikiCapability('neowiki-cypher-query', 'w', ctx(true, roWiki)),
+		).toBeUndefined();
+	});
+
 	it('returns undefined for a plain read tool', async () => {
 		expect(await checkWikiCapability('get-page', 'w', ctx(false, rwWiki))).toBeUndefined();
 	});
@@ -120,5 +132,46 @@ describe('checkWikiCapability', () => {
 	it('does not block an HTTP call to a non-OAuth wiki', async () => {
 		const result = await checkWikiCapability('get-page', 'w', ctx(false, rwWiki, true, 'http'));
 		expect(result).toBeUndefined();
+	});
+});
+
+describe('WRITE_TOOL_NAMES', () => {
+	it('includes the core write tools', () => {
+		for (const name of [
+			'create-page',
+			'move-page',
+			'update-page',
+			'delete-page',
+			'undelete-page',
+			'upload-file',
+			'upload-file-from-url',
+			'update-file',
+			'update-file-from-url',
+		]) {
+			expect(WRITE_TOOL_NAMES).toContain(name);
+		}
+	});
+
+	it('derives extension-pack write tools from their readOnlyHint annotation', () => {
+		for (const name of [
+			'neowiki-create-subject',
+			'neowiki-update-subject',
+			'neowiki-delete-subject',
+			'neowiki-set-main-subject',
+		]) {
+			expect(WRITE_TOOL_NAMES).toContain(name);
+		}
+	});
+
+	it('excludes extension read tools', () => {
+		for (const name of [
+			'neowiki-cypher-query',
+			'neowiki-get-subject',
+			'smw-query',
+			'cargo-query',
+			'bucket-query',
+		]) {
+			expect(WRITE_TOOL_NAMES).not.toContain(name);
+		}
 	});
 });
