@@ -138,4 +138,87 @@ describe('handleCallback', () => {
 		expect(r.kind).toBe('error');
 		expect(store.getTransaction('txn-4')).toBeDefined();
 	});
+
+	it('propagates an upstream denial to the client redirect without exchanging (RFC 6749 §4.1.2.1)', async () => {
+		const store = new InMemoryProxyStore();
+		store.putTransaction('txn-deny', {
+			clientId: 'cid',
+			clientRedirectUri: 'http://127.0.0.1:9000/cb',
+			clientState: 'cstate',
+			clientCodeChallenge: 'CCH',
+			clientCodeChallengeMethod: 'S256',
+			scopes: ['editpage'],
+			proxyVerifier: 'PV',
+		});
+		const exchange = vi.fn();
+
+		const r = await handleCallback(
+			{
+				error: 'access_denied',
+				errorDescription: 'The user denied the request',
+				state: 'txn-deny',
+			},
+			pc,
+			store,
+			true,
+			exchange,
+		);
+
+		expect(exchange).not.toHaveBeenCalled();
+		expect(r.kind).toBe('redirect');
+		if (r.kind !== 'redirect') {
+			return;
+		}
+		const u = new URL(r.location);
+		expect(u.origin + u.pathname).toBe('http://127.0.0.1:9000/cb');
+		expect(u.searchParams.get('error')).toBe('access_denied');
+		expect(u.searchParams.get('error_description')).toBe('The user denied the request');
+		expect(u.searchParams.get('state')).toBe('cstate');
+		expect(u.searchParams.get('iss')).toBe('https://wiki.example/mcp');
+		expect(u.searchParams.has('code')).toBe(false);
+		// Terminal outcome — the one-time transaction is consumed.
+		expect(store.getTransaction('txn-deny')).toBeUndefined();
+	});
+
+	it('propagates a denial even when the consent cookie is absent (abort needs no consent)', async () => {
+		const store = new InMemoryProxyStore();
+		store.putTransaction('txn-deny2', {
+			clientId: 'cid',
+			clientRedirectUri: 'http://127.0.0.1:9000/cb',
+			clientState: 'cstate',
+			clientCodeChallenge: 'CCH',
+			clientCodeChallengeMethod: 'S256',
+			scopes: ['editpage'],
+			proxyVerifier: 'PV',
+		});
+		const exchange = vi.fn();
+		const r = await handleCallback(
+			{ error: 'access_denied', state: 'txn-deny2' },
+			pc,
+			store,
+			false,
+			exchange,
+		);
+		expect(r.kind).toBe('redirect');
+		expect(exchange).not.toHaveBeenCalled();
+	});
+
+	it('reports a denial plainly (not "missing code/state") when no transaction matches', async () => {
+		const store = new InMemoryProxyStore();
+		const exchange = vi.fn();
+		const r = await handleCallback(
+			{ error: 'access_denied', state: 'missing' },
+			pc,
+			store,
+			true,
+			exchange,
+		);
+		expect(exchange).not.toHaveBeenCalled();
+		expect(r.kind).toBe('error');
+		if (r.kind !== 'error') {
+			return;
+		}
+		expect(r.body.error).toBe('access_denied');
+		expect(r.body.error_description).not.toBe('missing code/state');
+	});
 });

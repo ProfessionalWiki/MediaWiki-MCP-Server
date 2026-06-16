@@ -22,7 +22,7 @@ export type CallbackPlan =
  * `exchange` is injectable for testing; production passes the real exchangeCode.
  */
 export async function handleCallback(
-	q: { code?: string; state?: string },
+	q: { code?: string; state?: string; error?: string; errorDescription?: string },
 	pc: ProxyConfig,
 	store: ProxyStore,
 	consentOk: boolean,
@@ -33,6 +33,38 @@ export async function handleCallback(
 		status: 400,
 		body: { error: 'invalid_request', error_description: d },
 	});
+
+	// Upstream denial/error (RFC 6749 §4.1.2.1): when the user declines the grant
+	// the wiki redirects back with `error` (e.g. access_denied) and no `code`.
+	// Propagate it to the downstream client's redirect_uri so the client sees a
+	// proper OAuth error, rather than this endpoint reporting a misleading generic
+	// "missing code/state". This aborts the flow — it needs no consent and runs
+	// before the code/state check.
+	if (q.error) {
+		const denyTxn = q.state ? store.getTransaction(q.state) : undefined;
+		if (!denyTxn) {
+			// No transaction to tie the denial to a client redirect — surface it plainly.
+			return {
+				kind: 'error',
+				status: 400,
+				body: {
+					error: q.error,
+					error_description: q.errorDescription ?? 'Authorization was not granted.',
+				},
+			};
+		}
+		store.deleteTransaction(q.state!);
+		const e = new URL(denyTxn.clientRedirectUri);
+		e.searchParams.set('error', q.error);
+		if (q.errorDescription) {
+			e.searchParams.set('error_description', q.errorDescription);
+		}
+		if (denyTxn.clientState) {
+			e.searchParams.set('state', denyTxn.clientState);
+		}
+		e.searchParams.set('iss', pc.issuer);
+		return { kind: 'redirect', location: e.toString() };
+	}
 
 	if (!q.state || !q.code) {
 		return err('missing code/state');

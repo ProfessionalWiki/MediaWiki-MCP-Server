@@ -948,7 +948,12 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 			return;
 		}
 		const one = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
-		const q = { code: one(req.query.code), state: one(req.query.state) };
+		const q = {
+			code: one(req.query.code),
+			state: one(req.query.state),
+			error: one(req.query.error),
+			errorDescription: one(req.query.error_description),
+		};
 
 		// Re-verify the consent cookie here, bound to the transaction's own client +
 		// redirect host. handleCallback re-looks-up the txn itself; this lookup only
