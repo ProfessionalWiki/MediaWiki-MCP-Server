@@ -35,6 +35,7 @@ import { buildProtectedResource, resolvePublicBase } from '../auth/protectedReso
 import { resolveProxyConfig, type ProxyConfig } from '../auth/authorizationServer/proxyConfig.js';
 import { InMemoryProxyStore } from '../auth/authorizationServer/proxyStore.js';
 import { buildAsMetadata } from '../auth/authorizationServer/asMetadata.js';
+import { handleRegister } from '../auth/authorizationServer/register.js';
 import { createAppState } from '../wikis/state.js';
 import { createServer } from '../server.js';
 import { emitStartupBanner } from '../runtime/banner.js';
@@ -608,6 +609,19 @@ const asMetadataHandler: RequestHandler = (_req, res) => {
 };
 app.get('/.well-known/oauth-authorization-server', asMetadataHandler);
 app.get('/.well-known/oauth-authorization-server/mcp', asMetadataHandler);
+
+// RFC 7591 Dynamic Client Registration. Served only when the hosted OAuth
+// proxy is enabled. The request body is already parsed by the top-level
+// express.json() middleware. handleRegister validates redirect_uris against
+// the proxy's redirect policy before minting a public (PKCE-only) client.
+app.post('/mcp/register', (req, res) => {
+	if (!getDefaultProxyConfig()) {
+		res.status(404).end();
+		return;
+	}
+	const result = handleRegister(req.body, proxyStore);
+	res.status(result.status).json(result.body);
+});
 
 mountReadyEndpoint(app, { activeWiki: state.activeWiki, mwnProvider: state.mwnProvider });
 mountMetricsEndpoint(app);
