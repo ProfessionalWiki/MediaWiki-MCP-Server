@@ -646,13 +646,14 @@ for (const warning of warnings) {
 // Resolve the proxy config eagerly so a ProxyConfigError fails the boot rather
 // than the first request. Memoized, so the route handlers below reuse the
 // cached result.
-getDefaultProxyConfig();
+const proxyEnabled = getDefaultProxyConfig() !== null;
 emitStartupBanner(
 	{ transport: 'http', http: { host, port, allowedHosts, allowedOrigins, maxRequestBody } },
 	{
 		wikiRegistry: state.wikiRegistry,
 		activeWiki: state.activeWiki,
 		uploadDirs: state.uploadDirs,
+		proxyEnabled,
 	},
 );
 

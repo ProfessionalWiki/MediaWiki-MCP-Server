@@ -165,7 +165,7 @@ In addition to the [general reverse proxy requirements](#reverse-proxy-requireme
 
 ### v1 limitations
 
-- **In-memory state.** Registered clients, in-flight authorizations, one-time codes, and stored upstream tokens live in process memory. A restart drops them, so every user must sign in again, and the proxy currently supports a **single instance** (no shared store across replicas).
+- **In-memory state.** Registered clients, in-flight authorizations, one-time codes, and stored upstream tokens live in process memory. A restart drops them, so every user must sign in again, and the proxy currently supports a **single instance** (no shared store across replicas). Because `/register` is unauthenticated, the client registry is capped (FIFO, 10,000 entries) so registration spam cannot exhaust memory; once the cap is reached the oldest registrations are evicted and those clients must re-register.
 - **Validated client.** Claude Code is the MCP client this flow has been validated against. Other OAuth-aware clients should work via standard discovery + DCR but are not yet exercised.
 
 ### Example `config.json`

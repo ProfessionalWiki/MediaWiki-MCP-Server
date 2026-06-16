@@ -125,6 +125,25 @@ describe('startup banner', () => {
 		expect(e!.max_request_body).toBe('1mb');
 	});
 
+	it('reports the oauth-proxy auth shape when the hosted proxy is enabled', () => {
+		emitStartupBanner(
+			{
+				transport: 'http',
+				http: { host: '0.0.0.0', port: 8080, maxRequestBody: '1mb' },
+			},
+			{
+				wikiRegistry: mockWikiRegistry,
+				activeWiki: mockActiveWiki,
+				uploadDirs: mockUploadDirs,
+				proxyEnabled: true,
+			},
+		);
+
+		const e = captureLines(stderrSpy).find((x) => x.event === 'startup');
+		expect(e).toBeDefined();
+		expect(e!.auth_shape).toBe('oauth-proxy');
+	});
+
 	it('classifies static-credential and never logs the token value', () => {
 		const staticRegistry: WikiRegistry = {
 			getAll: () => ({

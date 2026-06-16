@@ -69,21 +69,21 @@ describe('buildProtectedResource', () => {
 		expect(result).toBeDefined();
 	});
 
-	it('sets resource from request host and proto', () => {
+	it('sets resource (slash-free identifier) from request host and proto', () => {
 		const result = buildProtectedResource(makeInput());
-		expect(result?.resource).toBe('https://mcp.example.org/');
+		expect(result?.resource).toBe('https://mcp.example.org');
 	});
 
-	it('always adds a trailing slash to resource', () => {
+	it('resource is the slash-free canonical URL (matches the AS issuer)', () => {
 		process.env.MCP_PUBLIC_URL = 'https://mcp.example.org/no-trailing';
 		const result = buildProtectedResource(makeInput());
-		expect(result?.resource).toBe('https://mcp.example.org/no-trailing/');
+		expect(result?.resource).toBe('https://mcp.example.org/no-trailing');
 	});
 
-	it('resource already ending in slash stays unchanged', () => {
+	it('strips a trailing slash from MCP_PUBLIC_URL for the resource identifier', () => {
 		process.env.MCP_PUBLIC_URL = 'https://mcp.example.org/with-slash/';
 		const result = buildProtectedResource(makeInput());
-		expect(result?.resource).toBe('https://mcp.example.org/with-slash/');
+		expect(result?.resource).toBe('https://mcp.example.org/with-slash');
 	});
 
 	it('MCP_PUBLIC_URL takes precedence over request-derived URL', () => {
@@ -91,14 +91,14 @@ describe('buildProtectedResource', () => {
 		const result = buildProtectedResource(
 			makeInput({ requestHost: 'internal.example.org', requestProto: 'http' }),
 		);
-		expect(result?.resource).toBe('https://public.example.com/');
+		expect(result?.resource).toBe('https://public.example.com');
 	});
 
-	it('falls back to https://localhost/ when requestHost is undefined', () => {
+	it('falls back to https://localhost when requestHost is undefined', () => {
 		const result = buildProtectedResource(
 			makeInput({ requestHost: undefined, requestProto: undefined }),
 		);
-		expect(result?.resource).toBe('https://localhost/');
+		expect(result?.resource).toBe('https://localhost');
 	});
 
 	it('lists the AS issuer in authorization_servers', () => {

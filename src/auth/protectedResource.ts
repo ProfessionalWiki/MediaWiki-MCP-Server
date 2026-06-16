@@ -60,7 +60,13 @@ export function buildProtectedResource(
 		return undefined;
 	}
 
-	const resource = resolvePublicBase(input.requestHost, input.requestProto);
+	// The RFC 8707/9728 resource identifier must equal the canonical MCP server
+	// URL the client connects to — slash-free, matching the AS `issuer`. Real MCP
+	// clients (e.g. the SDK) compare it verbatim against their configured server
+	// URL, so a trailing slash here fails auth ("Protected resource .../mcp/ does
+	// not match expected .../mcp"). resolvePublicBase keeps its trailing slash for
+	// building the resource_metadata URL; strip it for the identifier only.
+	const resource = resolvePublicBase(input.requestHost, input.requestProto).replace(/\/+$/, '');
 	const issuers =
 		input.authorizationServersOverride !== undefined
 			? [...input.authorizationServersOverride]

@@ -63,7 +63,13 @@ export function planAuthorize(
 	if (!q.redirect_uri || !client.redirectUris.includes(q.redirect_uri)) {
 		return err('redirect_uri not registered');
 	}
-	if (q.resource && q.resource !== pc.issuer) {
+	// RFC 8707 resource indicator. A spec-compliant client reads `resource` from
+	// the protected-resource document (resolvePublicBase, WITH a trailing slash)
+	// and echoes it here, while pc.issuer is the RFC 8414 issuer (slash-free).
+	// Both forms denote the same resource, so compare with trailing slashes
+	// normalized off rather than rejecting the slash-bearing variant.
+	const stripSlash = (s: string): string => s.replace(/\/+$/, '');
+	if (q.resource && stripSlash(q.resource) !== stripSlash(pc.issuer)) {
 		return err('resource does not match this server');
 	}
 	if (q.code_challenge_method !== 'S256' || !q.code_challenge) {

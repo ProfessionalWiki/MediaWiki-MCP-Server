@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 
 // Importing streamableHttp.ts runs its module top-level boot (config load,
 // startup guard, app.listen). Mock the config + mwn provider so that boot is
@@ -123,7 +123,20 @@ function makeDeps(
 describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 	let fakeAs: FakeAsHandle | undefined;
 
+	// Pin MCP_PUBLIC_URL to the proxy issuer's base so the protected-resource
+	// document's `resource` field (resolvePublicBase) resolves to the SAME host
+	// as the proxy issuer — but WITH a trailing slash (`https://mcp.example/mcp/`)
+	// while the issuer stays slash-free (`https://mcp.example/mcp`). The fake MCP
+	// client now sources its `resource` indicator from that document, so the flow
+	// exercises the /authorize trailing-slash normalization (Fix 1). Without it,
+	// /authorize would reject the slash-bearing resource as a mismatch and the
+	// flow would never reach the consent page.
+	beforeEach(() => {
+		vi.stubEnv('MCP_PUBLIC_URL', ISSUER);
+	});
+
 	afterEach(async () => {
+		vi.unstubAllEnvs();
 		await fakeAs?.close();
 		fakeAs = undefined;
 	});

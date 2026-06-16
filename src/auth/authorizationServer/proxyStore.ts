@@ -35,6 +35,11 @@ export interface UpstreamToken {
 const TXN_TTL_MS = 15 * 60 * 1000;
 const CODE_TTL_MS = 5 * 60 * 1000;
 
+// /register is unauthenticated, so registered clients accumulate without bound
+// unless capped. Evict the oldest (FIFO, by Map insertion order) once this many
+// are held, keeping memory bounded against /register spam.
+const DEFAULT_MAX_CLIENTS = 10_000;
+
 export interface ProxyStore {
 	putClient(c: Omit<ClientRecord, 'clientId' | 'createdAt'>): ClientRecord;
 	getClient(id: string): ClientRecord | undefined;
@@ -59,10 +64,22 @@ export class InMemoryProxyStore implements ProxyStore {
 	private codes = new Map<string, Expiring<CodeRecord>>();
 	private upstream = new Map<string, UpstreamToken>();
 
-	public constructor(private now: () => number = Date.now) {}
+	public constructor(
+		private now: () => number = Date.now,
+		private maxClients: number = DEFAULT_MAX_CLIENTS,
+	) {}
 
 	public putClient(c: Omit<ClientRecord, 'clientId' | 'createdAt'>): ClientRecord {
 		const rec: ClientRecord = { ...c, clientId: `mcp-${randomUUID()}`, createdAt: this.now() };
+		// FIFO eviction: drop the oldest registration before exceeding the cap.
+		// Map preserves insertion order, so the first key is the oldest.
+		while (this.clients.size >= this.maxClients) {
+			const oldest = this.clients.keys().next().value;
+			if (oldest === undefined) {
+				break;
+			}
+			this.clients.delete(oldest);
+		}
 		this.clients.set(rec.clientId, rec);
 		return rec;
 	}

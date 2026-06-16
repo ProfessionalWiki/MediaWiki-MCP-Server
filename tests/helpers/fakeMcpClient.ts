@@ -35,8 +35,9 @@ export interface FakeMcpClientOptions {
 	// The OAuth `state` the client sends on /authorize; echoed back on the final
 	// client redirect.
 	clientState?: string;
-	// The `resource` indicator (defaults to the proxy issuer via metadata lookup);
-	// when omitted it is left unset.
+	// The `resource` indicator. Defaults to the `resource` field of the
+	// protected-resource document (WITH trailing slash, the spec-correct source);
+	// override to drive a mismatch.
 	resource?: string;
 	scope?: string;
 }
@@ -70,15 +71,18 @@ export class FakeMcpClientError extends Error {
 
 const DEFAULT_REDIRECT = 'http://127.0.0.1:38080/callback';
 
-// Reads the proxy AS metadata so the client targets the advertised endpoints and
-// resource identifier rather than hard-coding them (mirrors a real MCP client).
-async function fetchIssuer(app: Express): Promise<string> {
-	const res = await request(app).get('/.well-known/oauth-authorization-server');
+// Reads the `resource` indicator from the protected-resource document — the
+// spec-correct source a compliant client echoes on /authorize. This value
+// carries a trailing slash (resolvePublicBase), distinct from the slash-free
+// RFC 8414 issuer, so it exercises the trailing-slash normalization on the
+// proxy's /authorize resource check.
+async function fetchProtectedResource(app: Express): Promise<string> {
+	const res = await request(app).get('/.well-known/oauth-protected-resource');
 	if (res.status !== 200) {
-		throw new FakeMcpClientError('AS metadata not available', res.status, res.body);
+		throw new FakeMcpClientError('protected-resource doc not available', res.status, res.body);
 	}
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata body is untyped JSON
-	return (res.body as { issuer: string }).issuer;
+	return (res.body as { resource: string }).resource;
 }
 
 export async function registerClient(
@@ -123,8 +127,10 @@ export async function runHostedFlow(opts: FakeMcpClientOptions): Promise<FakeMcp
 	const clientState = opts.clientState ?? 'client-state-xyz';
 	const scope = opts.scope ?? 'mwoauth-authonly';
 
-	const issuer = await fetchIssuer(app);
-	const resource = opts.resource ?? issuer;
+	// Default the resource indicator to the protected-resource document's
+	// `resource` field (WITH trailing slash) — the spec-correct source a real
+	// client echoes — rather than the slash-free AS issuer.
+	const resource = opts.resource ?? (await fetchProtectedResource(app));
 
 	// 1. Dynamic Client Registration.
 	const { clientId, body: registerBody } = await registerClient(app, redirectUri);

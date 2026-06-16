@@ -165,6 +165,21 @@ describe('classifyAuthShape', () => {
 		expect(classifyAuthShape(wikis, 'stdio')).toBe('anonymous');
 	});
 
+	it('returns oauth-proxy on http when the hosted proxy is enabled', () => {
+		const wikis = { a: baseWiki };
+		expect(classifyAuthShape(wikis, 'http', true)).toBe('oauth-proxy');
+	});
+
+	it('static credentials take precedence over the proxy flag', () => {
+		const wikis = { a: { ...baseWiki, token: 't' } };
+		expect(classifyAuthShape(wikis, 'http', true)).toBe('static-credential');
+	});
+
+	it('proxy flag is ignored on stdio', () => {
+		const wikis = { a: baseWiki };
+		expect(classifyAuthShape(wikis, 'stdio', true)).toBe('anonymous');
+	});
+
 	it('is unaffected by partial credentials (username only or password only)', () => {
 		const wikisU = { a: { ...baseWiki, username: 'u' } };
 		const wikisP = { a: { ...baseWiki, password: 'p' } };

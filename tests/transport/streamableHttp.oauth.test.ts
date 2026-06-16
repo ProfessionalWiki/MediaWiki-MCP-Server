@@ -150,8 +150,8 @@ describe('GET /.well-known/oauth-protected-resource', () => {
 			.set('Host', 'mcp.example.org')
 			.set('x-forwarded-proto', 'https');
 		expect(res.status).toBe(200);
-		// resource should use https
-		expect(res.body.resource).toMatch(/^https:\/\/mcp\.example\.org\//);
+		// resource should use https and be the slash-free canonical identifier
+		expect(res.body.resource).toBe('https://mcp.example.org');
 	});
 
 	it('lists every OAuth wiki authorization server when two wikis use different servers', async () => {

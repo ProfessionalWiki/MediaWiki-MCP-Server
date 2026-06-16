@@ -61,6 +61,33 @@ describe('planAuthorize', () => {
 			).kind,
 		).toBe('error');
 	});
+	it('accepts a resource equal to the issuer with a trailing slash (RFC 8707)', () => {
+		// A spec-compliant client echoes the protected-resource doc's `resource`
+		// (resolvePublicBase guarantees a trailing slash), which differs from the
+		// slash-free RFC 8414 issuer only by that slash. It must NOT be rejected.
+		const { store, client } = setup();
+		expect(
+			planAuthorize(
+				{ ...baseQuery(client.clientId), resource: `${pc.issuer}/` },
+				undefined,
+				pc,
+				store,
+				'Ex',
+			).kind,
+		).not.toBe('error');
+	});
+	it('still errors on a genuinely different resource (not just a trailing slash)', () => {
+		const { store, client } = setup();
+		expect(
+			planAuthorize(
+				{ ...baseQuery(client.clientId), resource: 'https://wiki.example/other' },
+				undefined,
+				pc,
+				store,
+				'Ex',
+			).kind,
+		).toBe('error');
+	});
 	it('errors when code_challenge_method is not S256', () => {
 		const { store, client } = setup();
 		expect(
