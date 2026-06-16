@@ -63,6 +63,7 @@
 		"@modelcontextprotocol/sdk": "^1.29.0",
 		"express": "^5.1.0",
 		"ipaddr.js": "2.4.0",
+		"jose": "^6.2.3",
 		"mwn": "^3.0.1",
 		"node-fetch": "^3.3.2",
 		"open": "^11.0.0",
