@@ -44,6 +44,13 @@ export interface WikiConfig {
 	 */
 	oauth2ClientId?: string | null;
 	/**
+	 * Public base URL of the wiki (e.g. https://wiki.example) used ONLY to build the
+	 * browser-facing upstream OAuth authorize URL when the hosted proxy is enabled.
+	 * Defaults to `server` when unset. Needed when `server` is an internal alias the
+	 * user's browser cannot reach (e.g. http://mediawiki.svc).
+	 */
+	publicServer?: string | null;
+	/**
 	 * Fixed loopback port for the OAuth 2.0 callback during the stdio
 	 * browser dance. Set this when the wiki's authorization server
 	 * exact-matches the registered redirect URI — notably MediaWiki's
