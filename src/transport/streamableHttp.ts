@@ -48,6 +48,7 @@ import {
 } from '../auth/authorizationServer/consent.js';
 import { verifyConsent } from '../auth/authorizationServer/jwt.js';
 import { handleCallback } from '../auth/authorizationServer/callback.js';
+import { handleToken } from '../auth/authorizationServer/token.js';
 import { createAppState } from '../wikis/state.js';
 import { createServer } from '../server.js';
 import { emitStartupBanner } from '../runtime/banner.js';
@@ -832,6 +833,24 @@ app.get('/mcp/oauth/callback', async (req, res) => {
 		return;
 	}
 	res.redirect(302, plan.location);
+});
+
+// POST /mcp/token — the proxy's RFC 6749 token endpoint. Served only when the
+// hosted OAuth proxy is enabled. Bodies are form-encoded (not JSON), so a route-
+// local express.urlencoded parser is used. handleToken handles both the
+// authorization_code grant (verify client PKCE, consume the one-time code, mint
+// proxy JWTs) and the refresh_token grant (verify the proxy refresh JWT, refresh
+// the upstream token server-to-server, re-mint).
+app.post('/mcp/token', express.urlencoded({ extended: false }), async (req, res) => {
+	const pc = getDefaultProxyConfig();
+	if (!pc) {
+		res.status(404).end();
+		return;
+	}
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- form-encoded body is untyped; handleToken reads each field defensively
+	const body = (req.body ?? {}) as Record<string, string>;
+	const result = await handleToken(body, pc, proxyStore);
+	res.status(result.status).json(result.body);
 });
 
 mountReadyEndpoint(app, { activeWiki: state.activeWiki, mwnProvider: state.mwnProvider });
