@@ -10,6 +10,7 @@ import type { EditService } from '../services/editService.js';
 import type { RevisionNormalizer } from '../services/revisionNormalize.js';
 import type { ResponseFormatter } from '../results/response.js';
 import type { ErrorClassifier } from '../errors/classifyError.js';
+import type { ProxyConfig } from '../auth/authorizationServer/proxyConfig.js';
 import type { Logger } from './logger.js';
 
 export interface ToolContext {
@@ -27,6 +28,10 @@ export interface ToolContext {
 	readonly errors: ErrorClassifier;
 	readonly logger: Logger;
 	readonly transport: 'http' | 'stdio';
+	// Returns the active hosted-OAuth-proxy config, or null when the proxy is
+	// disabled. Wired only on the HTTP transport (createContext.ts), so on stdio
+	// and in tests it defaults to undefined (treated as "proxy disabled").
+	readonly getProxyConfig?: () => ProxyConfig | null;
 }
 
 export interface ManagementContext extends ToolContext {

@@ -1,6 +1,7 @@
 import type { Logger } from './logger.js';
 import type { ToolContext } from './context.js';
 import type { AppState } from '../wikis/state.js';
+import type { ProxyConfig } from '../auth/authorizationServer/proxyConfig.js';
 import { WikiCacheImpl } from '../wikis/wikiCache.js';
 import { SectionServiceImpl } from '../services/sectionService.js';
 import { EditServiceImpl } from '../services/editService.js';
@@ -12,8 +13,9 @@ export function createToolContext(deps: {
 	logger: Logger;
 	state: AppState;
 	transport: 'http' | 'stdio';
+	getProxyConfig?: () => ProxyConfig | null;
 }): ToolContext {
-	const { logger, state, transport } = deps;
+	const { logger, state, transport, getProxyConfig } = deps;
 	return {
 		mwn: (wikiKey?: string) => state.mwnProvider.get(wikiKey),
 		wikis: state.wikiRegistry,
@@ -29,5 +31,6 @@ export function createToolContext(deps: {
 		errors: new ErrorClassifierImpl(),
 		logger,
 		transport,
+		getProxyConfig,
 	};
 }

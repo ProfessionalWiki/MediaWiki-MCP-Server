@@ -33,7 +33,8 @@ import type { WikiRegistry } from '../wikis/wikiRegistry.js';
 import { fetchMetadata, type AsMetadata } from '../auth/metadata.js';
 import { buildProtectedResource, resolvePublicBase } from '../auth/protectedResource.js';
 import { resolveProxyConfig, type ProxyConfig } from '../auth/authorizationServer/proxyConfig.js';
-import { InMemoryProxyStore } from '../auth/authorizationServer/proxyStore.js';
+import { InMemoryProxyStore, type ProxyStore } from '../auth/authorizationServer/proxyStore.js';
+import { refreshTokens as defaultRefresh, type RefreshArgs } from '../auth/oauthFlow.js';
 import { buildAsMetadata } from '../auth/authorizationServer/asMetadata.js';
 import { handleRegister } from '../auth/authorizationServer/register.js';
 import {
@@ -46,7 +47,7 @@ import {
 	buildConsentCookie,
 	readConsentCookie,
 } from '../auth/authorizationServer/consent.js';
-import { verifyConsent } from '../auth/authorizationServer/jwt.js';
+import { verifyAccessToken, verifyConsent } from '../auth/authorizationServer/jwt.js';
 import { handleCallback } from '../auth/authorizationServer/callback.js';
 import { handleToken } from '../auth/authorizationServer/token.js';
 import { createAppState } from '../wikis/state.js';
@@ -227,10 +228,88 @@ function wikiNeedsAuth(cfg: WikiConfig, fallbackAllowed: boolean): boolean {
 	return !(hasStatic && fallbackAllowed);
 }
 
+// Refresh tokens within this window of expiry rather than waiting for an actual
+// upstream 401, so the very next wiki call uses a fresh token.
+const UPSTREAM_REFRESH_SKEW_MS = 30_000;
+
+type RefreshFn = (a: RefreshArgs) => Promise<{
+	access_token: string;
+	refresh_token?: string;
+	expires_in: number;
+}>;
+
+// Resolves a /mcp proxy JWT to the UPSTREAM wiki access token it stands for.
+// When the proxy is enabled the bearer is a proxy-minted JWT (aud=self), not a
+// wiki token, so mwn cannot use it directly: we verify the JWT, look up the
+// stored upstream token by its jti, and (when it is at/near expiry and a refresh
+// token exists) transparently refresh it server-to-server before returning.
+//
+// verifyAccessToken throws on an invalid/expired/mis-audienced JWT; the caller
+// (the /mcp handler) maps that throw to a 401 + WWW-Authenticate challenge.
+export async function resolveUpstreamBearer(
+	proxyJwt: string,
+	pc: ProxyConfig,
+	store: ProxyStore,
+	refresh: RefreshFn = defaultRefresh,
+): Promise<string> {
+	const { upstreamTokenId } = await verifyAccessToken(proxyJwt, pc);
+	const upstream = store.getUpstreamToken(upstreamTokenId);
+	if (!upstream) {
+		throw new Error('upstream token not found');
+	}
+	if (upstream.expiresAt <= Date.now() + UPSTREAM_REFRESH_SKEW_MS && upstream.refreshToken) {
+		const r = await refresh({
+			tokenEndpoint: `${pc.tokenExchangeBase}${pc.scriptpath}/rest.php/oauth2/access_token`,
+			refreshToken: upstream.refreshToken,
+			clientId: pc.upstreamClientId,
+		});
+		const updated = {
+			accessToken: r.access_token,
+			refreshToken: r.refresh_token ?? upstream.refreshToken,
+			expiresAt: Date.now() + r.expires_in * 1000,
+		};
+		store.updateUpstreamToken(upstreamTokenId, updated);
+		return updated.accessToken;
+	}
+	return upstream.accessToken;
+}
+
 export interface McpPostHandlerOptions {
 	allowedOrigins?: string[];
 	wikiRegistry?: WikiRegistry;
 	idleTimeoutMs?: number;
+	// When the hosted OAuth proxy is enabled, the /mcp bearer is a proxy-minted
+	// JWT (not a wiki token): we verify it and resolve the upstream wiki token
+	// from the store before threading it into withRequestContext. Omitted (or
+	// returning null) leaves the legacy bearer-passthrough/401-discovery path
+	// unchanged.
+	getProxyConfig?: ProxyConfigGetter;
+	proxyStore?: ProxyStore;
+}
+
+// Emits the shared OAuth 401 challenge: a JSON-RPC error body with the
+// WWW-Authenticate: Bearer ... resource_metadata=... header pointing at this
+// server's protected-resource document. Reused by the legacy OAuth-only
+// short-circuit and the proxy invalid-JWT path so both speak the same dialect.
+function emit401Challenge(req: Request, res: Response): void {
+	const protoHeader = req.headers['x-forwarded-proto'];
+	const proto = typeof protoHeader === 'string' ? protoHeader.split(',')[0]?.trim() : undefined;
+	const requestProto =
+		proto === 'https' || proto === 'http' ? proto : req.secure ? 'https' : 'http';
+	const base = resolvePublicBase(req.headers.host ?? undefined, requestProto);
+	const metadataUrl = `${base}.well-known/oauth-protected-resource`;
+	res.set(
+		'WWW-Authenticate',
+		`Bearer realm="MediaWiki MCP Server", resource_metadata="${metadataUrl}"`,
+	);
+	res.status(401).json({
+		jsonrpc: '2.0',
+		error: {
+			code: -32001,
+			message: 'Authentication required. See WWW-Authenticate header.',
+		},
+		id: null,
+	});
 }
 
 export function createMcpPostHandler(
@@ -238,36 +317,45 @@ export function createMcpPostHandler(
 	createServerFn: () => ReturnType<typeof createServer>,
 	options: McpPostHandlerOptions = {},
 ): RequestHandler {
-	const { allowedOrigins, wikiRegistry, idleTimeoutMs = 0 } = options;
+	const { allowedOrigins, wikiRegistry, idleTimeoutMs = 0, getProxyConfig, proxyStore } = options;
 	return async (req, res) => {
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Express headers are string|string[]|undefined; MCP transport sends a single header
 		const sessionId = req.headers['mcp-session-id'] as string | undefined;
 		const bearer = extractBearerToken(req);
 
-		if (!bearer && wikiRegistry) {
+		const pc = getProxyConfig?.() ?? null;
+
+		// The token threaded into withRequestContext (and thus into mwn). For the
+		// legacy path it is the raw request bearer. For the proxy path it is the
+		// UPSTREAM wiki token resolved from the proxy JWT (or undefined for an
+		// anonymous, tokenless request).
+		let resolvedBearer = bearer;
+
+		if (pc && proxyStore) {
+			// Proxy enabled. A bearer is a proxy JWT: verify + resolve it to the
+			// upstream wiki token. A 401 (with the discovery hint) is emitted only
+			// when a bearer is present but invalid/expired/unresolvable — never for a
+			// tokenless request, which is served anonymously (step-up for write tools
+			// happens later in checkWikiCapability, not as a transport 401).
+			if (bearer) {
+				try {
+					resolvedBearer = await resolveUpstreamBearer(bearer, pc, proxyStore);
+				} catch {
+					emit401Challenge(req, res);
+					return;
+				}
+			} else {
+				resolvedBearer = undefined;
+			}
+		} else if (!bearer && wikiRegistry) {
+			// Legacy (proxy disabled): a tokenless request to a set of wikis that all
+			// require OAuth is rejected up front with the discovery challenge. This
+			// path is intentionally left UNCHANGED.
 			const all = Object.values(wikiRegistry.getAll());
 			const fallbackAllowed = process.env.MCP_ALLOW_STATIC_FALLBACK === 'true';
 			const allNeedAuth = all.length > 0 && all.every((cfg) => wikiNeedsAuth(cfg, fallbackAllowed));
 			if (allNeedAuth) {
-				const protoHeader = req.headers['x-forwarded-proto'];
-				const proto =
-					typeof protoHeader === 'string' ? protoHeader.split(',')[0]?.trim() : undefined;
-				const requestProto =
-					proto === 'https' || proto === 'http' ? proto : req.secure ? 'https' : 'http';
-				const base = resolvePublicBase(req.headers.host ?? undefined, requestProto);
-				const metadataUrl = `${base}.well-known/oauth-protected-resource`;
-				res.set(
-					'WWW-Authenticate',
-					`Bearer realm="MediaWiki MCP Server", resource_metadata="${metadataUrl}"`,
-				);
-				res.status(401).json({
-					jsonrpc: '2.0',
-					error: {
-						code: -32001,
-						message: 'Authentication required. See WWW-Authenticate header.',
-					},
-					id: null,
-				});
+				emit401Challenge(req, res);
 				return;
 			}
 		}
@@ -332,7 +420,7 @@ export function createMcpPostHandler(
 			}
 		});
 
-		await withRequestContext(bearer, transport.sessionId, () =>
+		await withRequestContext(resolvedBearer, transport.sessionId, () =>
 			transport.handleRequest(req, res, req.body),
 		);
 	};
@@ -587,7 +675,12 @@ if ((host === '0.0.0.0' || host === '::') && !allowedOrigins) {
 
 const sessions: SessionRegistry = {};
 const sessionRequestHandler = createSessionRequestHandler(sessions, sessionIdleTimeoutMs);
-const ctx = createToolContext({ logger, state, transport: 'http' });
+const ctx = createToolContext({
+	logger,
+	state,
+	transport: 'http',
+	getProxyConfig: getDefaultProxyConfig,
+});
 
 const inFlight = createInFlightCounter();
 app.use('/mcp', inFlight.middleware);
@@ -598,6 +691,8 @@ app.post(
 		allowedOrigins,
 		wikiRegistry: state.wikiRegistry,
 		idleTimeoutMs: sessionIdleTimeoutMs,
+		getProxyConfig: getDefaultProxyConfig,
+		proxyStore,
 	}),
 );
 app.get('/mcp', sessionRequestHandler);
