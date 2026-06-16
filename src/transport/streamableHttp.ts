@@ -47,6 +47,7 @@ import {
 	readConsentCookie,
 } from '../auth/authorizationServer/consent.js';
 import { verifyConsent } from '../auth/authorizationServer/jwt.js';
+import { handleCallback } from '../auth/authorizationServer/callback.js';
 import { createAppState } from '../wikis/state.js';
 import { createServer } from '../server.js';
 import { emitStartupBanner } from '../runtime/banner.js';
@@ -793,6 +794,44 @@ app.post('/mcp/consent', express.urlencoded({ extended: false }), async (req, re
 	res
 		.status(400)
 		.json({ error: 'invalid_request', error_description: 'consent could not be applied' });
+});
+
+// GET /mcp/oauth/callback — the upstream wiki's authorization-code redirect back
+// to the proxy. The `state` param is the proxy-minted transaction id. We verify
+// the consent cookie against the transaction's client + redirect host (the same
+// binding authorize set), then hand off to handleCallback, which exchanges the
+// wiki code on the internal tokenExchangeBase, stores the upstream token, mints a
+// one-time downstream client code, and 302s back to the client redirect.
+app.get('/mcp/oauth/callback', async (req, res) => {
+	const pc = getDefaultProxyConfig();
+	if (!pc) {
+		res.status(404).end();
+		return;
+	}
+	const one = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
+	const q = { code: one(req.query.code), state: one(req.query.state) };
+
+	// Re-verify the consent cookie here, bound to the transaction's own client +
+	// redirect host. handleCallback re-looks-up the txn itself; this lookup only
+	// supplies the binding fields for verifyConsent (an idempotent read).
+	let consentOk = false;
+	const txn = q.state ? proxyStore.getTransaction(q.state) : undefined;
+	const cookie = readConsentCookie(req.headers.cookie);
+	if (txn && cookie) {
+		consentOk = await verifyConsent(cookie, {
+			clientId: txn.clientId,
+			redirectHost: new URL(txn.clientRedirectUri).hostname,
+			wiki: defaultWikiKey,
+			signingKey: pc.signingKey,
+		});
+	}
+
+	const plan = await handleCallback(q, pc, proxyStore, consentOk);
+	if (plan.kind === 'error') {
+		res.status(plan.status).json(plan.body);
+		return;
+	}
+	res.redirect(302, plan.location);
 });
 
 mountReadyEndpoint(app, { activeWiki: state.activeWiki, mwnProvider: state.mwnProvider });
