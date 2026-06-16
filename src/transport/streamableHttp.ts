@@ -36,6 +36,17 @@ import { resolveProxyConfig, type ProxyConfig } from '../auth/authorizationServe
 import { InMemoryProxyStore } from '../auth/authorizationServer/proxyStore.js';
 import { buildAsMetadata } from '../auth/authorizationServer/asMetadata.js';
 import { handleRegister } from '../auth/authorizationServer/register.js';
+import {
+	planAuthorize,
+	type AuthorizeQuery,
+	type ConsentClaims,
+} from '../auth/authorizationServer/authorize.js';
+import {
+	renderConsentPage,
+	buildConsentCookie,
+	readConsentCookie,
+} from '../auth/authorizationServer/consent.js';
+import { verifyConsent } from '../auth/authorizationServer/jwt.js';
 import { createAppState } from '../wikis/state.js';
 import { createServer } from '../server.js';
 import { emitStartupBanner } from '../runtime/banner.js';
@@ -503,6 +514,13 @@ function getDefaultProxyConfig(): ProxyConfig | null {
 	return cachedProxyConfig;
 }
 
+// The consent cookie binds a deployment-stable wiki id; we use the default
+// wiki KEY (the same key getDefaultProxyConfig resolves) for that binding, so
+// signing (buildConsentCookie) and verification (verifyConsent) agree on it.
+// The sitename is the human-readable display name shown on the consent page.
+const defaultWikiKey = state.activeWiki.getDefaultKey();
+const defaultWikiSitename = state.wikiRegistry.get(defaultWikiKey)?.sitename ?? defaultWikiKey;
+
 // Single process-wide store backing the proxy's clients, transactions,
 // authorization codes, and upstream tokens. Later handlers
 // (register/authorize/callback/token) share this instance. Exported so those
@@ -621,6 +639,160 @@ app.post('/mcp/register', (req, res) => {
 	}
 	const result = handleRegister(req.body, proxyStore);
 	res.status(result.status).json(result.body);
+});
+
+// Reads the subset of query parameters planAuthorize cares about, coercing each
+// to a single string (Express may parse repeated/array/nested params, which the
+// OAuth params are never expected to be; only the first scalar is honoured).
+function readAuthorizeQuery(query: Request['query']): AuthorizeQuery {
+	const one = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
+	return {
+		client_id: one(query.client_id),
+		redirect_uri: one(query.redirect_uri),
+		state: one(query.state),
+		code_challenge: one(query.code_challenge),
+		code_challenge_method: one(query.code_challenge_method),
+		scope: one(query.scope),
+		resource: one(query.resource),
+	};
+}
+
+// Re-serialises the AuthorizeQuery so the consent form's POST action carries the
+// exact same parameters back to /mcp/consent. Built from the parsed query rather
+// than req.originalUrl so it round-trips only the recognised OAuth params.
+function serializeAuthorizeQuery(q: AuthorizeQuery): string {
+	const sp = new URLSearchParams();
+	for (const [k, v] of Object.entries(q)) {
+		if (typeof v === 'string') {
+			sp.set(k, v);
+		}
+	}
+	return sp.toString();
+}
+
+// Parses a request's redirect_uri hostname, returning undefined when it is
+// missing or not a valid absolute URL. planAuthorize independently rejects an
+// unregistered/missing redirect, so a parse failure here just means "no consent".
+function redirectHostOf(redirectUri: string | undefined): string | undefined {
+	if (!redirectUri) {
+		return undefined;
+	}
+	try {
+		return new URL(redirectUri).hostname;
+	} catch {
+		return undefined;
+	}
+}
+
+// GET /mcp/authorize — the proxy authorization endpoint. Validates the client +
+// redirect, gates on the signed consent cookie (bound to clientId + redirectHost
+// + the default wiki key), and either renders the consent page or 302s to the
+// upstream wiki authorize URL.
+app.get('/mcp/authorize', async (req, res) => {
+	const pc = getDefaultProxyConfig();
+	if (!pc) {
+		res.status(404).end();
+		return;
+	}
+	const q = readAuthorizeQuery(req.query);
+
+	let consent: ConsentClaims | undefined;
+	const redirectHost = redirectHostOf(q.redirect_uri);
+	const cookie = readConsentCookie(req.headers.cookie);
+	if (cookie && q.client_id && redirectHost) {
+		const ok = await verifyConsent(cookie, {
+			clientId: q.client_id,
+			redirectHost,
+			wiki: defaultWikiKey,
+			signingKey: pc.signingKey,
+		});
+		if (ok) {
+			consent = { clientId: q.client_id, redirectHost, wiki: defaultWikiKey };
+		}
+	}
+
+	const plan = planAuthorize(q, consent, pc, proxyStore, defaultWikiSitename);
+	if (plan.kind === 'error') {
+		res.status(plan.status).json(plan.body);
+		return;
+	}
+	if (plan.kind === 'consent') {
+		res.type('html').send(
+			renderConsentPage({
+				clientName: plan.clientName,
+				wiki: defaultWikiSitename,
+				scopes: plan.scopes,
+				authorizeQuery: serializeAuthorizeQuery(q),
+			}),
+		);
+		return;
+	}
+	res.redirect(302, plan.location);
+});
+
+// POST /mcp/consent — records the user's decision from the consent form. The
+// form action carries the original authorize params in the query string; the
+// decision is form-encoded in the body. On approve we set the signed consent
+// cookie and re-run planAuthorize to 302 to the upstream (Set-Cookie + 302 in
+// the one response is correct: the browser stores the cookie and follows the
+// redirect, so the subsequent upstream callback can be matched).
+app.post('/mcp/consent', express.urlencoded({ extended: false }), async (req, res) => {
+	const pc = getDefaultProxyConfig();
+	if (!pc) {
+		res.status(404).end();
+		return;
+	}
+	const q = readAuthorizeQuery(req.query);
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- form-encoded body is untyped; decision is read defensively below
+	const body = (req.body ?? {}) as Record<string, unknown>;
+	const decision = typeof body.decision === 'string' ? body.decision : undefined;
+
+	if (decision !== 'approve') {
+		res
+			.status(200)
+			.type('html')
+			.send(
+				'<!doctype html><meta charset="utf-8"><title>Authorization cancelled</title>' +
+					'<body style="font-family:system-ui;max-width:32rem;margin:4rem auto">' +
+					'<h1>Authorization cancelled</h1>' +
+					'<p>You can close this window.</p></body>',
+			);
+		return;
+	}
+
+	const redirectHost = redirectHostOf(q.redirect_uri);
+	if (!q.client_id || !redirectHost) {
+		res
+			.status(400)
+			.json({ error: 'invalid_request', error_description: 'missing client_id or redirect_uri' });
+		return;
+	}
+
+	res.append(
+		'Set-Cookie',
+		await buildConsentCookie(pc, {
+			clientId: q.client_id,
+			redirectHost,
+			wiki: defaultWikiKey,
+		}),
+	);
+
+	const consent: ConsentClaims = { clientId: q.client_id, redirectHost, wiki: defaultWikiKey };
+	const plan = planAuthorize(q, consent, pc, proxyStore, defaultWikiSitename);
+	if (plan.kind === 'error') {
+		res.status(plan.status).json(plan.body);
+		return;
+	}
+	if (plan.kind === 'redirect') {
+		res.redirect(302, plan.location);
+		return;
+	}
+	// planAuthorize returned 'consent' despite a freshly built ConsentClaims —
+	// only reachable if the client vanished between validation steps. Treat as a
+	// transient error rather than re-prompting (the cookie is already set).
+	res
+		.status(400)
+		.json({ error: 'invalid_request', error_description: 'consent could not be applied' });
 });
 
 mountReadyEndpoint(app, { activeWiki: state.activeWiki, mwnProvider: state.mwnProvider });
