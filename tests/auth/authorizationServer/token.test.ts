@@ -2,8 +2,13 @@ import { describe, it, expect, vi } from 'vitest';
 import { handleToken } from '../../../src/auth/authorizationServer/token.js';
 import { InMemoryProxyStore } from '../../../src/auth/authorizationServer/proxyStore.js';
 import { randomVerifier, s256 } from '../../../src/auth/pkce.js';
-import { verifyAccessToken, mintRefreshToken } from '../../../src/auth/authorizationServer/jwt.js';
+import {
+	verifyAccessToken,
+	mintRefreshToken,
+	mintAccessToken,
+} from '../../../src/auth/authorizationServer/jwt.js';
 import type { ProxyConfig } from '../../../src/auth/authorizationServer/proxyConfig.js';
+import { OAuthFlowError } from '../../../src/auth/oauthFlow.js';
 
 const pc: ProxyConfig = {
 	issuer: 'https://wiki.example/mcp',
@@ -173,5 +178,75 @@ describe('handleToken refresh_token', () => {
 		expect(r.status).toBe(400);
 		expect(r.body.error).toBe('invalid_grant');
 		expect(store.getUpstreamToken(upstreamTokenId)?.accessToken).toBe('OLD');
+	});
+
+	it('maps a transient upstream refresh failure to 503 and keeps the upstream token', async () => {
+		const store = new InMemoryProxyStore();
+		const upstreamTokenId = store.putUpstreamToken({
+			accessToken: 'OLD',
+			refreshToken: 'WR',
+			expiresAt: Date.now(),
+		});
+		const rt = await mintRefreshToken({
+			issuer: pc.issuer,
+			signingKey: pc.signingKey,
+			upstreamTokenId,
+			ttlMs: 60_000,
+		});
+		const refresh = vi.fn().mockRejectedValue(new OAuthFlowError('transient', 'boom'));
+		const r = await handleToken(
+			{ grant_type: 'refresh_token', refresh_token: rt },
+			pc,
+			store,
+			refresh,
+		);
+		expect(r.status).toBe(503);
+		expect(r.body.error).toBe('temporarily_unavailable');
+		// The refresh token must NOT be discarded: the stored upstream token is intact.
+		expect(store.getUpstreamToken(upstreamTokenId)?.accessToken).toBe('OLD');
+		expect(store.getUpstreamToken(upstreamTokenId)?.refreshToken).toBe('WR');
+	});
+
+	it('maps an upstream invalid_grant to 400 invalid_grant', async () => {
+		const store = new InMemoryProxyStore();
+		const upstreamTokenId = store.putUpstreamToken({
+			accessToken: 'OLD',
+			refreshToken: 'WR',
+			expiresAt: Date.now(),
+		});
+		const rt = await mintRefreshToken({
+			issuer: pc.issuer,
+			signingKey: pc.signingKey,
+			upstreamTokenId,
+			ttlMs: 60_000,
+		});
+		const refresh = vi.fn().mockRejectedValue(new OAuthFlowError('invalid_grant', 'dead'));
+		const r = await handleToken(
+			{ grant_type: 'refresh_token', refresh_token: rt },
+			pc,
+			store,
+			refresh,
+		);
+		expect(r.status).toBe(400);
+		expect(r.body.error).toBe('invalid_grant');
+	});
+
+	it('rejects an access token presented to the refresh grant', async () => {
+		const store = new InMemoryProxyStore();
+		const upstreamTokenId = store.putUpstreamToken({
+			accessToken: 'OLD',
+			refreshToken: 'WR',
+			expiresAt: Date.now(),
+		});
+		const at = await mintAccessToken({
+			issuer: pc.issuer,
+			signingKey: pc.signingKey,
+			upstreamTokenId,
+			ttlMs: 60_000,
+			scopes: ['editpage'],
+		});
+		const r = await handleToken({ grant_type: 'refresh_token', refresh_token: at }, pc, store);
+		expect(r.status).toBe(400);
+		expect(r.body.error).toBe('invalid_grant');
 	});
 });

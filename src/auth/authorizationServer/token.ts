@@ -2,7 +2,7 @@ import type { ProxyConfig } from './proxyConfig.js';
 import type { ProxyStore } from './proxyStore.js';
 import { s256 } from '../pkce.js';
 import { mintAccessToken, mintRefreshToken, verifyRefreshToken } from './jwt.js';
-import { refreshTokens as defaultRefresh } from '../oauthFlow.js';
+import { refreshTokens as defaultRefresh, OAuthFlowError } from '../oauthFlow.js';
 
 type RefreshFn = typeof defaultRefresh;
 
@@ -72,7 +72,21 @@ export async function handleToken(
 				refreshToken: upstream.refreshToken,
 				clientId: pc.upstreamClientId,
 			});
-		} catch {
+		} catch (err) {
+			// Transient/malformed upstream failures (wiki 5xx, network blip, garbled
+			// response) are not the client's fault: surface a retryable 503 rather
+			// than invalid_grant, which would tell an RFC 6749 client to DISCARD its
+			// refresh token and force a full re-auth. invalid_grant/invalid_client
+			// (the upstream genuinely rejecting the refresh token) still map to 400.
+			if (err instanceof OAuthFlowError && (err.kind === 'transient' || err.kind === 'malformed')) {
+				return {
+					status: 503,
+					body: {
+						error: 'temporarily_unavailable',
+						error_description: 'upstream refresh temporarily unavailable',
+					},
+				};
+			}
 			return bad('invalid_grant', 'upstream refresh failed');
 		}
 		store.updateUpstreamToken(claims.upstreamTokenId, {
@@ -82,6 +96,12 @@ export async function handleToken(
 			refreshToken: refreshed.refresh_token ?? upstream.refreshToken,
 			expiresAt: Date.now() + refreshed.expires_in * 1000,
 		});
+		// The re-minted access token deliberately carries an empty scope. The proxy
+		// JWT's `scope` claim is purely informational — real authorization is the
+		// upstream wiki token referenced by `jti`, which we just refreshed. The
+		// original grant's scopes are not persisted on the upstream-token record, so
+		// they are not available here. Re-attaching them (and enforcing scopes) is a
+		// follow-up for when/if scope enforcement lands.
 		return mintPair(pc, claims.upstreamTokenId, []);
 	}
 
