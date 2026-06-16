@@ -17,7 +17,8 @@ Covers configuration topics beyond the basic `config.json` shape documented in [
 | Field | Required | Description |
 |---|---|---|
 | `sitename` | Yes | Display name for the wiki |
-| `server` | Yes | Base URL of the wiki (e.g., `https://en.wikipedia.org`) |
+| `server` | Yes | Base URL the MCP server uses to reach the wiki API. May be an internal hostname (e.g. `http://mediawiki.svc` in Docker). Also the host used for the server→wiki OAuth token exchange in the [hosted OAuth proxy](deployment.md#shape-3--single-wiki-hosted-server-mediated-oauth-proxy). |
+| `publicServer` | No | The wiki's browser-facing public base URL (e.g. `https://wiki.example.org`), used when it differs from the internal `server`. In the [hosted OAuth proxy](deployment.md#shape-3--single-wiki-hosted-server-mediated-oauth-proxy) this is the host the user's browser is redirected to for the upstream consent screen. Falls back to `server` when unset. |
 | `articlepath` | Yes | Path pattern for articles (typically `/wiki`) |
 | `scriptpath` | Yes | Path to MediaWiki scripts (typically `/w`) |
 | `oauth2ClientId` | No | Client key your wiki admin gives you when they register the MCP server's OAuth consumer. Opts the wiki into browser-based sign-in. See [OAuth (browser-based)](#oauth-browser-based). |
@@ -192,6 +193,17 @@ An HTTP client sends the `Authorization: Bearer` token appropriate to each call'
 Use `list-wikis` to retrieve the wiki-to-authorization-server mapping — it reports each OAuth wiki's `authorizationServer`.
 
 If `MCP_ALLOW_STATIC_FALLBACK=true` and the wiki has static credentials, bearer-less requests fall back to those credentials instead of returning 401. Use this only if you specifically want a hybrid where OAuth-aware clients sign in per user but unauthenticated callers still get service through a shared identity.
+
+#### Hosted OAuth proxy environment variables
+
+Setting these on the HTTP transport turns the server into an OAuth Authorization Server in front of one MediaWiki consumer, so OAuth-aware MCP clients sign in with no manual token handling. See [deployment.md — Shape 3](deployment.md#shape-3--single-wiki-hosted-server-mediated-oauth-proxy) for the full picture; the knobs are:
+
+- `MCP_PUBLIC_URL` — the proxy's public issuer/base, set to the public `/mcp` URL (e.g. `https://wiki.example.org/mcp`). Beyond its discovery role above, this is also the AS identity from which `/authorize`, `/token`, `/register`, and the fixed `/oauth/callback` are derived. **Required** to enable the proxy.
+- `MCP_OAUTH_JWT_SIGNING_KEY` — a secret of **at least 32 characters** the proxy signs its issued JWTs and consent cookies with. **Required** to enable the proxy. Keep it **fixed**: changing it invalidates every issued token and logs all users out.
+- `MCP_OAUTH_TOKEN_TTL` — lifetime of a proxy-minted access JWT. Default `55m`; must be shorter than the upstream 30-day refresh window.
+- `MCP_OAUTH_CONSENT_TTL` — lifetime of the signed consent cookie that lets a returning user skip the consent page. Default `30d`.
+
+`MCP_OAUTH_TOKEN_TTL` and `MCP_OAUTH_CONSENT_TTL` accept a number with an optional `s`/`m`/`h`/`d` unit (e.g. `55m`, `1h`, `30d`); a bare number is seconds. The proxy activates only when `MCP_TRANSPORT=http`, both required variables are set, and the default wiki has an `oauth2ClientId`.
 
 ### For wiki admins: registering the OAuth consumer
 
