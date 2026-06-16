@@ -50,7 +50,7 @@ import {
 import { verifyAccessToken, verifyConsent } from '../auth/authorizationServer/jwt.js';
 import { handleCallback } from '../auth/authorizationServer/callback.js';
 import { handleToken } from '../auth/authorizationServer/token.js';
-import { createAppState } from '../wikis/state.js';
+import { createAppState, type AppState } from '../wikis/state.js';
 import { createServer } from '../server.js';
 import { emitStartupBanner } from '../runtime/banner.js';
 import { createToolContext } from '../runtime/createContext.js';
@@ -656,88 +656,6 @@ emitStartupBanner(
 	},
 );
 
-const app = express();
-app.use(express.json({ limit: maxRequestBody }));
-app.use(payloadTooLargeHandler(maxRequestBody));
-
-const hostValidation = resolveMcpHostValidation(host, allowedHosts);
-if (hostValidation) {
-	app.use('/mcp', hostValidation);
-}
-
-if ((host === '0.0.0.0' || host === '::') && !allowedOrigins) {
-	logger.warning(
-		`Server is binding to ${host} without an Origin allowlist. ` +
-			'Set MCP_ALLOWED_ORIGINS to restrict allowed Origin-header values, ' +
-			'or front the server with a reverse proxy that enforces Origin.',
-	);
-}
-
-const sessions: SessionRegistry = {};
-const sessionRequestHandler = createSessionRequestHandler(sessions, sessionIdleTimeoutMs);
-const ctx = createToolContext({
-	logger,
-	state,
-	transport: 'http',
-	getProxyConfig: getDefaultProxyConfig,
-});
-
-const inFlight = createInFlightCounter();
-app.use('/mcp', inFlight.middleware);
-
-app.post(
-	'/mcp',
-	createMcpPostHandler(sessions, () => createServer(ctx), {
-		allowedOrigins,
-		wikiRegistry: state.wikiRegistry,
-		idleTimeoutMs: sessionIdleTimeoutMs,
-		getProxyConfig: getDefaultProxyConfig,
-		proxyStore,
-	}),
-);
-app.get('/mcp', sessionRequestHandler);
-app.delete('/mcp', sessionRequestHandler);
-
-app.get('/health', (_req: Request, res: Response) => {
-	res.status(200).json({ status: 'ok' });
-});
-
-app.get(
-	'/.well-known/oauth-protected-resource',
-	createOAuthProtectedResourceHandler({
-		wikiRegistry: state.wikiRegistry,
-		getProxyConfig: getDefaultProxyConfig,
-	}),
-);
-
-// RFC 8414 authorization-server metadata. Served only when the hosted OAuth
-// proxy is enabled, in which case this server names itself as the AS. The
-// `/mcp` suffix variant covers clients that append the resource path segment
-// to the well-known location.
-const asMetadataHandler: RequestHandler = (_req, res) => {
-	const pc = getDefaultProxyConfig();
-	if (!pc) {
-		res.status(404).end();
-		return;
-	}
-	res.json(buildAsMetadata(pc));
-};
-app.get('/.well-known/oauth-authorization-server', asMetadataHandler);
-app.get('/.well-known/oauth-authorization-server/mcp', asMetadataHandler);
-
-// RFC 7591 Dynamic Client Registration. Served only when the hosted OAuth
-// proxy is enabled. The request body is already parsed by the top-level
-// express.json() middleware. handleRegister validates redirect_uris against
-// the proxy's redirect policy before minting a public (PKCE-only) client.
-app.post('/mcp/register', (req, res) => {
-	if (!getDefaultProxyConfig()) {
-		res.status(404).end();
-		return;
-	}
-	const result = handleRegister(req.body, proxyStore);
-	res.status(result.status).json(result.body);
-});
-
 // Reads the subset of query parameters planAuthorize cares about, coercing each
 // to a single string (Express may parse repeated/array/nested params, which the
 // OAuth params are never expected to be; only the first scalar is honoured).
@@ -781,176 +699,324 @@ function redirectHostOf(redirectUri: string | undefined): string | undefined {
 	}
 }
 
-// GET /mcp/authorize — the proxy authorization endpoint. Validates the client +
-// redirect, gates on the signed consent cookie (bound to clientId + redirectHost
-// + the default wiki key), and either renders the consent page or 302s to the
-// upstream wiki authorize URL.
-app.get('/mcp/authorize', async (req, res) => {
-	const pc = getDefaultProxyConfig();
-	if (!pc) {
-		res.status(404).end();
-		return;
-	}
-	const q = readAuthorizeQuery(req.query);
+// Everything buildApp needs that the production boot resolves from config/env.
+// Extracting these into an explicit deps object lets the end-to-end test mount
+// the REAL routes against a fake authorization server (with a proxy config whose
+// upstream base is only known at runtime), without booting the side-effecting
+// module top-level (no app.listen, no process.exit guard).
+export interface BuildAppDeps {
+	state: AppState;
+	getProxyConfig: ProxyConfigGetter;
+	proxyStore: ProxyStore;
+	// The default wiki KEY (bound into the consent cookie) and human-readable
+	// sitename (shown on the consent page). Match getProxyConfig's wiki.
+	defaultWikiKey: string;
+	defaultWikiSitename: string;
+	createServerFn: () => ReturnType<typeof createServer>;
+	host: string;
+	allowedHosts?: string[];
+	allowedOrigins?: string[];
+	maxRequestBody: string;
+	sessionIdleTimeoutMs: number;
+}
 
-	let consent: ConsentClaims | undefined;
-	const redirectHost = redirectHostOf(q.redirect_uri);
-	const cookie = readConsentCookie(req.headers.cookie);
-	if (cookie && q.client_id && redirectHost) {
-		const ok = await verifyConsent(cookie, {
-			clientId: q.client_id,
-			redirectHost,
-			wiki: defaultWikiKey,
-			signingKey: pc.signingKey,
-		});
-		if (ok) {
-			consent = { clientId: q.client_id, redirectHost, wiki: defaultWikiKey };
-		}
+export interface BuiltApp {
+	app: express.Express;
+	sessions: SessionRegistry;
+	inFlight: InFlightCounter;
+}
+
+// Builds the HTTP transport's Express app and all its routes. Pure with respect
+// to its deps: no app.listen, no process.exit, no config/env reads beyond what
+// the deps carry. The production boot (bottom of this module) resolves the deps
+// and calls this; the end-to-end test calls it directly with a fake-AS-backed
+// proxy config so it can drive the real OAuth-proxy routes.
+export function buildApp(deps: BuildAppDeps): BuiltApp {
+	const {
+		state,
+		getProxyConfig,
+		proxyStore: store,
+		defaultWikiKey,
+		defaultWikiSitename,
+		createServerFn,
+		host,
+		allowedHosts,
+		allowedOrigins,
+		maxRequestBody,
+		sessionIdleTimeoutMs,
+	} = deps;
+
+	const app = express();
+	app.use(express.json({ limit: maxRequestBody }));
+	app.use(payloadTooLargeHandler(maxRequestBody));
+
+	const hostValidation = resolveMcpHostValidation(host, allowedHosts);
+	if (hostValidation) {
+		app.use('/mcp', hostValidation);
 	}
 
-	const plan = planAuthorize(q, consent, pc, proxyStore, defaultWikiSitename);
-	if (plan.kind === 'error') {
-		res.status(plan.status).json(plan.body);
-		return;
-	}
-	if (plan.kind === 'consent') {
-		res.type('html').send(
-			renderConsentPage({
-				clientName: plan.clientName,
-				wiki: defaultWikiSitename,
-				scopes: plan.scopes,
-				authorizeQuery: serializeAuthorizeQuery(q),
-			}),
+	if ((host === '0.0.0.0' || host === '::') && !allowedOrigins) {
+		logger.warning(
+			`Server is binding to ${host} without an Origin allowlist. ` +
+				'Set MCP_ALLOWED_ORIGINS to restrict allowed Origin-header values, ' +
+				'or front the server with a reverse proxy that enforces Origin.',
 		);
-		return;
-	}
-	res.redirect(302, plan.location);
-});
-
-// POST /mcp/consent — records the user's decision from the consent form. The
-// form action carries the original authorize params in the query string; the
-// decision is form-encoded in the body. On approve we set the signed consent
-// cookie and re-run planAuthorize to 302 to the upstream (Set-Cookie + 302 in
-// the one response is correct: the browser stores the cookie and follows the
-// redirect, so the subsequent upstream callback can be matched).
-app.post('/mcp/consent', express.urlencoded({ extended: false }), async (req, res) => {
-	const pc = getDefaultProxyConfig();
-	if (!pc) {
-		res.status(404).end();
-		return;
-	}
-	const q = readAuthorizeQuery(req.query);
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- form-encoded body is untyped; decision is read defensively below
-	const body = (req.body ?? {}) as Record<string, unknown>;
-	const decision = typeof body.decision === 'string' ? body.decision : undefined;
-
-	if (decision !== 'approve') {
-		res
-			.status(200)
-			.type('html')
-			.send(
-				'<!doctype html><meta charset="utf-8"><title>Authorization cancelled</title>' +
-					'<body style="font-family:system-ui;max-width:32rem;margin:4rem auto">' +
-					'<h1>Authorization cancelled</h1>' +
-					'<p>You can close this window.</p></body>',
-			);
-		return;
 	}
 
-	const redirectHost = redirectHostOf(q.redirect_uri);
-	if (!q.client_id || !redirectHost) {
-		res
-			.status(400)
-			.json({ error: 'invalid_request', error_description: 'missing client_id or redirect_uri' });
-		return;
-	}
+	const sessions: SessionRegistry = {};
+	const sessionRequestHandler = createSessionRequestHandler(sessions, sessionIdleTimeoutMs);
 
-	res.append(
-		'Set-Cookie',
-		await buildConsentCookie(pc, {
-			clientId: q.client_id,
-			redirectHost,
-			wiki: defaultWikiKey,
+	const inFlight = createInFlightCounter();
+	app.use('/mcp', inFlight.middleware);
+
+	app.post(
+		'/mcp',
+		createMcpPostHandler(sessions, createServerFn, {
+			allowedOrigins,
+			wikiRegistry: state.wikiRegistry,
+			idleTimeoutMs: sessionIdleTimeoutMs,
+			getProxyConfig,
+			proxyStore: store,
+		}),
+	);
+	app.get('/mcp', sessionRequestHandler);
+	app.delete('/mcp', sessionRequestHandler);
+
+	app.get('/health', (_req: Request, res: Response) => {
+		res.status(200).json({ status: 'ok' });
+	});
+
+	app.get(
+		'/.well-known/oauth-protected-resource',
+		createOAuthProtectedResourceHandler({
+			wikiRegistry: state.wikiRegistry,
+			getProxyConfig,
 		}),
 	);
 
-	const consent: ConsentClaims = { clientId: q.client_id, redirectHost, wiki: defaultWikiKey };
-	const plan = planAuthorize(q, consent, pc, proxyStore, defaultWikiSitename);
-	if (plan.kind === 'error') {
-		res.status(plan.status).json(plan.body);
-		return;
-	}
-	if (plan.kind === 'redirect') {
+	// RFC 8414 authorization-server metadata. Served only when the hosted OAuth
+	// proxy is enabled, in which case this server names itself as the AS. The
+	// `/mcp` suffix variant covers clients that append the resource path segment
+	// to the well-known location.
+	const asMetadataHandler: RequestHandler = (_req, res) => {
+		const pc = getProxyConfig();
+		if (!pc) {
+			res.status(404).end();
+			return;
+		}
+		res.json(buildAsMetadata(pc));
+	};
+	app.get('/.well-known/oauth-authorization-server', asMetadataHandler);
+	app.get('/.well-known/oauth-authorization-server/mcp', asMetadataHandler);
+
+	// RFC 7591 Dynamic Client Registration. Served only when the hosted OAuth
+	// proxy is enabled. The request body is already parsed by the top-level
+	// express.json() middleware. handleRegister validates redirect_uris against
+	// the proxy's redirect policy before minting a public (PKCE-only) client.
+	app.post('/mcp/register', (req, res) => {
+		if (!getProxyConfig()) {
+			res.status(404).end();
+			return;
+		}
+		const result = handleRegister(req.body, store);
+		res.status(result.status).json(result.body);
+	});
+
+	// GET /mcp/authorize — the proxy authorization endpoint. Validates the client +
+	// redirect, gates on the signed consent cookie (bound to clientId + redirectHost
+	// + the default wiki key), and either renders the consent page or 302s to the
+	// upstream wiki authorize URL.
+	app.get('/mcp/authorize', async (req, res) => {
+		const pc = getProxyConfig();
+		if (!pc) {
+			res.status(404).end();
+			return;
+		}
+		const q = readAuthorizeQuery(req.query);
+
+		let consent: ConsentClaims | undefined;
+		const redirectHost = redirectHostOf(q.redirect_uri);
+		const cookie = readConsentCookie(req.headers.cookie);
+		if (cookie && q.client_id && redirectHost) {
+			const ok = await verifyConsent(cookie, {
+				clientId: q.client_id,
+				redirectHost,
+				wiki: defaultWikiKey,
+				signingKey: pc.signingKey,
+			});
+			if (ok) {
+				consent = { clientId: q.client_id, redirectHost, wiki: defaultWikiKey };
+			}
+		}
+
+		const plan = planAuthorize(q, consent, pc, store, defaultWikiSitename);
+		if (plan.kind === 'error') {
+			res.status(plan.status).json(plan.body);
+			return;
+		}
+		if (plan.kind === 'consent') {
+			res.type('html').send(
+				renderConsentPage({
+					clientName: plan.clientName,
+					wiki: defaultWikiSitename,
+					scopes: plan.scopes,
+					authorizeQuery: serializeAuthorizeQuery(q),
+				}),
+			);
+			return;
+		}
 		res.redirect(302, plan.location);
-		return;
-	}
-	// planAuthorize returned 'consent' despite a freshly built ConsentClaims —
-	// only reachable if the client vanished between validation steps. Treat as a
-	// transient error rather than re-prompting (the cookie is already set).
-	res
-		.status(400)
-		.json({ error: 'invalid_request', error_description: 'consent could not be applied' });
+	});
+
+	// POST /mcp/consent — records the user's decision from the consent form. The
+	// form action carries the original authorize params in the query string; the
+	// decision is form-encoded in the body. On approve we set the signed consent
+	// cookie and re-run planAuthorize to 302 to the upstream (Set-Cookie + 302 in
+	// the one response is correct: the browser stores the cookie and follows the
+	// redirect, so the subsequent upstream callback can be matched).
+	app.post('/mcp/consent', express.urlencoded({ extended: false }), async (req, res) => {
+		const pc = getProxyConfig();
+		if (!pc) {
+			res.status(404).end();
+			return;
+		}
+		const q = readAuthorizeQuery(req.query);
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- form-encoded body is untyped; decision is read defensively below
+		const body = (req.body ?? {}) as Record<string, unknown>;
+		const decision = typeof body.decision === 'string' ? body.decision : undefined;
+
+		if (decision !== 'approve') {
+			res
+				.status(200)
+				.type('html')
+				.send(
+					'<!doctype html><meta charset="utf-8"><title>Authorization cancelled</title>' +
+						'<body style="font-family:system-ui;max-width:32rem;margin:4rem auto">' +
+						'<h1>Authorization cancelled</h1>' +
+						'<p>You can close this window.</p></body>',
+				);
+			return;
+		}
+
+		const redirectHost = redirectHostOf(q.redirect_uri);
+		if (!q.client_id || !redirectHost) {
+			res.status(400).json({
+				error: 'invalid_request',
+				error_description: 'missing client_id or redirect_uri',
+			});
+			return;
+		}
+
+		res.append(
+			'Set-Cookie',
+			await buildConsentCookie(pc, {
+				clientId: q.client_id,
+				redirectHost,
+				wiki: defaultWikiKey,
+			}),
+		);
+
+		const consent: ConsentClaims = { clientId: q.client_id, redirectHost, wiki: defaultWikiKey };
+		const plan = planAuthorize(q, consent, pc, store, defaultWikiSitename);
+		if (plan.kind === 'error') {
+			res.status(plan.status).json(plan.body);
+			return;
+		}
+		if (plan.kind === 'redirect') {
+			res.redirect(302, plan.location);
+			return;
+		}
+		// planAuthorize returned 'consent' despite a freshly built ConsentClaims —
+		// only reachable if the client vanished between validation steps. Treat as a
+		// transient error rather than re-prompting (the cookie is already set).
+		res
+			.status(400)
+			.json({ error: 'invalid_request', error_description: 'consent could not be applied' });
+	});
+
+	// GET /mcp/oauth/callback — the upstream wiki's authorization-code redirect back
+	// to the proxy. The `state` param is the proxy-minted transaction id. We verify
+	// the consent cookie against the transaction's client + redirect host (the same
+	// binding authorize set), then hand off to handleCallback, which exchanges the
+	// wiki code on the internal tokenExchangeBase, stores the upstream token, mints a
+	// one-time downstream client code, and 302s back to the client redirect.
+	app.get('/mcp/oauth/callback', async (req, res) => {
+		const pc = getProxyConfig();
+		if (!pc) {
+			res.status(404).end();
+			return;
+		}
+		const one = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
+		const q = { code: one(req.query.code), state: one(req.query.state) };
+
+		// Re-verify the consent cookie here, bound to the transaction's own client +
+		// redirect host. handleCallback re-looks-up the txn itself; this lookup only
+		// supplies the binding fields for verifyConsent (an idempotent read).
+		let consentOk = false;
+		const txn = q.state ? store.getTransaction(q.state) : undefined;
+		const cookie = readConsentCookie(req.headers.cookie);
+		if (txn && cookie) {
+			consentOk = await verifyConsent(cookie, {
+				clientId: txn.clientId,
+				redirectHost: new URL(txn.clientRedirectUri).hostname,
+				wiki: defaultWikiKey,
+				signingKey: pc.signingKey,
+			});
+		}
+
+		const plan = await handleCallback(q, pc, store, consentOk);
+		if (plan.kind === 'error') {
+			res.status(plan.status).json(plan.body);
+			return;
+		}
+		res.redirect(302, plan.location);
+	});
+
+	// POST /mcp/token — the proxy's RFC 6749 token endpoint. Served only when the
+	// hosted OAuth proxy is enabled. Bodies are form-encoded (not JSON), so a route-
+	// local express.urlencoded parser is used. handleToken handles both the
+	// authorization_code grant (verify client PKCE, consume the one-time code, mint
+	// proxy JWTs) and the refresh_token grant (verify the proxy refresh JWT, refresh
+	// the upstream token server-to-server, re-mint).
+	app.post('/mcp/token', express.urlencoded({ extended: false }), async (req, res) => {
+		const pc = getProxyConfig();
+		if (!pc) {
+			res.status(404).end();
+			return;
+		}
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- form-encoded body is untyped; handleToken reads each field defensively
+		const body = (req.body ?? {}) as Record<string, string>;
+		const result = await handleToken(body, pc, store);
+		res.status(result.status).json(result.body);
+	});
+
+	mountReadyEndpoint(app, { activeWiki: state.activeWiki, mwnProvider: state.mwnProvider });
+	mountMetricsEndpoint(app);
+	setSessionsProvider(() => Object.keys(sessions).length);
+
+	return { app, sessions, inFlight };
+}
+
+const ctx = createToolContext({
+	logger,
+	state,
+	transport: 'http',
+	getProxyConfig: getDefaultProxyConfig,
 });
 
-// GET /mcp/oauth/callback — the upstream wiki's authorization-code redirect back
-// to the proxy. The `state` param is the proxy-minted transaction id. We verify
-// the consent cookie against the transaction's client + redirect host (the same
-// binding authorize set), then hand off to handleCallback, which exchanges the
-// wiki code on the internal tokenExchangeBase, stores the upstream token, mints a
-// one-time downstream client code, and 302s back to the client redirect.
-app.get('/mcp/oauth/callback', async (req, res) => {
-	const pc = getDefaultProxyConfig();
-	if (!pc) {
-		res.status(404).end();
-		return;
-	}
-	const one = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
-	const q = { code: one(req.query.code), state: one(req.query.state) };
-
-	// Re-verify the consent cookie here, bound to the transaction's own client +
-	// redirect host. handleCallback re-looks-up the txn itself; this lookup only
-	// supplies the binding fields for verifyConsent (an idempotent read).
-	let consentOk = false;
-	const txn = q.state ? proxyStore.getTransaction(q.state) : undefined;
-	const cookie = readConsentCookie(req.headers.cookie);
-	if (txn && cookie) {
-		consentOk = await verifyConsent(cookie, {
-			clientId: txn.clientId,
-			redirectHost: new URL(txn.clientRedirectUri).hostname,
-			wiki: defaultWikiKey,
-			signingKey: pc.signingKey,
-		});
-	}
-
-	const plan = await handleCallback(q, pc, proxyStore, consentOk);
-	if (plan.kind === 'error') {
-		res.status(plan.status).json(plan.body);
-		return;
-	}
-	res.redirect(302, plan.location);
+const { app, sessions, inFlight } = buildApp({
+	state,
+	getProxyConfig: getDefaultProxyConfig,
+	proxyStore,
+	defaultWikiKey,
+	defaultWikiSitename,
+	createServerFn: () => createServer(ctx),
+	host,
+	allowedHosts,
+	allowedOrigins,
+	maxRequestBody,
+	sessionIdleTimeoutMs,
 });
-
-// POST /mcp/token — the proxy's RFC 6749 token endpoint. Served only when the
-// hosted OAuth proxy is enabled. Bodies are form-encoded (not JSON), so a route-
-// local express.urlencoded parser is used. handleToken handles both the
-// authorization_code grant (verify client PKCE, consume the one-time code, mint
-// proxy JWTs) and the refresh_token grant (verify the proxy refresh JWT, refresh
-// the upstream token server-to-server, re-mint).
-app.post('/mcp/token', express.urlencoded({ extended: false }), async (req, res) => {
-	const pc = getDefaultProxyConfig();
-	if (!pc) {
-		res.status(404).end();
-		return;
-	}
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- form-encoded body is untyped; handleToken reads each field defensively
-	const body = (req.body ?? {}) as Record<string, string>;
-	const result = await handleToken(body, pc, proxyStore);
-	res.status(result.status).json(result.body);
-});
-
-mountReadyEndpoint(app, { activeWiki: state.activeWiki, mwnProvider: state.mwnProvider });
-mountMetricsEndpoint(app);
-setSessionsProvider(() => Object.keys(sessions).length);
 
 const httpServer = app.listen(port, host, () => {
 	logger.info(`MCP Streamable HTTP Server listening on ${host}:${port}`);
