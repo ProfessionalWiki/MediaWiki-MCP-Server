@@ -39,6 +39,7 @@ import { buildAsMetadata } from '../auth/authorizationServer/asMetadata.js';
 import { handleRegister } from '../auth/authorizationServer/register.js';
 import {
 	planAuthorize,
+	planDeny,
 	type AuthorizeQuery,
 	type ConsentClaims,
 } from '../auth/authorizationServer/authorize.js';
@@ -887,6 +888,13 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		const decision = typeof body.decision === 'string' ? body.decision : undefined;
 
 		if (decision !== 'approve') {
+			// Bounce a proper OAuth error back to the client when we can trust its
+			// redirect_uri; otherwise show a plain page (the client can't be signalled).
+			const denial = planDeny(q, pc, store);
+			if (denial.kind === 'redirect') {
+				res.redirect(302, denial.location);
+				return;
+			}
 			res
 				.status(200)
 				.type('html')

@@ -109,3 +109,32 @@ export function planAuthorize(
 	u.searchParams.set('code_challenge_method', 'S256');
 	return { kind: 'redirect', location: u.toString() };
 }
+
+/**
+ * Pure planner for a denial on the proxy's own consent page ("Deny" on the first
+ * screen). Aborts the flow by bouncing an OAuth error back to the downstream
+ * client — but ONLY to a redirect_uri we have validated as registered for this
+ * client, using the same exact-match rule as planAuthorize. Without a trusted
+ * redirect target we cannot safely emit a 302 (open-redirect guard), so the
+ * caller falls back to a plain cancelled page. This mirrors handleCallback's
+ * upstream-denial branch (RFC 6749 §4.1.2.1) for the consent step, so a client
+ * sees a proper `access_denied` rather than hanging on a callback that never comes.
+ */
+export function planDeny(
+	q: AuthorizeQuery,
+	pc: ProxyConfig,
+	store: ProxyStore,
+): { kind: 'redirect'; location: string } | { kind: 'page' } {
+	const client = q.client_id ? store.getClient(q.client_id) : undefined;
+	if (!client || !q.redirect_uri || !client.redirectUris.includes(q.redirect_uri)) {
+		return { kind: 'page' };
+	}
+	const u = new URL(q.redirect_uri);
+	u.searchParams.set('error', 'access_denied');
+	u.searchParams.set('error_description', 'The user denied the authorization request.');
+	if (q.state) {
+		u.searchParams.set('state', q.state);
+	}
+	u.searchParams.set('iss', pc.issuer);
+	return { kind: 'redirect', location: u.toString() };
+}

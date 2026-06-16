@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planAuthorize } from '../../../src/auth/authorizationServer/authorize.js';
+import { planAuthorize, planDeny } from '../../../src/auth/authorizationServer/authorize.js';
 import { InMemoryProxyStore } from '../../../src/auth/authorizationServer/proxyStore.js';
 
 const pc = {
@@ -131,5 +131,45 @@ describe('planAuthorize', () => {
 		const txnId = u.searchParams.get('state')!;
 		expect(store.getTransaction(txnId)?.clientCodeChallenge).toBe('CCH');
 		expect(store.getTransaction(txnId)?.proxyVerifier).toBeTruthy();
+	});
+});
+
+describe('planDeny', () => {
+	it('redirects an access_denied error back to a registered redirect_uri', () => {
+		const { store, client } = setup();
+		const r = planDeny(baseQuery(client.clientId), pc, store);
+		expect(r.kind).toBe('redirect');
+		if (r.kind !== 'redirect') return;
+		const u = new URL(r.location);
+		expect(u.origin + u.pathname).toBe('http://127.0.0.1:9000/cb');
+		expect(u.searchParams.get('error')).toBe('access_denied');
+		expect(u.searchParams.get('state')).toBe('cstate');
+		expect(u.searchParams.get('iss')).toBe('https://wiki.example/mcp');
+		expect(u.searchParams.has('code')).toBe(false);
+	});
+
+	it('falls back to a page for an unknown client (no trusted redirect target)', () => {
+		const { store } = setup();
+		expect(planDeny(baseQuery('nope'), pc, store).kind).toBe('page');
+	});
+
+	it('falls back to a page for an unregistered redirect_uri (open-redirect guard)', () => {
+		const { store, client } = setup();
+		const r = planDeny(
+			{ ...baseQuery(client.clientId), redirect_uri: 'http://evil.example/cb' },
+			pc,
+			store,
+		);
+		expect(r.kind).toBe('page');
+	});
+
+	it('omits state when the client did not send one', () => {
+		const { store, client } = setup();
+		const q = baseQuery(client.clientId);
+		delete (q as Record<string, unknown>).state;
+		const r = planDeny(q, pc, store);
+		expect(r.kind).toBe('redirect');
+		if (r.kind !== 'redirect') return;
+		expect(new URL(r.location).searchParams.has('state')).toBe(false);
 	});
 });
