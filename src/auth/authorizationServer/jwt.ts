@@ -1,7 +1,8 @@
-import { SignJWT, jwtVerify } from 'jose';
+import { SignJWT, jwtVerify, type JWTVerifyOptions } from 'jose';
 
 const enc = (k: string): Uint8Array => new TextEncoder().encode(k);
 const ALG = 'HS256';
+const VERIFY_OPTS = { algorithms: [ALG] } satisfies JWTVerifyOptions;
 
 export async function mintAccessToken(a: {
 	issuer: string;
@@ -25,8 +26,10 @@ export async function verifyAccessToken(
 	o: { issuer: string; signingKey: string },
 ): Promise<{ upstreamTokenId: string; scopes: string[] }> {
 	const { payload } = await jwtVerify(token, enc(o.signingKey), {
+		...VERIFY_OPTS,
 		issuer: o.issuer,
 		audience: o.issuer,
+		requiredClaims: ['exp'],
 	});
 	if (payload.typ !== 'access' || typeof payload.jti !== 'string') {
 		throw new Error('not an access token');
@@ -59,8 +62,10 @@ export async function verifyRefreshToken(
 	o: { issuer: string; signingKey: string },
 ): Promise<{ upstreamTokenId: string }> {
 	const { payload } = await jwtVerify(token, enc(o.signingKey), {
+		...VERIFY_OPTS,
 		issuer: o.issuer,
 		audience: o.issuer,
+		requiredClaims: ['exp'],
 	});
 	if (payload.typ !== 'refresh' || typeof payload.jti !== 'string') {
 		throw new Error('not a refresh token');
@@ -87,7 +92,7 @@ export async function verifyConsent(
 	o: { clientId: string; redirectHost: string; wiki: string; signingKey: string },
 ): Promise<boolean> {
 	try {
-		const { payload } = await jwtVerify(cookie, enc(o.signingKey));
+		const { payload } = await jwtVerify(cookie, enc(o.signingKey), VERIFY_OPTS);
 		return (
 			payload.typ === 'consent' &&
 			payload.cid === o.clientId &&
