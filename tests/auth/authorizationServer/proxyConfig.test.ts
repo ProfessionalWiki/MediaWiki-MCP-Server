@@ -44,4 +44,32 @@ describe('resolveProxyConfig', () => {
 			ProxyConfigError,
 		);
 	});
+	it('throws when token TTL exceeds the 30-day refresh window', () => {
+		expect(() => resolveProxyConfig('w', wiki, { ...env, MCP_OAUTH_TOKEN_TTL: '40d' })).toThrow(
+			ProxyConfigError,
+		);
+	});
+	it('parses a minutes duration', () => {
+		const c = resolveProxyConfig('w', wiki, { ...env, MCP_OAUTH_TOKEN_TTL: '55m' })!;
+		expect(c.tokenTtlMs).toBe(3_300_000);
+	});
+	it('treats a bare number as seconds', () => {
+		const c = resolveProxyConfig('w', wiki, { ...env, MCP_OAUTH_TOKEN_TTL: '3600' })!;
+		expect(c.tokenTtlMs).toBe(3_600_000);
+	});
+	it('throws on a non-positive token TTL', () => {
+		expect(() => resolveProxyConfig('w', wiki, { ...env, MCP_OAUTH_TOKEN_TTL: '0' })).toThrow(
+			ProxyConfigError,
+		);
+	});
+	it('throws on an unparseable token TTL', () => {
+		expect(() => resolveProxyConfig('w', wiki, { ...env, MCP_OAUTH_TOKEN_TTL: '1.5h' })).toThrow(
+			ProxyConfigError,
+		);
+	});
+	it('uses documented defaults when TTL env vars are absent', () => {
+		const c = resolveProxyConfig('w', wiki, env)!;
+		expect(c.tokenTtlMs).toBe(55 * 60 * 1000);
+		expect(c.consentTtlMs).toBe(30 * 24 * 60 * 60 * 1000);
+	});
 });

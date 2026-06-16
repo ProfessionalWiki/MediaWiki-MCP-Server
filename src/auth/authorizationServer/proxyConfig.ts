@@ -46,6 +46,10 @@ export function resolveProxyConfig(
 		return null;
 	}
 
+	// Intentionally slash-free: this is the RFC 8414 issuer identifier, which
+	// must not carry a trailing slash. Distinct from
+	// protectedResource.ts:resolvePublicBase, which guarantees a trailing slash
+	// for the protected-resource `resource` field.
 	let issuer: string;
 	try {
 		issuer = stripTrailingSlash(new URL(publicUrl).toString());
@@ -80,6 +84,7 @@ export function resolveProxyConfig(
 	};
 }
 
+// Accepts "55m" | "1h" | "30d", or a bare number = seconds.
 function parseDurationMs(s: string): number {
 	const m = /^(\d+)\s*([smhd])?$/.exec(s.trim());
 	if (!m) {
@@ -88,5 +93,9 @@ function parseDurationMs(s: string): number {
 	const n = Number(m[1]);
 	const unit = m[2] ?? 's';
 	const mult = { s: 1e3, m: 60e3, h: 3600e3, d: 86400e3 }[unit]!;
-	return n * mult;
+	const result = n * mult;
+	if (result <= 0) {
+		throw new ProxyConfigError(`Duration must be positive: ${s}`);
+	}
+	return result;
 }
