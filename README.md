@@ -172,7 +172,7 @@ Tools marked 🔐 require authentication. Write tools (including extension-pack 
 
 - **Browser-based OAuth (recommended).** Sign in through a browser tab the first time a tool needs auth. Set `oauth2ClientId` and `oauth2CallbackPort` per wiki — see [docs/configuration.md — OAuth (browser-based)](docs/configuration.md#oauth-browser-based).
 - **Per-request bearer token (HTTP).** Each request carries `Authorization: Bearer <token>`; the server forwards it to MediaWiki. See [docs/deployment.md — per-request bearer token](docs/deployment.md#per-request-bearer-token-http-transport).
-- **Hosted OAuth proxy (HTTP).** The server acts as an OAuth 2.1 Authorization Server in front of one MediaWiki consumer, so an OAuth-aware MCP client signs each user in with no manual token handling — point it at `https://<wiki>/mcp` and anonymous read still works. See [docs/deployment.md — Shape 3](docs/deployment.md#shape-3--single-wiki-hosted-server-mediated-oauth-proxy).
+- **Hosted OAuth proxy (HTTP).** The server fronts one MediaWiki consumer as an OAuth 2.1 Authorization Server, so an OAuth-aware client signs each user in — no manual tokens. Point it at `https://<wiki>/mcp`; anonymous read still works. See [docs/deployment.md — Shape 3](docs/deployment.md#shape-3--single-wiki-hosted-server-mediated-oauth-proxy).
 - **Manual OAuth2 access token.** Paste a long-lived token into `config.json`. See [docs/configuration.md — manual OAuth2 access token](docs/configuration.md#manual-oauth2-access-token).
 - **Bot password.** Fallback when Extension:OAuth isn't installed. See [docs/configuration.md — bot password](docs/configuration.md#bot-password).
 
