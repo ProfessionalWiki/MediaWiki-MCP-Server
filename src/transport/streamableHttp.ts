@@ -32,6 +32,9 @@ import type { ActiveWiki } from '../wikis/activeWiki.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
 import { fetchMetadata, type AsMetadata } from '../auth/metadata.js';
 import { buildProtectedResource, resolvePublicBase } from '../auth/protectedResource.js';
+import { resolveProxyConfig, type ProxyConfig } from '../auth/authorizationServer/proxyConfig.js';
+import { InMemoryProxyStore } from '../auth/authorizationServer/proxyStore.js';
+import { buildAsMetadata } from '../auth/authorizationServer/asMetadata.js';
 import { createAppState } from '../wikis/state.js';
 import { createServer } from '../server.js';
 import { emitStartupBanner } from '../runtime/banner.js';
@@ -138,8 +141,16 @@ export function markSessionIdle(
 	entry.idleTimer.unref();
 }
 
+// Returns the active hosted-OAuth-proxy config, or null when the proxy is
+// disabled. getDefaultProxyConfig (below) is the production implementation.
+export type ProxyConfigGetter = () => ProxyConfig | null;
+
 export function createOAuthProtectedResourceHandler(deps: {
 	wikiRegistry: WikiRegistry;
+	// When the hosted OAuth proxy is enabled, this server is itself the
+	// authorization server, so the protected-resource doc must advertise the
+	// proxy issuer (self) rather than the per-wiki upstream issuers.
+	getProxyConfig?: ProxyConfigGetter;
 }): RequestHandler {
 	return async (req, res, next) => {
 		try {
@@ -173,11 +184,13 @@ export function createOAuthProtectedResourceHandler(deps: {
 			const proto = typeof protoHeader === 'string' ? protoHeader.split(',')[0]?.trim() : undefined;
 			const requestProto =
 				proto === 'https' || proto === 'http' ? proto : req.secure ? 'https' : 'http';
+			const proxyConfig = deps.getProxyConfig?.() ?? null;
 			const doc = buildProtectedResource({
 				wikis,
 				metadatas,
 				requestHost: req.headers.host ?? undefined,
 				requestProto,
+				authorizationServersOverride: proxyConfig ? [proxyConfig.issuer] : undefined,
 			});
 			if (!doc) {
 				res.status(404).end();
@@ -467,6 +480,33 @@ export function mountReadyEndpoint(
 // independent — placed after for visual grouping with the HTTP setup.
 const config = loadConfigFromFile();
 const state = createAppState(config);
+
+// Shared hosted-OAuth-proxy infrastructure, reused by the authorization-server
+// endpoints (AS metadata, register, authorize, callback, token). The proxy is
+// active only when the default wiki has an oauth2ClientId, the transport is
+// http, and the JWT signing key + public URL are set (see resolveProxyConfig).
+//
+// getDefaultProxyConfig is memoized: resolveProxyConfig reads only the default
+// wiki and process.env, both fixed for the process lifetime, so resolving once
+// is sufficient. A ProxyConfigError (e.g. signing key too short) is left to
+// propagate as a fatal misconfiguration; the eager call at startup (below)
+// forces it during boot, consistent with how the server treats other fatal
+// config errors (e.g. the static-credentials guard).
+let cachedProxyConfig: ProxyConfig | null | undefined;
+function getDefaultProxyConfig(): ProxyConfig | null {
+	if (cachedProxyConfig === undefined) {
+		const defaultKey = state.activeWiki.getDefaultKey();
+		const wiki = state.wikiRegistry.get(defaultKey);
+		cachedProxyConfig = wiki ? resolveProxyConfig(defaultKey, wiki, process.env) : null;
+	}
+	return cachedProxyConfig;
+}
+
+// Single process-wide store backing the proxy's clients, transactions,
+// authorization codes, and upstream tokens. Later handlers
+// (register/authorize/callback/token) share this instance. Exported so those
+// handlers — and their tests — can reuse the same store.
+export const proxyStore = new InMemoryProxyStore();
 const { host, port, allowedHosts, allowedOrigins, maxRequestBody, sessionIdleTimeoutMs, warnings } =
 	resolveHttpConfig();
 const guard = evaluateBearerGuard(state.wikiRegistry.getAll(), process.env);
@@ -494,6 +534,10 @@ if (guard.kind === 'override') {
 for (const warning of warnings) {
 	logger.warning(warning);
 }
+// Resolve the proxy config eagerly so a ProxyConfigError fails the boot rather
+// than the first request. Memoized, so the route handlers below reuse the
+// cached result.
+getDefaultProxyConfig();
 emitStartupBanner(
 	{ transport: 'http', http: { host, port, allowedHosts, allowedOrigins, maxRequestBody } },
 	{
@@ -546,8 +590,24 @@ app.get(
 	'/.well-known/oauth-protected-resource',
 	createOAuthProtectedResourceHandler({
 		wikiRegistry: state.wikiRegistry,
+		getProxyConfig: getDefaultProxyConfig,
 	}),
 );
+
+// RFC 8414 authorization-server metadata. Served only when the hosted OAuth
+// proxy is enabled, in which case this server names itself as the AS. The
+// `/mcp` suffix variant covers clients that append the resource path segment
+// to the well-known location.
+const asMetadataHandler: RequestHandler = (_req, res) => {
+	const pc = getDefaultProxyConfig();
+	if (!pc) {
+		res.status(404).end();
+		return;
+	}
+	res.json(buildAsMetadata(pc));
+};
+app.get('/.well-known/oauth-authorization-server', asMetadataHandler);
+app.get('/.well-known/oauth-authorization-server/mcp', asMetadataHandler);
 
 mountReadyEndpoint(app, { activeWiki: state.activeWiki, mwnProvider: state.mwnProvider });
 mountMetricsEndpoint(app);

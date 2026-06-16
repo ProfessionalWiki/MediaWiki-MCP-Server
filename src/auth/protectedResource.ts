@@ -9,6 +9,12 @@ export interface ProtectedResourceInput {
 	metadatas: readonly AsMetadata[];
 	requestHost: string | undefined;
 	requestProto: 'http' | 'https' | undefined;
+	/**
+	 * When the hosted OAuth proxy is enabled, this server is itself the
+	 * authorization server. Pass the proxy issuer(s) here to advertise self
+	 * instead of the per-wiki upstream issuers derived from `metadatas`.
+	 */
+	authorizationServersOverride?: readonly string[];
 }
 
 export interface ProtectedResourceDoc {
@@ -55,7 +61,10 @@ export function buildProtectedResource(
 	}
 
 	const resource = resolvePublicBase(input.requestHost, input.requestProto);
-	const issuers = [...new Set(input.metadatas.map((m) => m.issuer))];
+	const issuers =
+		input.authorizationServersOverride !== undefined
+			? [...input.authorizationServersOverride]
+			: [...new Set(input.metadatas.map((m) => m.issuer))];
 	const scopes = [...new Set(input.metadatas.flatMap((m) => m.scopes_supported ?? []))];
 
 	const doc: ProtectedResourceDoc = {
