@@ -131,6 +131,37 @@ describe('planAuthorize', () => {
 		const txnId = u.searchParams.get('state')!;
 		expect(store.getTransaction(txnId)?.clientCodeChallenge).toBe('CCH');
 		expect(store.getTransaction(txnId)?.proxyVerifier).toBeTruthy();
+		// Scope-agnostic: client requested scope=editpage and client.scopes=['editpage'],
+		// yet the proxy forwards an empty scope so the wiki grants the consumer's full
+		// registered grants (which include basic/read).
+		expect(u.searchParams.get('scope')).toBe('');
+		expect(store.getTransaction(txnId)?.scopes).toEqual([]);
+	});
+
+	it('always sends an empty upstream scope, ignoring any client-supplied scope', () => {
+		const { store, client } = setup();
+		const consent = { clientId: client.clientId, redirectHost: '127.0.0.1', wiki: 'w' };
+		const scopes: Array<string | undefined> = [
+			'editpage',
+			'offline_access',
+			'editpage createeditmovepage offline_access',
+			undefined,
+		];
+		for (const scope of scopes) {
+			const q: Record<string, unknown> = { ...baseQuery(client.clientId) };
+			if (scope === undefined) {
+				delete q.scope;
+			} else {
+				q.scope = scope;
+			}
+			const r = planAuthorize(q, consent, pc, store, 'Ex');
+			expect(r.kind).toBe('redirect');
+			if (r.kind !== 'redirect') break;
+			const u = new URL(r.location);
+			expect(u.searchParams.get('scope')).toBe('');
+			const txnId = u.searchParams.get('state')!;
+			expect(store.getTransaction(txnId)?.scopes).toEqual([]);
+		}
 	});
 });
 

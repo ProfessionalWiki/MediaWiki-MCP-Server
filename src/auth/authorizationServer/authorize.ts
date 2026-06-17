@@ -95,7 +95,7 @@ export function planAuthorize(
 		clientState: q.state ?? '',
 		clientCodeChallenge: q.code_challenge,
 		clientCodeChallengeMethod: 'S256',
-		scopes: q.scope?.split(' ').filter(Boolean) ?? client.scopes,
+		scopes: [],
 		proxyVerifier,
 	});
 
@@ -103,7 +103,13 @@ export function planAuthorize(
 	u.searchParams.set('response_type', 'code');
 	u.searchParams.set('client_id', pc.upstreamClientId);
 	u.searchParams.set('redirect_uri', pc.callbackUrl);
-	u.searchParams.set('scope', q.scope ?? client.scopes.join(' '));
+	// Scope-agnostic by design: the proxy always requests the empty scope, which makes
+	// MediaWiki grant the consumer's full registered grants (basic/read included). We do
+	// NOT forward the client's requested scope — that would let a narrow request drop
+	// `basic` (→ readapidenied) and would forward non-grant junk (e.g. a client appending
+	// `offline_access`) straight to the wiki. The proxy's own JWT scope claim stays
+	// informational, matching the refresh path (token.ts).
+	u.searchParams.set('scope', '');
 	u.searchParams.set('state', txnId);
 	u.searchParams.set('code_challenge', s256(proxyVerifier));
 	u.searchParams.set('code_challenge_method', 'S256');
