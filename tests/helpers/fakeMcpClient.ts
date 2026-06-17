@@ -150,20 +150,25 @@ export async function runHostedFlow(opts: FakeMcpClientOptions): Promise<FakeMcp
 		resource,
 	};
 
-	// 2. /authorize with no cookie -> consent interstitial (HTML).
+	// 2. /authorize with no cookie -> consent interstitial (HTML) + anti-CSRF cookie.
 	const authRes = await request(app).get('/mcp/authorize').query(authorizeParams);
 	if (authRes.status !== 200 || !/Authorize application/.test(authRes.text)) {
 		throw new FakeMcpClientError('expected consent page', authRes.status, authRes.text);
 	}
+	const csrfSetCookie = ((authRes.headers['set-cookie'] as string[] | undefined) ?? []).find((c) =>
+		c.startsWith('mcp_consent_csrf='),
+	);
+	const csrfToken = csrfSetCookie ? csrfSetCookie.split(';')[0].split('=').slice(1).join('=') : '';
 
-	// 3. Approve consent. The form action carries the same authorize params in the
-	// query string; the decision is form-encoded. Response: Set-Cookie + 302 to
-	// the upstream wiki authorize URL.
+	// 3. Approve consent. The form carries the authorize params + the anti-CSRF nonce
+	// echoing the cookie set on the consent GET. Response: Set-Cookie + 302 to the
+	// upstream wiki authorize URL.
 	const consentRes = await request(app)
 		.post('/mcp/consent')
 		.query(authorizeParams)
+		.set('Cookie', `mcp_consent_csrf=${csrfToken}`)
 		.type('form')
-		.send({ decision: 'approve' });
+		.send({ decision: 'approve', csrf: csrfToken });
 	if (consentRes.status !== 302) {
 		throw new FakeMcpClientError('consent did not redirect', consentRes.status, consentRes.body);
 	}

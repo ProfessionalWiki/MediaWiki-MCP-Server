@@ -55,7 +55,10 @@ export async function handleCallback(
 		}
 		store.deleteTransaction(q.state!);
 		const e = new URL(denyTxn.clientRedirectUri);
-		e.searchParams.set('error', q.error);
+		// MediaWiki's Extension:OAuth emits `unauthorized_client` for a user denial;
+		// RFC 6749 §4.1.2.1 specifies `access_denied`. Normalize so the downstream
+		// client sees the standard code; pass any other upstream error through.
+		e.searchParams.set('error', q.error === 'unauthorized_client' ? 'access_denied' : q.error);
 		if (q.errorDescription) {
 			e.searchParams.set('error_description', q.errorDescription);
 		}

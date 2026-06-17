@@ -86,6 +86,14 @@ describe('buildProtectedResource', () => {
 		expect(result?.resource).toBe('https://mcp.example.org/with-slash');
 	});
 
+	it('canonicalizes MCP_PUBLIC_URL host case so resource matches the issuer (#7)', () => {
+		process.env.MCP_PUBLIC_URL = 'https://MCP.Example.ORG/mcp';
+		const result = buildProtectedResource(makeInput());
+		// resolveProxyConfig lowercases the issuer host via new URL(); the resource
+		// must canonicalize identically or the SDK's resource==issuer check fails.
+		expect(result?.resource).toBe('https://mcp.example.org/mcp');
+	});
+
 	it('MCP_PUBLIC_URL takes precedence over request-derived URL', () => {
 		process.env.MCP_PUBLIC_URL = 'https://public.example.com/';
 		const result = buildProtectedResource(

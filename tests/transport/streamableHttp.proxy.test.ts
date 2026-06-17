@@ -333,6 +333,142 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 			.send({ redirect_uris: ['http://127.0.0.1:9999/cb'], client_name: 'Good client' });
 		expect(ok.status).toBe(201);
 	});
+	it('criterion 5: a consent approval is rejected without a matching CSRF token', async () => {
+		fakeAs = await startFakeAs({ autoApproveAuthorize: true });
+		const store = new InMemoryProxyStore();
+		const pc = proxyConfig(fakeAs.url);
+		const { app } = buildApp(makeDeps(fakeAs.url, store, pc));
+
+		const redirectUri = 'http://127.0.0.1:47100/cb';
+		const reg = await request(app)
+			.post('/mcp/register')
+			.set('Content-Type', 'application/json')
+			.send({ redirect_uris: [redirectUri], client_name: 'CSRF' });
+		const { randomVerifier, s256 } = await import('../../src/auth/pkce.js');
+		const params = {
+			client_id: String(reg.body.client_id),
+			redirect_uri: redirectUri,
+			state: 'state-csrf',
+			code_challenge: s256(randomVerifier()),
+			code_challenge_method: 'S256',
+			scope: 'mwoauth-authonly',
+		};
+		const authz = await request(app).get('/mcp/authorize').query(params);
+		expect(authz.status).toBe(200);
+		const csrfSetCookie = ((authz.headers['set-cookie'] as string[] | undefined) ?? []).find((c) =>
+			c.startsWith('mcp_consent_csrf='),
+		);
+		const csrf = csrfSetCookie ? csrfSetCookie.split(';')[0].split('=').slice(1).join('=') : '';
+		expect(csrf).toBeTruthy();
+
+		// No cookie and no field → rejected.
+		const noCsrf = await request(app)
+			.post('/mcp/consent')
+			.query(params)
+			.type('form')
+			.send({ decision: 'approve' });
+		expect(noCsrf.status).toBe(400);
+		expect(noCsrf.body.error_description).toMatch(/CSRF/i);
+
+		// Field present but no matching cookie (a cross-site POST can't carry the
+		// SameSite=Strict cookie) → rejected.
+		const noCookie = await request(app)
+			.post('/mcp/consent')
+			.query(params)
+			.type('form')
+			.send({ decision: 'approve', csrf });
+		expect(noCookie.status).toBe(400);
+
+		// Cookie + matching field → accepted (302 to the upstream authorize URL).
+		const ok = await request(app)
+			.post('/mcp/consent')
+			.query(params)
+			.set('Cookie', `mcp_consent_csrf=${csrf}`)
+			.type('form')
+			.send({ decision: 'approve', csrf });
+		expect(ok.status).toBe(302);
+	});
+	it('criterion 6: a grant-screen denial (no state, MediaWiki unauthorized_client) is bounced to the client as access_denied via the txn cookie', async () => {
+		fakeAs = await startFakeAs({ autoApproveAuthorize: true });
+		const store = new InMemoryProxyStore();
+		const pc = proxyConfig(fakeAs.url);
+		const { app } = buildApp(makeDeps(fakeAs.url, store, pc));
+
+		const cookieValue = (res: { headers: Record<string, unknown> }, name: string): string => {
+			const set = (res.headers['set-cookie'] as string[] | undefined) ?? [];
+			const c = set.find((x) => x.startsWith(`${name}=`));
+			return c ? c.split(';')[0].split('=').slice(1).join('=') : '';
+		};
+
+		const redirectUri = 'http://127.0.0.1:47100/cb';
+		const reg = await request(app)
+			.post('/mcp/register')
+			.set('Content-Type', 'application/json')
+			.send({ redirect_uris: [redirectUri], client_name: 'D' });
+		const { randomVerifier, s256 } = await import('../../src/auth/pkce.js');
+		const params = {
+			client_id: String(reg.body.client_id),
+			redirect_uri: redirectUri,
+			state: 'client-state-9',
+			code_challenge: s256(randomVerifier()),
+			code_challenge_method: 'S256',
+			scope: 'mwoauth-authonly',
+		};
+
+		const authz = await request(app).get('/mcp/authorize').query(params);
+		const csrf = cookieValue(authz, 'mcp_consent_csrf');
+		const consent = await request(app)
+			.post('/mcp/consent')
+			.query(params)
+			.set('Cookie', `mcp_consent_csrf=${csrf}`)
+			.type('form')
+			.send({ decision: 'approve', csrf });
+		expect(consent.status).toBe(302);
+		const txnCookie = cookieValue(consent, 'mcp_txn');
+		expect(txnCookie).toBeTruthy();
+
+		// Simulate MediaWiki's denial: it redirects to the callback with
+		// `unauthorized_client`, NO state and NO code — but the browser still carries
+		// the mcp_txn cookie set when we redirected to the wiki.
+		const cb = await request(app)
+			.get('/mcp/oauth/callback')
+			.query({ error: 'unauthorized_client', error_description: 'user denied' })
+			.set('Cookie', `mcp_txn=${txnCookie}`);
+		expect(cb.status).toBe(302);
+		const loc = new URL(cb.headers.location as string);
+		expect(loc.origin + loc.pathname).toBe(redirectUri);
+		expect(loc.searchParams.get('error')).toBe('access_denied');
+		expect(loc.searchParams.get('state')).toBe('client-state-9');
+	});
+	it('criterion 7: the txn cookie is NOT consulted for a success/code callback (denials only)', async () => {
+		fakeAs = await startFakeAs({ autoApproveAuthorize: true });
+		const store = new InMemoryProxyStore();
+		const pc = proxyConfig(fakeAs.url);
+		const { app } = buildApp(makeDeps(fakeAs.url, store, pc));
+
+		// Seed a transaction the cookie points at; if the cookie were (wrongly) honoured
+		// on the code path, handleCallback would resolve it and attempt the exchange.
+		store.putTransaction('txn-x', {
+			clientId: 'c',
+			clientRedirectUri: 'http://127.0.0.1:1/cb',
+			clientState: 's',
+			clientCodeChallenge: 'x',
+			clientCodeChallengeMethod: 'S256',
+			scopes: [],
+			proxyVerifier: 'v',
+		});
+
+		// code present, NO state, NO error, txn cookie present → cookie must be ignored,
+		// so state stays undefined and the callback reports missing code/state.
+		const cb = await request(app)
+			.get('/mcp/oauth/callback')
+			.query({ code: 'somecode' })
+			.set('Cookie', 'mcp_txn=txn-x');
+		expect(cb.status).toBe(400);
+		expect(String(cb.body.error_description)).toMatch(/missing code\/state/i);
+		// The seeded transaction was not consumed.
+		expect(store.getTransaction('txn-x')).toBeDefined();
+	});
 });
 
 // Drives register -> authorize -> consent -> upstream -> callback and returns the
@@ -361,12 +497,17 @@ async function runFlowUpToCode(
 		code_challenge_method: 'S256',
 		scope: 'mwoauth-authonly',
 	};
-	await request(app).get('/mcp/authorize').query(params);
+	const authz = await request(app).get('/mcp/authorize').query(params);
+	const csrfSetCookie = ((authz.headers['set-cookie'] as string[] | undefined) ?? []).find((c) =>
+		c.startsWith('mcp_consent_csrf='),
+	);
+	const csrf = csrfSetCookie ? csrfSetCookie.split(';')[0].split('=').slice(1).join('=') : '';
 	const consent = await request(app)
 		.post('/mcp/consent')
 		.query(params)
+		.set('Cookie', `mcp_consent_csrf=${csrf}`)
 		.type('form')
-		.send({ decision: 'approve' });
+		.send({ decision: 'approve', csrf });
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- supertest header value is string|string[]
 	const cookie = (consent.headers['set-cookie'] as string[])[0].split(';')[0];
 	const upstream = await fetch(consent.headers.location, { redirect: 'manual' });

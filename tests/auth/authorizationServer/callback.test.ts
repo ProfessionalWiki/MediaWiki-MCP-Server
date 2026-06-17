@@ -180,6 +180,35 @@ describe('handleCallback', () => {
 		expect(store.getTransaction('txn-deny')).toBeUndefined();
 	});
 
+	it('normalizes a MediaWiki unauthorized_client denial to access_denied', async () => {
+		const store = new InMemoryProxyStore();
+		store.putTransaction('txn-mw', {
+			clientId: 'cid',
+			clientRedirectUri: 'http://127.0.0.1:9000/cb',
+			clientState: 'cstate',
+			clientCodeChallenge: 'CCH',
+			clientCodeChallengeMethod: 'S256',
+			scopes: [],
+			proxyVerifier: 'PV',
+		});
+		const exchange = vi.fn();
+		const r = await handleCallback(
+			{ error: 'unauthorized_client', errorDescription: 'user denied', state: 'txn-mw' },
+			pc,
+			store,
+			true,
+			exchange,
+		);
+		expect(r.kind).toBe('redirect');
+		if (r.kind !== 'redirect') {
+			return;
+		}
+		const u = new URL(r.location);
+		expect(u.searchParams.get('error')).toBe('access_denied');
+		expect(u.searchParams.get('state')).toBe('cstate');
+		expect(exchange).not.toHaveBeenCalled();
+	});
+
 	it('propagates a denial even when the consent cookie is absent (abort needs no consent)', async () => {
 		const store = new InMemoryProxyStore();
 		store.putTransaction('txn-deny2', {

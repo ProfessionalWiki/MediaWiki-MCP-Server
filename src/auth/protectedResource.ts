@@ -44,7 +44,15 @@ export function resolvePublicBase(
 	const fromEnv = process.env.MCP_PUBLIC_URL;
 	let base: string;
 	if (typeof fromEnv === 'string' && fromEnv.length > 0) {
-		base = fromEnv;
+		// Canonicalize through new URL() — the same normalization resolveProxyConfig
+		// applies to the issuer — so the protected-resource `resource`, the AS
+		// `issuer`, and the JWT audience all derive from one form (e.g. host case).
+		// Fall back to the raw value if somehow unparseable (config is validated at boot).
+		try {
+			base = new URL(fromEnv).toString();
+		} catch {
+			base = fromEnv;
+		}
 	} else if (requestHost !== undefined && requestProto !== undefined) {
 		base = `${requestProto}://${requestHost}/`;
 	} else {

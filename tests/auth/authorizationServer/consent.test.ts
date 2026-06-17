@@ -3,6 +3,10 @@ import {
 	renderConsentPage,
 	buildConsentCookie,
 	readConsentCookie,
+	buildCsrfCookie,
+	readCsrfCookie,
+	buildTxnCookie,
+	readTxnCookie,
 } from '../../../src/auth/authorizationServer/consent.js';
 import { signConsent } from '../../../src/auth/authorizationServer/jwt.js';
 
@@ -19,10 +23,22 @@ describe('consent', () => {
 			wiki: 'Example',
 			scopes: ['editpage'],
 			authorizeQuery: 'txn=1',
+			csrfToken: 'nonce-abc',
 		});
 		expect(html).toContain('Claude Code');
 		expect(html).toContain('editpage');
 		expect(html).toContain('txn=1');
+	});
+	it('embeds the CSRF token as a hidden form field', () => {
+		const html = renderConsentPage({
+			clientName: 'Claude Code',
+			wiki: 'Example',
+			scopes: ['editpage'],
+			authorizeQuery: 'txn=1',
+			csrfToken: 'nonce-abc',
+		});
+		expect(html).toContain('name="csrf"');
+		expect(html).toContain('value="nonce-abc"');
 	});
 	it('escapes HTML in the client name', () => {
 		const html = renderConsentPage({
@@ -30,9 +46,30 @@ describe('consent', () => {
 			wiki: 'W',
 			scopes: [],
 			authorizeQuery: 'txn=1',
+			csrfToken: 'nonce-abc',
 		});
 		expect(html).not.toContain('<script>x</script>');
 		expect(html).toContain('&lt;script&gt;');
+	});
+	it('builds a SameSite=Strict, HttpOnly CSRF cookie and reads it back', () => {
+		const cookie = buildCsrfCookie('nonce-xyz');
+		expect(cookie).toMatch(/^mcp_consent_csrf=nonce-xyz/);
+		expect(cookie).toContain('HttpOnly');
+		expect(cookie).toContain('Secure');
+		expect(cookie).toContain('SameSite=Strict');
+		expect(cookie).toContain('Path=/mcp');
+		expect(readCsrfCookie('a=1; mcp_consent_csrf=nonce-xyz; b=2')).toBe('nonce-xyz');
+		expect(readCsrfCookie(undefined)).toBeUndefined();
+	});
+	it('builds and reads the txn cookie (SameSite=Lax fallback for the callback)', () => {
+		const cookie = buildTxnCookie('txn-123');
+		expect(cookie).toMatch(/^mcp_txn=txn-123/);
+		expect(cookie).toContain('HttpOnly');
+		expect(cookie).toContain('Secure');
+		expect(cookie).toContain('SameSite=Lax');
+		expect(cookie).toContain('Path=/mcp');
+		expect(readTxnCookie('a=1; mcp_txn=txn-123; b=2')).toBe('txn-123');
+		expect(readTxnCookie(undefined)).toBeUndefined();
 	});
 	it('builds a scoped Set-Cookie', async () => {
 		const cookie = await buildConsentCookie(pc, {

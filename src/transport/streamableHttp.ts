@@ -47,6 +47,11 @@ import {
 	renderConsentPage,
 	buildConsentCookie,
 	readConsentCookie,
+	buildCsrfCookie,
+	readCsrfCookie,
+	buildTxnCookie,
+	readTxnCookie,
+	clearTxnCookie,
 } from '../auth/authorizationServer/consent.js';
 import { verifyAccessToken, verifyConsent } from '../auth/authorizationServer/jwt.js';
 import { handleCallback } from '../auth/authorizationServer/callback.js';
@@ -292,13 +297,28 @@ export interface McpPostHandlerOptions {
 // WWW-Authenticate: Bearer ... resource_metadata=... header pointing at this
 // server's protected-resource document. Reused by the legacy OAuth-only
 // short-circuit and the proxy invalid-JWT path so both speak the same dialect.
+// Persist the proxy transaction id (carried as `state` on the upstream authorize
+// URL) in a cookie, so the callback can recover it even when the upstream drops
+// `state` on a denial (MediaWiki's Extension:OAuth does).
+function setTxnCookie(res: Response, upstreamLocation: string): void {
+	const txnId = new URL(upstreamLocation).searchParams.get('state');
+	if (txnId) {
+		res.append('Set-Cookie', buildTxnCookie(txnId));
+	}
+}
+
 function emit401Challenge(req: Request, res: Response): void {
 	const protoHeader = req.headers['x-forwarded-proto'];
 	const proto = typeof protoHeader === 'string' ? protoHeader.split(',')[0]?.trim() : undefined;
 	const requestProto =
 		proto === 'https' || proto === 'http' ? proto : req.secure ? 'https' : 'http';
 	const base = resolvePublicBase(req.headers.host ?? undefined, requestProto);
-	const metadataUrl = `${base}.well-known/oauth-protected-resource`;
+	// The protected-resource document is served at the ORIGIN root (RFC 9728), not
+	// under MCP_PUBLIC_URL's path segment. Point resource_metadata at the origin so
+	// it resolves — the SDK fetches this URL verbatim with no root fallback. Preserve
+	// the authority (including any explicit port) and only drop a trailing path.
+	const origin = /^[a-z][a-z0-9+.-]*:\/\/[^/]+/i.exec(base)?.[0] ?? base.replace(/\/+$/, '');
+	const metadataUrl = `${origin}/.well-known/oauth-protected-resource`;
 	res.set(
 		'WWW-Authenticate',
 		`Bearer realm="MediaWiki MCP Server", resource_metadata="${metadataUrl}"`,
@@ -857,16 +877,22 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 			return;
 		}
 		if (plan.kind === 'consent') {
+			// Anti-CSRF nonce: set as a SameSite=Strict cookie and embedded in the form
+			// so the decision POST can prove it came from this page (double-submit).
+			const csrfToken = randomUUID();
+			res.append('Set-Cookie', buildCsrfCookie(csrfToken));
 			res.type('html').send(
 				renderConsentPage({
 					clientName: plan.clientName,
 					wiki: defaultWikiSitename,
 					scopes: plan.scopes,
 					authorizeQuery: serializeAuthorizeQuery(q),
+					csrfToken,
 				}),
 			);
 			return;
 		}
+		setTxnCookie(res, plan.location);
 		res.redirect(302, plan.location);
 	});
 
@@ -907,6 +933,16 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 			return;
 		}
 
+		// decision === 'approve' beyond this point. CSRF: the form must echo the
+		// SameSite=Strict nonce set on the consent GET. A cross-site auto-submit can
+		// neither carry that cookie nor read it (HttpOnly), so it cannot forge consent.
+		const csrfCookie = readCsrfCookie(req.headers.cookie);
+		const csrfField = typeof body.csrf === 'string' ? body.csrf : undefined;
+		if (!csrfCookie || !csrfField || csrfCookie !== csrfField) {
+			res.status(400).json({ error: 'invalid_request', error_description: 'CSRF check failed' });
+			return;
+		}
+
 		const redirectHost = redirectHostOf(q.redirect_uri);
 		if (!q.client_id || !redirectHost) {
 			res.status(400).json({
@@ -932,6 +968,7 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 			return;
 		}
 		if (plan.kind === 'redirect') {
+			setTxnCookie(res, plan.location);
 			res.redirect(302, plan.location);
 			return;
 		}
@@ -956,12 +993,20 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 			return;
 		}
 		const one = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
+		const queryError = one(req.query.error);
 		const q = {
 			code: one(req.query.code),
-			state: one(req.query.state),
-			error: one(req.query.error),
+			// Fall back to the txn cookie ONLY on a denial that dropped `state`
+			// (MediaWiki does). Never let the cookie supply `state` for the success/code
+			// path, so an injected cookie can't drive a code redemption to a stale txn.
+			state:
+				one(req.query.state) ??
+				(queryError !== undefined ? readTxnCookie(req.headers.cookie) : undefined),
+			error: queryError,
 			errorDescription: one(req.query.error_description),
 		};
+		// The txn cookie is single-use per flow; expire it now that the callback fired.
+		res.append('Set-Cookie', clearTxnCookie());
 
 		// Re-verify the consent cookie here, bound to the transaction's own client +
 		// redirect host. handleCallback re-looks-up the txn itself; this lookup only
