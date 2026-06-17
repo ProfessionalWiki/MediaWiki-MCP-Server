@@ -8,9 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Added
 
-- **Hosted OAuth proxy (HTTP transport).** The server can act as an OAuth 2.1 Authorization Server in front of a single pre-registered MediaWiki consumer: an OAuth-aware client pointed at `https://<wiki>/mcp` discovers it, self-registers (DCR), and signs each user in as themselves — no manual tokens. The server brokers the upstream auth-code + PKCE flow and mints its own audience-bound JWTs; anonymous read is preserved, writes step up to auth. It serves RFC 8414/9728 discovery, an RFC 7591 registration endpoint, `/authorize` (with a consent page), `/oauth/callback`, and `/token`. Enable it by running the HTTP transport with `MCP_PUBLIC_URL` + `MCP_OAUTH_JWT_SIGNING_KEY` set and an `oauth2ClientId` on the default wiki. See [docs/deployment.md — Shape 3](docs/deployment.md#shape-3--single-wiki-hosted-server-mediated-oauth-proxy).
-- New per-wiki `publicServer` field — the browser-facing base URL, for when it differs from the internal `server` (e.g. a Docker-network alias). The proxy redirects the user's browser there for consent; `server` keeps the API and token-exchange traffic. Defaults to `server`.
-- New proxy environment variables: `MCP_PUBLIC_URL` (public issuer/base), `MCP_OAUTH_JWT_SIGNING_KEY` (≥32 chars, kept fixed so tokens survive a restart), `MCP_OAUTH_TOKEN_TTL` (default `55m`), and `MCP_OAUTH_CONSENT_TTL` (default `30d`; durations accept `55m`/`1h`/`30d` or bare seconds).
+- **Hosted OAuth proxy (HTTP transport).** Opt-in mode in which the server signs each user into MediaWiki as themselves, so an OAuth-aware client pointed at `https://<wiki>/mcp` needs no manual tokens. Anonymous read still works; writes require sign-in. Enable it by running the HTTP transport with `MCP_PUBLIC_URL` and `MCP_OAUTH_JWT_SIGNING_KEY` set and an `oauth2ClientId` on the default wiki. See [docs/deployment.md — Shape 3](docs/deployment.md#shape-3--single-wiki-hosted-server-mediated-oauth-proxy).
+- New per-wiki `publicServer` field: the browser-facing base URL, used when it differs from the internal `server` (e.g. a Docker-network alias). Defaults to `server`.
+- New hosted-proxy environment variables: `MCP_PUBLIC_URL` (the server's public URL), `MCP_OAUTH_JWT_SIGNING_KEY` (≥32 characters), `MCP_OAUTH_TOKEN_TTL` (default `55m`), and `MCP_OAUTH_CONSENT_TTL` (default `30d`). Durations accept forms like `55m`/`1h`/`30d` or bare seconds.
 
 ### Fixed
 
