@@ -596,6 +596,83 @@ describe('private wiki — connection-time auth challenge', () => {
 
 		expect(res.status).not.toBe(401);
 	});
+
+	it('warns when a private wiki has no oauth2ClientId', () => {
+		const warnSpy = vi.spyOn(logger, 'warning');
+		const state = createAppState({
+			defaultWiki: 'test',
+			wikis: {
+				test: {
+					sitename: 'Test Wiki',
+					server: 'https://wiki.example',
+					articlepath: '/wiki',
+					scriptpath: '/w',
+					private: true,
+					token: null,
+					username: null,
+					password: null,
+				},
+			},
+			uploadDirs: [],
+		});
+		buildApp({
+			state,
+			getProxyConfig: () => null,
+			proxyStore: new InMemoryProxyStore(),
+			defaultWikiKey: 'test',
+			defaultWikiSitename: 'Test Wiki',
+			createServerFn: stubCreateServer,
+			host: '127.0.0.1',
+			allowedHosts: undefined,
+			allowedOrigins: undefined,
+			maxRequestBody: '1mb',
+			sessionIdleTimeoutMs: 0,
+		});
+
+		expect(warnSpy).toHaveBeenCalledWith(
+			expect.stringContaining('marked private but has no oauth2ClientId'),
+		);
+		warnSpy.mockRestore();
+	});
+
+	it('does not warn when a private wiki has an oauth2ClientId', () => {
+		const warnSpy = vi.spyOn(logger, 'warning');
+		const state = createAppState({
+			defaultWiki: 'test',
+			wikis: {
+				test: {
+					sitename: 'Test Wiki',
+					server: 'https://wiki.example',
+					articlepath: '/wiki',
+					scriptpath: '/w',
+					oauth2ClientId: 'UPSTREAM-CLIENT',
+					private: true,
+					token: null,
+					username: null,
+					password: null,
+				},
+			},
+			uploadDirs: [],
+		});
+		buildApp({
+			state,
+			getProxyConfig: () => null,
+			proxyStore: new InMemoryProxyStore(),
+			defaultWikiKey: 'test',
+			defaultWikiSitename: 'Test Wiki',
+			createServerFn: stubCreateServer,
+			host: '127.0.0.1',
+			allowedHosts: undefined,
+			allowedOrigins: undefined,
+			maxRequestBody: '1mb',
+			sessionIdleTimeoutMs: 0,
+		});
+
+		expect(warnSpy).not.toHaveBeenCalledWith(
+			expect.stringContaining('marked private but has no oauth2ClientId'),
+		);
+		warnSpy.mockRestore();
+	});
 });
 
 // Drives register -> authorize -> consent -> upstream -> callback and returns the

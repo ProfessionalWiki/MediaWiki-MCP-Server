@@ -816,6 +816,20 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		sessionIdleTimeoutMs,
 	} = deps;
 
+	// A `private` wiki challenges anonymous callers with a 401 whose discovery
+	// document only resolves to an authorization server when the wiki has an
+	// `oauth2ClientId`. Warn the operator about a private wiki that lacks one.
+	for (const [key, cfg] of Object.entries(state.wikiRegistry.getAll())) {
+		const hasAs = typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
+		if (cfg.private === true && !hasAs) {
+			logger.warning(
+				`Wiki "${key}" is marked private but has no oauth2ClientId; anonymous clients ` +
+					'will be challenged with a 401 pointing at an authorization server the wiki does ' +
+					'not advertise. Configure an OAuth2 consumer or unset `private`.',
+			);
+		}
+	}
+
 	const app = express();
 	app.use(express.json({ limit: maxRequestBody }));
 	app.use(payloadTooLargeHandler(maxRequestBody));
