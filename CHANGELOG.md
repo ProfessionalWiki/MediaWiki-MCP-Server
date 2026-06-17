@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - New per-wiki `publicServer` field: the browser-facing base URL, used when it differs from the internal `server` (e.g. a Docker-network alias). Defaults to `server`.
 - New hosted-proxy environment variables: `MCP_PUBLIC_URL` (the server's public URL), `MCP_OAUTH_JWT_SIGNING_KEY` (≥32 characters), `MCP_OAUTH2_CLIENT_ID` (the default wiki's OAuth2 client id — overrides `config.json`, so a deployment can supply the value its wiki generates at registration time), `MCP_OAUTH_TOKEN_TTL` (default `55m`), and `MCP_OAUTH_CONSENT_TTL` (default `30d`). Durations accept forms like `55m`/`1h`/`30d` or bare seconds.
 
+### Changed
+
+- The OAuth sign-in and consent pages now have a styled layout instead of bare HTML, and a failed or cancelled authorization shows a readable page rather than a raw error.
+
 ### Fixed
 
 - Extension-pack write tools (NeoWiki's `create-subject`, `update-subject`, `delete-subject`, and `set-main-subject`) are now hidden from `tools/list` and rejected by the per-call guard when the active wiki is configured `readOnly`, the same as core write tools. Previously the read-only gate covered only the core writes, so a read-only endpoint still advertised and dispatched extension-pack writes; an actual write was then stopped only by the wiki's own permissions. Write tools are identified by their `readOnlyHint: false` annotation, so future packs are covered automatically. (#411)
