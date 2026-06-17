@@ -44,4 +44,28 @@ describe('handleRegister', () => {
 		});
 		expect(res.status).toBe(201);
 	});
+
+	it('rejects more than the per-record redirect_uri cap', () => {
+		const many = Array.from({ length: 11 }, (_, i) => `http://127.0.0.1:${9000 + i}/cb`);
+		const { res } = run({ redirect_uris: many });
+		expect(res.status).toBe(400);
+		expect(res.body.error).toBe('invalid_redirect_uri');
+	});
+
+	it('dedupes repeated redirect_uris', () => {
+		const { res } = run({
+			redirect_uris: ['http://127.0.0.1:9000/cb', 'http://127.0.0.1:9000/cb'],
+		});
+		expect(res.status).toBe(201);
+		expect(res.body.redirect_uris).toEqual(['http://127.0.0.1:9000/cb']);
+	});
+
+	it('truncates an over-long client_name', () => {
+		const { res } = run({
+			redirect_uris: ['http://127.0.0.1:9000/cb'],
+			client_name: 'x'.repeat(300),
+		});
+		expect(res.status).toBe(201);
+		expect((res.body.client_name as string).length).toBe(256);
+	});
 });
