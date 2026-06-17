@@ -44,6 +44,25 @@ describe('resolveProxyConfig', () => {
 			ProxyConfigError,
 		);
 	});
+	it('throws when MCP_PUBLIC_URL is http on a non-local host', () => {
+		expect(() =>
+			resolveProxyConfig('w', wiki, { ...env, MCP_PUBLIC_URL: 'http://wiki.example/mcp' }),
+		).toThrow(ProxyConfigError);
+	});
+	it('allows http for localhost (development)', () => {
+		const c = resolveProxyConfig('w', wiki, {
+			...env,
+			MCP_PUBLIC_URL: 'http://localhost:8080/mcp',
+		})!;
+		expect(c.issuer).toBe('http://localhost:8080/mcp');
+	});
+	it('allows http for a *.localhost development host', () => {
+		const c = resolveProxyConfig('w', wiki, {
+			...env,
+			MCP_PUBLIC_URL: 'http://dockerwiki.localhost:8080/mcp',
+		})!;
+		expect(c.issuer).toBe('http://dockerwiki.localhost:8080/mcp');
+	});
 	it('throws when token TTL exceeds the 30-day refresh window', () => {
 		expect(() => resolveProxyConfig('w', wiki, { ...env, MCP_OAUTH_TOKEN_TTL: '40d' })).toThrow(
 			ProxyConfigError,

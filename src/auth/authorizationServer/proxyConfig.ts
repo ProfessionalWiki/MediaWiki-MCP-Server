@@ -46,16 +46,30 @@ export function resolveProxyConfig(
 		return null;
 	}
 
+	let parsed: URL;
+	try {
+		parsed = new URL(publicUrl);
+	} catch {
+		throw new ProxyConfigError(`MCP_PUBLIC_URL is not a valid URL: ${publicUrl}`);
+	}
+
+	// Enforce HTTPS for the public issuer: the entire AS surface (issuer, callback,
+	// authorize/token/registration endpoints, and the audience of every minted JWT)
+	// derives from it. Permit http only for local development hosts.
+	const host = parsed.hostname;
+	const isLocalHost =
+		host === 'localhost' || host.endsWith('.localhost') || host === '127.0.0.1' || host === '[::1]';
+	if (parsed.protocol !== 'https:' && !isLocalHost) {
+		throw new ProxyConfigError(
+			`MCP_PUBLIC_URL must use https (got "${parsed.protocol}//"); http is allowed only for localhost.`,
+		);
+	}
+
 	// Intentionally slash-free: this is the RFC 8414 issuer identifier, which
 	// must not carry a trailing slash. Distinct from
 	// protectedResource.ts:resolvePublicBase, which guarantees a trailing slash
 	// for the protected-resource `resource` field.
-	let issuer: string;
-	try {
-		issuer = stripTrailingSlash(new URL(publicUrl).toString());
-	} catch {
-		throw new ProxyConfigError(`MCP_PUBLIC_URL is not a valid URL: ${publicUrl}`);
-	}
+	const issuer = stripTrailingSlash(parsed.toString());
 
 	if (signingKey.length < 32) {
 		throw new ProxyConfigError('MCP_OAUTH_JWT_SIGNING_KEY must be at least 32 characters.');
