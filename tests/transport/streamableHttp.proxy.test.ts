@@ -475,6 +475,204 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		// The seeded transaction was not consumed.
 		expect(store.getTransaction('txn-x')).toBeDefined();
 	});
+
+	it('the 401 challenge advertises error="invalid_token"', async () => {
+		fakeAs = await startFakeAs({ autoApproveAuthorize: true });
+		const store = new InMemoryProxyStore();
+		const pc = proxyConfig(fakeAs.url);
+		const { app } = buildApp(makeDeps(fakeAs.url, store, pc));
+
+		const res = await request(app)
+			.post('/mcp')
+			.set('Content-Type', 'application/json')
+			.set('Authorization', 'Bearer not-a-valid-proxy-jwt')
+			.send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+
+		expect(res.status).toBe(401);
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- supertest header value is string|string[]
+		const wwwAuth = res.headers['www-authenticate'] as string;
+		expect(wwwAuth).toContain('error="invalid_token"');
+		expect(wwwAuth).toContain('resource_metadata=');
+	});
+});
+
+describe('private wiki — connection-time auth challenge', () => {
+	let fakeAs: FakeAsHandle | undefined;
+
+	beforeEach(() => {
+		vi.stubEnv('MCP_PUBLIC_URL', ISSUER);
+	});
+	afterEach(async () => {
+		vi.unstubAllEnvs();
+		await fakeAs?.close();
+		fakeAs = undefined;
+	});
+
+	function privateDeps(
+		fakeAsUrl: string,
+		store: InMemoryProxyStore,
+		pc: ProxyConfig | null,
+	): BuildAppDeps {
+		const state = createAppState({
+			defaultWiki: 'test',
+			wikis: {
+				test: {
+					sitename: 'Test Wiki',
+					server: fakeAsUrl,
+					articlepath: '/wiki',
+					scriptpath: '/w',
+					oauth2ClientId: 'UPSTREAM-CLIENT',
+					private: true,
+					token: null,
+					username: null,
+					password: null,
+				},
+			},
+			uploadDirs: [],
+		});
+		return {
+			state,
+			getProxyConfig: () => pc,
+			proxyStore: store,
+			defaultWikiKey: 'test',
+			defaultWikiSitename: 'Test Wiki',
+			createServerFn: stubCreateServer,
+			host: '127.0.0.1',
+			allowedHosts: undefined,
+			allowedOrigins: undefined,
+			maxRequestBody: '1mb',
+			sessionIdleTimeoutMs: 0,
+		};
+	}
+
+	it('challenges an anonymous initialize with 401 + WWW-Authenticate', async () => {
+		fakeAs = await startFakeAs({ autoApproveAuthorize: true });
+		const store = new InMemoryProxyStore();
+		const pc = proxyConfig(fakeAs.url);
+		const { app } = buildApp(privateDeps(fakeAs.url, store, pc));
+
+		const res = await request(app)
+			.post('/mcp')
+			.set('Content-Type', 'application/json')
+			.send({
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'initialize',
+				params: {
+					protocolVersion: '2025-06-18',
+					capabilities: {},
+					clientInfo: { name: 'test', version: '0' },
+				},
+			});
+
+		expect(res.status).toBe(401);
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- supertest header value is string|string[]
+		const wwwAuth = res.headers['www-authenticate'] as string;
+		expect(wwwAuth).toContain('error="invalid_token"');
+		expect(wwwAuth).toContain('resource_metadata=');
+	});
+
+	it('challenges an anonymous GET (SSE) with 401', async () => {
+		fakeAs = await startFakeAs({ autoApproveAuthorize: true });
+		const store = new InMemoryProxyStore();
+		const pc = proxyConfig(fakeAs.url);
+		const { app } = buildApp(privateDeps(fakeAs.url, store, pc));
+
+		const res = await request(app).get('/mcp').set('mcp-session-id', 'irrelevant');
+
+		expect(res.status).toBe(401);
+	});
+
+	it('does NOT challenge an anonymous request when the wiki is public', async () => {
+		fakeAs = await startFakeAs({ autoApproveAuthorize: true });
+		const store = new InMemoryProxyStore();
+		const pc = proxyConfig(fakeAs.url);
+		const { app } = buildApp(makeDeps(fakeAs.url, store, pc));
+
+		const res = await request(app)
+			.post('/mcp')
+			.set('Content-Type', 'application/json')
+			.send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+
+		expect(res.status).not.toBe(401);
+	});
+
+	it('warns when a private wiki has no oauth2ClientId', () => {
+		const warnSpy = vi.spyOn(logger, 'warning');
+		const state = createAppState({
+			defaultWiki: 'test',
+			wikis: {
+				test: {
+					sitename: 'Test Wiki',
+					server: 'https://wiki.example',
+					articlepath: '/wiki',
+					scriptpath: '/w',
+					private: true,
+					token: null,
+					username: null,
+					password: null,
+				},
+			},
+			uploadDirs: [],
+		});
+		buildApp({
+			state,
+			getProxyConfig: () => null,
+			proxyStore: new InMemoryProxyStore(),
+			defaultWikiKey: 'test',
+			defaultWikiSitename: 'Test Wiki',
+			createServerFn: stubCreateServer,
+			host: '127.0.0.1',
+			allowedHosts: undefined,
+			allowedOrigins: undefined,
+			maxRequestBody: '1mb',
+			sessionIdleTimeoutMs: 0,
+		});
+
+		expect(warnSpy).toHaveBeenCalledWith(
+			expect.stringContaining('marked private but has no oauth2ClientId'),
+		);
+		warnSpy.mockRestore();
+	});
+
+	it('does not warn when a private wiki has an oauth2ClientId', () => {
+		const warnSpy = vi.spyOn(logger, 'warning');
+		const state = createAppState({
+			defaultWiki: 'test',
+			wikis: {
+				test: {
+					sitename: 'Test Wiki',
+					server: 'https://wiki.example',
+					articlepath: '/wiki',
+					scriptpath: '/w',
+					oauth2ClientId: 'UPSTREAM-CLIENT',
+					private: true,
+					token: null,
+					username: null,
+					password: null,
+				},
+			},
+			uploadDirs: [],
+		});
+		buildApp({
+			state,
+			getProxyConfig: () => null,
+			proxyStore: new InMemoryProxyStore(),
+			defaultWikiKey: 'test',
+			defaultWikiSitename: 'Test Wiki',
+			createServerFn: stubCreateServer,
+			host: '127.0.0.1',
+			allowedHosts: undefined,
+			allowedOrigins: undefined,
+			maxRequestBody: '1mb',
+			sessionIdleTimeoutMs: 0,
+		});
+
+		expect(warnSpy).not.toHaveBeenCalledWith(
+			expect.stringContaining('marked private but has no oauth2ClientId'),
+		);
+		warnSpy.mockRestore();
+	});
 });
 
 // Drives register -> authorize -> consent -> upstream -> callback and returns the

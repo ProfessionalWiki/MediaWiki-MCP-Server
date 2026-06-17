@@ -238,7 +238,9 @@ describe('POST /mcp proxy bearer rewire', () => {
 		expect(res.body?.error?.code).toBe(-32001);
 		const wwwAuth = res.headers['www-authenticate'];
 		expect(typeof wwwAuth).toBe('string');
-		expect(wwwAuth).toMatch(/Bearer realm="MediaWiki MCP Server"/);
+		expect(wwwAuth).toMatch(/^Bearer /);
+		expect(wwwAuth).toMatch(/error="invalid_token"/);
+		expect(wwwAuth).toMatch(/realm="MediaWiki MCP Server"/);
 		expect(wwwAuth).toMatch(/resource_metadata="/);
 		expect(wwwAuth).toMatch(/\/.well-known\/oauth-protected-resource"/);
 		// The request must NOT have reached the transport.

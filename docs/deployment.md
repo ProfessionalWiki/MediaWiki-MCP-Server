@@ -111,7 +111,11 @@ What it does:
 - Serves authorization-server metadata ([RFC 8414](https://www.rfc-editor.org/rfc/rfc8414)) and protected-resource metadata ([RFC 9728](https://www.rfc-editor.org/rfc/rfc9728)), a Dynamic Client Registration endpoint ([RFC 7591](https://www.rfc-editor.org/rfc/rfc7591)) at `/register`, an `/authorize` endpoint with a consent page, a fixed `/oauth/callback`, and a `/token` endpoint that mints the proxy's **own** audience-bound JWT (the bearer the client then sends to `/mcp` is a proxy JWT, not a MediaWiki token).
 - Brokers **one** pre-registered MediaWiki Extension:OAuth consumer as a **public + PKCE** client. When a user signs in, the proxy runs the upstream auth-code+PKCE flow against the wiki, stores the resulting MediaWiki token, and hands the client a proxy JWT keyed to it. On each `/mcp` call the server verifies the JWT and resolves it back to the stored MediaWiki token (refreshing it server-to-server when near expiry).
 
-For the user this is **zero-install**: point any OAuth-aware MCP client at `https://<wiki>/mcp` and the client discovers everything, registers itself, and runs the consent flow. Each user authenticates as themselves, so writes are attributable. **Anonymous read is preserved** — a tokenless request is served anonymously; write tools step up to a `401` + `WWW-Authenticate` challenge only when actually invoked (or when a presented bearer is invalid/expired), never up front.
+For the user this is **zero-install**: point any OAuth-aware MCP client at `https://<wiki>/mcp` and the client discovers everything, registers itself, and runs the consent flow. Each user authenticates as themselves, so writes are attributable.
+
+**Public wikis** preserve anonymous read: a tokenless request is served anonymously, and a write tool that needs auth returns a tool-level authentication error naming the protected-resource document (the user signs in, then retries). A presented bearer that is invalid or expired is rejected with a `401` + `WWW-Authenticate` challenge.
+
+**Private wikis** (`private: true` in `config.json` — MediaWiki's `$wgGroupPermissions['*']['read'] = false`) require auth for everything: an anonymous request, including the initial connection, is answered with a `401` + `WWW-Authenticate` so the client signs in at connect. This connection-time challenge is the broadly client-compatible trigger. (Set an `oauth2ClientId` on the wiki, or the `401` points at an authorization server the wiki does not advertise — the server logs a warning at startup if so.)
 
 ### Required environment
 
