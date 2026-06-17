@@ -1,52 +1,35 @@
 # Deployment
 
 > [!WARNING]
-> **Experimental — work in progress.** Hosted deployments support three shapes:
->
-> 1. **Single-wiki, read-only, anonymous.** Simplest to deploy — no auth, no writes.
-> 2. **Single-wiki, per-user OAuth2 bearer passthrough.** Each caller sends their own MediaWiki OAuth2 access token in the `Authorization` header; requests act as that caller. For writable / authenticated hosted use.
-> 3. **Single-wiki, hosted server-mediated OAuth (proxy).** The server is itself an OAuth 2.1 Authorization Server toward MCP clients, brokering one pre-registered MediaWiki consumer. Zero-install for the client — point any OAuth-aware MCP client at `https://<wiki>/mcp` and each user signs in as themselves. For writable hosted use without handing callers a raw MediaWiki token.
->
-> Multi-wiki hosted deployments are on the roadmap but aren't ready. Don't expose a server to mutually untrusted users with a shared `config.json` token or bot password — that collapses every caller into one wiki identity, with no audit trail and no per-user rate limits.
+> **Experimental: work in progress.** Hosting the server for other people is supported for **one wiki at a time**; multi-wiki hosted deployments are on the roadmap. Do not expose the server to mutually untrusted users with a shared `config.json` token or bot password. That collapses every caller into one wiki identity, with no audit trail and no per-user rate limits. The sign-in setup below avoids that.
 
-The server can run as a remote HTTP endpoint for clients that only accept URLs (e.g. hosted LLM chat products).
+This guide is for administrators running the MediaWiki MCP Server as a **shared HTTP endpoint** that other people (and their AI clients) reach over the network. If you only want the server for yourself, install it locally with the default stdio transport instead; see the [README](../README.md#installation).
 
-## Endpoint
+Over HTTP, clients connect to the fixed `/mcp` path on your host:
 
-MCP clients connect to the `/mcp` path on the configured host and port. For the local default:
+```
+https://wiki.example.org/mcp
+```
 
-    http://localhost:3000/mcp
+The path is not configurable. Locally the server listens on `http://localhost:3000/mcp`; the Docker image defaults to `http://localhost:8080/mcp`.
 
-For the Docker default:
+## Choose your setup
 
-    http://localhost:8080/mcp
+There are two ways to host the server. Pick the row that matches what you want your users to do.
 
-Behind a reverse proxy, the same shape applies:
-
-    https://wiki.example.org/mcp
-
-The path is fixed and not configurable.
-
-## Environment
-
-| Name | Default | Description |
+| If you want… | Users can | You provide |
 |---|---|---|
-| `MCP_TRANSPORT` | `stdio` | Set to `http` for the StreamableHTTP transport (Docker default). |
-| `PORT` | `3000` (Docker: `8080`) | Listen port. |
-| `MCP_BIND` | `127.0.0.1` (Docker: `0.0.0.0`) | Listen interface. Set to `0.0.0.0` outside Docker only when you need remote access. |
-| `MCP_SHUTDOWN_GRACE_MS` | `10000` | Drain timeout in ms on `SIGTERM` / `SIGINT`. See [Graceful shutdown](operations.md#graceful-shutdown). |
-| `MCP_ALLOWED_HOSTS` | auto on localhost | Comma-separated Host-header allowlist. See [Reverse proxy requirements](#reverse-proxy-requirements). |
-| `MCP_ALLOWED_ORIGINS` | auto on localhost | Comma-separated `Origin`-header allowlist. See [Reverse proxy requirements](#reverse-proxy-requirements). |
-| `MCP_TRUSTED_HOSTS` | unset | Comma-separated **outbound** SSRF-guard exemptions for internal destinations (e.g. `mediawiki.svc`). See [Outbound SSRF guard](#outbound-ssrf-guard). |
-| `MCP_MAX_REQUEST_BODY` | `1mb` | HTTP request body cap. Accepts size strings (`b`, `kb`, `mb`, `gb`). |
-| `MCP_PUBLIC_URL` | unset | The proxy's public issuer/base, e.g. `https://wiki.example.org/mcp`. Enables the hosted OAuth proxy when set alongside `MCP_OAUTH_JWT_SIGNING_KEY` and a default wiki with `oauth2ClientId`. See [Shape 3](#shape-3--single-wiki-hosted-server-mediated-oauth-proxy). |
-| `MCP_OAUTH_JWT_SIGNING_KEY` | unset | Secret (≥32 chars) the proxy signs its issued access/refresh JWTs and consent cookies with. Required for the proxy. Keep it **fixed** so tokens survive a restart. See [Shape 3](#shape-3--single-wiki-hosted-server-mediated-oauth-proxy). |
-| `MCP_OAUTH_TOKEN_TTL` | `55m` | Lifetime of a proxy-minted access JWT. Must be shorter than the upstream 30-day refresh window. Duration grammar (`55m`/`1h`/`30d`, or bare seconds). |
-| `MCP_OAUTH_CONSENT_TTL` | `30d` | Lifetime of the signed consent cookie that lets a returning user skip the consent page. Same duration grammar. |
+| **A public, read-only endpoint** | Read pages without signing in | A `readOnly` wiki entry + a TLS reverse proxy |
+| **Users to read *and* write as themselves** _(recommended)_ | Read, and write as their own account after a browser sign-in | An OAuth consumer on the wiki + a few proxy environment variables |
 
-`MCP_MAX_REQUEST_BODY` matches nginx's `client_max_body_size 1m`. Raise it if `update-page` calls return 413 on legitimately large edits or your wiki has raised `$wgMaxArticleSize` (MediaWiki default 2 MB). Lower it for a tighter DoS guard.
+Both run the HTTP transport (`MCP_TRANSPORT=http`) behind a reverse proxy that terminates TLS, and both finish with the [Security checklist](#security-checklist). The first row serves anonymous reads only; in the second, every write is attributed to the user who made it.
 
-## Shape 1 — Single-wiki, read-only, anonymous
+- Public, read-only → [Public read-only endpoint](#public-read-only-endpoint)
+- Sign-in with writes → [Hosted OAuth sign-in](#hosted-oauth-sign-in)
+
+## Public read-only endpoint
+
+Serve a single wiki for anonymous reads: no sign-in, no writes. Good for public documentation wikis.
 
 ```json
 {
@@ -64,115 +47,37 @@ The path is fixed and not configurable.
 }
 ```
 
-One wiki entry, `readOnly: true`, `allowWikiManagement: false`. This hides `add-wiki`, `remove-wiki`, and the six write tools (`create-page`, `update-page`, `delete-page`, `undelete-page`, `upload-file`, `upload-file-from-url`) from `tools/list`. Result: an anonymous, read-only MCP interface.
+`readOnly: true` together with `allowWikiManagement: false` hides the wiki-management tools (`add-wiki`, `remove-wiki`) and the six write tools (`create-page`, `update-page`, `delete-page`, `undelete-page`, `upload-file`, `upload-file-from-url`) from `tools/list`. What remains is an anonymous, read-only interface.
 
-Don't set `token`, `username`, or `password` — there's no per-caller authentication in this shape, so static credentials would become shared across every caller.
+Then run it with `MCP_TRANSPORT=http` behind a reverse proxy that terminates TLS and applies rate limiting (Cloudflare, nginx, and Caddy all work), then set the [Host and Origin allowlists](#security-checklist).
 
-Place the server behind a reverse proxy that terminates TLS and applies rate limiting. Cloudflare, nginx, and Caddy all work.
+## Hosted OAuth sign-in
 
-## Shape 2 — Single-wiki, per-user OAuth2 bearer passthrough
+This is the recommended way to offer **writes** over HTTP. The server runs a built-in OAuth 2.1 Authorization Server (the **proxy**) in front of one MediaWiki OAuth consumer. An OAuth-aware MCP client points at `https://<wiki>/mcp`, the user signs in through their browser, and the server runs the MediaWiki authorization flow on their behalf. No one ever handles a raw MediaWiki token, and every write is attributed to the user who made it.
 
-```json
-{
-  "allowWikiManagement": false,
-  "defaultWiki": "example.org",
-  "wikis": {
-    "example.org": {
-      "sitename": "Example Wiki",
-      "server": "https://example.org",
-      "articlepath": "/wiki",
-      "scriptpath": "/w"
-    }
-  }
-}
-```
+For the client this is **zero-install**: it discovers the endpoints, registers itself, and runs the consent flow automatically. (For what happens under the hood, see [How the proxy works](#how-the-proxy-works).)
 
-One wiki entry, `allowWikiManagement: false`, no static credentials. Each HTTP request carries `Authorization: Bearer <token>`, which the server forwards to MediaWiki as that caller's OAuth2 access token. Writes are attributable to the caller, MediaWiki's per-user rate limits apply, and `tools/list` exposes the full write surface.
+How sign-in is triggered depends on the wiki:
 
-See [per-request bearer token](#per-request-bearer-token-http-transport) for the header contract, precedence, token acquisition, and trust-boundary details.
+- **Public wiki:** reads work without signing in; the client is prompted to sign in only when a write needs authentication.
+- **Private wiki** (`private: true`): nothing is readable anonymously, so the client is challenged to sign in the moment it connects rather than failing on the first tool call.
 
-Hosted-use notes:
+[How the proxy works](#how-the-proxy-works) covers exactly how each challenge is issued.
 
-- **No static credentials in `config.json`.** The HTTP transport refuses to start when any wiki has a `token` set or both `username` and `password` set — they would silently act as a fallback identity for unauthenticated callers, defeating per-caller bearer passthrough. Set `MCP_ALLOW_STATIC_FALLBACK=true` to opt into a shared-identity deployment; the server then starts with a warning naming the affected wikis.
-- **The server process sees every caller's token in flight.** Treat it as a secret-handling component: avoid verbose error logging, and don't pipe raw error objects into error-tracking services that capture arbitrary fields.
-- **Single wiki only for now.** A bearer is scoped to one MediaWiki OAuth2 realm. Multi-wiki bearer deployment is on the roadmap.
-- **Reverse proxy must forward `Authorization` intact** and strip it on untrusted inbound paths. The MCP server trusts any `Authorization: Bearer` header it sees — see [reverse proxy requirements](#reverse-proxy-requirements).
-- **Set `MCP_ALLOWED_HOSTS` to the hostname(s) your reverse proxy forwards** (e.g. `MCP_ALLOWED_HOSTS=wiki.example.org`). Without it, the SDK's DNS-rebinding check is off and non-matching `Host` headers are not rejected.
-- **Set `MCP_ALLOWED_ORIGINS` to the public origin(s) your proxy serves** (e.g. `MCP_ALLOWED_ORIGINS=https://wiki.example.org`). Without it, Origin validation is off and browser requests with a mismatched `Origin` are not rejected.
-- **`upload-file` stays off until you opt in.** Configure an allowlist via `uploadDirs` in `config.json` or the `MCP_UPLOAD_DIRS` env var — see [configuration.md — upload directories](configuration.md#upload-directories). With no allowlist, every local-upload attempt is refused.
-- **OAuth-spec discovery is available** when a wiki sets `oauth2ClientId`. The server publishes `/.well-known/oauth-protected-resource` and returns `WWW-Authenticate: Bearer realm="MediaWiki MCP Server", resource_metadata="..."` on bearer-less 401s. OAuth-aware MCP clients use this to start the auth-code+PKCE dance against the wiki's authorization server. See [configuration.md — OAuth (browser-based)](configuration.md#oauth-browser-based) for the per-wiki opt-in.
+Set it up in five steps.
 
-## Shape 3 — Single-wiki, hosted server-mediated OAuth (proxy)
+### 1. Register an OAuth consumer on your wiki
 
-In Shape 2 the caller must obtain a MediaWiki OAuth2 access token themselves and paste it into a header. Shape 3 removes that step: the MCP server acts as an **OAuth 2.1 Authorization Server** toward MCP clients, so an OAuth-aware client signs the user in with no manual token handling.
+One-time, wiki-side setup, with [Extension:OAuth](https://www.mediawiki.org/wiki/Extension:OAuth) installed. At `Special:OAuthConsumerRegistration/propose/oauth2`, register **one** consumer:
 
-What it does:
+- **OAuth 2.0**, requesting **specific permissions** (a *full* consumer, not the owner-only "for use only by me" option), including the edit grants your users need.
+- **Public client:** leave "This consumer is confidential" unchecked. The proxy uses PKCE and no client secret.
+- **Grant types:** Authorization code and Refresh token.
+- **Callback URL:** exactly `<MCP_PUBLIC_URL>/oauth/callback`; Extension:OAuth exact-matches the redirect URI. With `MCP_PUBLIC_URL=https://wiki.example.org/mcp`, that is `https://wiki.example.org/mcp/oauth/callback`.
 
-- Serves authorization-server metadata ([RFC 8414](https://www.rfc-editor.org/rfc/rfc8414)) and protected-resource metadata ([RFC 9728](https://www.rfc-editor.org/rfc/rfc9728)), a Dynamic Client Registration endpoint ([RFC 7591](https://www.rfc-editor.org/rfc/rfc7591)) at `/register`, an `/authorize` endpoint with a consent page, a fixed `/oauth/callback`, and a `/token` endpoint that mints the proxy's **own** audience-bound JWT (the bearer the client then sends to `/mcp` is a proxy JWT, not a MediaWiki token).
-- Brokers **one** pre-registered MediaWiki Extension:OAuth consumer as a **public + PKCE** client. When a user signs in, the proxy runs the upstream auth-code+PKCE flow against the wiki, stores the resulting MediaWiki token, and hands the client a proxy JWT keyed to it. On each `/mcp` call the server verifies the JWT and resolves it back to the stored MediaWiki token (refreshing it server-to-server when near expiry).
+Copy the resulting consumer key into the wiki's `oauth2ClientId` (next step); the consumer secret stays unused. For a field-by-field walkthrough, see [configuration.md: registering the OAuth consumer](configuration.md#for-wiki-admins-registering-the-oauth-consumer).
 
-For the user this is **zero-install**: point any OAuth-aware MCP client at `https://<wiki>/mcp` and the client discovers everything, registers itself, and runs the consent flow. Each user authenticates as themselves, so writes are attributable.
-
-**Public wikis** preserve anonymous read: a tokenless request is served anonymously, and a write tool that needs auth returns a tool-level authentication error naming the protected-resource document (the user signs in, then retries). A presented bearer that is invalid or expired is rejected with a `401` + `WWW-Authenticate` challenge.
-
-**Private wikis** (`private: true` in `config.json` — MediaWiki's `$wgGroupPermissions['*']['read'] = false`) require auth for everything: an anonymous request, including the initial connection, is answered with a `401` + `WWW-Authenticate` so the client signs in at connect. This connection-time challenge is the broadly client-compatible trigger. (Set an `oauth2ClientId` on the wiki, or the `401` points at an authorization server the wiki does not advertise — the server logs a warning at startup if so.)
-
-### Required environment
-
-| Name | Description |
-|---|---|
-| `MCP_PUBLIC_URL` | The proxy's public issuer/base. Set it to the public `/mcp` URL, e.g. `https://wiki.example.org/mcp` — the AS metadata endpoints (`/authorize`, `/token`, `/register`, `/oauth/callback`) are derived from it. |
-| `MCP_OAUTH_JWT_SIGNING_KEY` | A secret of **at least 32 characters** used to sign the proxy's issued JWTs and consent cookies. Keep it **fixed** — rotating it invalidates every issued token and forces all users to re-authenticate, so a deploy that changes it logs everyone out. |
-
-The proxy turns on only when **all** of these hold: `MCP_TRANSPORT=http`, `MCP_PUBLIC_URL` and `MCP_OAUTH_JWT_SIGNING_KEY` are set, and the default wiki has an `oauth2ClientId`. A signing key under 32 chars, or a `MCP_OAUTH_TOKEN_TTL` longer than the upstream refresh window, fails startup.
-
-Optional:
-
-| Name | Default | Description |
-|---|---|---|
-| `MCP_OAUTH_TOKEN_TTL` | `55m` | Lifetime of a proxy-minted access JWT. Must stay **shorter than the upstream 30-day refresh window** — when the JWT expires the client refreshes it, which the proxy backs with a server-to-server upstream refresh. |
-| `MCP_OAUTH_CONSENT_TTL` | `30d` | Lifetime of the signed consent cookie. Within this window a returning user (same client + redirect host) skips the consent page; after it they see consent again. |
-
-Both durations accept a number with an optional unit: `s`, `m`, `h`, or `d` (e.g. `55m`, `1h`, `30d`). A bare number is **seconds**.
-
-### Three-base topology
-
-The proxy reads three distinct URLs, which usually differ:
-
-| Base | Source | Role |
-|---|---|---|
-| Proxy issuer | `MCP_PUBLIC_URL` | The AS identity the client talks to: the host that serves metadata, `/authorize`, `/token`, `/register`, and the fixed `/oauth/callback`. |
-| Upstream authorize host | per-wiki `publicServer` (falls back to `server`) | The **browser-facing** wiki URL the user is redirected to for the upstream MediaWiki consent screen (`…/rest.php/oauth2/authorize`). |
-| Internal API host | per-wiki `server` | The wiki API used for tool calls **and** the server→wiki token exchange/refresh (`…/rest.php/oauth2/access_token`). |
-
-The split exists because the browser must reach a **public** authorize URL (the user's browser is redirected there and back), while the server's own API traffic and the confidential token exchange should stay on the **internal** address (e.g. a Docker-network alias that bypasses the public reverse proxy). Set `publicServer` to the public wiki URL and `server` to the internal one; when there is no internal/public split, omit `publicServer` and it falls back to `server`.
-
-### Consumer-registration prerequisite (on the wiki)
-
-This is a one-time wiki-side setup, not server config. Register **one** [Extension:OAuth](https://www.mediawiki.org/wiki/Extension:OAuth) consumer at `Special:OAuthConsumerRegistration/propose/oauth2`:
-
-- **OAuth 2.0**, requesting **specific permissions** (a *full* consumer — not the owner-only "for use only by me" option), including the edit grants your users need.
-- **Public client**: leave "This consumer is confidential" unchecked — the proxy uses PKCE, no client secret.
-- Grant types: **Authorization code** and **Refresh token**.
-- A single **callback URL** = `<MCP_PUBLIC_URL>/oauth/callback` (Extension:OAuth exact-matches the redirect URI). For example, with `MCP_PUBLIC_URL=https://wiki.example.org/mcp` the callback is `https://wiki.example.org/mcp/oauth/callback`.
-
-Put the resulting consumer key in the default wiki's `oauth2ClientId`. Leave the consumer secret unused. See [configuration.md — registering the OAuth consumer](configuration.md#for-wiki-admins-registering-the-oauth-consumer) for the field-by-field walkthrough.
-
-### Proxy routing requirements
-
-In addition to the [general reverse proxy requirements](#reverse-proxy-requirements) below, route the OAuth discovery and AS endpoints to the MCP server:
-
-- The MCP server serves the AS metadata at the **root** well-known paths: `/.well-known/oauth-protected-resource` **and** `/.well-known/oauth-authorization-server` (the SDK also fetches the `…/mcp`-suffixed variant `/.well-known/oauth-authorization-server/mcp`). Route all of these to the MCP server.
-- The `/authorize`, `/consent`, `/oauth/callback`, `/register`, and `/token` endpoints all live under the existing `/mcp` path (`/mcp/authorize`, `/mcp/token`, …), so they ride along with the route you already forward to `/mcp`.
-- **Forward `Authorization` intact** (see the trust-boundary note in [reverse proxy requirements](#reverse-proxy-requirements)).
-- Set `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS` to the public host/origin (e.g. `MCP_ALLOWED_HOSTS=wiki.example.org`, `MCP_ALLOWED_ORIGINS=https://wiki.example.org`).
-
-### v1 limitations
-
-- **In-memory state.** Registered clients, in-flight authorizations, one-time codes, and stored upstream tokens live in process memory. A restart drops them, so every user must sign in again, and the proxy currently supports a **single instance** (no shared store across replicas). Because `/register` is unauthenticated, the client registry is capped (FIFO, 10,000 entries) so registration spam cannot exhaust memory; once the cap is reached the oldest registrations are evicted and those clients must re-register.
-- **Validated client.** Claude Code is the MCP client this flow has been validated against. Other OAuth-aware clients should work via standard discovery + DCR but are not yet exercised.
-
-### Example `config.json`
+### 2. Configure the wiki
 
 ```json
 {
@@ -191,68 +96,45 @@ In addition to the [general reverse proxy requirements](#reverse-proxy-requireme
 }
 ```
 
-`server` is the internal API host (here a Docker-network alias — list it in `MCP_TRUSTED_HOSTS` so the outbound SSRF guard permits it); `publicServer` is the browser-facing host; `oauth2ClientId` is the consumer key. No `token` / `username` / `password` (the proxy mints per-user tokens), and `readOnly` is left off so writes are available after sign-in. Run it with `MCP_TRANSPORT=http`, `MCP_PUBLIC_URL=https://wiki.example.org/mcp`, and a fixed `MCP_OAUTH_JWT_SIGNING_KEY`.
+- `server`: the **internal** API address the server uses for tool calls and the confidential token exchange. In Docker this is often a network alias (here `http://mediawiki.svc`) that bypasses your public proxy; list it in `MCP_TRUSTED_HOSTS` so the [outbound SSRF guard](#outbound-ssrf-guard) permits it.
+- `publicServer`: the **browser-facing** wiki URL the user is redirected to for the MediaWiki consent screen. Omit it when your wiki has a single URL (no separate internal address); it then falls back to `server`.
+- `oauth2ClientId`: the consumer key from step 1.
 
-## Per-request bearer token (HTTP transport)
+The proxy mints a per-user token for each signed-in user, so no static credentials appear here; leave `readOnly` off so writes are available after sign-in. (Why the two hostnames differ is detailed under [How the proxy works](#how-the-proxy-works).)
 
-When using the Streamable HTTP transport (`MCP_TRANSPORT=http`), the server accepts a standard OAuth 2.1 `Authorization: Bearer` header on each request, as described in the [MCP authorization specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization):
+### 3. Set the proxy environment
 
-```
-Authorization: Bearer <oauth2-access-token>
-```
+Set both variables below. The proxy turns on once they are set, `MCP_TRANSPORT=http`, and the default wiki has its `oauth2ClientId` (from step 2).
 
-Any MCP client that supports HTTP transport authentication can be configured to send this header. The token must be a MediaWiki OAuth2 access token obtained from `Special:OAuthConsumerRegistration/propose/oauth2` on the target wiki, with [Extension:OAuth](https://www.mediawiki.org/wiki/Extension:OAuth) installed.
+| Variable | Description |
+|---|---|
+| `MCP_PUBLIC_URL` | The proxy's public base: your public `/mcp` URL, e.g. `https://wiki.example.org/mcp`. The `/authorize`, `/token`, `/register`, and `/oauth/callback` endpoints are derived from it. |
+| `MCP_OAUTH_JWT_SIGNING_KEY` | A secret of **at least 32 characters** that signs the tokens and consent cookies the proxy issues. Keep it **fixed**: changing it invalidates every issued token and signs all users out on the next deploy. |
 
-**Precedence**: request header → `config.json` `token` → `config.json` `username`/`password` → anonymous. The HTTP transport refuses to start with static credentials in `config.json` unless `MCP_ALLOW_STATIC_FALLBACK=true` is set — see [Shape 2](#shape-2--single-wiki-per-user-oauth2-bearer-passthrough) for why.
+Optional tuning. Both accept a number with an optional `s`/`m`/`h`/`d` unit (e.g. `55m`, `1h`, `30d`); a bare number is seconds:
 
-Each request builds an independent MediaWiki session using the supplied token. Token rotation and revocation take effect on the next MCP session started with the new token.
+| Variable | Default | Description |
+|---|---|---|
+| `MCP_OAUTH_TOKEN_TTL` | `55m` | Lifetime of a proxy-issued access token. Must stay shorter than the upstream 30-day refresh window; when it expires the client refreshes, and the proxy refreshes the upstream MediaWiki token server-to-server. |
+| `MCP_OAUTH_CONSENT_TTL` | `30d` | How long a returning user (same client and redirect host) skips the consent page; after it they see consent again. |
 
-Example configuration with Claude Code:
+Startup fails if the signing key is under 32 characters, or if `MCP_OAUTH_TOKEN_TTL` is longer than the upstream refresh window.
 
-```
-claude mcp add --transport http my-wiki https://wiki.example.org/mcp \
-  --header "Authorization: Bearer eyJhbGciOi..."
-```
+### 4. Route the OAuth endpoints through your proxy
 
-> [!NOTE]
-> The spec envisions the MCP server as a distinct OAuth resource server with its own audience, advertising `/.well-known/oauth-protected-resource` and obtaining a separate upstream token when calling MediaWiki. This server pragmatically uses MediaWiki's OAuth realm directly — the bearer token is a MediaWiki access token, and the MCP server forwards it without re-issuing. This is simpler to deploy against existing wikis but means clients must obtain a MediaWiki-audience token rather than going through an MCP-spec-compliant discovery flow.
+On top of the [general reverse-proxy requirements](#security-checklist), forward the discovery and authorization-server endpoints to the MCP server:
 
-### Reverse proxy requirements
+- **Well-known metadata at the root:** `/.well-known/oauth-protected-resource` and `/.well-known/oauth-authorization-server` (the SDK also fetches the `/mcp`-suffixed `/.well-known/oauth-authorization-server/mcp`). Route all three to the MCP server.
+- **Authorization-server endpoints under `/mcp`:** `/authorize`, `/consent`, `/oauth/callback`, `/register`, and `/token` all live under the existing `/mcp` path (`/mcp/authorize`, `/mcp/token`, …). They ride along with the route you already forward to `/mcp`.
+- Forward the `Authorization` header intact, and set `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS` to your public host and origin; see the [Security checklist](#security-checklist).
 
-**Trust boundary.** The server trusts any `Authorization: Bearer` header it receives without performing origin checks. Run it behind a reverse proxy that terminates client connections and forwards only intended traffic, or bind it to a trusted interface (e.g. `127.0.0.1`) — never expose the HTTP port directly on an untrusted network.
+### 5. Test it
 
-If the MCP server runs behind a reverse proxy (Caddy, nginx, Traefik), the proxy must forward the `Authorization` header to the MCP server intact. Configurations that strip or consume the header (e.g. `header_up -Authorization`, `proxy_set_header Authorization ""`, or a proxy-level basic auth handler on the MCP route) will cause the server to see no token and fall back to config/anonymous.
+Point an OAuth-aware MCP client at `https://wiki.example.org/mcp`. The client should discover the endpoints, register itself, and open a browser sign-in; after consent, a write tool acts as your account. Claude Code is the client this flow is validated against; see [v1 limitations](#v1-limitations).
 
-**Host header allowlist.** On any public deployment, set `MCP_ALLOWED_HOSTS` to the comma-separated hostnames your proxy forwards (e.g. `MCP_ALLOWED_HOSTS=wiki.example.org`). This engages the SDK's DNS-rebinding check — requests to `/mcp` with a non-matching `Host` are rejected with a 403 JSON-RPC error. On a localhost bind, leaving it unset is safe (the SDK auto-allows `localhost`, `127.0.0.1`, and `[::1]`). On a public bind, leaving it unset turns the check off and the SDK logs a warning at startup.
+A worked `config.json` for this setup is the one shown in [step 2](#2-configure-the-wiki), with the internal/public hostname split filled in. Run it with `MCP_TRANSPORT=http`, `MCP_PUBLIC_URL=https://wiki.example.org/mcp`, and a fixed `MCP_OAUTH_JWT_SIGNING_KEY`, and list `mediawiki.svc` in `MCP_TRUSTED_HOSTS`.
 
-**Origin header allowlist.** Set `MCP_ALLOWED_ORIGINS` to the browser origins allowed to call `/mcp`. An origin is the scheme, host, and (only if non-default) port — for example `https://wiki.example.org`. When the allowlist is configured and an incoming `Origin` is present but not listed, the SDK returns 403. On a localhost bind, the default allowlist is the three loopback origins on the bound port (`http://localhost:<port>`, `http://127.0.0.1:<port>`, `http://[::1]:<port>`) so browser clients running alongside the server keep working. On a non-localhost bind, leaving it unset turns Origin validation off and the server logs a startup warning.
-
-Matching is exact string equality against what the browser sends. These values all silently 403 every browser request:
-
-- bare hostname (`wiki.example.org`) — missing scheme
-- trailing slash (`https://wiki.example.org/`) — browsers don't include it
-- path (`https://wiki.example.org/mcp`) — browsers don't include it
-- explicit default port (`https://wiki.example.org:443`) — browsers drop default ports when serializing
-- uppercase scheme (`HTTPS://...`) — browsers lowercase it
-
-When in doubt, open your deployed site in a browser and log `window.location.origin` — copy that value verbatim.
-
-Both allowlists apply only to `/mcp`. The `/health` endpoint is always reachable so container healthchecks and liveness probes (which hit `http://localhost:<port>/health`) keep working regardless of what you put in `MCP_ALLOWED_HOSTS` or `MCP_ALLOWED_ORIGINS`.
-
-### Outbound SSRF guard
-
-The server makes a few outbound fetches — the anonymous siteinfo probe (which gates extension tools and fills the `extensions` field of `get-site-info`), wiki discovery, and `*-file-from-url` uploads. These are SSRF-guarded: a destination resolving to a private, loopback, or other non-public address is refused. This stops a client-supplied URL from steering the server at internal infrastructure or cloud metadata.
-
-Running deliberately against an internal host trips this guard — the common Docker case, where a wiki's `server` is a network alias such as `http://mediawiki.svc` chosen to bypass a public reverse proxy. The probe is refused, so extension tools silently disappear and `get-site-info` reports no extensions. List the host in `MCP_TRUSTED_HOSTS` to exempt it from the public-IP check. Entries are comma-separated and match exactly — case-folded, no wildcards or suffixes:
-
-- a **bare host** (`mediawiki.svc`) matches any port;
-- a **`host:port`** entry matches only that port.
-
-The exemption skips **only** the public-IP check. The host is still DNS-resolved and its addresses are still pinned, and the guard stays on for every other destination. A listed host is trusted for **every** outbound fetch — wiki discovery and `*-file-from-url`, not only the probe — so list only hosts you control; exact matching means a client cannot reach anything beyond that one declared destination.
-
-`MCP_TRUSTED_HOSTS` is the **outbound** counterpart to `MCP_ALLOWED_HOSTS` (the inbound Host-header check) — the two are unrelated despite the similar names.
-
-## Docker
+## Running it with Docker
 
 The image is published at `ghcr.io/professionalwiki/mediawiki-mcp-server`. Pull and run it:
 
@@ -262,22 +144,32 @@ docker run --rm -p 8080:8080 -v "$(pwd)/config.json:/app/config.json:ro" \
   ghcr.io/professionalwiki/mediawiki-mcp-server:latest
 ```
 
+The image sets `MCP_TRANSPORT=http`, `PORT=8080`, and `MCP_BIND=0.0.0.0`. `MCP_BIND` is set so container port forwarding reaches the listener, since `127.0.0.1` (the host-default) is per-netns and unreachable from the bridge network. It runs as a non-root user and exposes `/mcp` for MCP traffic plus `/health` and `/ready` for orchestration probes.
+
+For a public deployment, set both the Host-header and Origin allowlists (see the [Security checklist](#security-checklist)):
+
+```bash
+docker run --rm -p 8080:8080 \
+  -e MCP_ALLOWED_HOSTS=wiki.example.org \
+  -e MCP_ALLOWED_ORIGINS=https://wiki.example.org \
+  -v "$(pwd)/config.json:/app/config.json:ro" \
+  ghcr.io/professionalwiki/mediawiki-mcp-server:latest
+```
+
 ### Tag conventions
 
 Each release publishes the following tags (examples shown for `0.8.0`; substitute the release you want):
 
 | Tag | Tracks | Use for |
 |---|---|---|
-| `0.8.0` | A specific patch release | Reproducible builds |
+| `0.8.0` | A specific patch release | **Production**; reproducible builds |
 | `0.8` | Latest patch in `0.8` | Auto-pickup of patch releases |
 | `0` | Latest release in `0.x` | Auto-pickup until the next major |
 | `latest` | Most recent stable release | Trying it out, dev environments |
 | `edge` | Tip of `master` | Tracking unreleased changes; no stability promise |
-| `@sha256:<digest>` | Immutable digest | **Recommended for production** |
+| `@sha256:<digest>` | Immutable digest | Strongest immutability guarantee |
 
-Production deployments should pin to a digest rather than a tag — tags are mutable and a `latest` reference can change underneath you.
-
-### Verify image signature
+### Verify the image signature
 
 Release builds (anything with a semver tag) are signed via [cosign](https://github.com/sigstore/cosign) keyless signing using GitHub's OIDC identity. Verify before deploying:
 
@@ -289,20 +181,6 @@ cosign verify ghcr.io/professionalwiki/mediawiki-mcp-server@<digest> \
 
 Edge images are not cosign-signed but still carry SBOM and SLSA provenance attestations. Verify them with `cosign verify-attestation` or `gh attestation verify`.
 
-### Public deployments
-
-Set both the Host-header and Origin allowlists:
-
-```bash
-docker run --rm -p 8080:8080 \
-  -e MCP_ALLOWED_HOSTS=wiki.example.org \
-  -e MCP_ALLOWED_ORIGINS=https://wiki.example.org \
-  -v "$(pwd)/config.json:/app/config.json:ro" \
-  ghcr.io/professionalwiki/mediawiki-mcp-server:latest
-```
-
-The image sets `MCP_TRANSPORT=http`, `PORT=8080`, and `MCP_BIND=0.0.0.0` — `MCP_BIND` is set so container port forwarding reaches the listener, since `127.0.0.1` (the host-default) is per-netns and unreachable from the bridge network. It runs as a non-root user and exposes `/mcp` for MCP traffic plus `/health` and `/ready` for orchestration probes.
-
 ### Build from source
 
 For local hacking or to customize the image:
@@ -313,6 +191,134 @@ docker run --rm -p 8080:8080 -v "$(pwd)/config.json:/app/config.json:ro" mediawi
 ```
 
 The `GIT_SHA` build arg populates the `org.opencontainers.image.revision` label so `docker inspect` reports which commit the image was built from. Omit it for ad-hoc builds; the label defaults to `unknown`.
+
+## Security checklist
+
+Defaults are safe for a localhost bind. Before exposing the HTTP transport to others, confirm all of these:
+
+- **Terminate TLS at a reverse proxy; never expose the port directly.** The server trusts any `Authorization: Bearer` header it receives without origin checks, so authentication is the proxy's job. Run it behind Caddy, nginx, or Traefik, or bind it to `127.0.0.1`; never put the raw HTTP port on an untrusted network.
+- **Forward the `Authorization` header intact.** Proxy configs that strip or consume it (`header_up -Authorization`, `proxy_set_header Authorization ""`, a proxy-level basic-auth handler on the MCP route) leave the server with no token, falling back to config or anonymous. On any untrusted inbound path, strip the client-supplied `Authorization` instead, so a caller cannot inject a bearer the server would trust.
+- **Set `MCP_ALLOWED_HOSTS`** to the hostnames your proxy forwards (e.g. `wiki.example.org`). This engages the SDK's DNS-rebinding check; requests to `/mcp` with a non-matching `Host` get a 403. Unset on a public bind turns the check off (with a startup warning); unset on a localhost bind is safe.
+- **Set `MCP_ALLOWED_ORIGINS`** to the browser origins allowed to call `/mcp` (e.g. `https://wiki.example.org`). A present-but-unlisted `Origin` gets a 403. The match is exact; see [Host and Origin matching](#host-and-origin-matching) for the five ways a value silently rejects every request. Unset on a public bind turns Origin validation off (with a startup warning).
+- **List internal destinations in `MCP_TRUSTED_HOSTS`.** Outbound fetches are SSRF-guarded, so a wiki `server` on a private or Docker-internal address (e.g. `mediawiki.svc`) is refused until you exempt it; otherwise extension tools silently disappear. See [outbound SSRF guard](#outbound-ssrf-guard).
+- **Keep static credentials out of `config.json`.** The HTTP transport refuses to start when any wiki sets `token`, or both `username` and `password`. Those would become a shared fallback identity for unauthenticated callers, defeating per-user attribution. Set `MCP_ALLOW_STATIC_FALLBACK=true` to opt into a shared-identity deployment; the server then starts with a warning naming the affected wikis.
+- **Treat the server as a secret-handling component.** It sees every caller's token in flight. Avoid verbose error logging, and do not pipe raw error objects into error-tracking services that capture arbitrary fields.
+- **Leave uploads off until you need them.** `upload-file` stays disabled until you allowlist directories via `uploadDirs` or `MCP_UPLOAD_DIRS`; see [configuration.md: upload directories](configuration.md#upload-directories).
+
+Both allowlists apply only to `/mcp`; `/health` and `/ready` stay reachable so container healthchecks and liveness probes keep working regardless of what you put in them.
+
+## Reference
+
+Background detail for the setups above. Read it when you want the full picture or are debugging a deployment.
+
+### Environment variables
+
+| Name | Default | Description |
+|---|---|---|
+| `MCP_TRANSPORT` | `stdio` | Set to `http` for the StreamableHTTP transport (Docker default). |
+| `PORT` | `3000` (Docker: `8080`) | Listen port. |
+| `MCP_BIND` | `127.0.0.1` (Docker: `0.0.0.0`) | Listen interface. Set to `0.0.0.0` outside Docker only when you need remote access. |
+| `MCP_SHUTDOWN_GRACE_MS` | `10000` | Drain timeout in ms on `SIGTERM` / `SIGINT`. See [Graceful shutdown](operations.md#graceful-shutdown). |
+| `MCP_ALLOWED_HOSTS` | auto on localhost | Comma-separated Host-header allowlist. See [Security checklist](#security-checklist). |
+| `MCP_ALLOWED_ORIGINS` | auto on localhost | Comma-separated `Origin`-header allowlist. See [Security checklist](#security-checklist). |
+| `MCP_TRUSTED_HOSTS` | unset | Comma-separated **outbound** SSRF-guard exemptions for internal destinations (e.g. `mediawiki.svc`). See [Outbound SSRF guard](#outbound-ssrf-guard). |
+| `MCP_MAX_REQUEST_BODY` | `1mb` | HTTP request body cap. Accepts size strings (`b`, `kb`, `mb`, `gb`). |
+| `MCP_ALLOW_STATIC_FALLBACK` | unset | Allow HTTP startup when a wiki has static credentials, making them a shared fallback identity. See [Security checklist](#security-checklist). |
+| `MCP_PUBLIC_URL` | unset | The proxy's public issuer/base, e.g. `https://wiki.example.org/mcp`. Enables the hosted OAuth proxy when set alongside `MCP_OAUTH_JWT_SIGNING_KEY` and a default wiki with `oauth2ClientId`. See [Hosted OAuth sign-in](#hosted-oauth-sign-in). |
+| `MCP_OAUTH_JWT_SIGNING_KEY` | unset | Secret (≥32 chars) the proxy signs its issued access/refresh JWTs and consent cookies with. Required for the proxy. Keep it **fixed** so tokens survive a restart. See [Hosted OAuth sign-in](#hosted-oauth-sign-in). |
+| `MCP_OAUTH_TOKEN_TTL` | `55m` | Lifetime of a proxy-minted access JWT. Must be shorter than the upstream 30-day refresh window. Duration grammar (`55m`/`1h`/`30d`, or bare seconds). |
+| `MCP_OAUTH_CONSENT_TTL` | `30d` | Lifetime of the signed consent cookie that lets a returning user skip the consent page. Same duration grammar. |
+
+`MCP_MAX_REQUEST_BODY` matches nginx's `client_max_body_size 1m`. Raise it if `update-page` calls return 413 on legitimately large edits or your wiki has raised `$wgMaxArticleSize` (MediaWiki default 2 MB). Lower it for a tighter DoS guard.
+
+For the complete list of every environment variable the server reads, see the [README environment-variable table](../README.md#environment-variables).
+
+### How the proxy works
+
+When enabled, the [hosted OAuth sign-in](#hosted-oauth-sign-in) setup turns the server into an OAuth 2.1 Authorization Server toward MCP clients. It:
+
+- Serves authorization-server metadata ([RFC 8414](https://www.rfc-editor.org/rfc/rfc8414)) and protected-resource metadata ([RFC 9728](https://www.rfc-editor.org/rfc/rfc9728)), a Dynamic Client Registration endpoint ([RFC 7591](https://www.rfc-editor.org/rfc/rfc7591)) at `/register`, an `/authorize` endpoint with a consent page, a fixed `/oauth/callback`, and a `/token` endpoint that mints the proxy's **own** audience-bound JWT. The bearer the client then sends to `/mcp` is a proxy JWT, not a MediaWiki token.
+- Brokers **one** pre-registered MediaWiki Extension:OAuth consumer as a **public + PKCE** client. When a user signs in, the proxy runs the upstream auth-code + PKCE flow against the wiki, stores the resulting MediaWiki token, and hands the client a proxy JWT keyed to it. On each `/mcp` call the server verifies the JWT and resolves it back to the stored MediaWiki token, refreshing it server-to-server when near expiry.
+
+How the sign-in challenge is issued depends on the wiki. On a **public wiki**, a tokenless request is served anonymously, and only a write tool that needs authentication returns an authentication error naming the protected-resource document; the user signs in and retries. An invalid or expired bearer is rejected with a `401` + `WWW-Authenticate` challenge. A **private wiki** (`private: true`, MediaWiki's `$wgGroupPermissions['*']['read'] = false`) answers every request, including the initial connection, with a `401` + `WWW-Authenticate`; this connection-time challenge is the broadly client-compatible trigger for sign-in at connect. It requires the wiki's `oauth2ClientId`; without it, the `401` advertises an authorization server the wiki does not, and the server logs a warning at startup.
+
+#### Three-base topology
+
+The proxy reads three distinct URLs, which usually differ:
+
+| Base | Source | Role |
+|---|---|---|
+| Proxy issuer | `MCP_PUBLIC_URL` | The AS identity the client talks to: the host that serves metadata, `/authorize`, `/token`, `/register`, and the fixed `/oauth/callback`. |
+| Upstream authorize host | per-wiki `publicServer` (falls back to `server`) | The **browser-facing** wiki URL the user is redirected to for the upstream MediaWiki consent screen (`…/rest.php/oauth2/authorize`). |
+| Internal API host | per-wiki `server` | The wiki API used for tool calls **and** the server→wiki token exchange/refresh (`…/rest.php/oauth2/access_token`). |
+
+The split exists because the browser must reach a **public** authorize URL (the user's browser is redirected there and back), while the server's own API traffic and the confidential token exchange should stay on the **internal** address (e.g. a Docker-network alias that bypasses the public reverse proxy). Set `publicServer` to the public wiki URL and `server` to the internal one; when there is no internal/public split, omit `publicServer` and it falls back to `server`.
+
+### Outbound SSRF guard
+
+The server makes a few outbound fetches: the anonymous siteinfo probe (which gates extension tools and fills the `extensions` field of `get-site-info`), wiki discovery, and `*-file-from-url` uploads. These are SSRF-guarded: a destination resolving to a private, loopback, or other non-public address is refused. This stops a client-supplied URL from steering the server at internal infrastructure or cloud metadata.
+
+Running deliberately against an internal host trips this guard. The common case is Docker, where a wiki's `server` is a network alias such as `http://mediawiki.svc` chosen to bypass a public reverse proxy. The probe is refused, so extension tools silently disappear and `get-site-info` reports no extensions. List the host in `MCP_TRUSTED_HOSTS` to exempt it from the public-IP check. Entries are comma-separated and match exactly (case-folded, no wildcards or suffixes):
+
+- a **bare host** (`mediawiki.svc`) matches any port;
+- a **`host:port`** entry matches only that port.
+
+The exemption skips **only** the public-IP check; the host is still DNS-resolved, its addresses are still pinned, and the guard stays on for every other destination. A listed host is trusted for **every** outbound fetch (wiki discovery and `*-file-from-url`, not only the probe), so list only hosts you control; exact matching means a client cannot reach anything beyond that one declared destination.
+
+`MCP_TRUSTED_HOSTS` is the **outbound** counterpart to `MCP_ALLOWED_HOSTS` (the inbound Host-header check); the two are unrelated despite the similar names.
+
+### Host and Origin matching
+
+The `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS` allowlists from the [Security checklist](#security-checklist) are matched precisely, and the edge cases bite quietly.
+
+**Host header.** On a localhost bind, leaving `MCP_ALLOWED_HOSTS` unset is safe: the SDK auto-allows `localhost`, `127.0.0.1`, and `[::1]`. On a public bind, leaving it unset turns the DNS-rebinding check off and the SDK logs a warning at startup.
+
+**Origin header.** An origin is the scheme, host, and (only if non-default) port, for example `https://wiki.example.org`. On a localhost bind, the default allowlist is the three loopback origins on the bound port (`http://localhost:<port>`, `http://127.0.0.1:<port>`, `http://[::1]:<port>`) so browser clients running alongside the server keep working. A non-localhost bind with no allowlist turns Origin validation off, and the server logs a startup warning.
+
+Matching is exact string equality against what the browser sends. These values all silently 403 every browser request:
+
+- bare hostname (`wiki.example.org`): missing scheme
+- trailing slash (`https://wiki.example.org/`): browsers do not include it
+- path (`https://wiki.example.org/mcp`): browsers do not include it
+- explicit default port (`https://wiki.example.org:443`): browsers drop default ports when serializing
+- uppercase scheme (`HTTPS://...`): browsers lowercase it
+
+When in doubt, open your deployed site in a browser and log `window.location.origin`, then copy that value verbatim.
+
+### v1 limitations
+
+These apply to the [hosted OAuth sign-in](#hosted-oauth-sign-in) setup:
+
+- **In-memory state.** Registered clients, in-flight authorizations, one-time codes, and stored upstream tokens live in process memory. A restart drops them, so every user must sign in again, and the proxy currently supports a **single instance** (no shared store across replicas). Because `/register` is unauthenticated, the client registry is capped (FIFO, 10,000 entries) so registration spam cannot exhaust memory. Once the cap is reached, the oldest registrations are evicted and those clients must re-register.
+- **Validated client.** Claude Code is the MCP client this flow has been validated against. Other OAuth-aware clients should work via standard discovery + DCR but are not yet exercised.
+
+### Per-request bearer token (HTTP transport)
+
+For **programmatic or non-interactive clients that already hold a MediaWiki OAuth2 access token** (a script, a CI job, an automation backend), the HTTP transport also accepts the token directly, with no browser flow. Most deployments serving humans should use [Hosted OAuth sign-in](#hosted-oauth-sign-in) instead; this is the lower-level primitive it is built on.
+
+The server accepts a standard OAuth 2.1 `Authorization: Bearer` header on each request, as described in the [MCP authorization specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization):
+
+```
+Authorization: Bearer <oauth2-access-token>
+```
+
+Use a MediaWiki OAuth2 access token obtained from `Special:OAuthConsumerRegistration/propose/oauth2` on the target wiki, with [Extension:OAuth](https://www.mediawiki.org/wiki/Extension:OAuth) installed. The server forwards it to MediaWiki as that caller's token, so writes are attributable and MediaWiki's per-user rate limits apply. A bearer is scoped to a single MediaWiki OAuth2 realm, so this is single-wiki only for now.
+
+When the target wiki sets `oauth2ClientId`, the server also advertises OAuth discovery on this path, so a capable client can fetch that token itself instead of you pasting one in. It publishes `/.well-known/oauth-protected-resource` and answers a bearer-less request with `WWW-Authenticate: Bearer realm="MediaWiki MCP Server", resource_metadata="..."`. The client follows that to run the authorization-code + PKCE flow against the wiki's **own** authorization server and obtain a MediaWiki access token directly. (This differs from [Hosted OAuth sign-in](#hosted-oauth-sign-in), where the MCP server itself is the authorization server.) See [configuration.md: OAuth (browser-based)](configuration.md#oauth-browser-based) for the per-wiki opt-in.
+
+**Precedence:** request header → `config.json` `token` → `config.json` `username`/`password` → anonymous. The HTTP transport refuses to start with static credentials in `config.json` unless `MCP_ALLOW_STATIC_FALLBACK=true` is set; see [the Security checklist](#security-checklist) for why.
+
+Each request builds an independent MediaWiki session using the supplied token. Token rotation and revocation take effect on the next MCP session started with the new token.
+
+Example with Claude Code:
+
+```sh
+claude mcp add --transport http my-wiki https://wiki.example.org/mcp \
+  --header "Authorization: Bearer eyJhbGciOi..."
+```
+
+> [!NOTE]
+> The MCP authorization spec envisions the server as a distinct OAuth resource server with its **own** token audience, obtaining a separate upstream token when it calls MediaWiki. This server instead uses MediaWiki's OAuth realm directly. The bearer is a MediaWiki access token, which the server forwards without re-issuing, whether you supply it or the discovery flow above fetches it. That is simpler to deploy against existing wikis but means clients hold a MediaWiki-audience token. The [hosted OAuth sign-in](#hosted-oauth-sign-in) setup is the fully spec-aligned path, where the server issues its own audience-bound token.
 
 ## Operations
 
