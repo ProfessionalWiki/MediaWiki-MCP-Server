@@ -9,6 +9,12 @@ export interface ProtectedResourceInput {
 	metadatas: readonly AsMetadata[];
 	requestHost: string | undefined;
 	requestProto: 'http' | 'https' | undefined;
+	/**
+	 * When the hosted OAuth proxy is enabled, this server is itself the
+	 * authorization server. Pass the proxy issuer(s) here to advertise self
+	 * instead of the per-wiki upstream issuers derived from `metadatas`.
+	 */
+	authorizationServersOverride?: readonly string[];
 }
 
 export interface ProtectedResourceDoc {
@@ -38,7 +44,15 @@ export function resolvePublicBase(
 	const fromEnv = process.env.MCP_PUBLIC_URL;
 	let base: string;
 	if (typeof fromEnv === 'string' && fromEnv.length > 0) {
-		base = fromEnv;
+		// Canonicalize through new URL() — the same normalization resolveProxyConfig
+		// applies to the issuer — so the protected-resource `resource`, the AS
+		// `issuer`, and the JWT audience all derive from one form (e.g. host case).
+		// Fall back to the raw value if somehow unparseable (config is validated at boot).
+		try {
+			base = new URL(fromEnv).toString();
+		} catch {
+			base = fromEnv;
+		}
 	} else if (requestHost !== undefined && requestProto !== undefined) {
 		base = `${requestProto}://${requestHost}/`;
 	} else {
@@ -54,8 +68,17 @@ export function buildProtectedResource(
 		return undefined;
 	}
 
-	const resource = resolvePublicBase(input.requestHost, input.requestProto);
-	const issuers = [...new Set(input.metadatas.map((m) => m.issuer))];
+	// The RFC 8707/9728 resource identifier must equal the canonical MCP server
+	// URL the client connects to — slash-free, matching the AS `issuer`. Real MCP
+	// clients (e.g. the SDK) compare it verbatim against their configured server
+	// URL, so a trailing slash here fails auth ("Protected resource .../mcp/ does
+	// not match expected .../mcp"). resolvePublicBase keeps its trailing slash for
+	// building the resource_metadata URL; strip it for the identifier only.
+	const resource = resolvePublicBase(input.requestHost, input.requestProto).replace(/\/+$/, '');
+	const issuers =
+		input.authorizationServersOverride !== undefined
+			? [...input.authorizationServersOverride]
+			: [...new Set(input.metadatas.map((m) => m.issuer))];
 	const scopes = [...new Set(input.metadatas.flatMap((m) => m.scopes_supported ?? []))];
 
 	const doc: ProtectedResourceDoc = {

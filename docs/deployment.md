@@ -1,10 +1,11 @@
 # Deployment
 
 > [!WARNING]
-> **Experimental — work in progress.** Hosted deployments support two shapes:
+> **Experimental — work in progress.** Hosted deployments support three shapes:
 >
 > 1. **Single-wiki, read-only, anonymous.** Simplest to deploy — no auth, no writes.
 > 2. **Single-wiki, per-user OAuth2 bearer passthrough.** Each caller sends their own MediaWiki OAuth2 access token in the `Authorization` header; requests act as that caller. For writable / authenticated hosted use.
+> 3. **Single-wiki, hosted server-mediated OAuth (proxy).** The server is itself an OAuth 2.1 Authorization Server toward MCP clients, brokering one pre-registered MediaWiki consumer. Zero-install for the client — point any OAuth-aware MCP client at `https://<wiki>/mcp` and each user signs in as themselves. For writable hosted use without handing callers a raw MediaWiki token.
 >
 > Multi-wiki hosted deployments are on the roadmap but aren't ready. Don't expose a server to mutually untrusted users with a shared `config.json` token or bot password — that collapses every caller into one wiki identity, with no audit trail and no per-user rate limits.
 
@@ -38,6 +39,10 @@ The path is fixed and not configurable.
 | `MCP_ALLOWED_ORIGINS` | auto on localhost | Comma-separated `Origin`-header allowlist. See [Reverse proxy requirements](#reverse-proxy-requirements). |
 | `MCP_TRUSTED_HOSTS` | unset | Comma-separated **outbound** SSRF-guard exemptions for internal destinations (e.g. `mediawiki.svc`). See [Outbound SSRF guard](#outbound-ssrf-guard). |
 | `MCP_MAX_REQUEST_BODY` | `1mb` | HTTP request body cap. Accepts size strings (`b`, `kb`, `mb`, `gb`). |
+| `MCP_PUBLIC_URL` | unset | The proxy's public issuer/base, e.g. `https://wiki.example.org/mcp`. Enables the hosted OAuth proxy when set alongside `MCP_OAUTH_JWT_SIGNING_KEY` and a default wiki with `oauth2ClientId`. See [Shape 3](#shape-3--single-wiki-hosted-server-mediated-oauth-proxy). |
+| `MCP_OAUTH_JWT_SIGNING_KEY` | unset | Secret (≥32 chars) the proxy signs its issued access/refresh JWTs and consent cookies with. Required for the proxy. Keep it **fixed** so tokens survive a restart. See [Shape 3](#shape-3--single-wiki-hosted-server-mediated-oauth-proxy). |
+| `MCP_OAUTH_TOKEN_TTL` | `55m` | Lifetime of a proxy-minted access JWT. Must be shorter than the upstream 30-day refresh window. Duration grammar (`55m`/`1h`/`30d`, or bare seconds). |
+| `MCP_OAUTH_CONSENT_TTL` | `30d` | Lifetime of the signed consent cookie that lets a returning user skip the consent page. Same duration grammar. |
 
 `MCP_MAX_REQUEST_BODY` matches nginx's `client_max_body_size 1m`. Raise it if `update-page` calls return 413 on legitimately large edits or your wiki has raised `$wgMaxArticleSize` (MediaWiki default 2 MB). Lower it for a tighter DoS guard.
 
@@ -96,6 +101,93 @@ Hosted-use notes:
 - **Set `MCP_ALLOWED_ORIGINS` to the public origin(s) your proxy serves** (e.g. `MCP_ALLOWED_ORIGINS=https://wiki.example.org`). Without it, Origin validation is off and browser requests with a mismatched `Origin` are not rejected.
 - **`upload-file` stays off until you opt in.** Configure an allowlist via `uploadDirs` in `config.json` or the `MCP_UPLOAD_DIRS` env var — see [configuration.md — upload directories](configuration.md#upload-directories). With no allowlist, every local-upload attempt is refused.
 - **OAuth-spec discovery is available** when a wiki sets `oauth2ClientId`. The server publishes `/.well-known/oauth-protected-resource` and returns `WWW-Authenticate: Bearer realm="MediaWiki MCP Server", resource_metadata="..."` on bearer-less 401s. OAuth-aware MCP clients use this to start the auth-code+PKCE dance against the wiki's authorization server. See [configuration.md — OAuth (browser-based)](configuration.md#oauth-browser-based) for the per-wiki opt-in.
+
+## Shape 3 — Single-wiki, hosted server-mediated OAuth (proxy)
+
+In Shape 2 the caller must obtain a MediaWiki OAuth2 access token themselves and paste it into a header. Shape 3 removes that step: the MCP server acts as an **OAuth 2.1 Authorization Server** toward MCP clients, so an OAuth-aware client signs the user in with no manual token handling.
+
+What it does:
+
+- Serves authorization-server metadata ([RFC 8414](https://www.rfc-editor.org/rfc/rfc8414)) and protected-resource metadata ([RFC 9728](https://www.rfc-editor.org/rfc/rfc9728)), a Dynamic Client Registration endpoint ([RFC 7591](https://www.rfc-editor.org/rfc/rfc7591)) at `/register`, an `/authorize` endpoint with a consent page, a fixed `/oauth/callback`, and a `/token` endpoint that mints the proxy's **own** audience-bound JWT (the bearer the client then sends to `/mcp` is a proxy JWT, not a MediaWiki token).
+- Brokers **one** pre-registered MediaWiki Extension:OAuth consumer as a **public + PKCE** client. When a user signs in, the proxy runs the upstream auth-code+PKCE flow against the wiki, stores the resulting MediaWiki token, and hands the client a proxy JWT keyed to it. On each `/mcp` call the server verifies the JWT and resolves it back to the stored MediaWiki token (refreshing it server-to-server when near expiry).
+
+For the user this is **zero-install**: point any OAuth-aware MCP client at `https://<wiki>/mcp` and the client discovers everything, registers itself, and runs the consent flow. Each user authenticates as themselves, so writes are attributable. **Anonymous read is preserved** — a tokenless request is served anonymously; write tools step up to a `401` + `WWW-Authenticate` challenge only when actually invoked (or when a presented bearer is invalid/expired), never up front.
+
+### Required environment
+
+| Name | Description |
+|---|---|
+| `MCP_PUBLIC_URL` | The proxy's public issuer/base. Set it to the public `/mcp` URL, e.g. `https://wiki.example.org/mcp` — the AS metadata endpoints (`/authorize`, `/token`, `/register`, `/oauth/callback`) are derived from it. |
+| `MCP_OAUTH_JWT_SIGNING_KEY` | A secret of **at least 32 characters** used to sign the proxy's issued JWTs and consent cookies. Keep it **fixed** — rotating it invalidates every issued token and forces all users to re-authenticate, so a deploy that changes it logs everyone out. |
+
+The proxy turns on only when **all** of these hold: `MCP_TRANSPORT=http`, `MCP_PUBLIC_URL` and `MCP_OAUTH_JWT_SIGNING_KEY` are set, and the default wiki has an `oauth2ClientId`. A signing key under 32 chars, or a `MCP_OAUTH_TOKEN_TTL` longer than the upstream refresh window, fails startup.
+
+Optional:
+
+| Name | Default | Description |
+|---|---|---|
+| `MCP_OAUTH_TOKEN_TTL` | `55m` | Lifetime of a proxy-minted access JWT. Must stay **shorter than the upstream 30-day refresh window** — when the JWT expires the client refreshes it, which the proxy backs with a server-to-server upstream refresh. |
+| `MCP_OAUTH_CONSENT_TTL` | `30d` | Lifetime of the signed consent cookie. Within this window a returning user (same client + redirect host) skips the consent page; after it they see consent again. |
+
+Both durations accept a number with an optional unit: `s`, `m`, `h`, or `d` (e.g. `55m`, `1h`, `30d`). A bare number is **seconds**.
+
+### Three-base topology
+
+The proxy reads three distinct URLs, which usually differ:
+
+| Base | Source | Role |
+|---|---|---|
+| Proxy issuer | `MCP_PUBLIC_URL` | The AS identity the client talks to: the host that serves metadata, `/authorize`, `/token`, `/register`, and the fixed `/oauth/callback`. |
+| Upstream authorize host | per-wiki `publicServer` (falls back to `server`) | The **browser-facing** wiki URL the user is redirected to for the upstream MediaWiki consent screen (`…/rest.php/oauth2/authorize`). |
+| Internal API host | per-wiki `server` | The wiki API used for tool calls **and** the server→wiki token exchange/refresh (`…/rest.php/oauth2/access_token`). |
+
+The split exists because the browser must reach a **public** authorize URL (the user's browser is redirected there and back), while the server's own API traffic and the confidential token exchange should stay on the **internal** address (e.g. a Docker-network alias that bypasses the public reverse proxy). Set `publicServer` to the public wiki URL and `server` to the internal one; when there is no internal/public split, omit `publicServer` and it falls back to `server`.
+
+### Consumer-registration prerequisite (on the wiki)
+
+This is a one-time wiki-side setup, not server config. Register **one** [Extension:OAuth](https://www.mediawiki.org/wiki/Extension:OAuth) consumer at `Special:OAuthConsumerRegistration/propose/oauth2`:
+
+- **OAuth 2.0**, requesting **specific permissions** (a *full* consumer — not the owner-only "for use only by me" option), including the edit grants your users need.
+- **Public client**: leave "This consumer is confidential" unchecked — the proxy uses PKCE, no client secret.
+- Grant types: **Authorization code** and **Refresh token**.
+- A single **callback URL** = `<MCP_PUBLIC_URL>/oauth/callback` (Extension:OAuth exact-matches the redirect URI). For example, with `MCP_PUBLIC_URL=https://wiki.example.org/mcp` the callback is `https://wiki.example.org/mcp/oauth/callback`.
+
+Put the resulting consumer key in the default wiki's `oauth2ClientId`. Leave the consumer secret unused. See [configuration.md — registering the OAuth consumer](configuration.md#for-wiki-admins-registering-the-oauth-consumer) for the field-by-field walkthrough.
+
+### Proxy routing requirements
+
+In addition to the [general reverse proxy requirements](#reverse-proxy-requirements) below, route the OAuth discovery and AS endpoints to the MCP server:
+
+- The MCP server serves the AS metadata at the **root** well-known paths: `/.well-known/oauth-protected-resource` **and** `/.well-known/oauth-authorization-server` (the SDK also fetches the `…/mcp`-suffixed variant `/.well-known/oauth-authorization-server/mcp`). Route all of these to the MCP server.
+- The `/authorize`, `/consent`, `/oauth/callback`, `/register`, and `/token` endpoints all live under the existing `/mcp` path (`/mcp/authorize`, `/mcp/token`, …), so they ride along with the route you already forward to `/mcp`.
+- **Forward `Authorization` intact** (see the trust-boundary note in [reverse proxy requirements](#reverse-proxy-requirements)).
+- Set `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS` to the public host/origin (e.g. `MCP_ALLOWED_HOSTS=wiki.example.org`, `MCP_ALLOWED_ORIGINS=https://wiki.example.org`).
+
+### v1 limitations
+
+- **In-memory state.** Registered clients, in-flight authorizations, one-time codes, and stored upstream tokens live in process memory. A restart drops them, so every user must sign in again, and the proxy currently supports a **single instance** (no shared store across replicas). Because `/register` is unauthenticated, the client registry is capped (FIFO, 10,000 entries) so registration spam cannot exhaust memory; once the cap is reached the oldest registrations are evicted and those clients must re-register.
+- **Validated client.** Claude Code is the MCP client this flow has been validated against. Other OAuth-aware clients should work via standard discovery + DCR but are not yet exercised.
+
+### Example `config.json`
+
+```json
+{
+  "allowWikiManagement": false,
+  "defaultWiki": "example.org",
+  "wikis": {
+    "example.org": {
+      "sitename": "Example Wiki",
+      "server": "http://mediawiki.svc",
+      "publicServer": "https://wiki.example.org",
+      "articlepath": "/wiki",
+      "scriptpath": "/w",
+      "oauth2ClientId": "${WIKI_OAUTH_CLIENT_ID}"
+    }
+  }
+}
+```
+
+`server` is the internal API host (here a Docker-network alias — list it in `MCP_TRUSTED_HOSTS` so the outbound SSRF guard permits it); `publicServer` is the browser-facing host; `oauth2ClientId` is the consumer key. No `token` / `username` / `password` (the proxy mints per-user tokens), and `readOnly` is left off so writes are available after sign-in. Run it with `MCP_TRANSPORT=http`, `MCP_PUBLIC_URL=https://wiki.example.org/mcp`, and a fixed `MCP_OAUTH_JWT_SIGNING_KEY`.
 
 ## Per-request bearer token (HTTP transport)
 

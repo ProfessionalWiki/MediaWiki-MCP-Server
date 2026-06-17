@@ -34,16 +34,23 @@ export function evaluateBearerGuard(
 	return { kind: 'block', wikis: offenders };
 }
 
-export type AuthShape = 'anonymous' | 'static-credential' | 'bearer-passthrough';
+export type AuthShape = 'anonymous' | 'static-credential' | 'bearer-passthrough' | 'oauth-proxy';
 export type Transport = 'stdio' | 'http';
 
 export function classifyAuthShape(
 	wikis: Readonly<Record<string, WikiConfig>>,
 	transport: Transport,
+	proxyEnabled = false,
 ): AuthShape {
 	const anyStatic = Object.values(wikis).some(hasStaticCredentials);
 	if (anyStatic) {
 		return 'static-credential';
 	}
-	return transport === 'http' ? 'bearer-passthrough' : 'anonymous';
+	if (transport !== 'http') {
+		return 'anonymous';
+	}
+	// When the hosted OAuth proxy is active this server is itself the
+	// authorization server (minting per-user tokens), not a plain
+	// bearer-passthrough that forwards a client-supplied token verbatim.
+	return proxyEnabled ? 'oauth-proxy' : 'bearer-passthrough';
 }

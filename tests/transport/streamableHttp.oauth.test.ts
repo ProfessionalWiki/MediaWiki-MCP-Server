@@ -150,8 +150,8 @@ describe('GET /.well-known/oauth-protected-resource', () => {
 			.set('Host', 'mcp.example.org')
 			.set('x-forwarded-proto', 'https');
 		expect(res.status).toBe(200);
-		// resource should use https
-		expect(res.body.resource).toMatch(/^https:\/\/mcp\.example\.org\//);
+		// resource should use https and be the slash-free canonical identifier
+		expect(res.body.resource).toBe('https://mcp.example.org');
 	});
 
 	it('lists every OAuth wiki authorization server when two wikis use different servers', async () => {
@@ -408,6 +408,33 @@ describe('POST /mcp 401 short-circuit when every wiki requires auth', () => {
 		expect(res.status).toBe(401);
 		const wwwAuth = res.headers['www-authenticate'] as string;
 		expect(wwwAuth).toContain('https://mcp.example.org:443/.well-known/oauth-protected-resource');
+	});
+
+	it('resource_metadata is origin-rooted even when MCP_PUBLIC_URL carries a path (#2)', async () => {
+		// Shape-3 deployment: MCP_PUBLIC_URL = the public /mcp URL. The PRM is served
+		// only at the origin root, and the SDK fetches resource_metadata verbatim with
+		// no fallback — so the 401 URL must NOT carry the /mcp path or it 404s.
+		vi.stubEnv('MCP_PUBLIC_URL', 'https://wiki.example.org/mcp');
+		const wikiCfg: Partial<WikiConfig> = {
+			sitename: 'OAuthWiki',
+			server: 'https://wiki.example',
+			scriptpath: '/w',
+			articlepath: '/wiki',
+			oauth2ClientId: 'client-id-123',
+		};
+		const app = buildMcpApp(fakeRegistry({ mywiki: wikiCfg }));
+
+		const res = await request(app)
+			.post('/mcp')
+			.set('Content-Type', 'application/json')
+			.send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+
+		expect(res.status).toBe(401);
+		const wwwAuth = res.headers['www-authenticate'] as string;
+		expect(wwwAuth).toContain(
+			'resource_metadata="https://wiki.example.org/.well-known/oauth-protected-resource"',
+		);
+		expect(wwwAuth).not.toContain('/mcp/.well-known');
 	});
 
 	it('metadata URL in WWW-Authenticate honours MCP_PUBLIC_URL over request Host', async () => {

@@ -61,12 +61,27 @@ export async function checkWikiCapability(
 	// coexists with a running server when MCP_ALLOW_STATIC_FALLBACK is set —
 	// the startup bearer guard (evaluateBearerGuard) blocks startup otherwise —
 	// so this guard need not re-consult that env var.
+	//
+	// When the hosted OAuth proxy is enabled, tokenless requests are served
+	// anonymously (the /mcp handler no longer 401s them), so the blanket
+	// OAuth-only rejection above is replaced by a narrower step-up: only WRITE
+	// tools require a token, and the error carries the protected-resource URL so
+	// the client can authenticate and retry.
 	if (ctx.transport === 'http') {
 		const cfg = ctx.wikis.get(wikiKey);
 		if (cfg) {
+			const pc = ctx.getProxyConfig?.() ?? null;
 			const oauthOnly = typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
 			const hasStatic = hasStaticCredentials(cfg);
-			if (oauthOnly && !hasStatic && getRuntimeToken() === undefined) {
+			const anonymous = getRuntimeToken() === undefined;
+			if (pc) {
+				if (anonymous && WRITE_TOOL_SET.has(toolName)) {
+					return ctx.format.error(
+						'authentication',
+						`Authentication required to use write tools. See ${pc.issuer}/.well-known/oauth-protected-resource to authenticate.`,
+					);
+				}
+			} else if (oauthOnly && !hasStatic && anonymous) {
 				return ctx.format.error(
 					'authentication',
 					`Wiki "${wikiKey}" requires OAuth authentication. ` +

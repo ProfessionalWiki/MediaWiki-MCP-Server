@@ -9,11 +9,23 @@ export interface FakeAsOptions {
 	wellKnownBody?: Record<string, unknown>;
 	authorize?: RequestHandler;
 	token?: RequestHandler;
+	// When true, the authorize endpoint auto-approves: it 302s straight to the
+	// supplied redirect_uri with ?code=...&state=..., standing in for a user who
+	// clicks "Allow" on Extension:OAuth's consent screen. The minted code is
+	// `auth-<state>` so the default token handler's `access-<code>` is stable.
+	autoApproveAuthorize?: boolean;
+	// When true, mount a `${scriptpath}/api.php` route that records the Bearer it
+	// receives (see capturedApiBearers) so a test can assert the UPSTREAM wiki
+	// token — not the proxy JWT — is what reaches the wiki action API.
+	captureApi?: boolean;
 }
 
 export interface FakeAsHandle {
 	readonly url: string;
 	readonly app: Express;
+	// Bearers seen on the captured action-API endpoint, in arrival order. Only
+	// populated when captureApi is set.
+	readonly capturedApiBearers: string[];
 	close(): Promise<void>;
 }
 
@@ -44,9 +56,11 @@ export async function startFakeAs(opts: FakeAsOptions = {}): Promise<FakeAsHandl
 	};
 
 	let server: Server | undefined;
+	const capturedApiBearers: string[] = [];
 	const handle: FakeAsHandle = {
 		url: '',
 		app,
+		capturedApiBearers,
 		async close() {
 			await new Promise<void>((resolve) => server?.close(() => resolve()));
 		},
@@ -64,7 +78,39 @@ export async function startFakeAs(opts: FakeAsOptions = {}): Promise<FakeAsHandl
 	// 'absent': don't register either route.
 
 	app.post('/w/rest.php/oauth2/access_token', opts.token ?? defaultTokenHandler);
-	app.get('/w/rest.php/oauth2/authorize', opts.authorize ?? ((_req, res) => res.status(404).end()));
+
+	const oneQuery = (v: unknown): string => (typeof v === 'string' ? v : '');
+	const autoApprove: RequestHandler = (req, res) => {
+		const redirectUri = oneQuery(req.query.redirect_uri);
+		const state = oneQuery(req.query.state);
+		if (!redirectUri) {
+			res.status(400).json({ error: 'invalid_request', error_description: 'missing redirect_uri' });
+			return;
+		}
+		const cb = new URL(redirectUri);
+		cb.searchParams.set('code', `auth-${state}`);
+		cb.searchParams.set('state', state);
+		res.redirect(302, cb.toString());
+	};
+	const defaultAuthorize: RequestHandler = (_req, res) => {
+		res.status(404).end();
+	};
+	app.get(
+		'/w/rest.php/oauth2/authorize',
+		opts.authorize ?? (opts.autoApproveAuthorize ? autoApprove : defaultAuthorize),
+	);
+
+	if (opts.captureApi) {
+		const apiHandler: RequestHandler = (req, res) => {
+			const auth = req.headers.authorization;
+			if (typeof auth === 'string' && auth.toLowerCase().startsWith('bearer ')) {
+				capturedApiBearers.push(auth.slice(7).trim());
+			}
+			res.json({ query: { tokens: { csrftoken: '+\\' } } });
+		};
+		app.get('/w/api.php', apiHandler);
+		app.post('/w/api.php', apiHandler);
+	}
 
 	server = await new Promise<Server>((resolve) => {
 		const srv = app.listen(0, '127.0.0.1', () => resolve(srv));
