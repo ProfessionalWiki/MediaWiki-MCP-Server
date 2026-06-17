@@ -141,6 +141,56 @@ describe('loadConfigFromFile', () => {
 		});
 	});
 
+	describe('MCP_OAUTH2_CLIENT_ID override', () => {
+		it('overrides the default wiki oauth2ClientId from the environment', async () => {
+			vi.stubEnv('MCP_OAUTH2_CLIENT_ID', 'env-client-id');
+			setConfigFile({
+				defaultWiki: 'w',
+				wikis: { w: { ...baseWiki, oauth2ClientId: 'config-id' } },
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(loadConfigFromFile().wikis.w.oauth2ClientId).toBe('env-client-id');
+		});
+
+		it('sets oauth2ClientId on the default wiki when config has none', async () => {
+			vi.stubEnv('MCP_OAUTH2_CLIENT_ID', 'env-client-id');
+			setConfigFile({ defaultWiki: 'w', wikis: { w: { ...baseWiki } } });
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(loadConfigFromFile().wikis.w.oauth2ClientId).toBe('env-client-id');
+		});
+
+		it('leaves the configured oauth2ClientId untouched when the env var is unset', async () => {
+			setConfigFile({
+				defaultWiki: 'w',
+				wikis: { w: { ...baseWiki, oauth2ClientId: 'config-id' } },
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(loadConfigFromFile().wikis.w.oauth2ClientId).toBe('config-id');
+		});
+
+		it('ignores a blank env value (does not blank out a configured id)', async () => {
+			vi.stubEnv('MCP_OAUTH2_CLIENT_ID', '   ');
+			setConfigFile({
+				defaultWiki: 'w',
+				wikis: { w: { ...baseWiki, oauth2ClientId: 'config-id' } },
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(loadConfigFromFile().wikis.w.oauth2ClientId).toBe('config-id');
+		});
+
+		it('only affects the default wiki', async () => {
+			vi.stubEnv('MCP_OAUTH2_CLIENT_ID', 'env-client-id');
+			setConfigFile({
+				defaultWiki: 'w',
+				wikis: { w: { ...baseWiki }, other: { ...baseWiki, oauth2ClientId: 'other-id' } },
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const cfg = loadConfigFromFile();
+			expect(cfg.wikis.w.oauth2ClientId).toBe('env-client-id');
+			expect(cfg.wikis.other.oauth2ClientId).toBe('other-id');
+		});
+	});
+
 	describe('passthrough cases', () => {
 		it('passes through null secret fields unchanged', async () => {
 			setConfigFile({
