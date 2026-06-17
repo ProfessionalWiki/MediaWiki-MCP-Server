@@ -17,16 +17,16 @@ function esc(s: string): string {
 export function renderConsentPage(a: {
 	clientName: string;
 	wiki: string;
-	scopes: string[];
 	authorizeQuery: string;
 	csrfToken: string;
 }): string {
-	const scopes = a.scopes.length ? a.scopes.map(esc).join(', ') : 'basic access';
+	// No per-permission line: the proxy always requests the consumer's full grants
+	// (see authorize.ts), so it can't accurately enumerate them here. The user sees the
+	// exact grants on MediaWiki's own authorization screen during the upstream leg.
 	return `<!doctype html><meta charset="utf-8"><title>Authorize</title>
 <body style="font-family:system-ui;max-width:32rem;margin:4rem auto">
 <h1>Authorize application</h1>
 <p><strong>${esc(a.clientName)}</strong> wants to act as you on <strong>${esc(a.wiki)}</strong>.</p>
-<p>Permissions: ${scopes}.</p>
 <form method="POST" action="/mcp/consent?${esc(a.authorizeQuery)}">
   <input type="hidden" name="csrf" value="${esc(a.csrfToken)}">
   <button name="decision" value="approve" type="submit">Approve</button>

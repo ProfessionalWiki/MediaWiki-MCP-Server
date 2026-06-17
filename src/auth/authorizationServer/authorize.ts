@@ -21,7 +21,7 @@ export interface ConsentClaims {
 
 export type AuthorizePlan =
 	| { kind: 'error'; status: number; body: Record<string, unknown> }
-	| { kind: 'consent'; clientName: string; scopes: string[] }
+	| { kind: 'consent'; clientName: string }
 	| { kind: 'redirect'; location: string };
 
 /**
@@ -80,11 +80,7 @@ export function planAuthorize(
 	const consentOk =
 		consent && consent.clientId === client.clientId && consent.redirectHost === redirectHost;
 	if (!consentOk) {
-		return {
-			kind: 'consent',
-			clientName: client.name,
-			scopes: q.scope?.split(' ').filter(Boolean) ?? client.scopes,
-		};
+		return { kind: 'consent', clientName: client.name };
 	}
 
 	const txnId = randomUUID();
