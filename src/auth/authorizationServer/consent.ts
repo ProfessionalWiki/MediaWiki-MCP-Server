@@ -1,18 +1,12 @@
 import type { ProxyConfig } from './proxyConfig.js';
 import { signConsent } from './jwt.js';
+import { esc, renderPage } from '../pageShell.js';
 
 const COOKIE = 'mcp_consent';
 const CSRF_COOKIE = 'mcp_consent_csrf';
 // Long enough for a human to read the consent page, short enough to bound the
 // window in which the anti-CSRF nonce is valid.
 const CSRF_TTL_SECONDS = 10 * 60;
-
-function esc(s: string): string {
-	return s.replace(
-		/[&<>"']/g,
-		(c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!,
-	);
-}
 
 export function renderConsentPage(a: {
 	clientName: string;
@@ -21,17 +15,44 @@ export function renderConsentPage(a: {
 	csrfToken: string;
 }): string {
 	// No per-permission line: the proxy always requests the consumer's full grants
-	// (see authorize.ts), so it can't accurately enumerate them here. The user sees the
-	// exact grants on MediaWiki's own authorization screen during the upstream leg.
-	return `<!doctype html><meta charset="utf-8"><title>Authorize</title>
-<body style="font-family:system-ui;max-width:32rem;margin:4rem auto">
-<h1>Authorize application</h1>
-<p><strong>${esc(a.clientName)}</strong> wants to act as you on <strong>${esc(a.wiki)}</strong>.</p>
-<form method="POST" action="/mcp/consent?${esc(a.authorizeQuery)}">
-  <input type="hidden" name="csrf" value="${esc(a.csrfToken)}">
-  <button name="decision" value="approve" type="submit">Approve</button>
-  <button name="decision" value="deny" type="submit">Deny</button>
-</form></body>`;
+	// (see authorize.ts). The user sees the exact grants on MediaWiki's own
+	// authorization screen during the upstream leg.
+	const body =
+		`<p class="pg-lead"><strong>${esc(a.clientName)}</strong> wants to act as you on <strong>${esc(a.wiki)}</strong>.</p>` +
+		`<form method="POST" action="/mcp/consent?${esc(a.authorizeQuery)}" class="pg-actions">` +
+		`<input type="hidden" name="csrf" value="${esc(a.csrfToken)}">` +
+		`<button class="pg-btn pg-primary" name="decision" value="approve" type="submit">Approve</button>` +
+		`<button class="pg-btn pg-neutral" name="decision" value="deny" type="submit">Deny</button>` +
+		`</form>` +
+		`<p class="pg-note">You'll confirm the exact permissions on ${esc(a.wiki)} in the next step.</p>`;
+	return renderPage({ title: 'Authorize application', icon: { name: 'lock' }, body });
+}
+
+// Shown when the user denies and there is no trusted client redirect to bounce to.
+export function renderCancelledPage(a: { clientName?: string }): string {
+	const who = a.clientName ? `<strong>${esc(a.clientName)}</strong>` : 'the application';
+	const body =
+		`<p class="pg-lead">You declined to authorize ${who}. Nothing was shared with it.</p>` +
+		`<p class="pg-note">You can close this window.</p>`;
+	return renderPage({
+		title: 'Authorization cancelled',
+		icon: { name: 'cancel', accent: 'subtle' },
+		body,
+	});
+}
+
+// Shown on a terminal authorization error reached in the browser (e.g. a failed
+// upstream exchange, a bad /authorize request, or a consent failure). `reason` is
+// the already-sanitized error_description.
+export function renderAuthErrorPage(a: { reason: string }): string {
+	const body =
+		`<p class="pg-lead">Something went wrong while authorizing the application. You can close this window and try connecting again.</p>` +
+		`<p class="pg-mono">${esc(a.reason)}</p>`;
+	return renderPage({
+		title: 'Authorization failed',
+		icon: { name: 'error', accent: 'error' },
+		body,
+	});
 }
 
 // Anti-CSRF nonce for the consent decision. SameSite=Strict so a cross-site POST
