@@ -45,6 +45,8 @@ import {
 } from '../auth/authorizationServer/authorize.js';
 import {
 	renderConsentPage,
+	renderCancelledPage,
+	renderAuthErrorPage,
 	buildConsentCookie,
 	readConsentCookie,
 	buildCsrfCookie,
@@ -678,6 +680,14 @@ emitStartupBanner(
 	},
 );
 
+// Extracts a human-readable reason string from an OAuth error body. The fields
+// are statically typed as `unknown` (the body is a Record<string, unknown>), so
+// we narrow explicitly to avoid the linter's no-base-to-string rule.
+function errorReason(body: Record<string, unknown>, fallback: string): string {
+	const v = body.error_description ?? body.error;
+	return typeof v === 'string' ? v : fallback;
+}
+
 // Reads the subset of query parameters planAuthorize cares about, coercing each
 // to a single string (Express may parse repeated/array/nested params, which the
 // OAuth params are never expected to be; only the first scalar is honoured).
@@ -873,7 +883,10 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 
 		const plan = planAuthorize(q, consent, pc, store, defaultWikiSitename);
 		if (plan.kind === 'error') {
-			res.status(plan.status).json(plan.body);
+			res
+				.status(plan.status)
+				.type('html')
+				.send(renderAuthErrorPage({ reason: errorReason(plan.body, 'invalid request') }));
 			return;
 		}
 		if (plan.kind === 'consent') {
@@ -920,15 +933,11 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 				res.redirect(302, denial.location);
 				return;
 			}
+			const client = q.client_id ? store.getClient(q.client_id) : undefined;
 			res
 				.status(200)
 				.type('html')
-				.send(
-					'<!doctype html><meta charset="utf-8"><title>Authorization cancelled</title>' +
-						'<body style="font-family:system-ui;max-width:32rem;margin:4rem auto">' +
-						'<h1>Authorization cancelled</h1>' +
-						'<p>You can close this window.</p></body>',
-				);
+				.send(renderCancelledPage({ clientName: client?.name }));
 			return;
 		}
 
@@ -938,16 +947,19 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		const csrfCookie = readCsrfCookie(req.headers.cookie);
 		const csrfField = typeof body.csrf === 'string' ? body.csrf : undefined;
 		if (!csrfCookie || !csrfField || csrfCookie !== csrfField) {
-			res.status(400).json({ error: 'invalid_request', error_description: 'CSRF check failed' });
+			res
+				.status(400)
+				.type('html')
+				.send(renderAuthErrorPage({ reason: 'CSRF check failed' }));
 			return;
 		}
 
 		const redirectHost = redirectHostOf(q.redirect_uri);
 		if (!q.client_id || !redirectHost) {
-			res.status(400).json({
-				error: 'invalid_request',
-				error_description: 'missing client_id or redirect_uri',
-			});
+			res
+				.status(400)
+				.type('html')
+				.send(renderAuthErrorPage({ reason: 'missing client_id or redirect_uri' }));
 			return;
 		}
 
@@ -963,7 +975,10 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		const consent: ConsentClaims = { clientId: q.client_id, redirectHost, wiki: defaultWikiKey };
 		const plan = planAuthorize(q, consent, pc, store, defaultWikiSitename);
 		if (plan.kind === 'error') {
-			res.status(plan.status).json(plan.body);
+			res
+				.status(plan.status)
+				.type('html')
+				.send(renderAuthErrorPage({ reason: errorReason(plan.body, 'invalid request') }));
 			return;
 		}
 		if (plan.kind === 'redirect') {
@@ -976,7 +991,8 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		// transient error rather than re-prompting (the cookie is already set).
 		res
 			.status(400)
-			.json({ error: 'invalid_request', error_description: 'consent could not be applied' });
+			.type('html')
+			.send(renderAuthErrorPage({ reason: 'consent could not be applied' }));
 	});
 
 	// GET /mcp/oauth/callback — the upstream wiki's authorization-code redirect back
@@ -1024,7 +1040,10 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 
 		const plan = await handleCallback(q, pc, store, consentOk);
 		if (plan.kind === 'error') {
-			res.status(plan.status).json(plan.body);
+			res
+				.status(plan.status)
+				.type('html')
+				.send(renderAuthErrorPage({ reason: errorReason(plan.body, 'authorization failed') }));
 			return;
 		}
 		res.redirect(302, plan.location);

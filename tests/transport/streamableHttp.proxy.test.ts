@@ -306,7 +306,8 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		// transaction belonging to client B (cookie/clientId mismatch).
 		const mismatch = await callbackWithMismatchedConsent(app, store, pc);
 		expect(mismatch.status).toBe(400);
-		expect(mismatch.body.error_description).toMatch(/consent not present/);
+		expect(mismatch.headers['content-type']).toMatch(/html/);
+		expect(mismatch.text).toMatch(/consent not present/);
 	});
 
 	it('criterion 5: open-redirect — /register with a non-allowlisted redirect_uri returns 400', async () => {
@@ -368,7 +369,9 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 			.type('form')
 			.send({ decision: 'approve' });
 		expect(noCsrf.status).toBe(400);
-		expect(noCsrf.body.error_description).toMatch(/CSRF/i);
+		expect(noCsrf.headers['content-type']).toMatch(/html/);
+		expect(noCsrf.text).toMatch(/Authorization failed/);
+		expect(noCsrf.text).toMatch(/CSRF/i);
 
 		// Field present but no matching cookie (a cross-site POST can't carry the
 		// SameSite=Strict cookie) → rejected.
@@ -378,6 +381,8 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 			.type('form')
 			.send({ decision: 'approve', csrf });
 		expect(noCookie.status).toBe(400);
+		expect(noCookie.headers['content-type']).toMatch(/html/);
+		expect(noCookie.text).toMatch(/CSRF/i);
 
 		// Cookie + matching field → accepted (302 to the upstream authorize URL).
 		const ok = await request(app)
@@ -465,7 +470,8 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 			.query({ code: 'somecode' })
 			.set('Cookie', 'mcp_txn=txn-x');
 		expect(cb.status).toBe(400);
-		expect(String(cb.body.error_description)).toMatch(/missing code\/state/i);
+		expect(cb.headers['content-type']).toMatch(/html/);
+		expect(cb.text).toMatch(/missing code\/state/i);
 		// The seeded transaction was not consumed.
 		expect(store.getTransaction('txn-x')).toBeDefined();
 	});
@@ -526,7 +532,12 @@ async function callbackWithMismatchedConsent(
 	app: ReturnType<typeof buildApp>['app'],
 	store: InMemoryProxyStore,
 	pc: ProxyConfig,
-): Promise<{ status: number; body: { error_description?: string } }> {
+): Promise<{
+	status: number;
+	body: { error_description?: string };
+	text: string;
+	headers: Record<string, string>;
+}> {
 	const { buildConsentCookie } = await import('../../src/auth/authorizationServer/consent.js');
 	// A transaction owned by client "B-real".
 	store.putTransaction('txn-mismatch', {
@@ -549,5 +560,10 @@ async function callbackWithMismatchedConsent(
 		.query({ code: 'auth-txn-mismatch', state: 'txn-mismatch' })
 		.set('Cookie', cookie.split(';')[0]);
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- response body is untyped JSON
-	return { status: res.status, body: res.body as { error_description?: string } };
+	return {
+		status: res.status,
+		body: res.body as { error_description?: string },
+		text: res.text,
+		headers: res.headers as Record<string, string>,
+	};
 }
