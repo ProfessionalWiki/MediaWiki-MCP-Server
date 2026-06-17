@@ -9,6 +9,7 @@ import type { WikiSlice } from './metadata.js';
 import { randomVerifier, s256 } from './pkce.js';
 import { exchangeCode, OAuthFlowError } from './oauthFlow.js';
 import { createTokenStore } from './tokenStore.js';
+import { renderPage } from './pageShell.js';
 
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
 
@@ -242,36 +243,50 @@ function waitForCallback(server: http.Server, expectedState: string): Promise<st
 
 			const error = url.searchParams.get('error');
 			if (error === 'access_denied') {
-				res
-					.writeHead(200, { 'Content-Type': 'text/html' })
-					.end('<html><body><h1>Login cancelled</h1><p>You can close this tab.</p></body></html>');
+				res.writeHead(200, { 'Content-Type': 'text/html' }).end(
+					renderPage({
+						title: 'Login cancelled',
+						icon: { name: 'cancel', accent: 'subtle' },
+						body: '<p class="pg-lead">You declined the sign-in request. You can close this tab.</p>',
+					}),
+				);
 				reject(new BrowserAuthError('user_denied', 'User denied the authorization request'));
 				return;
 			}
 
 			const returnedState = url.searchParams.get('state');
 			if (!returnedState || returnedState !== expectedState) {
-				res
-					.writeHead(400, { 'Content-Type': 'text/html' })
-					.end('<html><body><h1>Possible CSRF; please retry.</h1></body></html>');
+				res.writeHead(400, { 'Content-Type': 'text/html' }).end(
+					renderPage({
+						title: 'Sign-in could not be verified',
+						icon: { name: 'error', accent: 'error' },
+						body: '<p class="pg-lead">The sign-in could not be verified (possible CSRF). Please close this tab and try again.</p>',
+					}),
+				);
 				reject(new BrowserAuthError('state_mismatch', 'State parameter mismatch — possible CSRF'));
 				return;
 			}
 
 			const code = url.searchParams.get('code');
 			if (!code) {
-				res
-					.writeHead(400, { 'Content-Type': 'text/html' })
-					.end('<html><body><h1>Missing code parameter</h1></body></html>');
+				res.writeHead(400, { 'Content-Type': 'text/html' }).end(
+					renderPage({
+						title: 'Sign-in failed',
+						icon: { name: 'error', accent: 'error' },
+						body: '<p class="pg-lead">The wiki did not return an authorization code. Please close this tab and try again.</p>',
+					}),
+				);
 				reject(new BrowserAuthError('transient', 'Missing code parameter in callback'));
 				return;
 			}
 
-			res
-				.writeHead(200, { 'Content-Type': 'text/html' })
-				.end(
-					'<html><body><h1>Login successful</h1><p>You can close this tab and return to your terminal.</p></body></html>',
-				);
+			res.writeHead(200, { 'Content-Type': 'text/html' }).end(
+				renderPage({
+					title: "You're signed in",
+					icon: { name: 'success', accent: 'success' },
+					body: '<p class="pg-lead">You can close this tab and return to your terminal.</p>',
+				}),
+			);
 			resolve(code);
 		};
 		server.on('request', handler);
