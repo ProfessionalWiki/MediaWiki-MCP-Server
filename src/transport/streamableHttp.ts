@@ -293,6 +293,10 @@ export interface McpPostHandlerOptions {
 	// unchanged.
 	getProxyConfig?: ProxyConfigGetter;
 	proxyStore?: ProxyStore;
+	// The default wiki served by this transport. When that wiki is configured
+	// `private` (anonymous reads disabled upstream), a tokenless request is
+	// challenged with a connection-time 401 rather than served anonymously.
+	defaultWikiKey?: string;
 }
 
 // Emits the shared OAuth 401 challenge: a JSON-RPC error body with the
@@ -340,11 +344,31 @@ export function createMcpPostHandler(
 	createServerFn: () => ReturnType<typeof createServer>,
 	options: McpPostHandlerOptions = {},
 ): RequestHandler {
-	const { allowedOrigins, wikiRegistry, idleTimeoutMs = 0, getProxyConfig, proxyStore } = options;
+	const {
+		allowedOrigins,
+		wikiRegistry,
+		idleTimeoutMs = 0,
+		getProxyConfig,
+		proxyStore,
+		defaultWikiKey,
+	} = options;
 	return async (req, res) => {
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Express headers are string|string[]|undefined; MCP transport sends a single header
 		const sessionId = req.headers['mcp-session-id'] as string | undefined;
 		const bearer = extractBearerToken(req);
+
+		// A `private` wiki disallows anonymous reads, so the deployment requires
+		// auth for everything: challenge any tokenless request up front — including
+		// `initialize` — so an OAuth-capable client signs in at connect. This
+		// connection-time 401 is the broadly client-compatible trigger.
+		if (
+			!bearer &&
+			defaultWikiKey !== undefined &&
+			wikiRegistry?.get(defaultWikiKey)?.private === true
+		) {
+			emit401Challenge(req, res);
+			return;
+		}
 
 		const pc = getProxyConfig?.() ?? null;
 
@@ -452,10 +476,25 @@ export function createMcpPostHandler(
 export function createSessionRequestHandler(
 	sessions: SessionRegistry,
 	idleTimeoutMs = 0,
+	wikiRegistry?: WikiRegistry,
+	defaultWikiKey?: string,
 ): RequestHandler {
 	return async (req, res) => {
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Express headers are string|string[]|undefined; MCP transport sends a single header
 		const sessionId = req.headers['mcp-session-id'] as string | undefined;
+		const bearer = extractBearerToken(req);
+
+		// A `private` deployment never serves a tokenless request — including the
+		// standalone GET SSE stream and DELETE.
+		if (
+			!bearer &&
+			defaultWikiKey !== undefined &&
+			wikiRegistry?.get(defaultWikiKey)?.private === true
+		) {
+			emit401Challenge(req, res);
+			return;
+		}
+
 		if (!sessionId || !sessions[sessionId]) {
 			res.status(400).send('Invalid or missing session ID');
 			return;
@@ -474,7 +513,6 @@ export function createSessionRequestHandler(
 		// notifications — so a session id alone grants nothing sensitive.
 		// The bearer is still extracted to thread into withRequestContext for
 		// consistency with the POST path.
-		const bearer = extractBearerToken(req);
 		await withRequestContext(bearer, sessionId, () => entry.transport.handleRequest(req, res));
 	};
 }
@@ -796,7 +834,12 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 	}
 
 	const sessions: SessionRegistry = {};
-	const sessionRequestHandler = createSessionRequestHandler(sessions, sessionIdleTimeoutMs);
+	const sessionRequestHandler = createSessionRequestHandler(
+		sessions,
+		sessionIdleTimeoutMs,
+		state.wikiRegistry,
+		defaultWikiKey,
+	);
 
 	const inFlight = createInFlightCounter();
 	app.use('/mcp', inFlight.middleware);
@@ -809,6 +852,7 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 			idleTimeoutMs: sessionIdleTimeoutMs,
 			getProxyConfig,
 			proxyStore: store,
+			defaultWikiKey,
 		}),
 	);
 	app.get('/mcp', sessionRequestHandler);
