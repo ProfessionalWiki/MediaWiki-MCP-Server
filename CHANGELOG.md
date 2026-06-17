@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-06-17
+
 ### Added
 
 - **Hosted OAuth proxy (HTTP transport).** Opt-in mode in which the server signs each user into MediaWiki as themselves, so an OAuth-aware client pointed at `https://<wiki>/mcp` needs no manual tokens. Anonymous read still works; writes require sign-in. Enable it by running the HTTP transport with `MCP_PUBLIC_URL` and `MCP_OAUTH_JWT_SIGNING_KEY` set and an `oauth2ClientId` on the default wiki. See [docs/deployment.md — hosted OAuth sign-in](docs/deployment.md#hosted-oauth-sign-in).
@@ -199,7 +201,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - Smithery integration.
 
-[Unreleased]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.9.1...v0.10.0
