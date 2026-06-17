@@ -885,7 +885,6 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 				renderConsentPage({
 					clientName: plan.clientName,
 					wiki: defaultWikiSitename,
-					scopes: plan.scopes,
 					authorizeQuery: serializeAuthorizeQuery(q),
 					csrfToken,
 				}),

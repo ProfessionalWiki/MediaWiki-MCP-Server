@@ -17,23 +17,23 @@ const pc = {
 } as any;
 
 describe('consent', () => {
-	it('renders the client name and scopes', () => {
+	it('renders the client name and the act-as-you line, with no permissions list', () => {
 		const html = renderConsentPage({
 			clientName: 'Claude Code',
 			wiki: 'Example',
-			scopes: ['editpage'],
 			authorizeQuery: 'txn=1',
 			csrfToken: 'nonce-abc',
 		});
 		expect(html).toContain('Claude Code');
-		expect(html).toContain('editpage');
+		expect(html).toContain('act as you on');
+		expect(html).toContain('Example');
 		expect(html).toContain('txn=1');
+		expect(html).not.toContain('Permissions:');
 	});
 	it('embeds the CSRF token as a hidden form field', () => {
 		const html = renderConsentPage({
 			clientName: 'Claude Code',
 			wiki: 'Example',
-			scopes: ['editpage'],
 			authorizeQuery: 'txn=1',
 			csrfToken: 'nonce-abc',
 		});
@@ -44,7 +44,6 @@ describe('consent', () => {
 		const html = renderConsentPage({
 			clientName: '<script>x</script>',
 			wiki: 'W',
-			scopes: [],
 			authorizeQuery: 'txn=1',
 			csrfToken: 'nonce-abc',
 		});
