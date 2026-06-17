@@ -323,7 +323,7 @@ function emit401Challenge(req: Request, res: Response): void {
 	const metadataUrl = `${origin}/.well-known/oauth-protected-resource`;
 	res.set(
 		'WWW-Authenticate',
-		`Bearer realm="MediaWiki MCP Server", resource_metadata="${metadataUrl}"`,
+		`Bearer error="invalid_token", realm="MediaWiki MCP Server", resource_metadata="${metadataUrl}"`,
 	);
 	res.status(401).json({
 		jsonrpc: '2.0',

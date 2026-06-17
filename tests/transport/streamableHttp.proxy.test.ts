@@ -475,6 +475,25 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		// The seeded transaction was not consumed.
 		expect(store.getTransaction('txn-x')).toBeDefined();
 	});
+
+	it('the 401 challenge advertises error="invalid_token"', async () => {
+		fakeAs = await startFakeAs({ autoApproveAuthorize: true });
+		const store = new InMemoryProxyStore();
+		const pc = proxyConfig(fakeAs.url);
+		const { app } = buildApp(makeDeps(fakeAs.url, store, pc));
+
+		const res = await request(app)
+			.post('/mcp')
+			.set('Content-Type', 'application/json')
+			.set('Authorization', 'Bearer not-a-valid-proxy-jwt')
+			.send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+
+		expect(res.status).toBe(401);
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- supertest header value is string|string[]
+		const wwwAuth = res.headers['www-authenticate'] as string;
+		expect(wwwAuth).toContain('error="invalid_token"');
+		expect(wwwAuth).toContain('resource_metadata=');
+	});
 });
 
 // Drives register -> authorize -> consent -> upstream -> callback and returns the

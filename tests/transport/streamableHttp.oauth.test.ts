@@ -270,7 +270,9 @@ describe('POST /mcp 401 short-circuit when every wiki requires auth', () => {
 		expect(res.body?.error?.code).toBe(-32001);
 		const wwwAuth = res.headers['www-authenticate'];
 		expect(typeof wwwAuth).toBe('string');
-		expect(wwwAuth).toMatch(/Bearer realm="MediaWiki MCP Server"/);
+		expect(wwwAuth).toMatch(/^Bearer /);
+		expect(wwwAuth).toMatch(/error="invalid_token"/);
+		expect(wwwAuth).toMatch(/realm="MediaWiki MCP Server"/);
 		expect(wwwAuth).toMatch(/resource_metadata="/);
 		expect(wwwAuth).toMatch(/\/.well-known\/oauth-protected-resource"/);
 	});
@@ -486,7 +488,9 @@ describe('POST /mcp 401 short-circuit when every wiki requires auth', () => {
 		expect(res.body?.error?.code).toBe(-32001);
 		const wwwAuth = res.headers['www-authenticate'];
 		expect(typeof wwwAuth).toBe('string');
-		expect(wwwAuth).toMatch(/Bearer realm="MediaWiki MCP Server"/);
+		expect(wwwAuth).toMatch(/^Bearer /);
+		expect(wwwAuth).toMatch(/error="invalid_token"/);
+		expect(wwwAuth).toMatch(/realm="MediaWiki MCP Server"/);
 	});
 
 	it('does NOT return 401 when one wiki is OAuth-only but another needs no auth', async () => {
