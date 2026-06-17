@@ -26,7 +26,7 @@ Covers configuration topics beyond the basic `config.json` shape documented in [
 | `token` | No | OAuth2 access token for authenticated operations (manual token alternative to `oauth2ClientId`) |
 | `username` | No | Bot username (fallback when OAuth2 is not available) |
 | `password` | No | Bot password (fallback when OAuth2 is not available) |
-| `private` | No | Whether the wiki requires authentication to read (default: `false`) |
+| `private` | No | Set this when the wiki disallows anonymous reads (`$wgGroupPermissions['*']['read'] = false`). Over the HTTP transport, the server then challenges every anonymous request — including the initial connection — with a `401`, so an OAuth-capable client prompts the user to sign in at connect. Requires an authorization server on the wiki (an `oauth2ClientId`, or the hosted proxy); the server warns at startup if a `private` wiki has neither. Default: `false` |
 | `readOnly` | No | When `true`, hides the six 🔐 write tools from `tools/list` while this wiki is active. Pairs with `allowWikiManagement: false` for a [hosted read-only endpoint](deployment.md). Default: `false` |
 | `tags` | No | Change tag(s) to apply to every write (string or array). The tag must exist and be active at `Special:Tags` — see [change tags](#change-tags-tags) for details. |
 
