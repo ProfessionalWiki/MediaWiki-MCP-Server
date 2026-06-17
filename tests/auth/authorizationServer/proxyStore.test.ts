@@ -75,4 +75,33 @@ describe('InMemoryProxyStore', () => {
 		s.updateUpstreamToken(id, { accessToken: 'a2', refreshToken: 'r2', expiresAt: 2 });
 		expect(s.getUpstreamToken(id)?.accessToken).toBe('a2');
 	});
+	it('updateUpstreamToken preserves refreshId not carried by the update', () => {
+		const s = new InMemoryProxyStore();
+		const id = s.putUpstreamToken({ accessToken: 'a', refreshToken: 'r', expiresAt: 1 });
+		s.setRefreshId(id, 'RID');
+		s.updateUpstreamToken(id, { accessToken: 'a2', refreshToken: 'r2', expiresAt: 2 });
+		expect(s.getUpstreamToken(id)?.refreshId).toBe('RID');
+	});
+	it('does not resurrect a deleted upstream token on update', () => {
+		const s = new InMemoryProxyStore();
+		const id = s.putUpstreamToken({ accessToken: 'a', refreshToken: 'r', expiresAt: 1 });
+		s.deleteUpstreamToken(id);
+		s.updateUpstreamToken(id, { accessToken: 'a2', expiresAt: 2 });
+		expect(s.getUpstreamToken(id)).toBeUndefined();
+	});
+	it('claims a refresh rotation once and rejects a concurrent or stale claim', () => {
+		const s = new InMemoryProxyStore();
+		const id = s.putUpstreamToken({ accessToken: 'a', refreshToken: 'r', expiresAt: 1 });
+		s.setRefreshId(id, 'R0');
+		expect(s.beginRefreshRotation(id, 'R0')).toBe(true);
+		// A second claim while one is in flight is rejected (concurrent reuse).
+		expect(s.beginRefreshRotation(id, 'R0')).toBe(false);
+		// Committing rotates the rid; the old rid no longer claims, the new one does.
+		s.finishRefreshRotation(id, 'R1');
+		expect(s.beginRefreshRotation(id, 'R0')).toBe(false);
+		expect(s.beginRefreshRotation(id, 'R1')).toBe(true);
+		// Abandoning (no new rid) leaves the current rid valid for a retry.
+		s.finishRefreshRotation(id);
+		expect(s.beginRefreshRotation(id, 'R1')).toBe(true);
+	});
 });

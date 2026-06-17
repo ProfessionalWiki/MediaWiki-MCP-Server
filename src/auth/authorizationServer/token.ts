@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { ProxyConfig } from './proxyConfig.js';
 import type { ProxyStore } from './proxyStore.js';
 import { s256 } from '../pkce.js';
@@ -49,11 +50,21 @@ export async function handleToken(
 		if (!body.code_verifier || s256(body.code_verifier) !== rec.clientCodeChallenge) {
 			return bad('invalid_grant', 'PKCE verification failed');
 		}
-		return mintPair(pc, rec.upstreamTokenId, rec.scopes);
+		// Bind the code to the client + redirect it was issued to (OAuth 2.1 §4.1.3).
+		// The code is already consumed above, so a mismatched attempt still burns it.
+		if (body.client_id !== rec.clientId) {
+			return bad('invalid_grant', 'client_id does not match the authorization code');
+		}
+		if (body.redirect_uri !== rec.clientRedirectUri) {
+			return bad('invalid_grant', 'redirect_uri does not match the authorization code');
+		}
+		const refreshId = randomUUID();
+		store.setRefreshId(rec.upstreamTokenId, refreshId);
+		return mintPair(pc, rec.upstreamTokenId, rec.scopes, refreshId);
 	}
 
 	if (body.grant_type === 'refresh_token') {
-		let claims: { upstreamTokenId: string };
+		let claims: { upstreamTokenId: string; refreshId: string };
 		try {
 			claims = await verifyRefreshToken(body.refresh_token ?? '', pc);
 		} catch {
@@ -62,6 +73,15 @@ export async function handleToken(
 		const upstream = store.getUpstreamToken(claims.upstreamTokenId);
 		if (!upstream?.refreshToken) {
 			return bad('invalid_grant', 'no upstream refresh token');
+		}
+		// Refresh-token rotation + reuse detection (OAuth 2.1 §4.3.1). Claim the
+		// rotation atomically (synchronously, before the upstream await): the presented
+		// token must be the CURRENT one and no rotation may already be in flight. A
+		// superseded token, or a concurrent presentation of the same one, signals
+		// replay/theft, so revoke the whole family (drop the upstream token).
+		if (!store.beginRefreshRotation(claims.upstreamTokenId, claims.refreshId)) {
+			store.deleteUpstreamToken(claims.upstreamTokenId);
+			return bad('invalid_grant', 'refresh token has been superseded');
 		}
 		let refreshed;
 		try {
@@ -73,11 +93,13 @@ export async function handleToken(
 				clientId: pc.upstreamClientId,
 			});
 		} catch (err) {
-			// Transient/malformed upstream failures (wiki 5xx, network blip, garbled
-			// response) are not the client's fault: surface a retryable 503 rather
-			// than invalid_grant, which would tell an RFC 6749 client to DISCARD its
-			// refresh token and force a full re-auth. invalid_grant/invalid_client
+			// Abandon the claim WITHOUT rotating, so the presented refresh token stays
+			// valid for a retry. Transient/malformed upstream failures (wiki 5xx, blip,
+			// garbled response) are not the client's fault: surface a retryable 503
+			// rather than invalid_grant, which would tell an RFC 6749 client to DISCARD
+			// its refresh token and force a full re-auth. invalid_grant/invalid_client
 			// (the upstream genuinely rejecting the refresh token) still map to 400.
+			store.finishRefreshRotation(claims.upstreamTokenId);
 			if (err instanceof OAuthFlowError && (err.kind === 'transient' || err.kind === 'malformed')) {
 				return {
 					status: 503,
@@ -96,22 +118,29 @@ export async function handleToken(
 			refreshToken: refreshed.refresh_token ?? upstream.refreshToken,
 			expiresAt: Date.now() + refreshed.expires_in * 1000,
 		});
+		// Commit the rotation: a fresh rid becomes the only valid one for this family.
+		const rotatedRefreshId = randomUUID();
+		store.finishRefreshRotation(claims.upstreamTokenId, rotatedRefreshId);
 		// The re-minted access token deliberately carries an empty scope. The proxy
 		// JWT's `scope` claim is purely informational — real authorization is the
 		// upstream wiki token referenced by `jti`, which we just refreshed. The
 		// original grant's scopes are not persisted on the upstream-token record, so
 		// they are not available here. Re-attaching them (and enforcing scopes) is a
 		// follow-up for when/if scope enforcement lands.
-		return mintPair(pc, claims.upstreamTokenId, []);
+		return mintPair(pc, claims.upstreamTokenId, [], rotatedRefreshId);
 	}
 
 	return bad('unsupported_grant_type', `unsupported grant_type: ${body.grant_type}`);
 }
 
+// Mints the access/refresh JWT pair. The refreshId must already be recorded as the
+// upstream token's current rotating id by the caller (setRefreshId on first issue,
+// or finishRefreshRotation on rotation), so the issued refresh token matches it.
 async function mintPair(
 	pc: ProxyConfig,
 	upstreamTokenId: string,
 	scopes: string[],
+	refreshId: string,
 ): Promise<TokenResult> {
 	const access_token = await mintAccessToken({
 		issuer: pc.issuer,
@@ -124,6 +153,7 @@ async function mintPair(
 		issuer: pc.issuer,
 		signingKey: pc.signingKey,
 		upstreamTokenId,
+		refreshId,
 		ttlMs: REFRESH_JWT_TTL_MS,
 	});
 	return {

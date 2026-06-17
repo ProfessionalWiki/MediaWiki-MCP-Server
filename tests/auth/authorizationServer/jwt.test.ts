@@ -57,15 +57,31 @@ describe('proxy jwt', () => {
 		await expect(jwt.verifyAccessToken(t, { issuer, signingKey: key })).rejects.toThrow();
 	});
 
-	it('round-trips a refresh token', async () => {
+	it('round-trips a refresh token (including the rotating rid)', async () => {
 		const r = await jwt.mintRefreshToken({
 			issuer,
 			signingKey: key,
 			upstreamTokenId: 'u1',
+			refreshId: 'rid-1',
 			ttlMs: 60_000,
 		});
 		const claims = await jwt.verifyRefreshToken(r, { issuer, signingKey: key });
 		expect(claims.upstreamTokenId).toBe('u1');
+		expect(claims.refreshId).toBe('rid-1');
+	});
+
+	it('rejects a refresh token that carries no rid', async () => {
+		// A refresh JWT without the rotating rid claim (e.g. minted by older code)
+		// must be refused so it cannot bypass reuse detection.
+		const noRid = await new SignJWT({ typ: 'refresh' })
+			.setProtectedHeader({ alg: 'HS256' })
+			.setIssuer(issuer)
+			.setAudience(issuer)
+			.setJti('u1')
+			.setIssuedAt()
+			.setExpirationTime(new Date(Date.now() + 60_000))
+			.sign(enc(key));
+		await expect(jwt.verifyRefreshToken(noRid, { issuer, signingKey: key })).rejects.toThrow();
 	});
 
 	it('refuses a refresh token at the access verifier', async () => {
@@ -73,6 +89,7 @@ describe('proxy jwt', () => {
 			issuer,
 			signingKey: key,
 			upstreamTokenId: 'u1',
+			refreshId: 'rid-1',
 			ttlMs: 60_000,
 		});
 		await expect(jwt.verifyAccessToken(r, { issuer, signingKey: key })).rejects.toThrow();

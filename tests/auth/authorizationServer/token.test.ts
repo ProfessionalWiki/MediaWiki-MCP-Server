@@ -22,6 +22,8 @@ const pc: ProxyConfig = {
 	tokenTtlMs: 60_000,
 };
 
+const REDIRECT = 'http://127.0.0.1:9000/cb';
+
 describe('handleToken authorization_code', () => {
 	it('mints a proxy access token for a valid PKCE redemption', async () => {
 		const store = new InMemoryProxyStore();
@@ -33,13 +35,19 @@ describe('handleToken authorization_code', () => {
 		});
 		store.putCode('CC', {
 			clientId: 'cid',
-			clientRedirectUri: 'http://127.0.0.1:9000/cb',
+			clientRedirectUri: REDIRECT,
 			clientCodeChallenge: s256(verifier),
 			scopes: ['editpage'],
 			upstreamTokenId,
 		});
 		const r = await handleToken(
-			{ grant_type: 'authorization_code', code: 'CC', code_verifier: verifier },
+			{
+				grant_type: 'authorization_code',
+				code: 'CC',
+				code_verifier: verifier,
+				client_id: 'cid',
+				redirect_uri: REDIRECT,
+			},
 			pc,
 			store,
 		);
@@ -82,6 +90,80 @@ describe('handleToken authorization_code', () => {
 		expect(r.body.error).toBe('invalid_grant');
 	});
 
+	it('rejects a redemption whose client_id does not match the code, and burns the code', async () => {
+		const store = new InMemoryProxyStore();
+		const verifier = randomVerifier();
+		const upstreamTokenId = store.putUpstreamToken({
+			accessToken: 'WA',
+			refreshToken: 'WR',
+			expiresAt: Date.now() + 3.6e6,
+		});
+		store.putCode('CC', {
+			clientId: 'cid',
+			clientRedirectUri: REDIRECT,
+			clientCodeChallenge: s256(verifier),
+			scopes: [],
+			upstreamTokenId,
+		});
+		const r = await handleToken(
+			{
+				grant_type: 'authorization_code',
+				code: 'CC',
+				code_verifier: verifier,
+				client_id: 'WRONG',
+				redirect_uri: REDIRECT,
+			},
+			pc,
+			store,
+		);
+		expect(r.status).toBe(400);
+		expect(r.body.error).toBe('invalid_grant');
+		// The one-time code was consumed even on the mismatched attempt, so a
+		// subsequent correct redemption also fails.
+		const r2 = await handleToken(
+			{
+				grant_type: 'authorization_code',
+				code: 'CC',
+				code_verifier: verifier,
+				client_id: 'cid',
+				redirect_uri: REDIRECT,
+			},
+			pc,
+			store,
+		);
+		expect(r2.body.error).toBe('invalid_grant');
+	});
+
+	it('rejects a redemption whose redirect_uri does not match the code', async () => {
+		const store = new InMemoryProxyStore();
+		const verifier = randomVerifier();
+		const upstreamTokenId = store.putUpstreamToken({
+			accessToken: 'WA',
+			refreshToken: 'WR',
+			expiresAt: Date.now() + 3.6e6,
+		});
+		store.putCode('CC', {
+			clientId: 'cid',
+			clientRedirectUri: REDIRECT,
+			clientCodeChallenge: s256(verifier),
+			scopes: [],
+			upstreamTokenId,
+		});
+		const r = await handleToken(
+			{
+				grant_type: 'authorization_code',
+				code: 'CC',
+				code_verifier: verifier,
+				client_id: 'cid',
+				redirect_uri: 'http://evil.example/cb',
+			},
+			pc,
+			store,
+		);
+		expect(r.status).toBe(400);
+		expect(r.body.error).toBe('invalid_grant');
+	});
+
 	it('rejects unsupported grant_type', async () => {
 		const store = new InMemoryProxyStore();
 		const r = await handleToken({ grant_type: 'password' }, pc, store);
@@ -91,18 +173,29 @@ describe('handleToken authorization_code', () => {
 });
 
 describe('handleToken refresh_token', () => {
-	it('refreshes upstream and re-mints', async () => {
-		const store = new InMemoryProxyStore();
-		const upstreamTokenId = store.putUpstreamToken({
-			accessToken: 'OLD',
-			refreshToken: 'WR',
-			expiresAt: Date.now(),
-		});
+	// Helper: stage an upstream token plus a matching, current refresh JWT.
+	async function stage(
+		store: InMemoryProxyStore,
+		upstream: { accessToken: string; refreshToken?: string; expiresAt: number },
+	): Promise<{ upstreamTokenId: string; rt: string }> {
+		const upstreamTokenId = store.putUpstreamToken(upstream);
+		store.setRefreshId(upstreamTokenId, 'RID0');
 		const rt = await mintRefreshToken({
 			issuer: pc.issuer,
 			signingKey: pc.signingKey,
 			upstreamTokenId,
+			refreshId: 'RID0',
 			ttlMs: 60_000,
+		});
+		return { upstreamTokenId, rt };
+	}
+
+	it('refreshes upstream and re-mints', async () => {
+		const store = new InMemoryProxyStore();
+		const { upstreamTokenId, rt } = await stage(store, {
+			accessToken: 'OLD',
+			refreshToken: 'WR',
+			expiresAt: Date.now(),
 		});
 		const refresh = vi
 			.fn()
@@ -127,6 +220,68 @@ describe('handleToken refresh_token', () => {
 		expect(claims.upstreamTokenId).toBe(upstreamTokenId);
 	});
 
+	it('rotates the refresh token; replaying the old one is rejected and revokes the family', async () => {
+		const store = new InMemoryProxyStore();
+		const { upstreamTokenId, rt } = await stage(store, {
+			accessToken: 'OLD',
+			refreshToken: 'WR',
+			expiresAt: Date.now(),
+		});
+		const refresh = vi
+			.fn()
+			.mockResolvedValue({ access_token: 'NEW', refresh_token: 'WR2', expires_in: 3600 });
+
+		const r1 = await handleToken(
+			{ grant_type: 'refresh_token', refresh_token: rt },
+			pc,
+			store,
+			refresh,
+		);
+		expect(r1.status).toBe(200);
+		const rotated = r1.body.refresh_token as string;
+		expect(rotated).not.toBe(rt);
+
+		// Replaying the ORIGINAL refresh token (now superseded) is rejected and the
+		// whole upstream token is revoked.
+		const r2 = await handleToken(
+			{ grant_type: 'refresh_token', refresh_token: rt },
+			pc,
+			store,
+			refresh,
+		);
+		expect(r2.status).toBe(400);
+		expect(r2.body.error).toBe('invalid_grant');
+		expect(store.getUpstreamToken(upstreamTokenId)).toBeUndefined();
+	});
+
+	it('detects concurrent reuse of the same refresh token and revokes the family', async () => {
+		const store = new InMemoryProxyStore();
+		const { upstreamTokenId, rt } = await stage(store, {
+			accessToken: 'OLD',
+			refreshToken: 'WR',
+			expiresAt: Date.now(),
+		});
+		// Slow upstream refresh so both requests are genuinely in flight at once.
+		const refresh = vi
+			.fn()
+			.mockImplementation(
+				() =>
+					new Promise((resolve) =>
+						setTimeout(
+							() => resolve({ access_token: 'NEW', refresh_token: 'WR2', expires_in: 3600 }),
+							15,
+						),
+					),
+			);
+		const [a, b] = await Promise.all([
+			handleToken({ grant_type: 'refresh_token', refresh_token: rt }, pc, store, refresh),
+			handleToken({ grant_type: 'refresh_token', refresh_token: rt }, pc, store, refresh),
+		]);
+		// Exactly one is accepted; the concurrent reuse is rejected and revokes the family.
+		expect([a.status, b.status].sort((x, y) => x - y)).toEqual([200, 400]);
+		expect(store.getUpstreamToken(upstreamTokenId)).toBeUndefined();
+	});
+
 	it('rejects an invalid refresh token', async () => {
 		const store = new InMemoryProxyStore();
 		const r = await handleToken(
@@ -140,16 +295,7 @@ describe('handleToken refresh_token', () => {
 
 	it('rejects when there is no stored upstream refresh token', async () => {
 		const store = new InMemoryProxyStore();
-		const upstreamTokenId = store.putUpstreamToken({
-			accessToken: 'OLD',
-			expiresAt: Date.now(),
-		});
-		const rt = await mintRefreshToken({
-			issuer: pc.issuer,
-			signingKey: pc.signingKey,
-			upstreamTokenId,
-			ttlMs: 60_000,
-		});
+		const { rt } = await stage(store, { accessToken: 'OLD', expiresAt: Date.now() });
 		const r = await handleToken({ grant_type: 'refresh_token', refresh_token: rt }, pc, store);
 		expect(r.status).toBe(400);
 		expect(r.body.error).toBe('invalid_grant');
@@ -157,16 +303,10 @@ describe('handleToken refresh_token', () => {
 
 	it('returns invalid_grant when the upstream refresh fails', async () => {
 		const store = new InMemoryProxyStore();
-		const upstreamTokenId = store.putUpstreamToken({
+		const { upstreamTokenId, rt } = await stage(store, {
 			accessToken: 'OLD',
 			refreshToken: 'WR',
 			expiresAt: Date.now(),
-		});
-		const rt = await mintRefreshToken({
-			issuer: pc.issuer,
-			signingKey: pc.signingKey,
-			upstreamTokenId,
-			ttlMs: 60_000,
 		});
 		const refresh = vi.fn().mockRejectedValue(new Error('boom'));
 		const r = await handleToken(
@@ -182,16 +322,10 @@ describe('handleToken refresh_token', () => {
 
 	it('maps a transient upstream refresh failure to 503 and keeps the upstream token', async () => {
 		const store = new InMemoryProxyStore();
-		const upstreamTokenId = store.putUpstreamToken({
+		const { upstreamTokenId, rt } = await stage(store, {
 			accessToken: 'OLD',
 			refreshToken: 'WR',
 			expiresAt: Date.now(),
-		});
-		const rt = await mintRefreshToken({
-			issuer: pc.issuer,
-			signingKey: pc.signingKey,
-			upstreamTokenId,
-			ttlMs: 60_000,
 		});
 		const refresh = vi.fn().mockRejectedValue(new OAuthFlowError('transient', 'boom'));
 		const r = await handleToken(
@@ -209,16 +343,10 @@ describe('handleToken refresh_token', () => {
 
 	it('maps an upstream invalid_grant to 400 invalid_grant', async () => {
 		const store = new InMemoryProxyStore();
-		const upstreamTokenId = store.putUpstreamToken({
+		const { rt } = await stage(store, {
 			accessToken: 'OLD',
 			refreshToken: 'WR',
 			expiresAt: Date.now(),
-		});
-		const rt = await mintRefreshToken({
-			issuer: pc.issuer,
-			signingKey: pc.signingKey,
-			upstreamTokenId,
-			ttlMs: 60_000,
 		});
 		const refresh = vi.fn().mockRejectedValue(new OAuthFlowError('invalid_grant', 'dead'));
 		const r = await handleToken(

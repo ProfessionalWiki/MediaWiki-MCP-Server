@@ -45,9 +45,13 @@ export async function mintRefreshToken(a: {
 	issuer: string;
 	signingKey: string;
 	upstreamTokenId: string;
+	// Rotating per-issuance id (OAuth 2.1 §4.3.1). jti stays the upstreamTokenId
+	// (the lookup key); `rid` is what rotates, so a superseded refresh token can be
+	// detected against the value recorded on the upstream-token record.
+	refreshId: string;
 	ttlMs: number;
 }): Promise<string> {
-	return new SignJWT({ typ: 'refresh' })
+	return new SignJWT({ typ: 'refresh', rid: a.refreshId })
 		.setProtectedHeader({ alg: ALG })
 		.setIssuer(a.issuer)
 		.setAudience(a.issuer)
@@ -60,17 +64,21 @@ export async function mintRefreshToken(a: {
 export async function verifyRefreshToken(
 	token: string,
 	o: { issuer: string; signingKey: string },
-): Promise<{ upstreamTokenId: string }> {
+): Promise<{ upstreamTokenId: string; refreshId: string }> {
 	const { payload } = await jwtVerify(token, enc(o.signingKey), {
 		...VERIFY_OPTS,
 		issuer: o.issuer,
 		audience: o.issuer,
 		requiredClaims: ['exp'],
 	});
-	if (payload.typ !== 'refresh' || typeof payload.jti !== 'string') {
+	if (
+		payload.typ !== 'refresh' ||
+		typeof payload.jti !== 'string' ||
+		typeof payload.rid !== 'string'
+	) {
 		throw new Error('not a refresh token');
 	}
-	return { upstreamTokenId: payload.jti };
+	return { upstreamTokenId: payload.jti, refreshId: payload.rid };
 }
 
 export async function signConsent(a: {

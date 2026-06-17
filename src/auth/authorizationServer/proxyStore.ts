@@ -30,6 +30,10 @@ export interface UpstreamToken {
 	accessToken: string;
 	refreshToken?: string;
 	expiresAt: number;
+	// The rotating id (`rid`) of the currently-valid downstream refresh token for
+	// this upstream token. A presented refresh token whose rid differs is a
+	// superseded/replayed token (OAuth 2.1 §4.3.1 reuse detection).
+	refreshId?: string;
 }
 
 const TXN_TTL_MS = 15 * 60 * 1000;
@@ -51,6 +55,10 @@ export interface ProxyStore {
 	putUpstreamToken(t: UpstreamToken): string;
 	getUpstreamToken(id: string): UpstreamToken | undefined;
 	updateUpstreamToken(id: string, t: UpstreamToken): void;
+	setRefreshId(id: string, refreshId: string): void;
+	deleteUpstreamToken(id: string): void;
+	beginRefreshRotation(id: string, expectedRefreshId: string): boolean;
+	finishRefreshRotation(id: string, newRefreshId?: string): void;
 }
 
 interface Expiring<T> {
@@ -63,6 +71,10 @@ export class InMemoryProxyStore implements ProxyStore {
 	private txns = new Map<string, Expiring<TransactionRecord>>();
 	private codes = new Map<string, Expiring<CodeRecord>>();
 	private upstream = new Map<string, UpstreamToken>();
+	// Upstream-token ids with a refresh rotation currently in flight. Used to detect
+	// a concurrent presentation of the same refresh token (reuse) before either
+	// request has committed its rotated id.
+	private refreshing = new Set<string>();
 
 	public constructor(
 		private now: () => number = Date.now,
@@ -132,6 +144,51 @@ export class InMemoryProxyStore implements ProxyStore {
 	}
 
 	public updateUpstreamToken(id: string, t: UpstreamToken): void {
-		this.upstream.set(id, t);
+		// Merge so fields not carried by the update (notably refreshId) survive — but
+		// never RESURRECT a token that was deleted (e.g. family-revoked) concurrently.
+		const existing = this.upstream.get(id);
+		if (!existing) {
+			return;
+		}
+		this.upstream.set(id, { ...existing, ...t });
+	}
+
+	public setRefreshId(id: string, refreshId: string): void {
+		const existing = this.upstream.get(id);
+		if (existing) {
+			this.upstream.set(id, { ...existing, refreshId });
+		}
+	}
+
+	public deleteUpstreamToken(id: string): void {
+		this.upstream.delete(id);
+		this.refreshing.delete(id);
+	}
+
+	// Atomically (synchronously, in one event-loop turn) claim a refresh rotation:
+	// the token must exist, its current refreshId must match the presented one, and
+	// no rotation may already be in flight. Returns false otherwise — the caller
+	// treats that as reuse. Claiming BEFORE the upstream refresh await is what makes
+	// a concurrent presentation of the same refresh token detectable.
+	public beginRefreshRotation(id: string, expectedRefreshId: string): boolean {
+		const existing = this.upstream.get(id);
+		if (!existing || existing.refreshId !== expectedRefreshId) {
+			return false;
+		}
+		if (this.refreshing.has(id)) {
+			return false;
+		}
+		this.refreshing.add(id);
+		return true;
+	}
+
+	// Release the in-flight claim. With a newRefreshId the rotation is committed
+	// (success); without one the claim is abandoned and the current refreshId stays
+	// valid, so a retry after a transient upstream failure can reuse the same token.
+	public finishRefreshRotation(id: string, newRefreshId?: string): void {
+		this.refreshing.delete(id);
+		if (newRefreshId !== undefined) {
+			this.setRefreshId(id, newRefreshId);
+		}
 	}
 }
