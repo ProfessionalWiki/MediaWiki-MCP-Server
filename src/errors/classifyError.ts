@@ -32,6 +32,13 @@ const MW_CODE_TO_CATEGORY: Record<string, ErrorCategory> = {
 	blocked: 'permission_denied',
 	'abusefilter-disallowed': 'permission_denied',
 	'abusefilter-warning': 'permission_denied',
+	// Editing a namespace listed in $wgNamespaceProtection without the required
+	// right. Core emits namespaceprotected (or protectedinterface for MediaWiki:);
+	// older versions use the protectednamespace spellings. Match all four.
+	protectednamespace: 'permission_denied',
+	'protectednamespace-interface': 'permission_denied',
+	namespaceprotected: 'permission_denied',
+	protectedinterface: 'permission_denied',
 	// invalid_input
 	invalidtitle: 'invalid_input',
 	invalidparammix: 'invalid_input',
