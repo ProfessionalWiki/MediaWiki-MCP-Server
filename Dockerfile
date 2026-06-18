@@ -1,5 +1,5 @@
 # ----- Build Stage -----
-FROM node:lts-alpine@sha256:fb71d01345f11b708a3553c66e7c74074f2d506400ea81973343d915cb64eef0 AS builder
+FROM node:lts-alpine@sha256:21f403ab171f2dc89bad4dd69d7721bfd15f084ccb46cdd225f31f2bc59b5c9a AS builder
 WORKDIR /app
 
 # Copy package and configuration
@@ -12,7 +12,7 @@ COPY src ./src
 RUN npm ci --ignore-scripts && npm run build
 
 # ----- Production Stage -----
-FROM node:lts-alpine@sha256:fb71d01345f11b708a3553c66e7c74074f2d506400ea81973343d915cb64eef0
+FROM node:lts-alpine@sha256:21f403ab171f2dc89bad4dd69d7721bfd15f084ccb46cdd225f31f2bc59b5c9a
 
 ARG GIT_SHA=unknown
 LABEL org.opencontainers.image.title="MediaWiki MCP Server" \
