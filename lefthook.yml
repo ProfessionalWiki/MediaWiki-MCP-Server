@@ -12,8 +12,8 @@ pre-commit:
 pre-push:
   parallel: true
   jobs:
-    - name: tsgo
-      run: npx tsgo --noEmit
+    - name: tsc
+      run: npx tsc --noEmit
 
     - name: vitest
       run: npm test
