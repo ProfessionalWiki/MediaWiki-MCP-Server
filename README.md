@@ -62,13 +62,6 @@ Every tool that operates on a wiki accepts an optional `wiki` argument naming th
 
 Each pack's tools register only on wikis where its extension is installed.
 
-**[Semantic MediaWiki](https://www.mediawiki.org/wiki/Extension:Semantic_MediaWiki)**
-
-| Name | Description |
-|---|---|
-| `smw-list-properties` | List Semantic MediaWiki properties with copy-paste templates for `smw-query`. |
-| `smw-query` | Run a Semantic MediaWiki `#ask` query. |
-
 **[NeoWiki](https://neowiki.ai/)**
 
 | Name | Description |
@@ -84,6 +77,13 @@ Each pack's tools register only on wikis where its extension is installed.
 | `neowiki-delete-subject` | Delete a subject by ID. Requires the `edit` right. |
 | `neowiki-set-main-subject` | Set or clear a page's main subject. Requires the `edit` right. |
 | `neowiki-validate-subject` | Dry-run validate a proposed subject and return violations. |
+
+**[Semantic MediaWiki](https://www.mediawiki.org/wiki/Extension:Semantic_MediaWiki)**
+
+| Name | Description |
+|---|---|
+| `smw-list-properties` | List Semantic MediaWiki properties with copy-paste templates for `smw-query`. |
+| `smw-query` | Run a Semantic MediaWiki `#ask` query. |
 
 **[Bucket](https://github.com/weirdgloop/mediawiki-extensions-Bucket)**
 
