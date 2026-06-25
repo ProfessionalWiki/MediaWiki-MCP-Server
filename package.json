@@ -74,7 +74,7 @@
 	"devDependencies": {
 		"@anthropic-ai/mcpb": "^2.1.2",
 		"@types/express": "^5.0.2",
-		"@types/node": "^25.0.2",
+		"@types/node": "^26.0.1",
 		"@types/supertest": "^7.2.0",
 		"ajv": "^8.17.1",
 		"ajv-formats": "^3.0.1",
