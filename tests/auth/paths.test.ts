@@ -22,15 +22,21 @@ describe('getCredentialsPath', () => {
 		Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
 		expect(getCredentialsPath()).toBe(path.join('/tmp/xdg', 'mediawiki-mcp', 'credentials.json'));
 	});
-	it('falls back to ~/.config on Linux/macOS when XDG unset', () => {
-		vi.stubEnv('MCP_OAUTH_CREDENTIALS_FILE', '');
-		vi.stubEnv('XDG_CONFIG_HOME', '');
-		vi.stubEnv('HOME', '/home/u');
-		Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
-		expect(getCredentialsPath()).toBe(
-			path.join('/home/u', '.config', 'mediawiki-mcp', 'credentials.json'),
-		);
-	});
+	// os.homedir() reads USERPROFILE on win32, not HOME — spoofing
+	// process.platform to 'darwin' doesn't make the HOME stub below take
+	// effect on a real Windows host, so this only exercises anything on POSIX.
+	it.skipIf(process.platform === 'win32')(
+		'falls back to ~/.config on Linux/macOS when XDG unset',
+		() => {
+			vi.stubEnv('MCP_OAUTH_CREDENTIALS_FILE', '');
+			vi.stubEnv('XDG_CONFIG_HOME', '');
+			vi.stubEnv('HOME', '/home/u');
+			Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
+			expect(getCredentialsPath()).toBe(
+				path.join('/home/u', '.config', 'mediawiki-mcp', 'credentials.json'),
+			);
+		},
+	);
 	it('uses %APPDATA% on win32', () => {
 		vi.stubEnv('MCP_OAUTH_CREDENTIALS_FILE', '');
 		vi.stubEnv('APPDATA', 'C:\\Users\\u\\AppData\\Roaming');

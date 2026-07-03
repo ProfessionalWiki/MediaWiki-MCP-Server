@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - Trying to create, edit, or move a page in a protected namespace without the required right is now reported as a permission error rather than a generic upstream failure.
 - The siteinfo probe no longer mislabels a wiki denying anonymous reads as a "malformed" response. A wiki configured `private: true`, or one that returns a MediaWiki API error (e.g. `readapidenied`) without declaring it, now gets an authenticated retry through its configured bot credentials instead — so extension-gated tools (SemanticMediaWiki, Bucket, Cargo, ...) are correctly detected on read-locked wikis without requiring anonymous read to be opened up.
+- Under stdio transport, a retriable wiki request failure (network hiccup, timeout, 5xx) could corrupt the JSON-RPC stream: the `mwn` dependency logs retry diagnostics via `console.log`, which writes to stdout — the same channel carrying protocol messages — splicing a raw, non-JSON object into the message stream and breaking the client's parser (visible as a client-side `SyntaxError` on an otherwise-successful tool call). `console.log`/`console.info`/`console.debug` are now redirected to stderr for the duration of the stdio transport's process lifetime.
 
 ## [0.13.0] - 2026-06-17
 
