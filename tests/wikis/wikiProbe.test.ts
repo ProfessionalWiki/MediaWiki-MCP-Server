@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WikiProbeImpl } from '../../src/wikis/wikiProbe.js';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
+import type { MwnProvider } from '../../src/wikis/mwnProvider.js';
 import { fakeClock } from '../helpers/fakeClock.js';
 
 vi.mock('../../src/transport/httpFetch.js', () => ({
@@ -17,6 +18,16 @@ const baseWiki: WikiConfig = {
 	scriptpath: '/w',
 };
 
+const authenticatedWiki: WikiConfig = {
+	...baseWiki,
+	username: 'bot@bot',
+	password: 'secret',
+};
+
+const readapidenied = {
+	error: { code: 'readapidenied', info: 'You need read permission to use this module.' },
+};
+
 function makeRegistry(wikis: Record<string, WikiConfig>): WikiRegistry {
 	return {
 		getAll: () => wikis,
@@ -24,6 +35,15 @@ function makeRegistry(wikis: Record<string, WikiConfig>): WikiRegistry {
 		add: () => {},
 		remove: () => {},
 		isManagementAllowed: () => true,
+	};
+}
+
+// Minimal stand-in for the authenticated `Mwn` instance MwnProvider.get()
+// resolves to — only `.request()` is exercised by the probe's retry path.
+function makeMwnProvider(request: (params: unknown) => Promise<unknown>): MwnProvider {
+	return {
+		get: () => Promise.resolve({ request } as unknown as Awaited<ReturnType<MwnProvider['get']>>),
+		invalidate: () => {},
 	};
 }
 
@@ -187,6 +207,95 @@ describe('WikiProbeImpl', () => {
 		clock.advance(30_000);
 		expect(await probe.hasExtension('a', 'SemanticMediaWiki')).toBe(false);
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(1);
+	});
+
+	describe('anonymous read denied', () => {
+		it('fails without retrying when the wiki has no configured credentials', async () => {
+			vi.mocked(makeApiRequest).mockResolvedValueOnce(readapidenied);
+			const clock = fakeClock();
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
+
+			const result = await probe.inspect('a');
+			expect(result.reachable).toBe(false);
+			expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(1);
+		});
+
+		it('fails without retrying when no MwnProvider was supplied', async () => {
+			vi.mocked(makeApiRequest).mockResolvedValueOnce(readapidenied);
+			const clock = fakeClock();
+			const probe = new WikiProbeImpl(makeRegistry({ a: authenticatedWiki }), clock.now);
+
+			const result = await probe.inspect('a');
+			expect(result.reachable).toBe(false);
+		});
+
+		it('retries authenticated and succeeds when the wiki has credentials configured', async () => {
+			vi.mocked(makeApiRequest).mockResolvedValueOnce(readapidenied);
+			const request = vi.fn().mockResolvedValue({
+				query: { extensions: [{ name: 'SemanticMediaWiki' }] },
+			});
+			const clock = fakeClock();
+			const probe = new WikiProbeImpl(
+				makeRegistry({ a: authenticatedWiki }),
+				clock.now,
+				makeMwnProvider(request),
+			);
+
+			const result = await probe.inspect('a');
+			expect(result.reachable).toBe(true);
+			expect([...result.extensions]).toEqual(['SemanticMediaWiki']);
+			expect(request).toHaveBeenCalledWith(
+				expect.objectContaining({ action: 'query', meta: 'siteinfo' }),
+			);
+		});
+
+		it('fails with a combined reason when the authenticated retry also fails', async () => {
+			vi.mocked(makeApiRequest).mockResolvedValueOnce(readapidenied);
+			const request = vi.fn().mockRejectedValue(new Error('still denied'));
+			const clock = fakeClock();
+			const probe = new WikiProbeImpl(
+				makeRegistry({ a: authenticatedWiki }),
+				clock.now,
+				makeMwnProvider(request),
+			);
+
+			const result = await probe.inspect('a');
+			expect(result.reachable).toBe(false);
+			expect(request).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	describe('private: true wikis', () => {
+		const privateWiki: WikiConfig = { ...authenticatedWiki, private: true };
+
+		it('skips the anonymous request entirely and probes authenticated', async () => {
+			const request = vi.fn().mockResolvedValue({
+				query: { extensions: [{ name: 'SemanticMediaWiki' }] },
+			});
+			const probe = new WikiProbeImpl(
+				makeRegistry({ a: privateWiki }),
+				undefined,
+				makeMwnProvider(request),
+			);
+
+			const result = await probe.inspect('a');
+			expect(result.reachable).toBe(true);
+			expect([...result.extensions]).toEqual(['SemanticMediaWiki']);
+			expect(vi.mocked(makeApiRequest)).not.toHaveBeenCalled();
+			expect(request).toHaveBeenCalledTimes(1);
+		});
+
+		it('fails cleanly when marked private but no credentials are configured', async () => {
+			const probe = new WikiProbeImpl(
+				makeRegistry({ a: { ...baseWiki, private: true } }),
+				undefined,
+				makeMwnProvider(vi.fn()),
+			);
+
+			const result = await probe.inspect('a');
+			expect(result.reachable).toBe(false);
+			expect(vi.mocked(makeApiRequest)).not.toHaveBeenCalled();
+		});
 	});
 
 	describe('hasAnyExtension', () => {

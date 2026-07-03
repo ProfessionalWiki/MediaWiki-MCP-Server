@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Fixed
 
 - Trying to create, edit, or move a page in a protected namespace without the required right is now reported as a permission error rather than a generic upstream failure.
+- The siteinfo probe no longer mislabels a wiki denying anonymous reads as a "malformed" response. A wiki configured `private: true`, or one that returns a MediaWiki API error (e.g. `readapidenied`) without declaring it, now gets an authenticated retry through its configured bot credentials instead — so extension-gated tools (SemanticMediaWiki, Bucket, Cargo, ...) are correctly detected on read-locked wikis without requiring anonymous read to be opened up.
 
 ## [0.13.0] - 2026-06-17
 

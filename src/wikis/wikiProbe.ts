@@ -1,5 +1,7 @@
 import { makeApiRequest } from '../transport/httpFetch.js';
+import type { WikiConfig } from '../config/loadConfig.js';
 import type { WikiRegistry } from './wikiRegistry.js';
+import type { MwnProvider } from './mwnProvider.js';
 import type { LicenseInfo } from './siteInfoCache.js';
 import { normalizeServer } from './normalizeServer.js';
 import { errorMessage } from '../errors/isErrnoException.js';
@@ -28,11 +30,22 @@ export interface WikiIdentity {
 }
 
 /**
- * Anonymously probes a wiki's public siteinfo once, caches it (1 h on success,
- * 60 s on failure), and answers reachability, extension, and public-identity
- * questions from that snapshot. A single request fetches everything, so
- * gating, capability reporting, and list-wikis all share one network round-trip
- * per wiki without authenticating.
+ * Probes a wiki's siteinfo once, caches it (1 h on success, 60 s on failure),
+ * and answers reachability, extension, and public-identity questions from that
+ * snapshot. A single request fetches everything, so gating, capability
+ * reporting, and list-wikis all share one network round-trip per wiki without
+ * authenticating.
+ *
+ * The probe is anonymous by default. Wikis configured `private: true`
+ * (`$wgGroupPermissions['*']['read'] = false`) always deny anonymous reads,
+ * so the probe skips straight to the wiki's authenticated `mwn` session (the
+ * same one tool calls use) instead of wasting a round-trip. A wiki that
+ * denies anonymous reads WITHOUT declaring `private` gets the same
+ * authenticated retry reactively, triggered by MediaWiki's
+ * `{error:{code:'readapidenied',...}}` envelope rather than treating it as a
+ * malformed response. Either way, this deliberately does not require or
+ * suggest opening up anonymous read on the wiki — it only uses credentials
+ * the operator already configured.
  */
 export interface WikiProbe {
 	hasExtension(wikiKey: string, extensionName: string): Promise<boolean>;
@@ -60,6 +73,49 @@ interface SiteInfoResponse {
 		general?: { server?: string; articlepath?: string };
 		rightsinfo?: { url?: string; text?: string };
 	};
+	error?: { code?: string; info?: string };
+}
+
+interface ParsedSiteInfo extends WikiIdentity {
+	extensions: Set<string>;
+}
+
+function hasCredentials(config: Readonly<WikiConfig>): boolean {
+	return Boolean(config.token) || Boolean(config.username && config.password);
+}
+
+// Throws 'Malformed siteinfo extensions response' when query.extensions isn't
+// an array — the caller decides whether that's a real shape problem or the
+// caller passed in an {error:...} envelope that never had a query at all.
+function parseSiteInfo(data: SiteInfoResponse): ParsedSiteInfo {
+	const list = data.query?.extensions;
+	if (!Array.isArray(list)) {
+		throw new Error('Malformed siteinfo extensions response');
+	}
+	const names = new Set<string>();
+	for (const ext of list) {
+		if (typeof ext.name === 'string' && ext.name !== '') {
+			names.add(ext.name);
+		}
+	}
+
+	const general = data.query?.general;
+	const server =
+		typeof general?.server === 'string' && general.server !== ''
+			? normalizeServer(general.server)
+			: undefined;
+	const articlepath =
+		typeof general?.articlepath === 'string' ? general.articlepath.replace('/$1', '') : undefined;
+	const rights = data.query?.rightsinfo;
+	const license: LicenseInfo | undefined =
+		rights?.url && rights.text ? { url: rights.url, title: rights.text } : undefined;
+
+	return {
+		extensions: names,
+		...(server !== undefined ? { server } : {}),
+		...(articlepath !== undefined ? { articlepath } : {}),
+		...(license !== undefined ? { license } : {}),
+	};
 }
 
 type CacheEntry =
@@ -73,6 +129,7 @@ export class WikiProbeImpl implements WikiProbe {
 	public constructor(
 		private readonly wikis: WikiRegistry,
 		private readonly now: () => number = () => Date.now(),
+		private readonly mwnProvider?: MwnProvider,
 	) {}
 
 	public async hasExtension(wikiKey: string, extensionName: string): Promise<boolean> {
@@ -148,53 +205,32 @@ export class WikiProbeImpl implements WikiProbe {
 			return failed;
 		}
 
+		const siprop = 'extensions|general|rightsinfo';
+
+		// `private: true` means the wiki always denies anonymous reads
+		// ($wgGroupPermissions['*']['read'] = false) — skip the doomed
+		// anonymous round-trip and probe authenticated directly.
+		if (config.private === true) {
+			return this.probeAuthenticated(wikiKey, config, siprop);
+		}
+
 		const apiUrl = `${config.server}${config.scriptpath}/api.php`;
 		try {
 			const data = await makeApiRequest<SiteInfoResponse>(
 				apiUrl,
-				{
-					action: 'query',
-					meta: 'siteinfo',
-					siprop: 'extensions|general|rightsinfo',
-					format: 'json',
-				},
+				{ action: 'query', meta: 'siteinfo', siprop, format: 'json' },
 				{ signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) },
 			);
-			// Extensions gate tool visibility, so a malformed list is a hard failure.
-			// General and rightsinfo are best-effort public identity: absent fields
-			// simply leave the corresponding snapshot field undefined.
-			const list = data.query?.extensions;
-			if (!Array.isArray(list)) {
-				throw new Error('Malformed siteinfo extensions response');
-			}
-			const names = new Set<string>();
-			for (const ext of list) {
-				if (typeof ext.name === 'string' && ext.name !== '') {
-					names.add(ext.name);
-				}
+
+			// A well-formed MediaWiki API error (e.g. readapidenied on a wiki that
+			// requires read permission even anonymously) is not a malformed
+			// response — it's a permission denial. Retry authenticated rather than
+			// suggesting the wiki open up anonymous read.
+			if (data.error) {
+				return this.probeAuthenticated(wikiKey, config, siprop, data.error);
 			}
 
-			const general = data.query?.general;
-			const server =
-				typeof general?.server === 'string' && general.server !== ''
-					? normalizeServer(general.server)
-					: undefined;
-			const articlepath =
-				typeof general?.articlepath === 'string'
-					? general.articlepath.replace('/$1', '')
-					: undefined;
-			const rights = data.query?.rightsinfo;
-			const license: LicenseInfo | undefined =
-				rights?.url && rights.text ? { url: rights.url, title: rights.text } : undefined;
-
-			const entry: CacheEntry = {
-				kind: 'success',
-				extensions: names,
-				expiresAt: this.now() + TTL_SUCCESS_MS,
-				...(server !== undefined ? { server } : {}),
-				...(articlepath !== undefined ? { articlepath } : {}),
-				...(license !== undefined ? { license } : {}),
-			};
+			const entry = this.toSuccessEntry(parseSiteInfo(data));
 			this.cache.set(wikiKey, entry);
 			return entry;
 		} catch (error) {
@@ -202,6 +238,74 @@ export class WikiProbeImpl implements WikiProbe {
 				wikiKey,
 				error: errorMessage(error),
 			});
+			const failed: CacheEntry = { kind: 'failed', expiresAt: this.now() + TTL_FAILURE_MS };
+			this.cache.set(wikiKey, failed);
+			return failed;
+		}
+	}
+
+	private toSuccessEntry(parsed: ParsedSiteInfo): CacheEntry {
+		return {
+			kind: 'success',
+			extensions: parsed.extensions,
+			expiresAt: this.now() + TTL_SUCCESS_MS,
+			...(parsed.server !== undefined ? { server: parsed.server } : {}),
+			...(parsed.articlepath !== undefined ? { articlepath: parsed.articlepath } : {}),
+			...(parsed.license !== undefined ? { license: parsed.license } : {}),
+		};
+	}
+
+	// Reached either because config.private skipped the anonymous attempt
+	// (anonymousError undefined), or because an anonymous probe that wasn't
+	// declared private got a well-formed API error back anyway — a wiki
+	// locked down without the config flag set (anonymousError present).
+	// Not reached for network/shape failures; those go through probe()'s own
+	// catch. Skips the retry entirely when no credentials are configured, so
+	// a wiki with no bot account doesn't pay for a doomed round-trip.
+	private async probeAuthenticated(
+		wikiKey: string,
+		config: Readonly<WikiConfig>,
+		siprop: string,
+		anonymousError?: { code?: string; info?: string },
+	): Promise<CacheEntry> {
+		const anonymousReason = anonymousError
+			? (anonymousError.code ?? anonymousError.info ?? 'unknown API error')
+			: undefined;
+
+		if (!this.mwnProvider || !hasCredentials(config)) {
+			logger.warning(
+				anonymousReason
+					? 'Wiki siteinfo probe denied for anonymous access'
+					: 'Wiki is configured private but has no credentials for an authenticated siteinfo probe',
+				{ wikiKey, ...(anonymousReason ? { error: anonymousReason } : {}) },
+			);
+			const failed: CacheEntry = { kind: 'failed', expiresAt: this.now() + TTL_FAILURE_MS };
+			this.cache.set(wikiKey, failed);
+			return failed;
+		}
+
+		try {
+			const mwn = await this.mwnProvider.get(wikiKey);
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn.request() resolves the raw API body; trusted JSON envelope at this boundary, same as makeApiRequest()
+			const authData = (await mwn.request({
+				action: 'query',
+				meta: 'siteinfo',
+				siprop,
+			})) as SiteInfoResponse;
+			const entry = this.toSuccessEntry(parseSiteInfo(authData));
+			this.cache.set(wikiKey, entry);
+			return entry;
+		} catch (authError) {
+			logger.warning(
+				anonymousReason
+					? 'Wiki siteinfo probe denied for anonymous access; authenticated retry failed'
+					: 'Authenticated siteinfo probe failed for private wiki',
+				{
+					wikiKey,
+					...(anonymousReason ? { anonymousError: anonymousReason } : {}),
+					authError: errorMessage(authError),
+				},
+			);
 			const failed: CacheEntry = { kind: 'failed', expiresAt: this.now() + TTL_FAILURE_MS };
 			this.cache.set(wikiKey, failed);
 			return failed;
