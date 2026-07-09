@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Fixed
 
 - Trying to create, edit, or move a page in a protected namespace without the required right is now reported as a permission error rather than a generic upstream failure.
+- An expired or invalid OAuth access token is now reported as an authentication error rather than a generic upstream failure, so an OAuth-aware client can tell the token needs to be refreshed.
 
 ## [0.13.0] - 2026-06-17
 

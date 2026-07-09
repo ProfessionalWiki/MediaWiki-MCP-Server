@@ -48,6 +48,7 @@ describe('classifyError', () => {
 			['mustbeloggedin', 'authentication'],
 			['assertuserfailed', 'authentication'],
 			['assertbotfailed', 'authentication'],
+			['mwoauth-invalid-authorization', 'authentication'],
 			['ratelimited', 'rate_limited'],
 			['readonly', 'upstream_failure'],
 		];

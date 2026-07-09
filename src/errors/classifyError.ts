@@ -61,6 +61,11 @@ const MW_CODE_TO_CATEGORY: Record<string, ErrorCategory> = {
 	mustbeloggedin: 'authentication',
 	assertuserfailed: 'authentication',
 	assertbotfailed: 'authentication',
+	// An expired or otherwise invalid OAuth access token: MediaWiki's OAuth
+	// extension rejects the request with this code. Classifying it as
+	// authentication (not upstream_failure) lets OAuth-aware callers tell a dead
+	// token apart from a genuine upstream fault and start a token refresh.
+	'mwoauth-invalid-authorization': 'authentication',
 	// rate_limited
 	ratelimited: 'rate_limited',
 	// upstream_failure (explicit; unknown codes also fall through here)
