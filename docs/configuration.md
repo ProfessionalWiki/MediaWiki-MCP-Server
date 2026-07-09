@@ -26,7 +26,7 @@ Covers configuration topics beyond the basic `config.json` shape documented in [
 | `token` | No | OAuth2 access token for authenticated operations (manual token alternative to `oauth2ClientId`) |
 | `username` | No | Bot username (fallback when OAuth2 is not available) |
 | `password` | No | Bot password (fallback when OAuth2 is not available) |
-| `private` | No | Whether the wiki requires authentication to read (default: `false`) |
+| `private` | No | Whether the wiki requires authentication to read (default: `false`). Over HTTP this challenges anonymous requests for sign-in; on every transport it also tells the extension-detection probe to skip the anonymous siteinfo request and go straight to the wiki's configured bot credentials, so extension-gated tools (SemanticMediaWiki, Bucket, Cargo, ...) are still detected. A wiki that denies anonymous reads without this flag set falls back to the same authenticated retry reactively. |
 | `readOnly` | No | When `true`, hides the six 🔐 write tools from `tools/list` while this wiki is active. Pairs with `allowWikiManagement: false` for a [hosted read-only endpoint](deployment.md). Default: `false` |
 | `tags` | No | Change tag(s) to apply to every write (string or array). The tag must exist and be active at `Special:Tags` — see [change tags](#change-tags-tags) for details. |
 

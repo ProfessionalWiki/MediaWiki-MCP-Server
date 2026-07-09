@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import * as path from 'node:path';
 
 vi.mock('node:fs/promises', () => ({
 	realpath: vi.fn(),
@@ -34,9 +35,13 @@ describe('uploadGuard.assertAllowedPath', () => {
 	});
 
 	it('accepts and returns the canonical path for a file inside an allowed dir', async () => {
-		vi.mocked(realpath).mockResolvedValueOnce('/home/user/uploads/cat.jpg');
-		const resolved = await assertAllowedPath('/home/user/uploads/cat.jpg', ['/home/user/uploads']);
-		expect(resolved).toBe('/home/user/uploads/cat.jpg');
+		// Built with path.join (not a hardcoded '/') so the separator matches
+		// whatever `sep` the source under test resolves to on this host.
+		const allowedDir = path.join('/home', 'user', 'uploads');
+		const filepath = path.join(allowedDir, 'cat.jpg');
+		vi.mocked(realpath).mockResolvedValueOnce(filepath);
+		const resolved = await assertAllowedPath(filepath, [allowedDir]);
+		expect(resolved).toBe(filepath);
 	});
 
 	it('rejects when a symlink resolves outside the allowlist', async () => {
@@ -67,11 +72,13 @@ describe('uploadGuard.assertAllowedPath', () => {
 	});
 
 	it('accepts when the file is under any of several allowlist entries', async () => {
-		vi.mocked(realpath).mockResolvedValueOnce('/var/lib/photos/b.jpg');
-		const resolved = await assertAllowedPath('/var/lib/photos/b.jpg', [
-			'/home/user/uploads',
-			'/var/lib/photos',
+		const photosDir = path.join('/var', 'lib', 'photos');
+		const filepath = path.join(photosDir, 'b.jpg');
+		vi.mocked(realpath).mockResolvedValueOnce(filepath);
+		const resolved = await assertAllowedPath(filepath, [
+			path.join('/home', 'user', 'uploads'),
+			photosDir,
 		]);
-		expect(resolved).toBe('/var/lib/photos/b.jpg');
+		expect(resolved).toBe(filepath);
 	});
 });

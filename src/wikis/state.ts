@@ -22,6 +22,8 @@ export function createAppState(config: Config): AppState {
 	const uploadDirs = new UploadDirsImpl(config.uploadDirs);
 	const mwnProvider = new MwnProviderImpl(wikiRegistry, activeWiki, getRuntimeToken);
 	const siteInfoCache = new SiteInfoCacheImpl();
-	const wikiProbe = new WikiProbeImpl(wikiRegistry);
+	// undefined `now` keeps the default Date.now() clock; mwnProvider lets the
+	// probe retry authenticated when a wiki denies anonymous siteinfo reads.
+	const wikiProbe = new WikiProbeImpl(wikiRegistry, undefined, mwnProvider);
 	return { wikiRegistry, activeWiki, uploadDirs, mwnProvider, siteInfoCache, wikiProbe };
 }
