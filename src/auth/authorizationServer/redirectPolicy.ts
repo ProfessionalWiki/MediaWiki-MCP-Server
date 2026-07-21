@@ -7,6 +7,39 @@ export function isLoopbackHost(hostname: string): boolean {
 	return LOOPBACK_HOSTNAMES.has(hostname);
 }
 
+// RFC 8252 §7.3: an http loopback redirect may vary its port at runtime, so a
+// request redirect matches a registered one when the port is the ONLY component
+// that differs — scheme, host literal, userinfo, path, query, and fragment must
+// all be identical, and both sides must be http loopback. All other URIs match
+// only byte-for-byte.
+export function redirectUriMatches(requestUri: string, registeredUri: string): boolean {
+	if (requestUri === registeredUri) {
+		return true;
+	}
+	let req: URL;
+	let reg: URL;
+	try {
+		req = new URL(requestUri);
+		reg = new URL(registeredUri);
+	} catch {
+		return false;
+	}
+	if (req.protocol !== 'http:' || reg.protocol !== 'http:') {
+		return false;
+	}
+	if (!isLoopbackHost(req.hostname) || !isLoopbackHost(reg.hostname)) {
+		return false;
+	}
+	return (
+		req.hostname === reg.hostname &&
+		req.username === reg.username &&
+		req.password === reg.password &&
+		req.pathname === reg.pathname &&
+		req.search === reg.search &&
+		req.hash === reg.hash
+	);
+}
+
 export type AllowlistEntry =
 	| { kind: 'exact'; uri: string }
 	| { kind: 'prefix'; origin: string; pathPrefix: string };

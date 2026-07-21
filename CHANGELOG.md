@@ -13,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - The OAuth consent page now shows where the user will be sent after approving — the client's callback host, or "an application on this device" for local clients.
 - IPv6 loopback (`http://[::1]:…`) redirect URIs are now accepted at client registration, per RFC 8252.
 
+### Fixed
+
+- OAuth clients that use a loopback callback on a variable port (VS Code's busy-port fallback, and clients that register a portless `http://127.0.0.1/` URI) now complete the flow instead of failing with "redirect_uri not registered", per RFC 8252.
+
 ## [0.13.1] - 2026-07-09
 
 ### Fixed

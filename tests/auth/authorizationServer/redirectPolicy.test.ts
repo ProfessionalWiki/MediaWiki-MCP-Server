@@ -4,6 +4,7 @@ import {
 	parseRedirectAllowlist,
 	buildRedirectPolicy,
 	RedirectAllowlistError,
+	redirectUriMatches,
 } from '../../../src/auth/authorizationServer/redirectPolicy.js';
 
 describe('isAllowedRedirect', () => {
@@ -84,5 +85,46 @@ describe('buildRedirectPolicy', () => {
 		['unlisted https URI', 'https://example.com/cb', false],
 	])('policy: %s → %s', (_name, uri, expected) => {
 		expect(policy(uri)).toBe(expected);
+	});
+});
+
+describe('redirectUriMatches', () => {
+	it('matches identical URIs', () => {
+		expect(redirectUriMatches('https://vscode.dev/redirect', 'https://vscode.dev/redirect')).toBe(
+			true,
+		);
+	});
+	it('matches http loopback differing only in port', () => {
+		expect(redirectUriMatches('http://127.0.0.1:3118/callback', 'http://127.0.0.1/callback')).toBe(
+			true,
+		);
+		expect(redirectUriMatches('http://127.0.0.1:27523/cb', 'http://127.0.0.1:5000/cb')).toBe(true);
+	});
+	it('rejects loopback when path/query/fragment differ', () => {
+		expect(redirectUriMatches('http://127.0.0.1:3118/evil', 'http://127.0.0.1/callback')).toBe(
+			false,
+		);
+		expect(redirectUriMatches('http://127.0.0.1:3118/cb?x=1', 'http://127.0.0.1/cb')).toBe(false);
+	});
+	it('rejects when the loopback host literal differs (127.0.0.1 vs localhost)', () => {
+		expect(redirectUriMatches('http://127.0.0.1:3118/cb', 'http://localhost/cb')).toBe(false);
+	});
+	it('does not port-relax non-loopback or https', () => {
+		expect(
+			redirectUriMatches('https://vscode.dev:8443/redirect', 'https://vscode.dev/redirect'),
+		).toBe(false);
+		expect(redirectUriMatches('http://evil.example:9/cb', 'http://evil.example/cb')).toBe(false);
+	});
+	it('matches IPv6 loopback differing only in port', () => {
+		expect(redirectUriMatches('http://[::1]:9000/cb', 'http://[::1]/cb')).toBe(true);
+	});
+	it('does not cross-match IPv6 loopback with IPv4 loopback', () => {
+		expect(redirectUriMatches('http://[::1]:9000/cb', 'http://127.0.0.1/cb')).toBe(false);
+	});
+	it('rejects when the fragment differs', () => {
+		expect(redirectUriMatches('http://127.0.0.1:3118/cb#a', 'http://127.0.0.1/cb#b')).toBe(false);
+	});
+	it('rejects when userinfo differs', () => {
+		expect(redirectUriMatches('http://evil@127.0.0.1:9000/cb', 'http://127.0.0.1/cb')).toBe(false);
 	});
 });

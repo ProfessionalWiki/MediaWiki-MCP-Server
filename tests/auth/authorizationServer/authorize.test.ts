@@ -38,16 +38,45 @@ describe('planAuthorize', () => {
 		expect(planAuthorize(baseQuery('nope'), undefined, pc, store, 'Ex').kind).toBe('error');
 	});
 	it('errors on unregistered redirect', () => {
+		// A different path is unregistered outright — loopback port relaxation
+		// (RFC 8252 §7.3) only tolerates a differing port, never a differing path.
 		const { store, client } = setup();
 		expect(
 			planAuthorize(
-				{ ...baseQuery(client.clientId), redirect_uri: 'http://127.0.0.1:9999/cb' },
+				{ ...baseQuery(client.clientId), redirect_uri: 'http://127.0.0.1:9000/other' },
 				undefined,
 				pc,
 				store,
 				'Ex',
 			).kind,
 		).toBe('error');
+	});
+	it('accepts a loopback redirect whose port differs from the portless registered URI (RFC 8252 §7.3)', () => {
+		const store = new InMemoryProxyStore();
+		const client = store.putClient({
+			redirectUris: ['http://127.0.0.1/callback'],
+			scopes: ['editpage'],
+			name: 'VS Code',
+		});
+		const q = {
+			...baseQuery(client.clientId),
+			redirect_uri: 'http://127.0.0.1:27523/callback',
+		};
+		const consent = { clientId: client.clientId, redirectHost: '127.0.0.1', wiki: 'w' };
+		expect(planAuthorize(q, consent, pc, store, 'Ex').kind).toBe('redirect');
+	});
+	it('still requires a byte-exact match for a non-loopback redirect_uri', () => {
+		const store = new InMemoryProxyStore();
+		const client = store.putClient({
+			redirectUris: ['https://vscode.dev/redirect'],
+			scopes: ['editpage'],
+			name: 'VS Code (web)',
+		});
+		const q = {
+			...baseQuery(client.clientId),
+			redirect_uri: 'https://vscode.dev/redirect/extra',
+		};
+		expect(planAuthorize(q, undefined, pc, store, 'Ex').kind).toBe('error');
 	});
 	it('errors on resource mismatch', () => {
 		const { store, client } = setup();
