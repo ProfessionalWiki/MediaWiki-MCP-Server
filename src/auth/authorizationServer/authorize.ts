@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { ProxyConfig } from './proxyConfig.js';
 import type { ProxyStore } from './proxyStore.js';
 import { randomVerifier, s256 } from '../pkce.js';
+import { redirectUriMatches } from './redirectPolicy.js';
 
 export interface AuthorizeQuery {
 	client_id?: string;
@@ -26,8 +27,9 @@ export type AuthorizePlan =
 
 /**
  * Pure planner for the proxy's /authorize endpoint. Validates the downstream
- * client + redirect_uri (exact match against the client's registered list —
- * never a loose prefix/policy re-check), the optional `resource` indicator,
+ * client + redirect_uri (byte-exact match against the client's registered list,
+ * except an http loopback request may vary its port — RFC 8252 §7.3; never a
+ * loose prefix/policy re-check), the optional `resource` indicator,
  * and the PKCE method. When consent is missing/stale it asks the caller to
  * render the consent page; when consent is present it mints a transaction with
  * a SEPARATE upstream PKCE verifier and produces the upstream authorize URL.
@@ -56,11 +58,12 @@ export function planAuthorize(
 	if (!client) {
 		return err('unknown client_id');
 	}
-	// Exact match against the registered redirect URIs — the whole string,
-	// including any query component. Never re-validate loosely (prefix, host
-	// allowlist, or the registration-time policy): a registered URI is trusted
-	// verbatim and only verbatim.
-	if (!q.redirect_uri || !client.redirectUris.includes(q.redirect_uri)) {
+	// Match against the registered redirect URIs — byte-exact, except an http
+	// loopback request may vary its port from the registered entry (RFC 8252
+	// §7.3; see redirectUriMatches). Never re-validate any more loosely than that
+	// (prefix, host allowlist, or the registration-time policy): a registered URI
+	// is otherwise trusted verbatim.
+	if (!q.redirect_uri || !client.redirectUris.some((u) => redirectUriMatches(q.redirect_uri!, u))) {
 		return err('redirect_uri not registered');
 	}
 	// RFC 8707 resource indicator. A spec-compliant client reads `resource` from
@@ -116,7 +119,7 @@ export function planAuthorize(
  * Pure planner for a denial on the proxy's own consent page ("Deny" on the first
  * screen). Aborts the flow by bouncing an OAuth error back to the downstream
  * client — but ONLY to a redirect_uri we have validated as registered for this
- * client, using the same exact-match rule as planAuthorize. Without a trusted
+ * client, using the same matching rule as planAuthorize. Without a trusted
  * redirect target we cannot safely emit a 302 (open-redirect guard), so the
  * caller falls back to a plain cancelled page. This mirrors handleCallback's
  * upstream-denial branch (RFC 6749 §4.1.2.1) for the consent step, so a client
@@ -128,7 +131,11 @@ export function planDeny(
 	store: ProxyStore,
 ): { kind: 'redirect'; location: string } | { kind: 'page' } {
 	const client = q.client_id ? store.getClient(q.client_id) : undefined;
-	if (!client || !q.redirect_uri || !client.redirectUris.includes(q.redirect_uri)) {
+	if (
+		!client ||
+		!q.redirect_uri ||
+		!client.redirectUris.some((u) => redirectUriMatches(q.redirect_uri!, u))
+	) {
 		return { kind: 'page' };
 	}
 	const u = new URL(q.redirect_uri);
