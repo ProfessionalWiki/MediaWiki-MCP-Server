@@ -3,6 +3,9 @@ import {
 	isCimdClientId,
 	validateClientIdUrl,
 	CimdValidationError,
+	SHIPPED_CIMD_HOSTS,
+	parseCimdAllowedHosts,
+	buildCimdHostPredicate,
 } from '../../../src/auth/authorizationServer/cimd.js';
 
 describe('isCimdClientId', () => {
@@ -39,5 +42,30 @@ describe('validateClientIdUrl', () => {
 	});
 	it('sets the error name', () => {
 		expect(new CimdValidationError('x').name).toBe('CimdValidationError');
+	});
+});
+
+describe('CIMD host allowlist', () => {
+	it('ships the four first-party hosts', () => {
+		expect([...SHIPPED_CIMD_HOSTS].sort()).toEqual([
+			'chatgpt.com',
+			'claude.ai',
+			'vscode.dev',
+			'zed.dev',
+		]);
+	});
+	it('accepts shipped hosts case-folded, rejects others', () => {
+		const p = buildCimdHostPredicate([]);
+		expect(p('vscode.dev')).toBe(true);
+		expect(p('ZED.DEV')).toBe(true);
+		expect(p('evil.example')).toBe(false);
+	});
+	it('extends with operator hosts', () => {
+		const p = buildCimdHostPredicate(parseCimdAllowedHosts('my.wiki, cimd.example:8443'));
+		expect(p('my.wiki')).toBe(true);
+		expect(p('cimd.example:8443')).toBe(true);
+	});
+	it('rejects a malformed operator entry', () => {
+		expect(() => parseCimdAllowedHosts('has space')).toThrow(/CIMD|host/i);
 	});
 });

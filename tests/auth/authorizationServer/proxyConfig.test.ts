@@ -121,3 +121,19 @@ describe('redirect allowlist plumbing', () => {
 		).toThrow(/MCP_OAUTH_ALLOWED_REDIRECTS/);
 	});
 });
+
+describe('CIMD host allowlist plumbing', () => {
+	it('parses entries from MCP_OAUTH_CIMD_ALLOWED_HOSTS', () => {
+		const pc = resolveProxyConfig('w', wiki, { ...env, MCP_OAUTH_CIMD_ALLOWED_HOSTS: 'my.wiki' });
+		expect(pc?.cimdAllowedHosts).toEqual(['my.wiki']);
+	});
+
+	it('wraps parse failures in ProxyConfigError naming the env var', () => {
+		expect(() =>
+			resolveProxyConfig('w', wiki, { ...env, MCP_OAUTH_CIMD_ALLOWED_HOSTS: 'bad host' }),
+		).toThrow(ProxyConfigError);
+		expect(() =>
+			resolveProxyConfig('w', wiki, { ...env, MCP_OAUTH_CIMD_ALLOWED_HOSTS: 'bad host' }),
+		).toThrow(/MCP_OAUTH_CIMD_ALLOWED_HOSTS/);
+	});
+});

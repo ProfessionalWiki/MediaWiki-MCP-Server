@@ -48,3 +48,49 @@ export function validateClientIdUrl(clientId: string): URL {
 	}
 	return u;
 }
+
+// Verified first-party CIMD hosts, trusted by default (closed posture). Adding a
+// client = adding its document host here (or via MCP_OAUTH_CIMD_ALLOWED_HOSTS).
+export const SHIPPED_CIMD_HOSTS: readonly string[] = [
+	'vscode.dev',
+	'claude.ai',
+	'zed.dev',
+	'chatgpt.com',
+];
+
+// Grammar: comma-separated, trimmed, blanks ignored. Each entry is a bare host
+// (`vscode.dev`, matches that host on the default https port) or `host:port`.
+// No scheme, path, or wildcard. Case-folded. A bad entry throws at boot.
+export function parseCimdAllowedHosts(raw: string | undefined): string[] {
+	return (raw ?? '')
+		.split(',')
+		.map((s) => s.trim().toLowerCase())
+		.filter(Boolean)
+		.map((entry) => {
+			// Reuse URL parsing to validate: `https://<entry>` must round-trip to the
+			// same host[:port] with no path/query/fragment/userinfo.
+			let u: URL;
+			try {
+				u = new URL(`https://${entry}`);
+			} catch {
+				throw new CimdValidationError(`not a valid CIMD host: ${entry}`);
+			}
+			if (
+				u.pathname !== '/' ||
+				u.search !== '' ||
+				u.hash !== '' ||
+				u.username !== '' ||
+				u.host !== entry
+			) {
+				throw new CimdValidationError(`CIMD host entry must be a bare host or host:port: ${entry}`);
+			}
+			return entry;
+		});
+}
+
+// The predicate applied to a candidate client_id's host (already case-folded by
+// the caller as `url.host`). Composes the shipped defaults with operator entries.
+export function buildCimdHostPredicate(operatorHosts: string[]): (host: string) => boolean {
+	const allowed = new Set<string>([...SHIPPED_CIMD_HOSTS, ...operatorHosts]);
+	return (host) => allowed.has(host.toLowerCase());
+}
