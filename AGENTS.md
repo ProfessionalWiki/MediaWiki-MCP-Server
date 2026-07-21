@@ -69,8 +69,8 @@ Reconcile picks up the new pack automatically — no edits to `src/runtime/recon
 
 A PR that adds, removes, or renames an env var read by the server — or that changes its default or accepted values — must also update:
 
-- **`README.md`** — the environment-variable table.
-- **`server.json`** — the `environmentVariables` array in **both** the `mcpb` and `npm` package blocks.
+- **The right env-var table for the variable's tier.** Each variable lives in exactly one table: **`README.md`** for a core variable that applies to any setup; **`docs/deployment.md`** (the HTTP-transport or hosted-OAuth-proxy sub-table) for a variable that only matters when self-hosting the HTTP server or running the proxy; **`docs/configuration.md`** for a config-file substitution or upload-directory variable.
+- **`server.json`** — the `environmentVariables` array in **both** the `mcpb` and `npm` package blocks, if the variable is one the install-time prompts should surface.
 - **`CHANGELOG.md`** — an entry under `## [Unreleased]` if the change is user-visible.
 - **`Dockerfile`** — only if the var needs a default baked into the docker image.
 
