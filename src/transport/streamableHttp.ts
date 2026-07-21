@@ -33,11 +33,21 @@ import type { WikiRegistry } from '../wikis/wikiRegistry.js';
 import { fetchMetadata, type AsMetadata } from '../auth/metadata.js';
 import { buildProtectedResource, resolvePublicBase } from '../auth/protectedResource.js';
 import { resolveProxyConfig, type ProxyConfig } from '../auth/authorizationServer/proxyConfig.js';
-import { InMemoryProxyStore, type ProxyStore } from '../auth/authorizationServer/proxyStore.js';
+import {
+	InMemoryProxyStore,
+	type ProxyStore,
+	type ClientRecord,
+} from '../auth/authorizationServer/proxyStore.js';
 import { refreshTokens as defaultRefresh, type RefreshArgs } from '../auth/oauthFlow.js';
 import { buildAsMetadata } from '../auth/authorizationServer/asMetadata.js';
 import { handleRegister } from '../auth/authorizationServer/register.js';
 import { buildRedirectPolicy } from '../auth/authorizationServer/redirectPolicy.js';
+import {
+	buildCimdHostPredicate,
+	isCimdClientId,
+	CimdResolver,
+} from '../auth/authorizationServer/cimd.js';
+import { fetchCimdDocument } from './cimdFetch.js';
 import {
 	planAuthorize,
 	planDeny,
@@ -716,6 +726,12 @@ const proxyEnabled = eagerProxyConfig !== null;
 const proxyRedirectPolicy = eagerProxyConfig
 	? buildRedirectPolicy(eagerProxyConfig.redirectAllowlist)
 	: null;
+// Built once from the resolved proxy config: resolves a URL client_id into a
+// ClientRecord by fetching its CIMD metadata document over the SSRF-guarded
+// fetcher. Null when the proxy is disabled.
+const cimdResolver = eagerProxyConfig
+	? new CimdResolver(buildCimdHostPredicate(eagerProxyConfig.cimdAllowedHosts), fetchCimdDocument)
+	: null;
 emitStartupBanner(
 	{ transport: 'http', http: { host, port, allowedHosts, allowedOrigins, maxRequestBody } },
 	{
@@ -790,6 +806,10 @@ export interface BuildAppDeps {
 	// config (built-ins + operator allowlist). Null when the proxy is disabled,
 	// in which case /mcp/register 404s alongside the other proxy endpoints.
 	proxyRedirectPolicy: ((uri: string) => boolean) | null;
+	// The CIMD client resolver, built once from the resolved proxy config. Null when
+	// the proxy is disabled. Resolves a URL client_id into a ClientRecord by fetching
+	// its metadata document (DCR clients keep using the store).
+	cimdResolver: CimdResolver | null;
 	// The default wiki KEY (bound into the consent cookie) and human-readable
 	// sitename (shown on the consent page). Match getProxyConfig's wiki.
 	defaultWikiKey: string;
@@ -819,6 +839,7 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		getProxyConfig,
 		proxyStore: store,
 		proxyRedirectPolicy,
+		cimdResolver,
 		defaultWikiKey,
 		defaultWikiSitename,
 		createServerFn,
@@ -925,6 +946,24 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		res.status(result.status).json(result.body);
 	});
 
+	// Resolve a client_id to a ClientRecord: CIMD (fetch its metadata document) for a
+	// URL id, else the DCR store. For CIMD, `clientIdHost` is the verified host to show
+	// at consent; `error` is set (with a reason) only when a CIMD resolve fails.
+	async function resolveClient(clientId: string | undefined): Promise<{
+		client: ClientRecord | undefined;
+		clientIdHost?: string;
+		error?: string;
+	}> {
+		if (clientId && cimdResolver && isCimdClientId(clientId)) {
+			const r = await cimdResolver.resolve(clientId);
+			if (!r.ok) {
+				return { client: undefined, error: r.reason };
+			}
+			return { client: r.client, clientIdHost: new URL(clientId).host };
+		}
+		return { client: clientId ? store.getClient(clientId) : undefined };
+	}
+
 	// GET /mcp/authorize — the proxy authorization endpoint. Validates the client +
 	// redirect, gates on the signed consent cookie (bound to clientId + redirectHost
 	// + the default wiki key), and either renders the consent page or 302s to the
@@ -952,8 +991,15 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 			}
 		}
 
-		const client = q.client_id ? store.getClient(q.client_id) : undefined;
-		const plan = planAuthorize(q, consent, pc, store, defaultWikiSitename, client);
+		const resolved = await resolveClient(q.client_id);
+		if (resolved.error) {
+			res
+				.status(400)
+				.type('html')
+				.send(renderAuthErrorPage({ reason: resolved.error }));
+			return;
+		}
+		const plan = planAuthorize(q, consent, pc, store, defaultWikiSitename, resolved.client);
 		if (plan.kind === 'error') {
 			res
 				.status(plan.status)
@@ -973,6 +1019,7 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 					authorizeQuery: serializeAuthorizeQuery(q),
 					csrfToken,
 					redirectHost: redirectHost ?? '',
+					clientIdHost: resolved.clientIdHost,
 				}),
 			);
 			return;
@@ -994,7 +1041,15 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 			return;
 		}
 		const q = readAuthorizeQuery(req.query);
-		const client = q.client_id ? store.getClient(q.client_id) : undefined;
+		const resolved = await resolveClient(q.client_id);
+		if (resolved.error) {
+			res
+				.status(400)
+				.type('html')
+				.send(renderAuthErrorPage({ reason: resolved.error }));
+			return;
+		}
+		const client = resolved.client;
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- form-encoded body is untyped; decision is read defensively below
 		const body = (req.body ?? {}) as Record<string, unknown>;
 		const decision = typeof body.decision === 'string' ? body.decision : undefined;
@@ -1159,6 +1214,7 @@ const { app, sessions, inFlight } = buildApp({
 	getProxyConfig: getDefaultProxyConfig,
 	proxyStore,
 	proxyRedirectPolicy,
+	cimdResolver,
 	defaultWikiKey,
 	defaultWikiSitename,
 	createServerFn: () => createServer(ctx),

@@ -10,6 +10,7 @@ export interface AsMetadataDoc {
 	code_challenge_methods_supported: string[];
 	token_endpoint_auth_methods_supported: string[];
 	authorization_response_iss_parameter_supported: boolean;
+	client_id_metadata_document_supported: boolean;
 	scopes_supported?: string[];
 }
 
@@ -29,6 +30,7 @@ export function buildAsMetadata(pc: ProxyConfig, scopesSupported?: string[]): As
 		code_challenge_methods_supported: ['S256'],
 		token_endpoint_auth_methods_supported: ['none'],
 		authorization_response_iss_parameter_supported: true,
+		client_id_metadata_document_supported: true,
 		...(scopesSupported ? { scopes_supported: scopesSupported } : {}),
 	};
 }

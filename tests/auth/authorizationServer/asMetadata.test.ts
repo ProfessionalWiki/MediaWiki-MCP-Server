@@ -31,4 +31,10 @@ describe('buildAsMetadata', () => {
 		const m = buildAsMetadata(pc, ['read', 'write']);
 		expect(m.scopes_supported).toEqual(['read', 'write']);
 	});
+
+	it('advertises CIMD support and keeps none-only token auth', () => {
+		const doc = buildAsMetadata(pc);
+		expect(doc.client_id_metadata_document_supported).toBe(true);
+		expect(doc.token_endpoint_auth_methods_supported).toEqual(['none']);
+	});
 });
