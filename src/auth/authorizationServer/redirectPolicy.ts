@@ -67,7 +67,12 @@ export function isAllowedRedirect(redirectUri: string): boolean {
 // Security: every origin below is controlled by the named vendor, so an attacker
 // cannot receive a token at it. Trusting them by default adds no phishing sink,
 // while arbitrary hosts stay excluded by construction.
-const SHIPPED_CLIENT_DEFAULTS: AllowlistEntry[] = [];
+const SHIPPED_CLIENT_DEFAULTS: AllowlistEntry[] = [
+	// ChatGPT (openai / chatgpt.com). The per-connector prefix absorbs
+	// connector-id churn; the exact legacy path covers already-published apps.
+	'https://chatgpt.com/connector/oauth/*',
+	'https://chatgpt.com/connector_platform_oauth_redirect',
+].map(parseEntry);
 
 /**
  * Parses MCP_OAUTH_ALLOWED_REDIRECTS. Grammar (comma-separated, trimmed,
