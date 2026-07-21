@@ -65,6 +65,7 @@ const PROXY: ProxyConfig = {
 	signingKey: 'k'.repeat(32),
 	consentTtlMs: 1000,
 	tokenTtlMs: 1000,
+	redirectAllowlist: [],
 };
 
 // Mirrors the production AS-metadata route handler in streamableHttp.ts so the

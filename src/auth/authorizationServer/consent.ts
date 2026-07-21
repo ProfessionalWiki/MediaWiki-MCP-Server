@@ -1,5 +1,6 @@
 import type { ProxyConfig } from './proxyConfig.js';
 import { signConsent } from './jwt.js';
+import { isLoopbackHost } from './redirectPolicy.js';
 import { esc, renderPage } from '../pageShell.js';
 
 const COOKIE = 'mcp_consent';
@@ -13,12 +14,18 @@ export function renderConsentPage(a: {
 	wiki: string;
 	authorizeQuery: string;
 	csrfToken: string;
+	redirectHost: string;
 }): string {
 	// No per-permission line: the proxy always requests the consumer's full grants
 	// (see authorize.ts). The user sees the exact grants on MediaWiki's own
 	// authorization screen during the upstream leg.
+	const destination =
+		a.redirectHost && !isLoopbackHost(a.redirectHost)
+			? a.redirectHost
+			: 'an application on this device';
 	const body =
 		`<p class="pg-lead"><strong>${esc(a.clientName)}</strong> wants to act as you on <strong>${esc(a.wiki)}</strong>.</p>` +
+		`<p class="pg-note">After you approve, you will be sent back to <strong>${esc(destination)}</strong>.</p>` +
 		`<form method="POST" action="/mcp/consent?${esc(a.authorizeQuery)}" class="pg-actions">` +
 		`<input type="hidden" name="csrf" value="${esc(a.csrfToken)}">` +
 		`<button class="pg-btn pg-primary" name="decision" value="approve" type="submit">Approve</button>` +

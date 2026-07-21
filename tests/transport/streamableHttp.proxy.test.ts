@@ -47,6 +47,10 @@ import { createAppState } from '../../src/wikis/state.js';
 import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.js';
 import { verifyAccessToken } from '../../src/auth/authorizationServer/jwt.js';
 import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.js';
+import {
+	buildRedirectPolicy,
+	parseRedirectAllowlist,
+} from '../../src/auth/authorizationServer/redirectPolicy.js';
 import { checkWikiCapability } from '../../src/runtime/wikiCapability.js';
 import { createToolContext } from '../../src/runtime/createContext.js';
 import { logger } from '../../src/runtime/logger.js';
@@ -91,6 +95,7 @@ function proxyConfig(fakeAsUrl: string): ProxyConfig {
 		signingKey: SIGNING_KEY,
 		consentTtlMs: 60_000,
 		tokenTtlMs: 55 * 60 * 1000,
+		redirectAllowlist: [],
 	};
 }
 
@@ -109,6 +114,7 @@ function makeDeps(
 		state: appState(fakeAsUrl),
 		getProxyConfig: () => pc,
 		proxyStore: store,
+		proxyRedirectPolicy: pc ? buildRedirectPolicy(pc.redirectAllowlist) : null,
 		defaultWikiKey: 'test',
 		defaultWikiSitename: 'Test Wiki',
 		createServerFn: stubCreateServer,
@@ -534,6 +540,7 @@ describe('private wiki — connection-time auth challenge', () => {
 			state,
 			getProxyConfig: () => pc,
 			proxyStore: store,
+			proxyRedirectPolicy: pc ? buildRedirectPolicy(pc.redirectAllowlist) : null,
 			defaultWikiKey: 'test',
 			defaultWikiSitename: 'Test Wiki',
 			createServerFn: stubCreateServer,
@@ -672,6 +679,107 @@ describe('private wiki — connection-time auth challenge', () => {
 			expect.stringContaining('marked private but has no oauth2ClientId'),
 		);
 		warnSpy.mockRestore();
+	});
+});
+
+// Exercises the config -> ProxyConfig.redirectAllowlist -> buildApp -> route ->
+// handleRegister seam with a REAL operator allowlist (not the empty default the
+// rest of the suite uses). makeDeps derives proxyRedirectPolicy from
+// pc.redirectAllowlist via the SAME buildRedirectPolicy call the production boot
+// uses, so a regression to that wiring would 400 every allowlisted client here.
+describe('operator redirect allowlist — end-to-end (config → route → handleRegister)', () => {
+	beforeEach(() => {
+		vi.stubEnv('MCP_PUBLIC_URL', ISSUER);
+	});
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	// A ProxyConfig carrying a real operator entry: ChatGPT's per-connector prefix
+	// pattern. The allowlist is the SAME value makeDeps feeds buildRedirectPolicy,
+	// so the route's predicate is the operator policy, not the empty default.
+	function allowlistProxyConfig(): ProxyConfig {
+		return {
+			...proxyConfig('https://wiki.example'),
+			redirectAllowlist: parseRedirectAllowlist('https://chatgpt.com/connector/oauth/*'),
+		};
+	}
+
+	function allowlistApp(): ReturnType<typeof buildApp>['app'] {
+		const store = new InMemoryProxyStore();
+		const pc = allowlistProxyConfig();
+		return buildApp(makeDeps('https://wiki.example', store, pc)).app;
+	}
+
+	it('registers an allowlisted ChatGPT client (201)', async () => {
+		const app = allowlistApp();
+		const res = await request(app)
+			.post('/mcp/register')
+			.set('Content-Type', 'application/json')
+			.send({
+				client_name: 'ChatGPT',
+				redirect_uris: ['https://chatgpt.com/connector/oauth/abc123'],
+			});
+		expect(res.status).toBe(201);
+	});
+
+	it('rejects a non-allowlisted redirect (400 invalid_redirect_uri)', async () => {
+		const app = allowlistApp();
+		const res = await request(app)
+			.post('/mcp/register')
+			.set('Content-Type', 'application/json')
+			.send({ client_name: 'x', redirect_uris: ['https://evil.example/cb'] });
+		expect(res.status).toBe(400);
+		expect(res.body.error).toBe('invalid_redirect_uri');
+	});
+
+	it('consent page names the remote destination host for an allowlisted client', async () => {
+		const app = allowlistApp();
+		const redirectUri = 'https://chatgpt.com/connector/oauth/abc123';
+		const reg = await request(app)
+			.post('/mcp/register')
+			.set('Content-Type', 'application/json')
+			.send({ client_name: 'ChatGPT', redirect_uris: [redirectUri] });
+		expect(reg.status).toBe(201);
+		const clientId = String(reg.body.client_id);
+
+		// resource echoes the proxy issuer (pc.issuer === ISSUER); planAuthorize
+		// compares it with trailing slashes normalized, so the slash-free issuer
+		// value passes.
+		const authz = await request(app).get('/mcp/authorize').query({
+			response_type: 'code',
+			client_id: clientId,
+			code_challenge: 'abc123',
+			code_challenge_method: 'S256',
+			redirect_uri: redirectUri,
+			state: 's',
+			resource: ISSUER,
+		});
+		expect(authz.status).toBe(200);
+		expect(authz.text).toContain('chatgpt.com');
+	});
+
+	it('consent page names an on-device application for a loopback client', async () => {
+		const app = allowlistApp();
+		const redirectUri = 'http://127.0.0.1:5599/cb';
+		const reg = await request(app)
+			.post('/mcp/register')
+			.set('Content-Type', 'application/json')
+			.send({ client_name: 'Local', redirect_uris: [redirectUri] });
+		expect(reg.status).toBe(201);
+		const clientId = String(reg.body.client_id);
+
+		const authz = await request(app).get('/mcp/authorize').query({
+			response_type: 'code',
+			client_id: clientId,
+			code_challenge: 'abc123',
+			code_challenge_method: 'S256',
+			redirect_uri: redirectUri,
+			state: 's',
+			resource: ISSUER,
+		});
+		expect(authz.status).toBe(200);
+		expect(authz.text).toContain('an application on this device');
 	});
 });
 

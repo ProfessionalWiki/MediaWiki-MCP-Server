@@ -1,10 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import { handleRegister } from '../../../src/auth/authorizationServer/register.js';
 import { InMemoryProxyStore } from '../../../src/auth/authorizationServer/proxyStore.js';
+import {
+	buildRedirectPolicy,
+	parseRedirectAllowlist,
+} from '../../../src/auth/authorizationServer/redirectPolicy.js';
 
-function run(body: unknown) {
+// The predicate a deployment actually runs with NO operator config: the source-1
+// built-ins (loopback + claude.ai) PLUS the shipped client defaults. This is the
+// real out-of-the-box policy, not the built-ins-only isAllowedRedirect.
+const defaultPolicy = buildRedirectPolicy(parseRedirectAllowlist(undefined));
+
+function run(body: unknown, isAllowed: (u: string) => boolean = defaultPolicy) {
 	const store = new InMemoryProxyStore();
-	const res = handleRegister(body, store);
+	const res = handleRegister(body, store, isAllowed);
 	return { res, store };
 }
 
@@ -67,5 +76,64 @@ describe('handleRegister', () => {
 		});
 		expect(res.status).toBe(201);
 		expect((res.body.client_name as string).length).toBe(256);
+	});
+});
+
+describe('handleRegister with an operator allowlist', () => {
+	// Real payload shapes verified against client source/docs, 2026-07-20.
+	const vscode = {
+		client_name: 'Visual Studio Code',
+		redirect_uris: [
+			'https://insiders.vscode.dev/redirect',
+			'https://vscode.dev/redirect',
+			'http://127.0.0.1/',
+			'http://127.0.0.1:33418/',
+		],
+		token_endpoint_auth_method: 'none',
+	};
+	const cursor = {
+		client_name: 'Cursor',
+		redirect_uris: [
+			'cursor://anysphere.cursor-mcp/oauth/callback',
+			'https://www.cursor.com/agents/mcp/oauth/callback',
+			'http://localhost:8787/callback',
+		],
+	};
+	const chatgpt = {
+		client_name: 'ChatGPT',
+		redirect_uris: ['https://chatgpt.com/connector/oauth/abc123'],
+	};
+	const operatorPolicy = buildRedirectPolicy(
+		parseRedirectAllowlist(
+			'https://insiders.vscode.dev/redirect,https://vscode.dev/redirect,' +
+				'cursor://anysphere.cursor-mcp/oauth/callback,https://www.cursor.com/agents/mcp/oauth/callback,' +
+				'https://chatgpt.com/connector/oauth/*',
+		),
+	);
+
+	it('a non-vendor host is still rejected under the real default policy', () => {
+		const { res } = run({ client_name: 'Evil', redirect_uris: ['https://evil.example/cb'] });
+		expect(res.status).toBe(400);
+		expect(res.body.error).toBe('invalid_redirect_uri');
+	});
+
+	it.each([
+		['VS Code', vscode],
+		['Cursor', cursor],
+		['ChatGPT', chatgpt],
+	])('%s payload passes under a matching allowlist', (_n, body) => {
+		expect(run(body, operatorPolicy).res.status).toBe(201);
+	});
+
+	it('rejects a registration mixing an allowed and a disallowed redirect_uri', () => {
+		const { res } = run(
+			{
+				client_name: 'Mixed',
+				redirect_uris: ['https://vscode.dev/redirect', 'https://evil.example/cb'],
+			},
+			operatorPolicy,
+		);
+		expect(res.status).toBe(400);
+		expect(res.body.error).toBe('invalid_redirect_uri');
 	});
 });

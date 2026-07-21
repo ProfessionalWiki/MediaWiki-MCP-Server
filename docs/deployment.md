@@ -130,9 +130,15 @@ On top of the [general reverse-proxy requirements](#security-checklist), forward
 
 ### 5. Test it
 
-Point an OAuth-aware MCP client at `https://wiki.example.org/mcp`. The client should discover the endpoints, register itself, and open a browser sign-in; after consent, a write tool acts as your account. Claude Code is the client this flow is validated against; see [v1 limitations](#v1-limitations).
+Point an OAuth-aware MCP client at `https://wiki.example.org/mcp`. The client should discover the endpoints, register itself, and open a browser sign-in; after consent, a write tool acts as your account. (See [Allowing more clients](#allowing-more-clients) for how to admit clients that aren't trusted by default.)
 
 A worked `config.json` for this setup is the one shown in [step 2](#2-configure-the-wiki), with the internal/public hostname split filled in. Run it with `MCP_TRANSPORT=http`, `MCP_PUBLIC_URL=https://wiki.example.org/mcp`, and a fixed `MCP_OAUTH_JWT_SIGNING_KEY`, and list `mediawiki.svc` in `MCP_TRUSTED_HOSTS`.
+
+### Allowing more clients
+
+If a client can't sign in, add its OAuth callback URL to `MCP_OAUTH_ALLOWED_REDIRECTS` (comma-separated). A client's callback URL comes from its own documentation or its connector setup screen. For a client that uses a different callback per connection, match the whole prefix with a trailing `/*`, for example `https://example.com/mcp/oauth/*`. Changes take effect when you restart the server.
+
+Only add callbacks you recognise as the client's official ones — a redirect you allow is a URL the sign-in can hand the user's authorisation to.
 
 ## Running it with Docker
 
@@ -228,6 +234,7 @@ Background detail for the setups above. Read it when you want the full picture o
 | `MCP_OAUTH_JWT_SIGNING_KEY` | unset | Secret (≥32 chars) the proxy signs its issued access/refresh JWTs and consent cookies with. Required for the proxy. Keep it **fixed** so tokens survive a restart. See [Hosted OAuth sign-in](#hosted-oauth-sign-in). |
 | `MCP_OAUTH_TOKEN_TTL` | `55m` | Lifetime of a proxy-minted access JWT. Must be shorter than the upstream 30-day refresh window. Duration grammar (`55m`/`1h`/`30d`, or bare seconds). |
 | `MCP_OAUTH_CONSENT_TTL` | `30d` | Lifetime of the signed consent cookie that lets a returning user skip the consent page. Same duration grammar. |
+| `MCP_OAUTH_ALLOWED_REDIRECTS` | unset | Additional OAuth redirect URIs the proxy accepts at client registration: comma-separated exact URIs and `https://…/*` prefix patterns. Loopback, claude.ai, and verified first-party clients are always allowed. See [Allowing more clients](#allowing-more-clients). |
 
 `MCP_MAX_REQUEST_BODY` matches nginx's `client_max_body_size 1m`. Raise it if `update-page` calls return 413 on legitimately large edits or your wiki has raised `$wgMaxArticleSize` (MediaWiki default 2 MB). Lower it for a tighter DoS guard.
 
@@ -290,7 +297,6 @@ When in doubt, open your deployed site in a browser and log `window.location.ori
 These apply to the [hosted OAuth sign-in](#hosted-oauth-sign-in) setup:
 
 - **In-memory state.** Registered clients, in-flight authorizations, one-time codes, and stored upstream tokens live in process memory. A restart drops them, so every user must sign in again, and the proxy currently supports a **single instance** (no shared store across replicas). Because `/register` is unauthenticated, the client registry is capped (FIFO, 10,000 entries) so registration spam cannot exhaust memory. Once the cap is reached, the oldest registrations are evicted and those clients must re-register.
-- **Validated client.** Claude Code is the MCP client this flow has been validated against. Other OAuth-aware clients should work via standard discovery + DCR but are not yet exercised.
 
 ### Per-request bearer token (HTTP transport)
 

@@ -25,6 +25,7 @@ describe('consent', () => {
 			wiki: 'Example',
 			authorizeQuery: 'txn=1',
 			csrfToken: 'nonce-abc',
+			redirectHost: 'chatgpt.com',
 		});
 		expect(html).toContain('Authorize application');
 		expect(html).toContain('Claude Code');
@@ -44,9 +45,33 @@ describe('consent', () => {
 			wiki: 'W',
 			authorizeQuery: 'txn=1',
 			csrfToken: 'n',
+			redirectHost: 'chatgpt.com',
 		});
 		expect(html).not.toContain('<script>x</script>');
 		expect(html).toContain('&lt;script&gt;');
+	});
+
+	it('shows the redirect destination host', () => {
+		const html = renderConsentPage({
+			clientName: 'ChatGPT',
+			wiki: 'Example Wiki',
+			authorizeQuery: 'a=1',
+			csrfToken: 't',
+			redirectHost: 'chatgpt.com',
+		});
+		expect(html).toContain('chatgpt.com');
+	});
+
+	it('renders loopback destinations as on-device', () => {
+		const html = renderConsentPage({
+			clientName: 'Claude Code',
+			wiki: 'Example Wiki',
+			authorizeQuery: 'a=1',
+			csrfToken: 't',
+			redirectHost: '127.0.0.1',
+		});
+		expect(html).toContain('an application on this device');
+		expect(html).not.toContain('127.0.0.1');
 	});
 
 	it('renders cancelled and auth-error pages', () => {
