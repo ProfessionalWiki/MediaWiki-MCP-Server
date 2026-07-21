@@ -74,6 +74,18 @@ describe('consent', () => {
 		expect(html).not.toContain('127.0.0.1');
 	});
 
+	it('shows the verified client_id host for a CIMD client', () => {
+		const html = renderConsentPage({
+			clientName: 'VS Code',
+			wiki: 'My Wiki',
+			authorizeQuery: 'client_id=x',
+			csrfToken: 't',
+			redirectHost: 'vscode.dev',
+			clientIdHost: 'vscode.dev',
+		});
+		expect(html).toContain('vscode.dev');
+	});
+
 	it('renders cancelled and auth-error pages', () => {
 		const cancelled = renderCancelledPage({ clientName: 'Claude Code' });
 		expect(cancelled).toContain('Authorization cancelled');
