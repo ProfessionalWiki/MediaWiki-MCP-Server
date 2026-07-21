@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
 	isCimdClientId,
 	validateClientIdUrl,
@@ -8,6 +8,8 @@ import {
 	buildCimdHostPredicate,
 	validateCimdDocument,
 	synthesizeClientRecord,
+	cimdTtlMs,
+	CimdResolver,
 } from '../../../src/auth/authorizationServer/cimd.js';
 
 describe('isCimdClientId', () => {
@@ -117,5 +119,53 @@ describe('synthesizeClientRecord', () => {
 			scopes: [],
 			redirectUris: goodDoc.redirect_uris,
 		});
+	});
+});
+
+describe('cimdTtlMs', () => {
+	it.each([
+		['max-age=3600', 3600_000],
+		['max-age=10', 300_000],
+		['max-age=999999', 86400_000],
+		[null, 3600_000],
+		['no-store', 3600_000],
+	])('%s -> %s', (cc, ms) => expect(cimdTtlMs(cc as string | null)).toBe(ms));
+});
+
+describe('CimdResolver', () => {
+	const URL_ID = 'https://vscode.dev/oauth/client-metadata.json';
+	const doc = JSON.stringify({
+		client_id: URL_ID,
+		client_name: 'VS Code',
+		redirect_uris: ['https://vscode.dev/redirect'],
+	});
+	const allow = (h: string) => h === 'vscode.dev';
+
+	it('resolves an allowlisted host with a valid document', async () => {
+		const fetcher = vi.fn(async () => ({ status: 200, body: doc, cacheControl: 'max-age=3600' }));
+		const r = await new CimdResolver(allow, fetcher).resolve(URL_ID);
+		expect(r.ok && r.client.name).toBe('VS Code');
+	});
+	it('rejects an untrusted host without fetching', async () => {
+		const fetcher = vi.fn();
+		const r = await new CimdResolver(allow, fetcher).resolve('https://evil.example/c.json');
+		expect(r.ok).toBe(false);
+		expect(fetcher).not.toHaveBeenCalled();
+	});
+	it('rejects a non-200 status and does not cache it', async () => {
+		const fetcher = vi.fn(async () => ({ status: 404, body: '', cacheControl: null }));
+		const resolver = new CimdResolver(allow, fetcher);
+		expect((await resolver.resolve(URL_ID)).ok).toBe(false);
+		await resolver.resolve(URL_ID);
+		expect(fetcher).toHaveBeenCalledTimes(2);
+	});
+	it('caches a success within the TTL', async () => {
+		let t = 0;
+		const fetcher = vi.fn(async () => ({ status: 200, body: doc, cacheControl: 'max-age=3600' }));
+		const resolver = new CimdResolver(allow, fetcher, () => t);
+		await resolver.resolve(URL_ID);
+		t = 60_000;
+		await resolver.resolve(URL_ID);
+		expect(fetcher).toHaveBeenCalledTimes(1);
 	});
 });

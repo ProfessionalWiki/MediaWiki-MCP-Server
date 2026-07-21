@@ -1,4 +1,5 @@
 import type { ClientRecord } from './proxyStore.js';
+import type { CimdFetchResult } from '../../transport/cimdFetch.js';
 
 export class CimdValidationError extends Error {
 	public constructor(message: string) {
@@ -146,4 +147,93 @@ export function synthesizeClientRecord(clientId: string, doc: CimdDocument): Cli
 		name: doc.client_name,
 		createdAt: 0,
 	};
+}
+
+const CIMD_TTL_MIN_MS = 5 * 60 * 1000;
+const CIMD_TTL_MAX_MS = 24 * 60 * 60 * 1000;
+const CIMD_TTL_DEFAULT_MS = 60 * 60 * 1000;
+const CIMD_CACHE_MAX_ENTRIES = 1000;
+
+// Honor Cache-Control max-age, clamped to [5m, 24h]; default 1h when absent or
+// unparseable. The clamp stops a max-age=0 doc from forcing a fetch every /authorize
+// and a very long max-age from pinning a stale redirect list past a day.
+export function cimdTtlMs(cacheControl: string | null): number {
+	const m = cacheControl ? /(?:^|[,\s])max-age=(\d+)/i.exec(cacheControl) : null;
+	if (!m) {
+		return CIMD_TTL_DEFAULT_MS;
+	}
+	const ms = Number(m[1]) * 1000;
+	return Math.min(Math.max(ms, CIMD_TTL_MIN_MS), CIMD_TTL_MAX_MS);
+}
+
+export type CimdResolveResult = { ok: true; client: ClientRecord } | { ok: false; reason: string };
+
+// Resolves a URL client_id into a public ClientRecord, or a reason string. The
+// fetcher is injected (production passes fetchCimdDocument); the cache is per-resolver
+// and in-memory. Failures are never cached. The host allowlist gate runs BEFORE the
+// fetch, so only trusted hosts are ever contacted (the SSRF/DoS bound).
+export class CimdResolver {
+	private cache = new Map<string, { record: ClientRecord; expiresAt: number }>();
+
+	public constructor(
+		private isHostAllowed: (host: string) => boolean,
+		private fetcher: (url: string) => Promise<CimdFetchResult>,
+		private now: () => number = Date.now,
+		private maxEntries: number = CIMD_CACHE_MAX_ENTRIES,
+	) {}
+
+	public async resolve(clientId: string): Promise<CimdResolveResult> {
+		let url: URL;
+		try {
+			url = validateClientIdUrl(clientId);
+		} catch (e) {
+			return { ok: false, reason: e instanceof Error ? e.message : 'invalid client_id URL' };
+		}
+		if (!this.isHostAllowed(url.host)) {
+			return { ok: false, reason: `client_id host is not a trusted CIMD host: ${url.host}` };
+		}
+		const cached = this.cache.get(clientId);
+		if (cached && cached.expiresAt > this.now()) {
+			return { ok: true, client: cached.record };
+		}
+
+		let result: CimdFetchResult;
+		try {
+			result = await this.fetcher(clientId);
+		} catch (e) {
+			return {
+				ok: false,
+				reason: e instanceof Error ? e.message : 'could not fetch CIMD document',
+			};
+		}
+		if (result.status !== 200) {
+			return { ok: false, reason: `CIMD document returned HTTP ${result.status}` };
+		}
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(result.body);
+		} catch {
+			return { ok: false, reason: 'CIMD document is not valid JSON' };
+		}
+		let record: ClientRecord;
+		try {
+			record = synthesizeClientRecord(clientId, validateCimdDocument(clientId, parsed));
+		} catch (e) {
+			return { ok: false, reason: e instanceof Error ? e.message : 'invalid CIMD document' };
+		}
+
+		this.evictIfFull();
+		this.cache.set(clientId, { record, expiresAt: this.now() + cimdTtlMs(result.cacheControl) });
+		return { ok: true, client: record };
+	}
+
+	private evictIfFull(): void {
+		while (this.cache.size >= this.maxEntries) {
+			const oldest = this.cache.keys().next().value;
+			if (oldest === undefined) {
+				break;
+			}
+			this.cache.delete(oldest);
+		}
+	}
 }
