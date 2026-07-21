@@ -117,6 +117,12 @@ describe('handleRegister with an operator allowlist', () => {
 		expect(res.body.error).toBe('invalid_redirect_uri');
 	});
 
+	it('Cursor is accepted under the real default policy (no operator config)', () => {
+		// The real 3-URI payload (hosted callback, cursor:// desktop callback, and a
+		// loopback fallback) registers with no MCP_OAUTH_ALLOWED_REDIRECTS.
+		expect(run(cursor).res.status).toBe(201);
+	});
+
 	it('ChatGPT is accepted under the real default policy (no operator config)', () => {
 		// The real per-connector payload registers with no MCP_OAUTH_ALLOWED_REDIRECTS.
 		expect(run(chatgpt).res.status).toBe(201);
