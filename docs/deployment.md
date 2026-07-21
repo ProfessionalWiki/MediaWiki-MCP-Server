@@ -142,7 +142,7 @@ Only add callbacks you recognise as the client's official ones — a redirect yo
 
 ### Client ID Metadata Documents
 
-Some clients register with a Client ID Metadata Document (CIMD) instead of Dynamic Client Registration: their `client_id` is an `https://` URL pointing at a JSON document, hosted by the client's vendor, that lists the client's name and redirect URIs. The proxy fetches that document instead of storing a per-client registration, so a CIMD client needs no entry in `MCP_OAUTH_ALLOWED_REDIRECTS`.
+Some clients register with a Client ID Metadata Document (CIMD) instead of Dynamic Client Registration (DCR): their `client_id` is an `https://` URL pointing at a JSON document, hosted by the client's vendor, that lists the client's name and redirect URIs. The proxy fetches that document instead of storing a per-client registration, so a CIMD client needs no entry in `MCP_OAUTH_ALLOWED_REDIRECTS`.
 
 The verified first-party document hosts — `vscode.dev`, `claude.ai`, `zed.dev`, and `chatgpt.com` — are trusted by default. To trust another vendor's document host, list it in `MCP_OAUTH_CIMD_ALLOWED_HOSTS` (comma-separated bare hosts or `host:port`, no scheme or path). CIMD composes with DCR and the redirect allowlist above: a client that doesn't present an `https://` `client_id` still registers and is checked against `MCP_OAUTH_ALLOWED_REDIRECTS` as before.
 

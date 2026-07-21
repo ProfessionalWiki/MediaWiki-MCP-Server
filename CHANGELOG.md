@@ -12,7 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - Hosted OAuth proxy: the `MCP_OAUTH_ALLOWED_REDIRECTS` environment variable lets a deployment admit further MCP clients beyond the trusted defaults. List exact redirect URIs or use an `https://…/*` prefix pattern. Loopback, claude.ai, and the verified first-party clients always remain allowed.
 - The OAuth consent page now shows where the user will be sent after approving — the client's callback host, or "an application on this device" for local clients.
 - IPv6 loopback (`http://[::1]:…`) redirect URIs are now accepted at client registration, per RFC 8252.
-- Hosted OAuth proxy: support for Client ID Metadata Documents (CIMD). CIMD-capable clients (VS Code, ChatGPT, Zed, Claude Code) connect using a stable, vendor-hosted client identity, with no per-client redirect entry to curate. The proxy trusts the verified first-party document hosts by default; add more with `MCP_OAUTH_CIMD_ALLOWED_HOSTS`.
+- Hosted OAuth proxy: support for Client ID Metadata Documents (CIMD). CIMD-capable clients (VS Code, ChatGPT, Zed) connect using a stable, vendor-hosted client identity, with no per-client redirect entry to curate. The proxy trusts the verified first-party document hosts by default; add more with `MCP_OAUTH_CIMD_ALLOWED_HOSTS`.
 
 ### Fixed
 
