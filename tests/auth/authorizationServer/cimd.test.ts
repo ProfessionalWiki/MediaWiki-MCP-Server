@@ -99,6 +99,10 @@ describe('validateCimdDocument', () => {
 		[{ ...goodDoc, redirect_uris: [] }],
 		[{ ...goodDoc, redirect_uris: 'https://vscode.dev/redirect' }],
 		['not an object'],
+		[null],
+		[[]],
+		[{ ...goodDoc, redirect_uris: [123] }],
+		[{ ...goodDoc, client_name: '   ' }],
 	])('rejects %#', (doc) =>
 		expect(() => validateCimdDocument(URL_ID, doc)).toThrow(CimdValidationError),
 	);
