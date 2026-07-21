@@ -140,13 +140,7 @@ If a client can't sign in, add its OAuth callback URL to `MCP_OAUTH_ALLOWED_REDI
 
 Only add callbacks you recognise as the client's official ones — a redirect you allow is a URL the sign-in can hand the user's authorisation to.
 
-### Client ID Metadata Documents
-
-Some clients register with a Client ID Metadata Document (CIMD) instead of Dynamic Client Registration (DCR): their `client_id` is an `https://` URL pointing at a JSON document, hosted by the client's vendor, that lists the client's name and redirect URIs. The proxy fetches that document instead of storing a per-client registration, so a CIMD client needs no entry in `MCP_OAUTH_ALLOWED_REDIRECTS`.
-
-The verified first-party document hosts — `vscode.dev`, `claude.ai`, `zed.dev`, and `chatgpt.com` — are trusted by default. To trust another vendor's document host, list it in `MCP_OAUTH_CIMD_ALLOWED_HOSTS` (comma-separated bare hosts or `host:port`, no scheme or path). CIMD composes with DCR and the redirect allowlist above: a client that doesn't present an `https://` `client_id` still registers and is checked against `MCP_OAUTH_ALLOWED_REDIRECTS` as before.
-
-The document fetch is SSRF-guarded the same way as other outbound requests (see [Outbound SSRF guard](#outbound-ssrf-guard)), capped at a few kilobytes, and never follows redirects — an untrusted host, an oversized response, or a redirect all just fail the fetch. As with `MCP_OAUTH_ALLOWED_REDIRECTS`, changes to `MCP_OAUTH_CIMD_ALLOWED_HOSTS` take effect when you restart the server.
+A few clients — VS Code, ChatGPT, and Zed — identify themselves by a vendor-hosted URL instead of a callback, and are trusted out of the box. To admit another client that works this way, add its host to `MCP_OAUTH_CIMD_ALLOWED_HOSTS` (comma-separated bare hosts or `host:port`) rather than `MCP_OAUTH_ALLOWED_REDIRECTS`.
 
 ## Running it with Docker
 
@@ -243,7 +237,7 @@ Background detail for the setups above. Read it when you want the full picture o
 | `MCP_OAUTH_TOKEN_TTL` | `55m` | Lifetime of a proxy-minted access JWT. Must be shorter than the upstream 30-day refresh window. Duration grammar (`55m`/`1h`/`30d`, or bare seconds). |
 | `MCP_OAUTH_CONSENT_TTL` | `30d` | Lifetime of the signed consent cookie that lets a returning user skip the consent page. Same duration grammar. |
 | `MCP_OAUTH_ALLOWED_REDIRECTS` | unset | Additional OAuth redirect URIs the proxy accepts at client registration: comma-separated exact URIs and `https://…/*` prefix patterns. Loopback, claude.ai, and verified first-party clients are always allowed. See [Allowing more clients](#allowing-more-clients). |
-| `MCP_OAUTH_CIMD_ALLOWED_HOSTS` | unset | Additional client_id document hosts the proxy fetches and trusts for Client ID Metadata Documents: comma-separated bare hosts or `host:port`. The verified first-party hosts are always trusted. See [Client ID Metadata Documents](#client-id-metadata-documents). |
+| `MCP_OAUTH_CIMD_ALLOWED_HOSTS` | unset | Extra hosts to trust for clients that identify by a vendor-hosted URL (Client ID Metadata Documents): comma-separated bare hosts or `host:port`. The first-party clients are always trusted. See [Allowing more clients](#allowing-more-clients). |
 
 `MCP_MAX_REQUEST_BODY` matches nginx's `client_max_body_size 1m`. Raise it if `update-page` calls return 413 on legitimately large edits or your wiki has raised `$wgMaxArticleSize` (MediaWiki default 2 MB). Lower it for a tighter DoS guard.
 
