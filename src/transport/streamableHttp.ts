@@ -952,7 +952,8 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 			}
 		}
 
-		const plan = planAuthorize(q, consent, pc, store, defaultWikiSitename);
+		const client = q.client_id ? store.getClient(q.client_id) : undefined;
+		const plan = planAuthorize(q, consent, pc, store, defaultWikiSitename, client);
 		if (plan.kind === 'error') {
 			res
 				.status(plan.status)
@@ -993,6 +994,7 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 			return;
 		}
 		const q = readAuthorizeQuery(req.query);
+		const client = q.client_id ? store.getClient(q.client_id) : undefined;
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- form-encoded body is untyped; decision is read defensively below
 		const body = (req.body ?? {}) as Record<string, unknown>;
 		const decision = typeof body.decision === 'string' ? body.decision : undefined;
@@ -1000,12 +1002,11 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		if (decision !== 'approve') {
 			// Bounce a proper OAuth error back to the client when we can trust its
 			// redirect_uri; otherwise show a plain page (the client can't be signalled).
-			const denial = planDeny(q, pc, store);
+			const denial = planDeny(q, pc, store, client);
 			if (denial.kind === 'redirect') {
 				res.redirect(302, denial.location);
 				return;
 			}
-			const client = q.client_id ? store.getClient(q.client_id) : undefined;
 			res
 				.status(200)
 				.type('html')
@@ -1045,7 +1046,7 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		);
 
 		const consent: ConsentClaims = { clientId: q.client_id, redirectHost, wiki: defaultWikiKey };
-		const plan = planAuthorize(q, consent, pc, store, defaultWikiSitename);
+		const plan = planAuthorize(q, consent, pc, store, defaultWikiSitename, client);
 		if (plan.kind === 'error') {
 			res
 				.status(plan.status)

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { ProxyConfig } from './proxyConfig.js';
-import type { ProxyStore } from './proxyStore.js';
+import type { ClientRecord, ProxyStore } from './proxyStore.js';
 import { randomVerifier, s256 } from '../pkce.js';
 import { redirectUriMatches } from './redirectPolicy.js';
 
@@ -47,6 +47,7 @@ export function planAuthorize(
 	pc: ProxyConfig,
 	store: ProxyStore,
 	_wikiName: string,
+	client: ClientRecord | undefined,
 ): AuthorizePlan {
 	const err = (d: string): AuthorizePlan => ({
 		kind: 'error',
@@ -54,7 +55,6 @@ export function planAuthorize(
 		body: { error: 'invalid_request', error_description: d },
 	});
 
-	const client = q.client_id ? store.getClient(q.client_id) : undefined;
 	if (!client) {
 		return err('unknown client_id');
 	}
@@ -129,8 +129,8 @@ export function planDeny(
 	q: AuthorizeQuery,
 	pc: ProxyConfig,
 	store: ProxyStore,
+	client: ClientRecord | undefined,
 ): { kind: 'redirect'; location: string } | { kind: 'page' } {
-	const client = q.client_id ? store.getClient(q.client_id) : undefined;
 	if (
 		!client ||
 		!q.redirect_uri ||

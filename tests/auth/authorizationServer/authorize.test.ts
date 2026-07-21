@@ -35,7 +35,9 @@ const baseQuery = (clientId: string) => ({
 describe('planAuthorize', () => {
 	it('errors on unknown client', () => {
 		const { store } = setup();
-		expect(planAuthorize(baseQuery('nope'), undefined, pc, store, 'Ex').kind).toBe('error');
+		expect(planAuthorize(baseQuery('nope'), undefined, pc, store, 'Ex', undefined).kind).toBe(
+			'error',
+		);
 	});
 	it('errors on unregistered redirect', () => {
 		// A different path is unregistered outright — loopback port relaxation
@@ -48,6 +50,7 @@ describe('planAuthorize', () => {
 				pc,
 				store,
 				'Ex',
+				store.getClient(client.clientId),
 			).kind,
 		).toBe('error');
 	});
@@ -63,7 +66,9 @@ describe('planAuthorize', () => {
 			redirect_uri: 'http://127.0.0.1:27523/callback',
 		};
 		const consent = { clientId: client.clientId, redirectHost: '127.0.0.1', wiki: 'w' };
-		expect(planAuthorize(q, consent, pc, store, 'Ex').kind).toBe('redirect');
+		expect(planAuthorize(q, consent, pc, store, 'Ex', store.getClient(client.clientId)).kind).toBe(
+			'redirect',
+		);
 	});
 	it('still requires a byte-exact match for a non-loopback redirect_uri', () => {
 		const store = new InMemoryProxyStore();
@@ -76,7 +81,9 @@ describe('planAuthorize', () => {
 			...baseQuery(client.clientId),
 			redirect_uri: 'https://vscode.dev/redirect/extra',
 		};
-		expect(planAuthorize(q, undefined, pc, store, 'Ex').kind).toBe('error');
+		expect(
+			planAuthorize(q, undefined, pc, store, 'Ex', store.getClient(client.clientId)).kind,
+		).toBe('error');
 	});
 	it('errors on resource mismatch', () => {
 		const { store, client } = setup();
@@ -87,6 +94,7 @@ describe('planAuthorize', () => {
 				pc,
 				store,
 				'Ex',
+				store.getClient(client.clientId),
 			).kind,
 		).toBe('error');
 	});
@@ -102,6 +110,7 @@ describe('planAuthorize', () => {
 				pc,
 				store,
 				'Ex',
+				store.getClient(client.clientId),
 			).kind,
 		).not.toBe('error');
 	});
@@ -114,6 +123,7 @@ describe('planAuthorize', () => {
 				pc,
 				store,
 				'Ex',
+				store.getClient(client.clientId),
 			).kind,
 		).toBe('error');
 	});
@@ -126,6 +136,7 @@ describe('planAuthorize', () => {
 				pc,
 				store,
 				'Ex',
+				store.getClient(client.clientId),
 			).kind,
 		).toBe('error');
 	});
@@ -133,13 +144,22 @@ describe('planAuthorize', () => {
 		const { store, client } = setup();
 		const q = baseQuery(client.clientId);
 		delete (q as Record<string, unknown>).code_challenge;
-		expect(planAuthorize(q, undefined, pc, store, 'Ex').kind).toBe('error');
+		expect(
+			planAuthorize(q, undefined, pc, store, 'Ex', store.getClient(client.clientId)).kind,
+		).toBe('error');
 	});
 	it('renders consent when no cookie', () => {
 		const { store, client } = setup();
-		expect(planAuthorize(baseQuery(client.clientId), undefined, pc, store, 'Ex').kind).toBe(
-			'consent',
-		);
+		expect(
+			planAuthorize(
+				baseQuery(client.clientId),
+				undefined,
+				pc,
+				store,
+				'Ex',
+				store.getClient(client.clientId),
+			).kind,
+		).toBe('consent');
 	});
 	it('redirects upstream with a stored txn when consent present', () => {
 		const { store, client } = setup();
@@ -149,6 +169,7 @@ describe('planAuthorize', () => {
 			pc,
 			store,
 			'Ex',
+			store.getClient(client.clientId),
 		);
 		expect(r.kind).toBe('redirect');
 		if (r.kind !== 'redirect') return;
@@ -183,7 +204,7 @@ describe('planAuthorize', () => {
 			} else {
 				q.scope = scope;
 			}
-			const r = planAuthorize(q, consent, pc, store, 'Ex');
+			const r = planAuthorize(q, consent, pc, store, 'Ex', store.getClient(client.clientId));
 			expect(r.kind).toBe('redirect');
 			if (r.kind !== 'redirect') break;
 			const u = new URL(r.location);
@@ -192,12 +213,19 @@ describe('planAuthorize', () => {
 			expect(store.getTransaction(txnId)?.scopes).toEqual([]);
 		}
 	});
+
+	it('errors when no client is resolved', () => {
+		const { store } = setup();
+		expect(planAuthorize(baseQuery('anything'), undefined, pc, store, 'Ex', undefined).kind).toBe(
+			'error',
+		);
+	});
 });
 
 describe('planDeny', () => {
 	it('redirects an access_denied error back to a registered redirect_uri', () => {
 		const { store, client } = setup();
-		const r = planDeny(baseQuery(client.clientId), pc, store);
+		const r = planDeny(baseQuery(client.clientId), pc, store, store.getClient(client.clientId));
 		expect(r.kind).toBe('redirect');
 		if (r.kind !== 'redirect') return;
 		const u = new URL(r.location);
@@ -210,7 +238,7 @@ describe('planDeny', () => {
 
 	it('falls back to a page for an unknown client (no trusted redirect target)', () => {
 		const { store } = setup();
-		expect(planDeny(baseQuery('nope'), pc, store).kind).toBe('page');
+		expect(planDeny(baseQuery('nope'), pc, store, undefined).kind).toBe('page');
 	});
 
 	it('falls back to a page for an unregistered redirect_uri (open-redirect guard)', () => {
@@ -219,6 +247,7 @@ describe('planDeny', () => {
 			{ ...baseQuery(client.clientId), redirect_uri: 'http://evil.example/cb' },
 			pc,
 			store,
+			store.getClient(client.clientId),
 		);
 		expect(r.kind).toBe('page');
 	});
@@ -227,7 +256,7 @@ describe('planDeny', () => {
 		const { store, client } = setup();
 		const q = baseQuery(client.clientId);
 		delete (q as Record<string, unknown>).state;
-		const r = planDeny(q, pc, store);
+		const r = planDeny(q, pc, store, store.getClient(client.clientId));
 		expect(r.kind).toBe('redirect');
 		if (r.kind !== 'redirect') return;
 		expect(new URL(r.location).searchParams.has('state')).toBe(false);
