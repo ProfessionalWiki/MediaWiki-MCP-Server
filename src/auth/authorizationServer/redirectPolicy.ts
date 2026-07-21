@@ -78,6 +78,10 @@ const SHIPPED_CLIENT_DEFAULTS: AllowlistEntry[] = [
 	// execution on the machine, so it is acceptable.
 	'https://www.cursor.com/agents/mcp/oauth/callback',
 	'cursor://anysphere.cursor-mcp/oauth/callback',
+	// VS Code (vscode.dev). The stable and Insiders web redirect callbacks. The
+	// desktop loopback fallback is already covered by the loopback built-in.
+	'https://vscode.dev/redirect',
+	'https://insiders.vscode.dev/redirect',
 ].map(parseEntry);
 
 /**
