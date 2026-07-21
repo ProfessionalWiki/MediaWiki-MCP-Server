@@ -92,3 +92,32 @@ describe('resolveProxyConfig', () => {
 		expect(c.consentTtlMs).toBe(30 * 24 * 60 * 60 * 1000);
 	});
 });
+
+describe('redirect allowlist plumbing', () => {
+	it('defaults to an empty list', () => {
+		expect(resolveProxyConfig('w', wiki, env)?.redirectAllowlist).toEqual([]);
+	});
+
+	it('parses entries from MCP_OAUTH_ALLOWED_REDIRECTS', () => {
+		const pc = resolveProxyConfig('w', wiki, {
+			...env,
+			MCP_OAUTH_ALLOWED_REDIRECTS: 'https://vscode.dev/redirect',
+		});
+		expect(pc?.redirectAllowlist).toEqual([{ kind: 'exact', uri: 'https://vscode.dev/redirect' }]);
+	});
+
+	it('rejects a bare star', () => {
+		expect(() =>
+			resolveProxyConfig('w', wiki, { ...env, MCP_OAUTH_ALLOWED_REDIRECTS: '*' }),
+		).toThrow(ProxyConfigError);
+	});
+
+	it('wraps parse failures in ProxyConfigError naming the env var', () => {
+		expect(() =>
+			resolveProxyConfig('w', wiki, { ...env, MCP_OAUTH_ALLOWED_REDIRECTS: 'vscode.dev' }),
+		).toThrow(ProxyConfigError);
+		expect(() =>
+			resolveProxyConfig('w', wiki, { ...env, MCP_OAUTH_ALLOWED_REDIRECTS: 'vscode.dev' }),
+		).toThrow(/MCP_OAUTH_ALLOWED_REDIRECTS/);
+	});
+});

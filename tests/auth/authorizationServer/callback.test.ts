@@ -13,6 +13,7 @@ const pc: ProxyConfig = {
 	signingKey: 'x'.repeat(32),
 	consentTtlMs: 1000,
 	tokenTtlMs: 1000,
+	redirectAllowlist: [],
 };
 
 describe('handleCallback', () => {

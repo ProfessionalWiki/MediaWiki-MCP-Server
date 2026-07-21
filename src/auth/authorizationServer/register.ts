@@ -1,5 +1,4 @@
 import type { ProxyStore } from './proxyStore.js';
-import { isAllowedRedirect } from './redirectPolicy.js';
 
 export interface RegisterResult {
 	status: number;
@@ -12,11 +11,15 @@ const MAX_REDIRECT_URIS = 10;
 const MAX_CLIENT_NAME_LENGTH = 256;
 
 // RFC 7591 Dynamic Client Registration facade. Validates that every requested
-// redirect_uri passes the proxy's redirect policy, then mints a public client
-// (token_endpoint_auth_method 'none', PKCE-only). The pure handler is exported
-// separately from the Express route so it can be unit-tested without booting
-// the side-effecting transport module.
-export function handleRegister(body: unknown, store: ProxyStore): RegisterResult {
+// redirect_uri passes the caller-supplied redirect policy, then mints a public
+// client (token_endpoint_auth_method 'none', PKCE-only). The pure handler is
+// exported separately from the Express route so it can be unit-tested without
+// booting the side-effecting transport module.
+export function handleRegister(
+	body: unknown,
+	store: ProxyStore,
+	isAllowed: (uri: string) => boolean,
+): RegisterResult {
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RFC 7591 request body is untyped JSON; fields are validated individually below
 	const b = (body ?? {}) as Record<string, unknown>;
 	const redirectUris = Array.isArray(b.redirect_uris)
@@ -37,7 +40,7 @@ export function handleRegister(body: unknown, store: ProxyStore): RegisterResult
 			},
 		};
 	}
-	if (!redirectUris.every(isAllowedRedirect)) {
+	if (!redirectUris.every(isAllowed)) {
 		return {
 			status: 400,
 			body: { error: 'invalid_redirect_uri', error_description: 'a redirect_uri is not permitted' },

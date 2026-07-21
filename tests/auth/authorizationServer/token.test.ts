@@ -20,6 +20,7 @@ const pc: ProxyConfig = {
 	signingKey: 'k'.repeat(32),
 	consentTtlMs: 1000,
 	tokenTtlMs: 60_000,
+	redirectAllowlist: [],
 };
 
 const REDIRECT = 'http://127.0.0.1:9000/cb';
