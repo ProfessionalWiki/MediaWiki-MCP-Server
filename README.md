@@ -122,26 +122,19 @@ Each pack's tools register only on wikis where its extension is installed.
 </details>
 
 ### Environment variables
+
+The variables below are relevant to any setup. Variables that only apply when self-hosting the HTTP transport (ports, timeouts, session limits, Host/Origin and SSRF guards) or running the hosted OAuth proxy are in [docs/deployment.md — environment variables](docs/deployment.md#environment-variables). Config-file substitution and upload-directory variables are in [docs/configuration.md](docs/configuration.md).
+
 | Name | Description | Default |
 |---|---|---|
 | `CONFIG` | Path to your configuration file | `config.json` |
-| `MCP_ALLOW_STATIC_FALLBACK` | Set to `true` to allow HTTP startup when `config.json` has static credentials. See [docs/deployment.md — security checklist](docs/deployment.md#security-checklist). | `unset` |
+| `MCP_TRANSPORT` | Type of MCP server transport (`stdio` or `http`) | `stdio` |
+| `MCP_LOG_LEVEL` | Minimum severity for logger output. One of `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`, or `silent`. | `debug` |
 | `MCP_CONTENT_MAX_BYTES` | Byte cap for content bodies (wikitext, rendered HTML, diffs). Tune to the target LLM client's tool-response budget. | `50000` |
 | `MCP_FILE_DATA_MAX_BYTES` | Hard cap on the base64-encoded size of a `get-file-data` response. A transport/safety backstop; tune the actual size per call with the tool's `width`. Over-cap calls error rather than truncate. | `1000000` |
 | `MCP_UPLOAD_MAX_BYTES` | Memory cap on the server-side fetch used by `upload-file-from-url` / `update-file-from-url`. Files larger than this are handed to the wiki's own copy-upload instead of being buffered by the server. Guards this server's memory, not the wiki's `$wgMaxUploadSize`. | `104857600` |
-| `MCP_LOG_LEVEL` | Minimum severity for logger output. One of `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`, or `silent`. | `debug` |
-| `MCP_OAUTH_ALLOWED_REDIRECTS` | Additional OAuth redirect URIs the hosted proxy accepts at client registration: comma-separated exact URIs (each must include a host) and `https://…/*` prefix patterns. Loopback, claude.ai, and verified first-party clients are always allowed. See [docs/deployment.md — allowing more clients](docs/deployment.md#allowing-more-clients). | `unset` |
-| `MCP_OAUTH_CIMD_ALLOWED_HOSTS` | Extra hosts to trust for clients that identify by a vendor-hosted URL (Client ID Metadata Documents): comma-separated bare hosts or `host:port`. Verified first-party clients are trusted by default. See [docs/deployment.md — allowing more clients](docs/deployment.md#allowing-more-clients). | `unset` |
 | `MCP_OAUTH_CREDENTIALS_FILE` | Override the default credentials store path. Default: `~/.config/mediawiki-mcp/credentials.json` (Linux/macOS) or `%APPDATA%\mediawiki-mcp\credentials.json` (Windows). | `unset` |
 | `MCP_OAUTH_NO_BROWSER` | Set to `1` to skip launching a browser during the OAuth flow; the auth URL is logged to stderr instead. Useful in headless environments. | `unset` |
-| `MCP_PUBLIC_URL` | Override the request-derived public URL used in OAuth protected-resource discovery. Useful for reverse-proxy setups that rewrite the `Host` header. | `unset` |
-| `MCP_MAX_REQUEST_BODY` | Maximum HTTP request body size (StreamableHTTP transport). Accepts size strings like `512kb` or `1mb`. Oversize requests get a JSON-RPC 413. | `1mb` |
-| `MCP_METRICS` | Set to `true` to expose Prometheus metrics at `GET /metrics` on the HTTP transport. | `unset` |
-| `MCP_SESSION_IDLE_TIMEOUT` | Seconds an HTTP session may sit idle before it is closed and removed (StreamableHTTP transport). Any request resets the timer. `0` disables expiry. | `1800` |
-| `MCP_SHUTDOWN_GRACE_MS` | Maximum ms to wait for in-flight `/mcp` calls to drain on `SIGTERM` / `SIGINT`. See [docs/operations.md — Graceful shutdown](docs/operations.md#graceful-shutdown). | `10000` |
-| `MCP_TRANSPORT` | Type of MCP server transport (`stdio` or `http`) | `stdio` |
-| `MCP_TRUSTED_HOSTS` | Comma-separated hosts exempt from the **outbound** SSRF guard's public-IP check — for deliberately pointing the server at an internal destination such as a Docker-network alias (`mediawiki.svc`). Distinct from the inbound `MCP_ALLOWED_HOSTS`; see [Security](#security). | `unset` |
-| `PORT` | Port used for StreamableHTTP transport | `3000` |
 
 ## Configuration
 

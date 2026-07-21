@@ -221,27 +221,37 @@ Background detail for the setups above. Read it when you want the full picture o
 
 ### Environment variables
 
+These apply once you self-host the HTTP transport. The core variables common to every setup (`CONFIG`, `MCP_TRANSPORT`, `MCP_LOG_LEVEL`, the result-size caps, and local OAuth) are in the [README environment-variable table](../README.md#environment-variables); config-file substitution and upload-directory variables (`MCP_UPLOAD_DIRS`) are in [configuration.md](configuration.md).
+
+#### HTTP transport
+
+Set `MCP_TRANSPORT=http` to select this transport (the Docker image defaults to it); see the [README core table](../README.md#environment-variables).
+
 | Name | Default | Description |
 |---|---|---|
-| `MCP_TRANSPORT` | `stdio` | Set to `http` for the StreamableHTTP transport (Docker default). |
 | `PORT` | `3000` (Docker: `8080`) | Listen port. |
 | `MCP_BIND` | `127.0.0.1` (Docker: `0.0.0.0`) | Listen interface. Set to `0.0.0.0` outside Docker only when you need remote access. |
+| `MCP_MAX_REQUEST_BODY` | `1mb` | HTTP request body cap. Accepts size strings (`b`, `kb`, `mb`, `gb`). |
+| `MCP_SESSION_IDLE_TIMEOUT` | `1800` | Seconds an HTTP session may sit idle before it is closed and removed. Any request resets the timer. `0` disables expiry. |
 | `MCP_SHUTDOWN_GRACE_MS` | `10000` | Drain timeout in ms on `SIGTERM` / `SIGINT`. See [Graceful shutdown](operations.md#graceful-shutdown). |
+| `MCP_METRICS` | unset | Set to `true` to expose Prometheus metrics at `GET /metrics`. See [Metrics](operations.md#metrics). |
 | `MCP_ALLOWED_HOSTS` | auto on localhost | Comma-separated Host-header allowlist. See [Security checklist](#security-checklist). |
 | `MCP_ALLOWED_ORIGINS` | auto on localhost | Comma-separated `Origin`-header allowlist. See [Security checklist](#security-checklist). |
 | `MCP_TRUSTED_HOSTS` | unset | Comma-separated **outbound** SSRF-guard exemptions for internal destinations (e.g. `mediawiki.svc`). See [Outbound SSRF guard](#outbound-ssrf-guard). |
-| `MCP_MAX_REQUEST_BODY` | `1mb` | HTTP request body cap. Accepts size strings (`b`, `kb`, `mb`, `gb`). |
 | `MCP_ALLOW_STATIC_FALLBACK` | unset | Allow HTTP startup when a wiki has static credentials, making them a shared fallback identity. See [Security checklist](#security-checklist). |
+
+`MCP_MAX_REQUEST_BODY` matches nginx's `client_max_body_size 1m`. Raise it if `update-page` calls return 413 on legitimately large edits or your wiki has raised `$wgMaxArticleSize` (MediaWiki default 2 MB). Lower it for a tighter DoS guard.
+
+#### Hosted OAuth proxy
+
+| Name | Default | Description |
+|---|---|---|
 | `MCP_PUBLIC_URL` | unset | The proxy's public issuer/base, e.g. `https://wiki.example.org/mcp`. Enables the hosted OAuth proxy when set alongside `MCP_OAUTH_JWT_SIGNING_KEY` and a default wiki with `oauth2ClientId`. See [Hosted OAuth sign-in](#hosted-oauth-sign-in). |
 | `MCP_OAUTH_JWT_SIGNING_KEY` | unset | Secret (≥32 chars) the proxy signs its issued access/refresh JWTs and consent cookies with. Required for the proxy. Keep it **fixed** so tokens survive a restart. See [Hosted OAuth sign-in](#hosted-oauth-sign-in). |
 | `MCP_OAUTH_TOKEN_TTL` | `55m` | Lifetime of a proxy-minted access JWT. Must be shorter than the upstream 30-day refresh window. Duration grammar (`55m`/`1h`/`30d`, or bare seconds). |
 | `MCP_OAUTH_CONSENT_TTL` | `30d` | Lifetime of the signed consent cookie that lets a returning user skip the consent page. Same duration grammar. |
 | `MCP_OAUTH_ALLOWED_REDIRECTS` | unset | Additional OAuth redirect URIs the proxy accepts at client registration: comma-separated exact URIs and `https://…/*` prefix patterns. Loopback, claude.ai, and verified first-party clients are always allowed. See [Allowing more clients](#allowing-more-clients). |
 | `MCP_OAUTH_CIMD_ALLOWED_HOSTS` | unset | Extra hosts to trust for clients that identify by a vendor-hosted URL (Client ID Metadata Documents): comma-separated bare hosts or `host:port`. The first-party clients are always trusted. See [Allowing more clients](#allowing-more-clients). |
-
-`MCP_MAX_REQUEST_BODY` matches nginx's `client_max_body_size 1m`. Raise it if `update-page` calls return 413 on legitimately large edits or your wiki has raised `$wgMaxArticleSize` (MediaWiki default 2 MB). Lower it for a tighter DoS guard.
-
-For the complete list of every environment variable the server reads, see the [README environment-variable table](../README.md#environment-variables).
 
 ### How the proxy works
 
