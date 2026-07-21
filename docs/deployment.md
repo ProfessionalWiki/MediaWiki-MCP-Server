@@ -140,7 +140,7 @@ If a client can't sign in, add its OAuth callback URL to `MCP_OAUTH_ALLOWED_REDI
 
 Only add callbacks you recognise as the client's official ones — a redirect you allow is a URL the sign-in can hand the user's authorisation to.
 
-A few clients — VS Code, ChatGPT, and Zed — identify themselves by a vendor-hosted URL instead of a callback, and are trusted out of the box. To admit another client that works this way, add its host to `MCP_OAUTH_CIMD_ALLOWED_HOSTS` (comma-separated bare hosts or `host:port`) rather than `MCP_OAUTH_ALLOWED_REDIRECTS`.
+Some clients identify themselves by a vendor-hosted URL instead of a callback; verified first-party ones are trusted out of the box. To admit another client that works this way, add its host to `MCP_OAUTH_CIMD_ALLOWED_HOSTS` (comma-separated bare hosts or `host:port`) rather than `MCP_OAUTH_ALLOWED_REDIRECTS`.
 
 ## Running it with Docker
 
