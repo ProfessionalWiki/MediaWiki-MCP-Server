@@ -1,4 +1,5 @@
 import { parseRedirectAllowlist, type RedirectAllowlist } from './redirectPolicy.js';
+import { parseCimdAllowedHosts } from './cimd.js';
 
 export class ProxyConfigError extends Error {
 	public constructor(message: string) {
@@ -18,6 +19,7 @@ export interface ProxyConfig {
 	consentTtlMs: number;
 	tokenTtlMs: number;
 	redirectAllowlist: RedirectAllowlist;
+	cimdAllowedHosts: string[];
 }
 
 const UPSTREAM_REFRESH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -97,6 +99,15 @@ export function resolveProxyConfig(
 		);
 	}
 
+	let cimdAllowedHosts: string[];
+	try {
+		cimdAllowedHosts = parseCimdAllowedHosts(env.MCP_OAUTH_CIMD_ALLOWED_HOSTS);
+	} catch (e) {
+		throw new ProxyConfigError(
+			`MCP_OAUTH_CIMD_ALLOWED_HOSTS: ${e instanceof Error ? e.message : String(e)}`,
+		);
+	}
+
 	return {
 		issuer,
 		authorizeBase: stripTrailingSlash(wiki.publicServer?.trim() || wiki.server),
@@ -108,6 +119,7 @@ export function resolveProxyConfig(
 		consentTtlMs,
 		tokenTtlMs,
 		redirectAllowlist,
+		cimdAllowedHosts,
 	};
 }
 

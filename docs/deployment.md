@@ -140,6 +140,8 @@ If a client can't sign in, add its OAuth callback URL to `MCP_OAUTH_ALLOWED_REDI
 
 Only add callbacks you recognise as the client's official ones — a redirect you allow is a URL the sign-in can hand the user's authorisation to.
 
+Some clients identify themselves by a vendor-hosted URL instead of a callback; verified first-party ones are trusted out of the box. To admit another client that works this way, add its host to `MCP_OAUTH_CIMD_ALLOWED_HOSTS` (comma-separated bare hosts or `host:port`) rather than `MCP_OAUTH_ALLOWED_REDIRECTS`.
+
 ## Running it with Docker
 
 The image is published at `ghcr.io/professionalwiki/mediawiki-mcp-server`. Pull and run it:
@@ -235,6 +237,7 @@ Background detail for the setups above. Read it when you want the full picture o
 | `MCP_OAUTH_TOKEN_TTL` | `55m` | Lifetime of a proxy-minted access JWT. Must be shorter than the upstream 30-day refresh window. Duration grammar (`55m`/`1h`/`30d`, or bare seconds). |
 | `MCP_OAUTH_CONSENT_TTL` | `30d` | Lifetime of the signed consent cookie that lets a returning user skip the consent page. Same duration grammar. |
 | `MCP_OAUTH_ALLOWED_REDIRECTS` | unset | Additional OAuth redirect URIs the proxy accepts at client registration: comma-separated exact URIs and `https://…/*` prefix patterns. Loopback, claude.ai, and verified first-party clients are always allowed. See [Allowing more clients](#allowing-more-clients). |
+| `MCP_OAUTH_CIMD_ALLOWED_HOSTS` | unset | Extra hosts to trust for clients that identify by a vendor-hosted URL (Client ID Metadata Documents): comma-separated bare hosts or `host:port`. The first-party clients are always trusted. See [Allowing more clients](#allowing-more-clients). |
 
 `MCP_MAX_REQUEST_BODY` matches nginx's `client_max_body_size 1m`. Raise it if `update-page` calls return 413 on legitimately large edits or your wiki has raised `$wgMaxArticleSize` (MediaWiki default 2 MB). Lower it for a tighter DoS guard.
 

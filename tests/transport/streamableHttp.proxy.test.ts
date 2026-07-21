@@ -45,6 +45,8 @@ import {
 } from '../../src/transport/streamableHttp.js';
 import { createAppState } from '../../src/wikis/state.js';
 import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.js';
+import { CimdResolver } from '../../src/auth/authorizationServer/cimd.js';
+import type { CimdFetchResult } from '../../src/transport/cimdFetch.js';
 import { verifyAccessToken } from '../../src/auth/authorizationServer/jwt.js';
 import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.js';
 import {
@@ -96,6 +98,7 @@ function proxyConfig(fakeAsUrl: string): ProxyConfig {
 		consentTtlMs: 60_000,
 		tokenTtlMs: 55 * 60 * 1000,
 		redirectAllowlist: [],
+		cimdAllowedHosts: [],
 	};
 }
 
@@ -115,6 +118,7 @@ function makeDeps(
 		getProxyConfig: () => pc,
 		proxyStore: store,
 		proxyRedirectPolicy: pc ? buildRedirectPolicy(pc.redirectAllowlist) : null,
+		cimdResolver: null,
 		defaultWikiKey: 'test',
 		defaultWikiSitename: 'Test Wiki',
 		createServerFn: stubCreateServer,
@@ -500,6 +504,74 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		expect(wwwAuth).toContain('error="invalid_token"');
 		expect(wwwAuth).toContain('resource_metadata=');
 	});
+
+	it('CIMD: a URL client_id on an allowlisted host resolves via its metadata document and reaches consent; an off-allowlist host is rejected', async () => {
+		const store = new InMemoryProxyStore();
+		const pc = proxyConfig('https://test.example');
+
+		// A URL client_id whose host is on the resolver's allowlist. The stub fetcher
+		// returns a self-referential document (client_id === the fetched URL) whose
+		// redirect_uris list the redirect the authorize request will send. NO network:
+		// the fetcher is a closure over the test's redirectUri.
+		const clientId = 'https://vscode.dev/oauth/client-metadata.json';
+		const redirectUri = 'https://vscode.dev/redirect';
+		let fetchCalls = 0;
+		const countingFetcher = async (url: string): Promise<CimdFetchResult> => {
+			fetchCalls++;
+			return {
+				status: 200,
+				body: JSON.stringify({
+					client_id: url,
+					client_name: 'VS Code',
+					redirect_uris: [redirectUri],
+				}),
+				cacheControl: null,
+			};
+		};
+		const cimdResolver = new CimdResolver((h) => h === 'vscode.dev', countingFetcher);
+
+		const { app } = buildApp({ ...makeDeps('https://test.example', store, pc), cimdResolver });
+
+		// Success: allowlisted host → document fetched, self-matches → consent page,
+		// which names the VERIFIED client_id host (vscode.dev), not just client_name.
+		const ok = await request(app).get('/mcp/authorize').query({
+			response_type: 'code',
+			client_id: clientId,
+			code_challenge: 'abc123',
+			code_challenge_method: 'S256',
+			redirect_uri: redirectUri,
+			state: 's',
+			resource: ISSUER,
+		});
+		expect(ok.status).toBe(200);
+		expect(ok.text).toContain('vscode.dev');
+		// Uniquely proves the verified-host line rendered: 'vscode.dev' alone also
+		// appears on the redirectHost line, so assert the verified-line literal too.
+		expect(ok.text).toContain('Verified application');
+
+		// The allowed-host success above consulted the fetcher once; reset so the
+		// count below reflects ONLY the off-allowlist request.
+		fetchCalls = 0;
+
+		// Rejection: the host is NOT on the allowlist, so the gate fails BEFORE the
+		// fetcher is ever consulted → the 400 auth-error page.
+		const rejected = await request(app).get('/mcp/authorize').query({
+			response_type: 'code',
+			client_id: 'https://evil.example/c.json',
+			code_challenge: 'abc123',
+			code_challenge_method: 'S256',
+			redirect_uri: redirectUri,
+			state: 's',
+			resource: ISSUER,
+		});
+		expect(rejected.status).toBe(400);
+		expect(rejected.headers['content-type']).toMatch(/html/);
+		expect(rejected.text).toMatch(/Authorization failed/);
+		// The host allowlist gate ran before any fetch, and the CIMD rejection reason
+		// (not just a generic error title) is rendered on the page.
+		expect(fetchCalls).toBe(0);
+		expect(rejected.text).toMatch(/not a trusted CIMD host|evil\.example/);
+	});
 });
 
 describe('private wiki — connection-time auth challenge', () => {
@@ -541,6 +613,7 @@ describe('private wiki — connection-time auth challenge', () => {
 			getProxyConfig: () => pc,
 			proxyStore: store,
 			proxyRedirectPolicy: pc ? buildRedirectPolicy(pc.redirectAllowlist) : null,
+			cimdResolver: null,
 			defaultWikiKey: 'test',
 			defaultWikiSitename: 'Test Wiki',
 			createServerFn: stubCreateServer,
@@ -626,6 +699,8 @@ describe('private wiki — connection-time auth challenge', () => {
 			state,
 			getProxyConfig: () => null,
 			proxyStore: new InMemoryProxyStore(),
+			proxyRedirectPolicy: null,
+			cimdResolver: null,
 			defaultWikiKey: 'test',
 			defaultWikiSitename: 'Test Wiki',
 			createServerFn: stubCreateServer,
@@ -665,6 +740,8 @@ describe('private wiki — connection-time auth challenge', () => {
 			state,
 			getProxyConfig: () => null,
 			proxyStore: new InMemoryProxyStore(),
+			proxyRedirectPolicy: null,
+			cimdResolver: null,
 			defaultWikiKey: 'test',
 			defaultWikiSitename: 'Test Wiki',
 			createServerFn: stubCreateServer,

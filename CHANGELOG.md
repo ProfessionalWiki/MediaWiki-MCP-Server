@@ -8,14 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Added
 
-- Hosted OAuth proxy: ChatGPT, Cursor, and VS Code now work with the hosted proxy out of the box — their verified first-party OAuth callbacks are trusted by default, with no `MCP_OAUTH_ALLOWED_REDIRECTS` configuration.
+- Hosted OAuth proxy: verified first-party MCP clients now work with the hosted proxy out of the box — their OAuth callbacks are trusted by default, with no `MCP_OAUTH_ALLOWED_REDIRECTS` configuration.
 - Hosted OAuth proxy: the `MCP_OAUTH_ALLOWED_REDIRECTS` environment variable lets a deployment admit further MCP clients beyond the trusted defaults. List exact redirect URIs or use an `https://…/*` prefix pattern. Loopback, claude.ai, and the verified first-party clients always remain allowed.
 - The OAuth consent page now shows where the user will be sent after approving — the client's callback host, or "an application on this device" for local clients.
 - IPv6 loopback (`http://[::1]:…`) redirect URIs are now accepted at client registration, per RFC 8252.
+- Hosted OAuth proxy: support for Client ID Metadata Documents (CIMD). CIMD-capable clients connect using a stable, vendor-hosted client identity, with no per-client redirect entry to curate. The proxy trusts the verified first-party document hosts by default; add more with `MCP_OAUTH_CIMD_ALLOWED_HOSTS`.
 
 ### Fixed
 
-- OAuth clients that use a loopback callback on a variable port (VS Code's busy-port fallback, and clients that register a portless `http://127.0.0.1/` URI) now complete the flow instead of failing with "redirect_uri not registered", per RFC 8252.
+- OAuth clients that use a loopback callback on a variable port (including clients that register a portless `http://127.0.0.1/` URI) now complete the flow instead of failing with "redirect_uri not registered", per RFC 8252.
 
 ## [0.13.1] - 2026-07-09
 

@@ -69,6 +69,10 @@
           "description": "Additional allowed redirect URIs for hosted-proxy client registration: comma-separated exact URIs (which must include a host) and https prefix patterns ending in /*. Loopback, claude.ai, and verified first-party clients (ChatGPT, Cursor, VS Code) are always allowed; unset means no additional clients."
         },
         {
+          "name": "MCP_OAUTH_CIMD_ALLOWED_HOSTS",
+          "description": "Comma-separated additional client_id document hosts trusted for CIMD (bare host or host:port). Verified first-party hosts are always trusted."
+        },
+        {
           "name": "MCP_OAUTH_CREDENTIALS_FILE",
           "description": "Override the default OAuth credentials store path. Default: ~/.config/mediawiki-mcp/credentials.json on Linux/macOS, %APPDATA%\\mediawiki-mcp\\credentials.json on Windows.",
           "format": "filepath"
@@ -175,6 +179,10 @@
         {
           "name": "MCP_OAUTH_ALLOWED_REDIRECTS",
           "description": "Additional allowed redirect URIs for hosted-proxy client registration: comma-separated exact URIs (which must include a host) and https prefix patterns ending in /*. Loopback, claude.ai, and verified first-party clients (ChatGPT, Cursor, VS Code) are always allowed; unset means no additional clients."
+        },
+        {
+          "name": "MCP_OAUTH_CIMD_ALLOWED_HOSTS",
+          "description": "Comma-separated additional client_id document hosts trusted for CIMD (bare host or host:port). Verified first-party hosts are always trusted."
         },
         {
           "name": "MCP_OAUTH_CREDENTIALS_FILE",

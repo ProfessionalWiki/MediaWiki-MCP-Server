@@ -15,6 +15,7 @@ export function renderConsentPage(a: {
 	authorizeQuery: string;
 	csrfToken: string;
 	redirectHost: string;
+	clientIdHost?: string;
 }): string {
 	// No per-permission line: the proxy always requests the consumer's full grants
 	// (see authorize.ts). The user sees the exact grants on MediaWiki's own
@@ -23,7 +24,15 @@ export function renderConsentPage(a: {
 		a.redirectHost && !isLoopbackHost(a.redirectHost)
 			? a.redirectHost
 			: 'an application on this device';
+	// CIMD clients carry a verified client_id host (the client_id URL's host was
+	// checked against the trusted allowlist and confirmed by the document's own
+	// self-reference); the client_name below is self-asserted and unverified, so
+	// the verified host leads. DCR clients pass no host and this line is omitted.
+	const verifiedHost = a.clientIdHost
+		? `<p class="pg-verified">Verified application: <strong>${esc(a.clientIdHost)}</strong></p>`
+		: '';
 	const body =
+		verifiedHost +
 		`<p class="pg-lead"><strong>${esc(a.clientName)}</strong> wants to act as you on <strong>${esc(a.wiki)}</strong>.</p>` +
 		`<p class="pg-note">After you approve, you will be sent back to <strong>${esc(destination)}</strong>.</p>` +
 		`<form method="POST" action="/mcp/consent?${esc(a.authorizeQuery)}" class="pg-actions">` +

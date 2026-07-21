@@ -74,6 +74,20 @@ describe('consent', () => {
 		expect(html).not.toContain('127.0.0.1');
 	});
 
+	it('shows the verified client_id host, leading the self-asserted name', () => {
+		const html = renderConsentPage({
+			clientName: 'VS Code',
+			wiki: 'My Wiki',
+			authorizeQuery: 'client_id=x',
+			csrfToken: 't',
+			redirectHost: 'vscode.dev',
+			clientIdHost: 'code.visualstudio.com',
+		});
+		expect(html).toContain('code.visualstudio.com');
+		expect(html).toContain('Verified application');
+		expect(html.indexOf('pg-verified')).toBeLessThan(html.indexOf('pg-lead'));
+	});
+
 	it('renders cancelled and auth-error pages', () => {
 		const cancelled = renderCancelledPage({ clientName: 'Claude Code' });
 		expect(cancelled).toContain('Authorization cancelled');
