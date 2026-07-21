@@ -168,4 +168,45 @@ describe('CimdResolver', () => {
 		await resolver.resolve(URL_ID);
 		expect(fetcher).toHaveBeenCalledTimes(1);
 	});
+	it('rejects a malformed client_id without fetching', async () => {
+		const fetcher = vi.fn();
+		const r = await new CimdResolver(allow, fetcher).resolve('not-a-url');
+		expect(r.ok).toBe(false);
+		expect(fetcher).not.toHaveBeenCalled();
+	});
+	it('rejects unparseable JSON and does not cache it', async () => {
+		const fetcher = vi.fn(async () => ({ status: 200, body: 'not json', cacheControl: null }));
+		const resolver = new CimdResolver(allow, fetcher);
+		expect((await resolver.resolve(URL_ID)).ok).toBe(false);
+		await resolver.resolve(URL_ID);
+		expect(fetcher).toHaveBeenCalledTimes(2);
+	});
+	it('rejects a document that fails validation and does not cache it', async () => {
+		const bad = JSON.stringify({
+			client_id: URL_ID,
+			client_name: '',
+			redirect_uris: ['https://vscode.dev/redirect'],
+		});
+		const fetcher = vi.fn(async () => ({ status: 200, body: bad, cacheControl: null }));
+		const resolver = new CimdResolver(allow, fetcher);
+		expect((await resolver.resolve(URL_ID)).ok).toBe(false);
+		await resolver.resolve(URL_ID);
+		expect(fetcher).toHaveBeenCalledTimes(2);
+	});
+	it('surfaces a fetcher throw as the reason', async () => {
+		const fetcher = vi.fn(async () => {
+			throw new Error('boom');
+		});
+		const r = await new CimdResolver(allow, fetcher).resolve(URL_ID);
+		expect(!r.ok && r.reason).toBe('boom');
+	});
+	it('refetches after the TTL expires', async () => {
+		let t = 0;
+		const fetcher = vi.fn(async () => ({ status: 200, body: doc, cacheControl: 'max-age=3600' }));
+		const resolver = new CimdResolver(allow, fetcher, () => t);
+		await resolver.resolve(URL_ID);
+		t = 3600_000 + 1;
+		await resolver.resolve(URL_ID);
+		expect(fetcher).toHaveBeenCalledTimes(2);
+	});
 });

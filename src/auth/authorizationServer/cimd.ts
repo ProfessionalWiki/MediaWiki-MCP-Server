@@ -168,6 +168,12 @@ export function cimdTtlMs(cacheControl: string | null): number {
 
 export type CimdResolveResult = { ok: true; client: ClientRecord } | { ok: false; reason: string };
 
+// Deep-copies the mutable fields of a ClientRecord so a caller mutating the
+// returned record in place cannot corrupt the resolver's cached copy.
+function cloneRecord(r: ClientRecord): ClientRecord {
+	return { ...r, redirectUris: [...r.redirectUris], scopes: [...r.scopes] };
+}
+
 // Resolves a URL client_id into a public ClientRecord, or a reason string. The
 // fetcher is injected (production passes fetchCimdDocument); the cache is per-resolver
 // and in-memory. Failures are never cached. The host allowlist gate runs BEFORE the
@@ -194,7 +200,7 @@ export class CimdResolver {
 		}
 		const cached = this.cache.get(clientId);
 		if (cached && cached.expiresAt > this.now()) {
-			return { ok: true, client: cached.record };
+			return { ok: true, client: cloneRecord(cached.record) };
 		}
 
 		let result: CimdFetchResult;
@@ -224,7 +230,7 @@ export class CimdResolver {
 
 		this.evictIfFull();
 		this.cache.set(clientId, { record, expiresAt: this.now() + cimdTtlMs(result.cacheControl) });
-		return { ok: true, client: record };
+		return { ok: true, client: cloneRecord(record) };
 	}
 
 	private evictIfFull(): void {
