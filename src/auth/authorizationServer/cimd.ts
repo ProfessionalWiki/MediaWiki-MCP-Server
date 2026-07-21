@@ -67,6 +67,9 @@ export function parseCimdAllowedHosts(raw: string | undefined): string[] {
 		.map((s) => s.trim().toLowerCase())
 		.filter(Boolean)
 		.map((entry) => {
+			if (entry.includes('*')) {
+				throw new CimdValidationError(`CIMD host entry must not contain a wildcard: ${entry}`);
+			}
 			// Reuse URL parsing to validate: `https://<entry>` must round-trip to the
 			// same host[:port] with no path/query/fragment/userinfo.
 			let u: URL;
@@ -91,6 +94,9 @@ export function parseCimdAllowedHosts(raw: string | undefined): string[] {
 // The predicate applied to a candidate client_id's host (already case-folded by
 // the caller as `url.host`). Composes the shipped defaults with operator entries.
 export function buildCimdHostPredicate(operatorHosts: string[]): (host: string) => boolean {
-	const allowed = new Set<string>([...SHIPPED_CIMD_HOSTS, ...operatorHosts]);
+	const allowed = new Set<string>([
+		...SHIPPED_CIMD_HOSTS,
+		...operatorHosts.map((h) => h.toLowerCase()),
+	]);
 	return (host) => allowed.has(host.toLowerCase());
 }

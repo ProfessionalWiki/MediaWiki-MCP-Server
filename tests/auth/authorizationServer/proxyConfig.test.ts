@@ -123,6 +123,10 @@ describe('redirect allowlist plumbing', () => {
 });
 
 describe('CIMD host allowlist plumbing', () => {
+	it('defaults to an empty list', () => {
+		expect(resolveProxyConfig('w', wiki, env)?.cimdAllowedHosts).toEqual([]);
+	});
+
 	it('parses entries from MCP_OAUTH_CIMD_ALLOWED_HOSTS', () => {
 		const pc = resolveProxyConfig('w', wiki, { ...env, MCP_OAUTH_CIMD_ALLOWED_HOSTS: 'my.wiki' });
 		expect(pc?.cimdAllowedHosts).toEqual(['my.wiki']);

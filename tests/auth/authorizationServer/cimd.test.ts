@@ -68,4 +68,8 @@ describe('CIMD host allowlist', () => {
 	it('rejects a malformed operator entry', () => {
 		expect(() => parseCimdAllowedHosts('has space')).toThrow(/CIMD|host/i);
 	});
+	it.each([['*.vscode.dev'], ['http://vscode.dev'], ['vscode.dev/evil']])(
+		'rejects malformed entry %s',
+		(e) => expect(() => parseCimdAllowedHosts(e as string)).toThrow(CimdValidationError),
+	);
 });
