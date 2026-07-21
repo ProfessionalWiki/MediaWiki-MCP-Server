@@ -2,7 +2,7 @@ import fetch from 'node-fetch';
 import { USER_AGENT } from '../runtime/constants.js';
 import { assertPublicDestination, buildPinnedAgent, SsrfValidationError } from './ssrfGuard.js';
 
-const DEFAULT_MAX_BYTES = 5 * 1024; // IETF draft §8.7 recommended cap.
+const DEFAULT_MAX_BYTES = 5 * 1024; // IETF CIMD draft recommended read cap.
 const DEFAULT_TIMEOUT_MS = 5_000;
 
 export interface CimdFetchResult {
@@ -47,7 +47,7 @@ export async function fetchCimdDocument(
 		const response = await fetch(url, {
 			method: 'GET',
 			headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-			redirect: 'manual', // MUST NOT follow redirects (IETF draft §5).
+			redirect: 'manual', // MUST NOT follow redirects (IETF CIMD draft).
 			agent,
 			signal: controller.signal,
 		});
