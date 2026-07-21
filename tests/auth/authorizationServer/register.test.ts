@@ -117,6 +117,12 @@ describe('handleRegister with an operator allowlist', () => {
 		expect(res.body.error).toBe('invalid_redirect_uri');
 	});
 
+	it('VS Code is accepted under the real default policy (no operator config)', () => {
+		// The real 4-URI payload (stable + Insiders web redirects, plus two loopback
+		// callbacks) registers with no MCP_OAUTH_ALLOWED_REDIRECTS.
+		expect(run(vscode).res.status).toBe(201);
+	});
+
 	it('Cursor is accepted under the real default policy (no operator config)', () => {
 		// The real 3-URI payload (hosted callback, cursor:// desktop callback, and a
 		// loopback fallback) registers with no MCP_OAUTH_ALLOWED_REDIRECTS.
