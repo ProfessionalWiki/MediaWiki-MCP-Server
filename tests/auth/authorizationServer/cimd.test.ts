@@ -6,6 +6,8 @@ import {
 	SHIPPED_CIMD_HOSTS,
 	parseCimdAllowedHosts,
 	buildCimdHostPredicate,
+	validateCimdDocument,
+	synthesizeClientRecord,
 } from '../../../src/auth/authorizationServer/cimd.js';
 
 describe('isCimdClientId', () => {
@@ -72,4 +74,44 @@ describe('CIMD host allowlist', () => {
 		'rejects malformed entry %s',
 		(e) => expect(() => parseCimdAllowedHosts(e as string)).toThrow(CimdValidationError),
 	);
+});
+
+const URL_ID = 'https://vscode.dev/oauth/client-metadata.json';
+const goodDoc = {
+	client_id: URL_ID,
+	client_name: 'VS Code',
+	redirect_uris: ['https://vscode.dev/redirect', 'http://127.0.0.1/callback'],
+};
+
+describe('validateCimdDocument', () => {
+	it('accepts a well-formed document', () => {
+		expect(validateCimdDocument(URL_ID, goodDoc).client_name).toBe('VS Code');
+	});
+	it('ignores token_endpoint_auth_method (tolerant of private_key_jwt)', () => {
+		expect(() =>
+			validateCimdDocument(URL_ID, { ...goodDoc, token_endpoint_auth_method: 'private_key_jwt' }),
+		).not.toThrow();
+	});
+	it.each([
+		[{ ...goodDoc, client_id: 'https://vscode.dev:443/oauth/client-metadata.json' }],
+		[{ ...goodDoc, client_id: 'https://evil.example/x' }],
+		[{ ...goodDoc, client_name: '' }],
+		[{ ...goodDoc, redirect_uris: [] }],
+		[{ ...goodDoc, redirect_uris: 'https://vscode.dev/redirect' }],
+		['not an object'],
+	])('rejects %#', (doc) =>
+		expect(() => validateCimdDocument(URL_ID, doc)).toThrow(CimdValidationError),
+	);
+});
+
+describe('synthesizeClientRecord', () => {
+	it('maps a document to a public ClientRecord', () => {
+		const rec = synthesizeClientRecord(URL_ID, validateCimdDocument(URL_ID, goodDoc));
+		expect(rec).toMatchObject({
+			clientId: URL_ID,
+			name: 'VS Code',
+			scopes: [],
+			redirectUris: goodDoc.redirect_uris,
+		});
+	});
 });

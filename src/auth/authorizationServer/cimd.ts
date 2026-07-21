@@ -1,3 +1,5 @@
+import type { ClientRecord } from './proxyStore.js';
+
 export class CimdValidationError extends Error {
 	public constructor(message: string) {
 		super(message);
@@ -99,4 +101,49 @@ export function buildCimdHostPredicate(operatorHosts: string[]): (host: string) 
 		...operatorHosts.map((h) => h.toLowerCase()),
 	]);
 	return (host) => allowed.has(host.toLowerCase());
+}
+
+export interface CimdDocument {
+	client_id: string;
+	client_name: string;
+	redirect_uris: string[];
+}
+
+// Validates a parsed metadata document against the MCP required-field set plus the
+// IETF self-reference rule. Self-reference is a SIMPLE STRING comparison with NO
+// normalization: `https://h/c` and `https://h:443/c` are distinct. The token auth
+// method is intentionally NOT read — every CIMD client is treated as public/PKCE,
+// so a document offering private_key_jwt is accepted (tolerant), never rejected.
+export function validateCimdDocument(clientId: string, raw: unknown): CimdDocument {
+	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+		throw new CimdValidationError('metadata document is not a JSON object');
+	}
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- CIMD document is untyped JSON; fields are validated individually below
+	const d = raw as Record<string, unknown>;
+	if (d.client_id !== clientId) {
+		throw new CimdValidationError('document client_id does not match the fetched URL');
+	}
+	if (typeof d.client_name !== 'string' || d.client_name.trim() === '') {
+		throw new CimdValidationError('document is missing a client_name');
+	}
+	if (
+		!Array.isArray(d.redirect_uris) ||
+		d.redirect_uris.length === 0 ||
+		!d.redirect_uris.every((u): u is string => typeof u === 'string')
+	) {
+		throw new CimdValidationError('document is missing a non-empty redirect_uris array');
+	}
+	return { client_id: clientId, client_name: d.client_name, redirect_uris: [...d.redirect_uris] };
+}
+
+// A CIMD client is a public (PKCE) client. It is never stored in ProxyStore, so
+// createdAt is unused here and set to 0.
+export function synthesizeClientRecord(clientId: string, doc: CimdDocument): ClientRecord {
+	return {
+		clientId,
+		redirectUris: doc.redirect_uris,
+		scopes: [],
+		name: doc.client_name,
+		createdAt: 0,
+	};
 }
