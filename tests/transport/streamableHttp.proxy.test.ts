@@ -515,16 +515,20 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		// the fetcher is a closure over the test's redirectUri.
 		const clientId = 'https://vscode.dev/oauth/client-metadata.json';
 		const redirectUri = 'https://vscode.dev/redirect';
-		const stubFetcher = async (url: string): Promise<CimdFetchResult> => ({
-			status: 200,
-			body: JSON.stringify({
-				client_id: url,
-				client_name: 'VS Code',
-				redirect_uris: [redirectUri],
-			}),
-			cacheControl: null,
-		});
-		const cimdResolver = new CimdResolver((h) => h === 'vscode.dev', stubFetcher);
+		let fetchCalls = 0;
+		const countingFetcher = async (url: string): Promise<CimdFetchResult> => {
+			fetchCalls++;
+			return {
+				status: 200,
+				body: JSON.stringify({
+					client_id: url,
+					client_name: 'VS Code',
+					redirect_uris: [redirectUri],
+				}),
+				cacheControl: null,
+			};
+		};
+		const cimdResolver = new CimdResolver((h) => h === 'vscode.dev', countingFetcher);
 
 		const { app } = buildApp({ ...makeDeps('https://test.example', store, pc), cimdResolver });
 
@@ -541,6 +545,13 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		});
 		expect(ok.status).toBe(200);
 		expect(ok.text).toContain('vscode.dev');
+		// Uniquely proves the verified-host line rendered: 'vscode.dev' alone also
+		// appears on the redirectHost line, so assert the verified-line literal too.
+		expect(ok.text).toContain('Verified application');
+
+		// The allowed-host success above consulted the fetcher once; reset so the
+		// count below reflects ONLY the off-allowlist request.
+		fetchCalls = 0;
 
 		// Rejection: the host is NOT on the allowlist, so the gate fails BEFORE the
 		// fetcher is ever consulted → the 400 auth-error page.
@@ -556,6 +567,10 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		expect(rejected.status).toBe(400);
 		expect(rejected.headers['content-type']).toMatch(/html/);
 		expect(rejected.text).toMatch(/Authorization failed/);
+		// The host allowlist gate ran before any fetch, and the CIMD rejection reason
+		// (not just a generic error title) is rendered on the page.
+		expect(fetchCalls).toBe(0);
+		expect(rejected.text).toMatch(/not a trusted CIMD host|evil\.example/);
 	});
 });
 
