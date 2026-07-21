@@ -117,6 +117,25 @@ describe('handleRegister with an operator allowlist', () => {
 		expect(res.body.error).toBe('invalid_redirect_uri');
 	});
 
+	it('ChatGPT is accepted under the real default policy (no operator config)', () => {
+		// The real per-connector payload registers with no MCP_OAUTH_ALLOWED_REDIRECTS.
+		expect(run(chatgpt).res.status).toBe(201);
+		// The per-connector prefix absorbs connector-id churn.
+		expect(
+			run({
+				client_name: 'ChatGPT',
+				redirect_uris: ['https://chatgpt.com/connector/oauth/xyz789'],
+			}).res.status,
+		).toBe(201);
+		// The legacy already-published exact callback is covered too.
+		expect(
+			run({
+				client_name: 'ChatGPT',
+				redirect_uris: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+			}).res.status,
+		).toBe(201);
+	});
+
 	it.each([
 		['VS Code', vscode],
 		['Cursor', cursor],
