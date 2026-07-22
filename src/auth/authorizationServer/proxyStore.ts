@@ -36,6 +36,14 @@ export interface UpstreamToken {
 	refreshId?: string;
 }
 
+export interface DurableSnapshot {
+	version: 1;
+	// Insertion order preserved so FIFO eviction survives a restore.
+	clients: ClientRecord[];
+	// [ upstreamTokenId, token ] pairs; the id is not carried on the record.
+	upstream: Array<[string, UpstreamToken]>;
+}
+
 const TXN_TTL_MS = 15 * 60 * 1000;
 const CODE_TTL_MS = 5 * 60 * 1000;
 
@@ -190,5 +198,28 @@ export class InMemoryProxyStore implements ProxyStore {
 		if (newRefreshId !== undefined) {
 			this.setRefreshId(id, newRefreshId);
 		}
+	}
+
+	public snapshotDurable(): DurableSnapshot {
+		return {
+			version: 1,
+			clients: [...this.clients.values()],
+			upstream: [...this.upstream.entries()],
+		};
+	}
+
+	public restoreDurable(snapshot: DurableSnapshot): void {
+		if (snapshot.version !== 1) {
+			throw new Error(`unsupported proxy store snapshot version ${String(snapshot.version)}`);
+		}
+		this.clients.clear();
+		for (const c of snapshot.clients) {
+			this.clients.set(c.clientId, c);
+		}
+		this.upstream.clear();
+		for (const [id, t] of snapshot.upstream) {
+			this.upstream.set(id, t);
+		}
+		// transactions, codes, and the refreshing set are ephemeral: left empty on purpose.
 	}
 }
