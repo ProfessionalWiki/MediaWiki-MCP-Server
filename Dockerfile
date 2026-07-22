@@ -41,6 +41,9 @@ RUN npm ci --omit=dev --ignore-scripts
 RUN addgroup -S nodejs \
 	&& adduser -S -G nodejs nodejs \
 	&& chown -R nodejs:nodejs /app
+
+RUN mkdir -p /app/data && chown nodejs:nodejs /app/data
+VOLUME /app/data
 USER nodejs
 
 ENV NODE_ENV=production
@@ -49,6 +52,10 @@ ENV NODE_ENV=production
 ENV PORT=8080
 ENV MCP_TRANSPORT=http
 ENV MCP_BIND=0.0.0.0
+
+# Persist the hosted OAuth proxy store on a volume so restarts/deploys do not sign
+# every user out. Mount a named volume or host path at /app/data in production.
+ENV MCP_OAUTH_PROXY_STORE_FILE=/app/data/proxy-store.enc
 
 # Expose HTTP port
 EXPOSE 8080

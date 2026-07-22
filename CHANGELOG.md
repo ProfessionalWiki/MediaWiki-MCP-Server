@@ -14,6 +14,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - IPv6 loopback (`http://[::1]:…`) redirect URIs are now accepted at client registration, per RFC 8252.
 - Hosted OAuth proxy: support for Client ID Metadata Documents (CIMD). CIMD-capable clients connect using a stable, vendor-hosted client identity, with no per-client redirect entry to curate. The proxy trusts the verified first-party document hosts by default; add more with `MCP_OAUTH_CIMD_ALLOWED_HOSTS`.
 
+### Changed
+
+- Hosted OAuth proxy: sign-in state now survives server restarts and deploys. Registered clients and upstream tokens are persisted to a local, encrypted file, so users are no longer signed out on every upgrade. In Docker, mount a volume at the store path (`/app/data`); see the deployment guide.
+
 ### Fixed
 
 - OAuth clients that use a loopback callback on a variable port (including clients that register a portless `http://127.0.0.1/` URI) now complete the flow instead of failing with "redirect_uri not registered", per RFC 8252.

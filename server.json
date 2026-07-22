@@ -82,6 +82,11 @@
           "description": "Set to '1' to skip launching a browser during the OAuth dance and log the auth URL to stderr instead. Useful in headless environments and CI."
         },
         {
+          "name": "MCP_OAUTH_PROXY_STORE_FILE",
+          "description": "Path to the hosted OAuth proxy's encrypted state file (registered clients + upstream tokens), which lets sign-ins survive restarts. Default: proxy-store.enc under the mediawiki-mcp config dir; /app/data/proxy-store.enc in the Docker image.",
+          "format": "filepath"
+        },
+        {
           "name": "MCP_PUBLIC_URL",
           "description": "Override the request-derived public URL used in the protected-resource discovery doc and WWW-Authenticate header. Set this when running behind a proxy that rewrites the request Host."
         },
@@ -192,6 +197,11 @@
         {
           "name": "MCP_OAUTH_NO_BROWSER",
           "description": "Set to '1' to skip launching a browser during the OAuth dance and log the auth URL to stderr instead. Useful in headless environments and CI."
+        },
+        {
+          "name": "MCP_OAUTH_PROXY_STORE_FILE",
+          "description": "Path to the hosted OAuth proxy's encrypted state file (registered clients + upstream tokens), which lets sign-ins survive restarts. Default: proxy-store.enc under the mediawiki-mcp config dir; /app/data/proxy-store.enc in the Docker image.",
+          "format": "filepath"
         },
         {
           "name": "MCP_PUBLIC_URL",
