@@ -15,6 +15,11 @@ export interface ProxyConfig {
 	scriptpath: string;
 	callbackUrl: string;
 	upstreamClientId: string;
+	// The confidential upstream consumer's client secret. resolveProxyConfig
+	// requires it — the proxy refuses to start without it — so it is always present
+	// on a resolved config. The field stays optional only so tests can build a
+	// ProxyConfig literal without one.
+	upstreamClientSecret?: string;
 	signingKey: string;
 	consentTtlMs: number;
 	tokenTtlMs: number;
@@ -30,6 +35,7 @@ interface WikiSlice {
 	server: string;
 	scriptpath: string;
 	oauth2ClientId?: string | null;
+	oauth2ClientSecret?: string | null;
 	publicServer?: string | null;
 }
 
@@ -43,6 +49,7 @@ export function resolveProxyConfig(
 	env: NodeJS.ProcessEnv,
 ): ProxyConfig | null {
 	const clientId = wiki.oauth2ClientId?.trim();
+	const clientSecret = wiki.oauth2ClientSecret?.trim() || undefined;
 	const publicUrl = env.MCP_PUBLIC_URL?.trim();
 	const signingKey = env.MCP_OAUTH_JWT_SIGNING_KEY?.trim();
 	const transport = env.MCP_TRANSPORT ?? 'stdio';
@@ -80,6 +87,17 @@ export function resolveProxyConfig(
 		throw new ProxyConfigError('MCP_OAUTH_JWT_SIGNING_KEY must be at least 32 characters.');
 	}
 
+	// The proxy must be a confidential upstream client: MediaWiki authenticates the
+	// refresh grant, so a public consumer cannot refresh the upstream token and a
+	// session would break when it expires. Require the secret up front rather than
+	// fail silently an hour into every session.
+	if (!clientSecret) {
+		throw new ProxyConfigError(
+			'The hosted OAuth proxy requires a confidential OAuth consumer: set oauth2ClientSecret ' +
+				'(or the MCP_OAUTH2_CLIENT_SECRET environment variable) for the default wiki.',
+		);
+	}
+
 	const tokenTtlMs = env.MCP_OAUTH_TOKEN_TTL
 		? parseDurationMs(env.MCP_OAUTH_TOKEN_TTL)
 		: DEFAULT_TOKEN_TTL_MS;
@@ -115,6 +133,7 @@ export function resolveProxyConfig(
 		scriptpath: wiki.scriptpath,
 		callbackUrl: `${issuer}/oauth/callback`,
 		upstreamClientId: clientId,
+		upstreamClientSecret: clientSecret,
 		signingKey,
 		consentTtlMs,
 		tokenTtlMs,

@@ -18,6 +18,12 @@ export interface FakeAsOptions {
 	// receives (see capturedApiBearers) so a test can assert the UPSTREAM wiki
 	// token — not the proxy JWT — is what reaches the wiki action API.
 	captureApi?: boolean;
+	// When set, the default token endpoint requires this exact `client_secret` on
+	// the refresh_token grant, else it returns 401 invalid_client. This mirrors
+	// MediaWiki's Extension:OAuth, whose refresh grant demands client authentication
+	// even for a public consumer (unlike the auth-code+PKCE grant) — the behaviour
+	// the earlier permissive fake masked.
+	refreshRequiresClientSecret?: string;
 }
 
 export interface FakeAsHandle {
@@ -77,7 +83,7 @@ export async function startFakeAs(opts: FakeAsOptions = {}): Promise<FakeAsHandl
 	}
 	// 'absent': don't register either route.
 
-	app.post('/w/rest.php/oauth2/access_token', opts.token ?? defaultTokenHandler);
+	app.post('/w/rest.php/oauth2/access_token', opts.token ?? makeDefaultTokenHandler(opts));
 
 	const oneQuery = (v: unknown): string => (typeof v === 'string' ? v : '');
 	const autoApprove: RequestHandler = (req, res) => {
@@ -120,27 +126,41 @@ export async function startFakeAs(opts: FakeAsOptions = {}): Promise<FakeAsHandl
 	return handle;
 }
 
-function defaultTokenHandler(req: express.Request, res: express.Response): void {
-	const grant = String(req.body.grant_type ?? '');
-	if (grant === 'authorization_code') {
-		res.json({
-			access_token: 'access-' + String(req.body.code),
-			refresh_token: 'refresh-' + String(req.body.code),
-			expires_in: 3600,
-			scope: 'edit',
-			token_type: 'Bearer',
-		});
-		return;
-	}
-	if (grant === 'refresh_token') {
-		res.json({
-			access_token: 'access-refreshed',
-			refresh_token: 'refresh-rotated',
-			expires_in: 3600,
-			scope: 'edit',
-			token_type: 'Bearer',
-		});
-		return;
-	}
-	res.status(400).json({ error: 'unsupported_grant_type' });
+function makeDefaultTokenHandler(opts: FakeAsOptions): RequestHandler {
+	return (req, res) => {
+		const grant = String(req.body.grant_type ?? '');
+		if (grant === 'authorization_code') {
+			res.json({
+				access_token: 'access-' + String(req.body.code),
+				refresh_token: 'refresh-' + String(req.body.code),
+				expires_in: 3600,
+				scope: 'edit',
+				token_type: 'Bearer',
+			});
+			return;
+		}
+		if (grant === 'refresh_token') {
+			// Mirror MediaWiki: the refresh grant authenticates the client. A public
+			// consumer (no/wrong secret) is rejected with 401 invalid_client.
+			if (
+				opts.refreshRequiresClientSecret !== undefined &&
+				String(req.body.client_secret ?? '') !== opts.refreshRequiresClientSecret
+			) {
+				res.status(401).json({
+					error: 'invalid_client',
+					error_description: 'Client authentication failed',
+				});
+				return;
+			}
+			res.json({
+				access_token: 'access-refreshed',
+				refresh_token: 'refresh-rotated',
+				expires_in: 3600,
+				scope: 'edit',
+				token_type: 'Bearer',
+			});
+			return;
+		}
+		res.status(400).json({ error: 'unsupported_grant_type' });
+	};
 }

@@ -191,6 +191,41 @@ describe('loadConfigFromFile', () => {
 		});
 	});
 
+	describe('MCP_OAUTH2_CLIENT_SECRET override', () => {
+		it('overrides the default wiki oauth2ClientSecret from the environment', async () => {
+			vi.stubEnv('MCP_OAUTH2_CLIENT_SECRET', 'env-secret');
+			setConfigFile({
+				defaultWiki: 'w',
+				wikis: { w: { ...baseWiki, oauth2ClientSecret: 'config-secret' } },
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(loadConfigFromFile().wikis.w.oauth2ClientSecret).toBe('env-secret');
+		});
+
+		it('sets oauth2ClientSecret on the default wiki when config has none', async () => {
+			vi.stubEnv('MCP_OAUTH2_CLIENT_SECRET', 'env-secret');
+			setConfigFile({ defaultWiki: 'w', wikis: { w: { ...baseWiki } } });
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(loadConfigFromFile().wikis.w.oauth2ClientSecret).toBe('env-secret');
+		});
+
+		it('ignores a blank env value (does not blank out a configured secret)', async () => {
+			vi.stubEnv('MCP_OAUTH2_CLIENT_SECRET', '   ');
+			setConfigFile({
+				defaultWiki: 'w',
+				wikis: { w: { ...baseWiki, oauth2ClientSecret: 'config-secret' } },
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(loadConfigFromFile().wikis.w.oauth2ClientSecret).toBe('config-secret');
+		});
+
+		it('leaves an absent secret undefined (public consumer)', async () => {
+			setConfigFile({ defaultWiki: 'w', wikis: { w: { ...baseWiki } } });
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(loadConfigFromFile().wikis.w.oauth2ClientSecret).toBeUndefined();
+		});
+	});
+
 	describe('passthrough cases', () => {
 		it('passes through null secret fields unchanged', async () => {
 			setConfigFile({

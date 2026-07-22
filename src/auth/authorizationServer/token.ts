@@ -91,6 +91,7 @@ export async function handleToken(
 				tokenEndpoint: `${pc.tokenExchangeBase}${pc.scriptpath}/rest.php/oauth2/access_token`,
 				refreshToken: upstream.refreshToken,
 				clientId: pc.upstreamClientId,
+				clientSecret: pc.upstreamClientSecret,
 			});
 		} catch (err) {
 			// Abandon the claim WITHOUT rotating, so the presented refresh token stays

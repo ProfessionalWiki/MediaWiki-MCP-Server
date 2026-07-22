@@ -1,4 +1,5 @@
 // tests/auth/oauthFlow.test.ts
+import type { RequestHandler } from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
 import { exchangeCode, OAuthFlowError, refreshTokens } from '../../src/auth/oauthFlow.js';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.js';
@@ -203,5 +204,92 @@ describe('refreshTokens', () => {
 		await expect(
 			refreshTokens({ tokenEndpoint, refreshToken: 'r', clientId: 'c' }),
 		).rejects.toMatchObject({ kind: 'transient' });
+	});
+
+	it('throws OAuthFlowError(invalid_client) on 401 invalid_client (public-client refresh)', async () => {
+		// MediaWiki returns 401 (not 400) when a public client cannot authenticate
+		// for the refresh grant; it must classify as invalid_client, not transient.
+		fakeAs = await startFakeAs({
+			token: (_req, res) => {
+				res
+					.status(401)
+					.json({ error: 'invalid_client', error_description: 'Client authentication failed' });
+			},
+		});
+		const tokenEndpoint = `${fakeAs.url}/w/rest.php/oauth2/access_token`;
+		await expect(
+			refreshTokens({ tokenEndpoint, refreshToken: 'r', clientId: 'c' }),
+		).rejects.toMatchObject({ kind: 'invalid_client' });
+	});
+});
+
+describe('confidential client secret', () => {
+	// Records the parsed form body the fake token endpoint received.
+	function bodyRecorder(): { body: Record<string, unknown> | undefined; token: RequestHandler } {
+		const rec: { body: Record<string, unknown> | undefined; token: RequestHandler } = {
+			body: undefined,
+			token: (req, res) => {
+				// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test capture of the parsed form body
+				rec.body = req.body as Record<string, unknown>;
+				res.json({ access_token: 'a', expires_in: 3600 });
+			},
+		};
+		return rec;
+	}
+
+	it('exchangeCode sends client_secret when configured', async () => {
+		const rec = bodyRecorder();
+		fakeAs = await startFakeAs({ token: rec.token });
+		await exchangeCode({
+			tokenEndpoint: `${fakeAs.url}/w/rest.php/oauth2/access_token`,
+			code: 'c',
+			verifier: 'v',
+			clientId: 'c',
+			redirectUri: 'r',
+			clientSecret: 'shh',
+		});
+		expect(rec.body?.client_secret).toBe('shh');
+	});
+
+	it('exchangeCode omits client_secret when not configured', async () => {
+		const rec = bodyRecorder();
+		fakeAs = await startFakeAs({ token: rec.token });
+		await exchangeCode({
+			tokenEndpoint: `${fakeAs.url}/w/rest.php/oauth2/access_token`,
+			code: 'c',
+			verifier: 'v',
+			clientId: 'c',
+			redirectUri: 'r',
+		});
+		expect(rec.body).not.toHaveProperty('client_secret');
+	});
+
+	it('refreshTokens sends client_secret when configured', async () => {
+		const rec = bodyRecorder();
+		fakeAs = await startFakeAs({ token: rec.token });
+		await refreshTokens({
+			tokenEndpoint: `${fakeAs.url}/w/rest.php/oauth2/access_token`,
+			refreshToken: 'r',
+			clientId: 'c',
+			clientSecret: 'shh',
+		});
+		expect(rec.body?.client_secret).toBe('shh');
+	});
+
+	it('refresh against a wiki that authenticates the grant: fails as a public client, succeeds with the secret', async () => {
+		fakeAs = await startFakeAs({ refreshRequiresClientSecret: 'shh' });
+		const tokenEndpoint = `${fakeAs.url}/w/rest.php/oauth2/access_token`;
+		// Public client (no secret) — the MediaWiki-style rejection the old fake masked.
+		await expect(
+			refreshTokens({ tokenEndpoint, refreshToken: 'r', clientId: 'c' }),
+		).rejects.toMatchObject({ kind: 'invalid_client' });
+		// Confidential client (correct secret) — refresh now works.
+		const ok = await refreshTokens({
+			tokenEndpoint,
+			refreshToken: 'r',
+			clientId: 'c',
+			clientSecret: 'shh',
+		});
+		expect(ok.access_token).toBe('access-refreshed');
 	});
 });

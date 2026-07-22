@@ -40,9 +40,19 @@ export interface WikiConfig {
 	 * Presence opts the wiki into OAuth: HTTP transport advertises it in
 	 * /.well-known/oauth-protected-resource, and stdio runtime triggers
 	 * a browser-based login when no live token is stored.
-	 * Public client (PKCE only) — no client secret needed.
+	 * A public (PKCE) consumer needs no secret; set `oauth2ClientSecret` to use a
+	 * confidential consumer (required for the proxy's upstream token refresh).
 	 */
 	oauth2ClientId?: string | null;
+	/**
+	 * OAuth 2.0 client secret for a CONFIDENTIAL upstream consumer. Optional: omit
+	 * for a public (PKCE) consumer. MediaWiki requires client authentication on the
+	 * refresh grant, so without a confidential consumer + this secret the hosted
+	 * proxy cannot refresh the upstream token and a session ends when the upstream
+	 * access token expires. Being a secret, prefer `${MCP_OAUTH2_CLIENT_SECRET}`
+	 * substitution or the `MCP_OAUTH2_CLIENT_SECRET` env override over config.json.
+	 */
+	oauth2ClientSecret?: string | null;
 	/**
 	 * Public base URL of the wiki (e.g. https://wiki.example) used ONLY to build the
 	 * browser-facing upstream OAuth authorize URL when the hosted proxy is enabled.
@@ -328,6 +338,7 @@ function resolveConfig(parsed: unknown): Config {
 		wikis[key] = resolveWiki(rawWiki, key);
 	}
 	applyOAuth2ClientIdOverride(wikis, defaultWiki);
+	applyOAuth2ClientSecretOverride(wikis, defaultWiki);
 	return { defaultWiki, wikis, allowWikiManagement, uploadDirs };
 }
 
@@ -343,6 +354,22 @@ function applyOAuth2ClientIdOverride(wikis: Record<string, WikiConfig>, defaultW
 	const fromEnv = process.env.MCP_OAUTH2_CLIENT_ID?.trim();
 	if (fromEnv && wikis[defaultWiki]) {
 		wikis[defaultWiki].oauth2ClientId = fromEnv;
+	}
+}
+
+/**
+ * `MCP_OAUTH2_CLIENT_SECRET` overrides the DEFAULT wiki's `oauth2ClientSecret`,
+ * mirroring the client-id override. A confidential consumer's secret is deploy-time
+ * data best kept out of config.json; the env value wins over the file and a blank
+ * value is ignored so it can't blank out a configured secret.
+ */
+function applyOAuth2ClientSecretOverride(
+	wikis: Record<string, WikiConfig>,
+	defaultWiki: string,
+): void {
+	const fromEnv = process.env.MCP_OAUTH2_CLIENT_SECRET?.trim();
+	if (fromEnv && wikis[defaultWiki]) {
+		wikis[defaultWiki].oauth2ClientSecret = fromEnv;
 	}
 }
 

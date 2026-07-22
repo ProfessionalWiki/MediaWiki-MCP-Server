@@ -28,30 +28,58 @@ export interface ExchangeArgs {
 	verifier: string;
 	clientId: string;
 	redirectUri: string;
+	// Set only when the upstream consumer is confidential. MediaWiki requires a
+	// client secret on the refresh grant (a public client can't refresh); sending
+	// it here lets the same consumer be used confidentially for both grants.
+	clientSecret?: string;
 }
 
 export interface RefreshArgs {
 	tokenEndpoint: string;
 	refreshToken: string;
 	clientId: string;
+	// See ExchangeArgs.clientSecret. Without it, MediaWiki rejects a public
+	// client's refresh with invalid_client.
+	clientSecret?: string;
+}
+
+// Adds `client_secret` to a token-request body only when the upstream consumer
+// is confidential, keeping the public/PKCE default byte-for-byte unchanged.
+function withClientSecret(
+	body: Record<string, string>,
+	clientSecret?: string,
+): Record<string, string> {
+	return clientSecret ? { ...body, client_secret: clientSecret } : body;
 }
 
 export async function exchangeCode(a: ExchangeArgs): Promise<TokenResponse> {
-	return post(a.tokenEndpoint, {
-		grant_type: 'authorization_code',
-		code: a.code,
-		code_verifier: a.verifier,
-		client_id: a.clientId,
-		redirect_uri: a.redirectUri,
-	});
+	return post(
+		a.tokenEndpoint,
+		withClientSecret(
+			{
+				grant_type: 'authorization_code',
+				code: a.code,
+				code_verifier: a.verifier,
+				client_id: a.clientId,
+				redirect_uri: a.redirectUri,
+			},
+			a.clientSecret,
+		),
+	);
 }
 
 export async function refreshTokens(a: RefreshArgs): Promise<TokenResponse> {
-	return post(a.tokenEndpoint, {
-		grant_type: 'refresh_token',
-		refresh_token: a.refreshToken,
-		client_id: a.clientId,
-	});
+	return post(
+		a.tokenEndpoint,
+		withClientSecret(
+			{
+				grant_type: 'refresh_token',
+				refresh_token: a.refreshToken,
+				client_id: a.clientId,
+			},
+			a.clientSecret,
+		),
+	);
 }
 
 async function post(endpoint: string, body: Record<string, string>): Promise<TokenResponse> {
@@ -87,8 +115,11 @@ async function post(endpoint: string, body: Record<string, string>): Promise<Tok
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON boundary; fields validated immediately below
 	const obj = json as Record<string, unknown>;
 
-	// 400 error responses
-	if (res.status === 400) {
+	// Any non-2xx below 500: classify by the OAuth error code. MediaWiki returns
+	// 401 invalid_client (not 400) when a public client cannot authenticate for
+	// the refresh grant, so invalid_client must be recognised regardless of status
+	// — otherwise a permanent misconfiguration reads as a retryable transient error.
+	if (!res.ok) {
 		const code = typeof obj.error === 'string' ? obj.error : '';
 		if (code === 'invalid_grant') {
 			throw new OAuthFlowError('invalid_grant', 'Token request failed: invalid_grant');
@@ -96,12 +127,7 @@ async function post(endpoint: string, body: Record<string, string>): Promise<Tok
 		if (code === 'invalid_client') {
 			throw new OAuthFlowError('invalid_client', 'Token request failed: invalid_client');
 		}
-		throw new OAuthFlowError('transient', `Token request failed: ${code}`);
-	}
-
-	// Other non-2xx
-	if (!res.ok) {
-		throw new OAuthFlowError('transient', `Token endpoint returned ${res.status}`);
+		throw new OAuthFlowError('transient', `Token request failed: ${code || res.status}`);
 	}
 
 	// 200 but missing required fields
