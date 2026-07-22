@@ -33,14 +33,11 @@ import type { WikiRegistry } from '../wikis/wikiRegistry.js';
 import { fetchMetadata, type AsMetadata } from '../auth/metadata.js';
 import { buildProtectedResource, resolvePublicBase } from '../auth/protectedResource.js';
 import { resolveProxyConfig, type ProxyConfig } from '../auth/authorizationServer/proxyConfig.js';
-import {
-	InMemoryProxyStore,
-	type ProxyStore,
-	type ClientRecord,
-} from '../auth/authorizationServer/proxyStore.js';
+import type { ProxyStore, ClientRecord } from '../auth/authorizationServer/proxyStore.js';
 import { refreshTokens as defaultRefresh, type RefreshArgs } from '../auth/oauthFlow.js';
 import { buildAsMetadata } from '../auth/authorizationServer/asMetadata.js';
 import { handleRegister } from '../auth/authorizationServer/register.js';
+import { createProxyStore } from '../auth/authorizationServer/proxyStorePersistence.js';
 import { buildRedirectPolicy } from '../auth/authorizationServer/redirectPolicy.js';
 import {
 	buildCimdHostPredicate,
@@ -683,11 +680,6 @@ function getDefaultProxyConfig(): ProxyConfig | null {
 const defaultWikiKey = state.activeWiki.getDefaultKey();
 const defaultWikiSitename = state.wikiRegistry.get(defaultWikiKey)?.sitename ?? defaultWikiKey;
 
-// Single process-wide store backing the proxy's clients, transactions,
-// authorization codes, and upstream tokens. Later handlers
-// (register/authorize/callback/token) share this instance. Exported so those
-// handlers — and their tests — can reuse the same store.
-export const proxyStore = new InMemoryProxyStore();
 const { host, port, allowedHosts, allowedOrigins, maxRequestBody, sessionIdleTimeoutMs, warnings } =
 	resolveHttpConfig();
 const guard = evaluateBearerGuard(state.wikiRegistry.getAll(), process.env);
@@ -720,6 +712,15 @@ for (const warning of warnings) {
 // cached result.
 const eagerProxyConfig = getDefaultProxyConfig();
 const proxyEnabled = eagerProxyConfig !== null;
+// Single process-wide proxy store, shared by the proxy handlers
+// (register/authorize/callback/token) and their tests via the export. It persists
+// its durable state (client registrations + upstream tokens) to an encrypted local
+// file when the proxy is enabled; otherwise it is a plain in-memory store.
+// createProxyStore hydrates synchronously here, before the server binds, so a
+// restart resolves existing tokens with no browser round-trip.
+export const proxyStore: ProxyStore = createProxyStore(eagerProxyConfig, {
+	onError: (err) => logger.error(`Proxy store persistence write failed: ${err.message}`),
+});
 // Built once: the register-time redirect predicate (built-ins + operator
 // entries from MCP_OAUTH_ALLOWED_REDIRECTS). /authorize keeps matching the
 // registered URIs verbatim and never re-applies this policy.

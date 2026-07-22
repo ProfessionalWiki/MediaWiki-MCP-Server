@@ -250,6 +250,7 @@ Set `MCP_TRANSPORT=http` to select this transport (the Docker image defaults to 
 | `MCP_OAUTH_JWT_SIGNING_KEY` | unset | Secret (≥32 chars) the proxy signs its issued access/refresh JWTs and consent cookies with. Required for the proxy. Keep it **fixed** so tokens survive a restart. See [Hosted OAuth sign-in](#hosted-oauth-sign-in). |
 | `MCP_OAUTH_TOKEN_TTL` | `55m` | Lifetime of a proxy-minted access JWT. Must be shorter than the upstream 30-day refresh window. Duration grammar (`55m`/`1h`/`30d`, or bare seconds). |
 | `MCP_OAUTH_CONSENT_TTL` | `30d` | Lifetime of the signed consent cookie that lets a returning user skip the consent page. Same duration grammar. |
+| `MCP_OAUTH_PROXY_STORE_FILE` | `proxy-store.enc` under the config dir | File where the proxy persists sign-in state across restarts (encrypted with a key derived from `MCP_OAUTH_JWT_SIGNING_KEY`). In Docker it defaults to `/app/data/proxy-store.enc` on a declared volume — mount it, or a restart signs everyone out. See [Proxy state persistence](#proxy-state-persistence). |
 | `MCP_OAUTH_ALLOWED_REDIRECTS` | unset | Additional OAuth redirect URIs the proxy accepts at client registration: comma-separated exact URIs and `https://…/*` prefix patterns. Loopback, claude.ai, and verified first-party clients are always allowed. See [Allowing more clients](#allowing-more-clients). |
 | `MCP_OAUTH_CIMD_ALLOWED_HOSTS` | unset | Extra hosts to trust for clients that identify by a vendor-hosted URL (Client ID Metadata Documents): comma-separated bare hosts or `host:port`. The first-party clients are always trusted. See [Allowing more clients](#allowing-more-clients). |
 
@@ -309,7 +310,13 @@ When in doubt, open your deployed site in a browser and log `window.location.ori
 
 These apply to the [hosted OAuth sign-in](#hosted-oauth-sign-in) setup:
 
-- **In-memory state.** Registered clients, in-flight authorizations, one-time codes, and stored upstream tokens live in process memory. A restart drops them, so every user must sign in again, and the proxy currently supports a **single instance** (no shared store across replicas). Because `/register` is unauthenticated, the client registry is capped (FIFO, 10,000 entries) so registration spam cannot exhaust memory. Once the cap is reached, the oldest registrations are evicted and those clients must re-register.
+- **Single instance.** The proxy runs as a single instance: there is no shared store across replicas, so horizontal scaling and zero-downtime rolling deploys are not yet supported.
+
+### Proxy state persistence
+
+The proxy persists its sign-in state to a local file so a restart or deploy does not sign users out. Set the path with `MCP_OAUTH_PROXY_STORE_FILE` (default: `proxy-store.enc` under the config directory, or `/app/data/proxy-store.enc` in the Docker image). The file is encrypted at rest with a key derived from `MCP_OAUTH_JWT_SIGNING_KEY`.
+
+**In Docker, mount a persistent volume at the store path.** The image declares one at `/app/data`, but you must mount a named volume or a writable host path there, or a container restart wipes it. A host-path bind mount must be writable by the container's non-root user; a named volume handles that automatically.
 
 ### Per-request bearer token (HTTP transport)
 
