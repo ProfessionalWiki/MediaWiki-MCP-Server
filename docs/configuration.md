@@ -22,6 +22,7 @@ Covers configuration topics beyond the basic `config.json` shape documented in [
 | `articlepath` | Yes | Path pattern for articles (typically `/wiki`) |
 | `scriptpath` | Yes | Path to MediaWiki scripts (typically `/w`) |
 | `oauth2ClientId` | No | Client key your wiki admin gives you when they register the MCP server's OAuth consumer. Opts the wiki into browser-based sign-in. See [OAuth (browser-based)](#oauth-browser-based). |
+| `oauth2ClientSecret` | No | Client secret for the **confidential** OAuth consumer used by the [hosted OAuth proxy](deployment.md#hosted-oauth-sign-in); required when that proxy is enabled. |
 | `oauth2CallbackPort` | No | Loopback port for the OAuth sign-in callback. Use the same port number your admin set in the consumer's callback URL. |
 | `token` | No | OAuth2 access token for authenticated operations (manual token alternative to `oauth2ClientId`) |
 | `username` | No | Bot username (fallback when OAuth2 is not available) |
@@ -203,7 +204,7 @@ Setting these on the HTTP transport turns the server into an OAuth Authorization
 - `MCP_OAUTH_TOKEN_TTL` — lifetime of a proxy-minted access JWT. Default `55m`; must be shorter than the upstream 30-day refresh window.
 - `MCP_OAUTH_CONSENT_TTL` — lifetime of the signed consent cookie that lets a returning user skip the consent page. Default `30d`.
 
-`MCP_OAUTH_TOKEN_TTL` and `MCP_OAUTH_CONSENT_TTL` accept a number with an optional `s`/`m`/`h`/`d` unit (e.g. `55m`, `1h`, `30d`); a bare number is seconds. The proxy activates only when `MCP_TRANSPORT=http`, both required variables are set, and the default wiki has an `oauth2ClientId`.
+`MCP_OAUTH_TOKEN_TTL` and `MCP_OAUTH_CONSENT_TTL` accept a number with an optional `s`/`m`/`h`/`d` unit (e.g. `55m`, `1h`, `30d`); a bare number is seconds. The proxy activates only when `MCP_TRANSPORT=http`, both required variables are set, and the default wiki has an `oauth2ClientId` and `oauth2ClientSecret`.
 
 ### For wiki admins: registering the OAuth consumer
 

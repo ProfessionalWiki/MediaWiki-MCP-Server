@@ -8,6 +8,7 @@ const wiki = {
 	server: 'http://mediawiki.svc:80',
 	scriptpath: '/w',
 	oauth2ClientId: 'abc123',
+	oauth2ClientSecret: 'sekret',
 	publicServer: 'https://wiki.example',
 };
 const env = {
@@ -29,6 +30,20 @@ describe('resolveProxyConfig', () => {
 		expect(c.callbackUrl).toBe('https://wiki.example/mcp/oauth/callback');
 		expect(c.authorizeBase).toBe('https://wiki.example');
 		expect(c.tokenExchangeBase).toBe('http://mediawiki.svc:80');
+	});
+	it('populates upstreamClientSecret from the confidential wiki config', () => {
+		const c = resolveProxyConfig('w', { ...wiki, oauth2ClientSecret: 'shh' }, env)!;
+		expect(c.upstreamClientSecret).toBe('shh');
+	});
+	it('throws when the proxy is enabled without a client secret', () => {
+		expect(() => resolveProxyConfig('w', { ...wiki, oauth2ClientSecret: undefined }, env)).toThrow(
+			ProxyConfigError,
+		);
+	});
+	it('throws on a blank client secret', () => {
+		expect(() => resolveProxyConfig('w', { ...wiki, oauth2ClientSecret: '  ' }, env)).toThrow(
+			ProxyConfigError,
+		);
 	});
 	it('falls back to server when publicServer unset', () => {
 		const c = resolveProxyConfig('w', { ...wiki, publicServer: undefined }, env)!;

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Breaking changes
+
+- Hosted OAuth proxy: the upstream OAuth consumer must now be **confidential**. Set `oauth2ClientSecret` (or the `MCP_OAUTH2_CLIENT_SECRET` environment variable) for the default wiki; the proxy refuses to start without it. This is what lets the proxy refresh the upstream MediaWiki token, so users stay signed in past the wiki's OAuth2 access-token lifetime (one hour by default). Deployments that used a public/PKCE consumer must register a confidential consumer and supply its secret.
+
 ### Added
 
 - Hosted OAuth proxy: verified first-party MCP clients now work with the hosted proxy out of the box — their OAuth callbacks are trusted by default, with no `MCP_OAUTH_ALLOWED_REDIRECTS` configuration.
@@ -21,6 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Fixed
 
 - OAuth clients that use a loopback callback on a variable port (including clients that register a portless `http://127.0.0.1/` URI) now complete the flow instead of failing with "redirect_uri not registered", per RFC 8252.
+- Hosted OAuth proxy: an upstream token refresh the wiki rejects with `invalid_client` (client authentication failed) is now reported as an authentication failure the client re-signs-in on, instead of a retryable "temporarily unavailable" that the client would loop on.
 
 ## [0.13.1] - 2026-07-09
 

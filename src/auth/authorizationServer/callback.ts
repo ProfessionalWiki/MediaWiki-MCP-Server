@@ -91,6 +91,7 @@ export async function handleCallback(
 			code: q.code,
 			redirectUri: pc.callbackUrl,
 			clientId: pc.upstreamClientId,
+			clientSecret: pc.upstreamClientSecret,
 			verifier: txn.proxyVerifier,
 		});
 	} catch {
