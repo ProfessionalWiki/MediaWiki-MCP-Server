@@ -100,22 +100,129 @@ To point an MCP client (Claude Desktop, VS Code, Cursor, etc.) at a locally-buil
 
 ## Local wiki setup (for authenticated tools)
 
-Authenticated tools (create, update, delete, undelete, upload) need credentials. To create bot passwords on a local MediaWiki running in Docker:
+Authenticated tools (create, update, delete, undelete, upload) need credentials.
+To create a bot password on a local MediaWiki running in Docker:
 
 ```bash
-docker exec <container> php /var/www/html/w/maintenance/run.php createBotPassword \
+docker exec <container> php /var/www/html/maintenance/run.php createBotPassword \
   --appid mcp-server \
-  --grants 'basic,editpage,editprotected,createeditmovepage,uploadfile,highvolume,delete' \
+  --grants 'basic,highvolume,editpage,editprotected,createeditmovepage,delete,uploadfile,uploadeditmovefile' \
   <username>
 ```
 
-Then add the credentials to `config.json` (copy from `config.example.json` if it doesn't exist):
+Then add the credentials to `config.json` (copy from `config.example.json` if it
+doesn't exist). Use environment-variable substitution to keep secrets out of the
+file:
 
 ```json
 {
-  "username": "<username>@mcp-server",
-  "password": "<generated-password>"
+  "username": "${MW_BOT_USER}",
+  "password": "${MW_BOT_PASSWORD}"
 }
 ```
 
-For production authentication, use OAuth2 — see [Authentication](../README.md#authentication) in the README.
+For production authentication, use OAuth2 — see [Authentication](../README.md#authentication).
+To exercise the full browser sign-in flow of the hosted OAuth proxy end to end,
+see [End-to-end testing the hosted OAuth proxy](#end-to-end-testing-the-hosted-oauth-proxy) below.
+
+(Adjust `/var/www/html` to your wiki's install path.)
+
+## End-to-end testing the hosted OAuth proxy
+
+A manual, repeatable walkthrough of the full browser sign-in flow — discovery,
+sign-in, upstream consent, token exchange, and an attributed write — against a
+real wiki. Written so an agent (or a person) can follow it verbatim. It needs no
+bundled environment: any MediaWiki container with Extension:OAuth works.
+
+### 1. Prerequisites and the environment contract
+
+You need a reachable MediaWiki container with **Extension:OAuth installed and
+OAuth2 enabled** (OAuth2 signing keys configured on the wiki), a known admin
+account, and a local build of this repo (`npm run build`). Any environment that
+satisfies the contract below works.
+
+| Variable | Meaning | Source |
+|---|---|---|
+| `OAUTH2_CLIENT_ID` | Consumer key → `config.json` `oauth2ClientId` | provisioning script |
+| `MW_DEV_BOT_USER` / `MW_DEV_BOT_PASSWORD` | Static credentials for non-proxy auth tests | provisioning script |
+| `MCP_TRUSTED_HOSTS` | Outbound SSRF-guard exemption for a loopback/private wiki | provisioning script |
+| `MCP_PUBLIC_URL`, `MCP_OAUTH_JWT_SIGNING_KEY`, `PORT`, `MCP_TRANSPORT` | Proxy configuration | you |
+| wiki URL + admin credentials | The environment itself | you |
+
+### 2. Provision the consumer and bot password
+
+```bash
+set -a; eval "$( scripts/provision-dev-wiki.sh <container> )"; set +a
+```
+
+On a wiki whose Extension:OAuth is recent enough to register OAuth2 consumers
+from the command line, this registers an approved OAuth 2.0 public (PKCE)
+consumer whose callback matches `${MCP_PUBLIC_URL}/oauth/callback`, creates a bot
+password, and exports `OAUTH2_CLIENT_ID`, `MW_DEV_BOT_USER`, `MW_DEV_BOT_PASSWORD`,
+and (for a loopback wiki) `MCP_TRUSTED_HOSTS`. Override the proxy base with
+`--public-url` if you run the server on a non-default port.
+
+On an older Extension:OAuth — for example the copy bundled with the MediaWiki
+1.43 LTS, whose `createOAuthConsumer.php` is OAuth1-only — the script cannot
+register the consumer from the command line. It prints step-by-step instructions
+to register it once in the browser at
+`Special:OAuthConsumerRegistration/propose/oauth2`, after which you set
+`OAUTH2_CLIENT_ID` yourself before starting the proxy.
+
+### 3. Configure the wiki entry
+
+In `config.json`, point the wiki at the provisioned consumer (adjust
+`articlepath`/`scriptpath` to your wiki's layout):
+
+```json
+{
+  "defaultWiki": "localhost:8080",
+  "wikis": {
+    "localhost:8080": {
+      "sitename": "Dev MediaWiki",
+      "server": "http://localhost:8080",
+      "articlepath": "/wiki",
+      "scriptpath": "/w",
+      "oauth2ClientId": "${OAUTH2_CLIENT_ID}"
+    }
+  }
+}
+```
+
+### 4. Start the proxy
+
+```bash
+export MCP_TRANSPORT=http PORT=3000 MCP_PUBLIC_URL=http://localhost:3000/mcp
+export MCP_OAUTH_JWT_SIGNING_KEY="$(openssl rand -hex 32)"   # keep this FIXED across restarts
+node dist/index.js
+```
+
+`MCP_TRUSTED_HOSTS` (from step 2) is already exported for a loopback wiki. A
+changed signing key invalidates every issued token.
+
+### 5. Walk the sign-in flow
+
+Point an OAuth-aware MCP client at `http://localhost:3000/mcp` (the MCP
+Inspector's HTTP mode works) and start sign-in, or drive the endpoints directly:
+`GET /.well-known/oauth-protected-resource` and `/.well-known/oauth-authorization-server`
+(discovery) → `POST /mcp/register` (dynamic client registration) →
+open `/mcp/authorize?…` in a browser → `POST /mcp/token`.
+
+At the authorize step, **using your browser or a browser-automation tool**, sign
+in as the admin account and approve the consent screen(s). Expected: the browser
+returns to `http://localhost:3000/mcp/oauth/callback` and the client receives a
+proxy-issued bearer token.
+
+### 6. Verify
+
+- Call `whoami` → expected: the signed-in admin account. (`oauth-status` is
+  stdio-only and is not exposed over the HTTP proxy.)
+- Call `create-page` (any title/text) → expected: success, and the new
+  revision's author is the admin account — confirming the write is attributed to
+  the signed-in user, not a shared identity.
+
+### 7. Reset
+
+- `oauth-logout` (stdio) or restart the server to drop stored tokens.
+- Re-run step 2 to register a fresh consumer.
+- Rotating `MCP_OAUTH_JWT_SIGNING_KEY` signs everyone out on the next start.
