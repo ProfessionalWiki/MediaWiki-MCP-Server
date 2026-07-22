@@ -83,7 +83,7 @@
         },
         {
           "name": "MCP_OAUTH_PROXY_STORE_FILE",
-          "description": "Path to the hosted OAuth proxy's encrypted state file (registered clients + upstream tokens), which lets sign-ins survive restarts. Default: proxy-store.enc under the mediawiki-mcp config dir; /app/data/proxy-store.enc in the Docker image.",
+          "description": "Path to the hosted OAuth proxy's encrypted state file, which lets sign-ins survive restarts. Default: proxy-store.enc under the mediawiki-mcp config dir; /app/data/proxy-store.enc in the Docker image.",
           "format": "filepath"
         },
         {
@@ -200,7 +200,7 @@
         },
         {
           "name": "MCP_OAUTH_PROXY_STORE_FILE",
-          "description": "Path to the hosted OAuth proxy's encrypted state file (registered clients + upstream tokens), which lets sign-ins survive restarts. Default: proxy-store.enc under the mediawiki-mcp config dir; /app/data/proxy-store.enc in the Docker image.",
+          "description": "Path to the hosted OAuth proxy's encrypted state file, which lets sign-ins survive restarts. Default: proxy-store.enc under the mediawiki-mcp config dir; /app/data/proxy-store.enc in the Docker image.",
           "format": "filepath"
         },
         {
