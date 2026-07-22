@@ -1,7 +1,7 @@
 // tests/auth/paths.test.ts
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as path from 'node:path';
-import { getCredentialsPath } from '../../src/auth/paths.js';
+import { getCredentialsPath, getProxyStorePath } from '../../src/auth/paths.js';
 
 afterEach(() => {
 	vi.unstubAllEnvs();
@@ -38,5 +38,17 @@ describe('getCredentialsPath', () => {
 		expect(getCredentialsPath()).toBe(
 			path.join('C:\\Users\\u\\AppData\\Roaming', 'mediawiki-mcp', 'credentials.json'),
 		);
+	});
+});
+
+describe('getProxyStorePath', () => {
+	it('honors the MCP_OAUTH_PROXY_STORE_FILE override', () => {
+		vi.stubEnv('MCP_OAUTH_PROXY_STORE_FILE', '/custom/proxy.enc');
+		expect(getProxyStorePath()).toBe('/custom/proxy.enc');
+	});
+
+	it('defaults under the mediawiki-mcp config dir', () => {
+		vi.stubEnv('MCP_OAUTH_PROXY_STORE_FILE', '');
+		expect(getProxyStorePath().replace(/\\/g, '/')).toMatch(/mediawiki-mcp\/proxy-store\.enc$/);
 	});
 });
