@@ -141,22 +141,30 @@ if [ "$WITH_BOT" -eq 1 ]; then
 	bot_pw="$(printf '%s' "$bot_out" | sed -n "s/.*password:'\([^']*\)'.*/\1/p")"
 	bot_user="$(printf '%s' "$bot_out" | sed -n "s/.*username:'\([^']*\)'.*/\1/p")"
 	[ -n "$bot_pw" ] || die "could not parse bot password from output: $bot_out"
+	[ -n "$bot_user" ] || die "could not parse bot username from output: $bot_out"
 fi
 
 # --- emit credentials (stdout) ----------------------------------------------
+# %q-quote every value so `set -a; eval "$( ... )"; set +a` is safe even when a
+# value contains shell metacharacters — MediaWiki usernames may contain spaces,
+# so `MW_DEV_BOT_USER=First Last@mcp-dev` must be quoted.
 if [ -n "$client_id" ]; then
-	printf 'OAUTH2_CLIENT_ID=%s\n' "$client_id"
+	printf 'OAUTH2_CLIENT_ID=%q\n' "$client_id"
 fi
 if [ "$WITH_BOT" -eq 1 ]; then
-	printf 'MW_DEV_BOT_USER=%s\n' "$bot_user"
-	printf 'MW_DEV_BOT_PASSWORD=%s\n' "$bot_pw"
+	printf 'MW_DEV_BOT_USER=%q\n' "$bot_user"
+	printf 'MW_DEV_BOT_PASSWORD=%q\n' "$bot_pw"
 fi
 
-wiki_host="${WIKI_URL#*://}"; wiki_host="${wiki_host%%/*}"   # host[:port]
-host_only="${wiki_host%%:*}"
+wiki_host="${WIKI_URL#*://}"; wiki_host="${wiki_host%%/*}"   # host[:port] or [ipv6]:port
+if [ "${wiki_host#\[}" != "$wiki_host" ]; then
+	host_only="${wiki_host#\[}"; host_only="${host_only%%\]*}"   # bare host inside [ ]
+else
+	host_only="${wiki_host%%:*}"
+fi
 case "$host_only" in
-	localhost|127.*|::1|0.0.0.0)
-		printf 'MCP_TRUSTED_HOSTS=%s\n' "$wiki_host" ;;
+	localhost | *.localhost | 127.* | ::1 | 0.0.0.0)
+		printf 'MCP_TRUSTED_HOSTS=%q\n' "$wiki_host" ;;
 	*)
 		log "note: if ${host_only} resolves to a private/internal address, also set MCP_TRUSTED_HOSTS=${wiki_host}" ;;
 esac
