@@ -186,8 +186,11 @@ export class PersistentProxyStore implements ProxyStore {
 			renameSync(tmp, this.file);
 			this.dirty = false;
 		} catch (err: unknown) {
-			// Best-effort durability: a disk failure must not break the live request.
-			// Leave dirty set so a later mutation retries; the token still works in memory.
+			// Best-effort durability: a disk failure must not break the live request. The
+			// record stays valid in memory; persistence is re-attempted by the next
+			// whole-snapshot flush — the deferred `dirty` flag drives it on the
+			// registration path, and any later token write-through re-persists the whole
+			// snapshot on the token path (where `dirty` is usually already clear).
 			try {
 				this.onError(err instanceof Error ? err : new Error(String(err)));
 			} catch {
