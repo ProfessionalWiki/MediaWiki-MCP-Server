@@ -155,11 +155,19 @@ satisfies the contract below works.
 set -a; eval "$( scripts/provision-dev-wiki.sh <container> )"; set +a
 ```
 
-This registers an approved OAuth 2.0 public (PKCE) consumer whose callback
-matches `${MCP_PUBLIC_URL}/oauth/callback`, creates a bot password, and exports
-`OAUTH2_CLIENT_ID`, `MW_DEV_BOT_USER`, `MW_DEV_BOT_PASSWORD`, and (for a loopback
-wiki) `MCP_TRUSTED_HOSTS`. Override the proxy base with `--public-url` if you run
-the server on a non-default port.
+On a wiki whose Extension:OAuth is recent enough to register OAuth2 consumers
+from the command line, this registers an approved OAuth 2.0 public (PKCE)
+consumer whose callback matches `${MCP_PUBLIC_URL}/oauth/callback`, creates a bot
+password, and exports `OAUTH2_CLIENT_ID`, `MW_DEV_BOT_USER`, `MW_DEV_BOT_PASSWORD`,
+and (for a loopback wiki) `MCP_TRUSTED_HOSTS`. Override the proxy base with
+`--public-url` if you run the server on a non-default port.
+
+On an older Extension:OAuth — for example the copy bundled with the MediaWiki
+1.43 LTS, whose `createOAuthConsumer.php` is OAuth1-only — the script cannot
+register the consumer from the command line. It prints step-by-step instructions
+to register it once in the browser at
+`Special:OAuthConsumerRegistration/propose/oauth2`, after which you set
+`OAUTH2_CLIENT_ID` yourself before starting the proxy.
 
 ### 3. Configure the wiki entry
 
