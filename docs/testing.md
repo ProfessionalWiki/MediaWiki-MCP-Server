@@ -207,7 +207,8 @@ proxy-issued bearer token.
 
 ### 6. Verify
 
-- Call `oauth-status` → expected: authenticated as the admin account.
+- Call `whoami` → expected: the signed-in admin account. (`oauth-status` is
+  stdio-only and is not exposed over the HTTP proxy.)
 - Call `create-page` (any title/text) → expected: success, and the new
   revision's author is the admin account — confirming the write is attributed to
   the signed-in user, not a shared identity.
