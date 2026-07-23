@@ -2,6 +2,13 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import express from 'express';
+import request from 'supertest';
+import {
+	initMetrics,
+	getMetricsHandler,
+	__resetMetricsForTesting,
+} from '../../../src/runtime/metrics.js';
 import type { ProxyConfig } from '../../../src/auth/authorizationServer/proxyConfig.js';
 import { InMemoryProxyStore } from '../../../src/auth/authorizationServer/proxyStore.js';
 import {
@@ -43,6 +50,53 @@ describe('PersistentProxyStore', () => {
 			refreshToken: 'rt',
 			expiresAt: 111,
 		});
+	});
+
+	it('records a flush-duration metric on a durable write when metrics are enabled', async () => {
+		vi.stubEnv('MCP_METRICS', 'true');
+		__resetMetricsForTesting();
+		initMetrics();
+		try {
+			const s = make(file);
+			s.putUpstreamToken({ accessToken: 'a', expiresAt: 111 }); // write-through → flushSync
+			const handler = getMetricsHandler();
+			expect(handler).toBeDefined();
+			const app = express();
+			app.get('/metrics', handler!);
+			const res = await request(app).get('/metrics');
+			expect(res.text).toMatch(/mcp_proxy_store_flush_duration_seconds_count [1-9]/);
+		} finally {
+			__resetMetricsForTesting();
+		}
+	});
+
+	it('increments the flush-failure counter when a durable write cannot be persisted', async () => {
+		vi.stubEnv('MCP_METRICS', 'true');
+		__resetMetricsForTesting();
+		initMetrics();
+		try {
+			// Force flushSync to fail: put the store file under a path whose parent is a
+			// regular file, so the mkdirSync/write throws.
+			const blocker = path.join(dir, 'blocker');
+			fs.writeFileSync(blocker, 'x');
+			const onError = vi.fn();
+			const s = new PersistentProxyStore(
+				new InMemoryProxyStore(),
+				path.join(blocker, 's.enc'),
+				KEY,
+				onError,
+			);
+			s.putUpstreamToken({ accessToken: 'a', expiresAt: 111 }); // write-through flush fails
+			expect(onError).toHaveBeenCalledTimes(1); // the failure path ran, but did not throw
+			const handler = getMetricsHandler();
+			expect(handler).toBeDefined();
+			const app = express();
+			app.get('/metrics', handler!);
+			const res = await request(app).get('/metrics');
+			expect(res.text).toMatch(/mcp_proxy_store_flush_failures_total 1/);
+		} finally {
+			__resetMetricsForTesting();
+		}
 	});
 
 	it('persists a client registration via the coalesced deferred flush', async () => {

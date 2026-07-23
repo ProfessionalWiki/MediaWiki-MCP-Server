@@ -44,6 +44,13 @@ export interface DurableSnapshot {
 	upstream: Array<[string, UpstreamToken]>;
 }
 
+// Live counts of the durable slice, for observability. `upstreamTokens` is the
+// unbounded one (it grows with cumulative sign-ins); `clients` is FIFO-capped.
+export interface ProxyStoreStats {
+	upstreamTokens: number;
+	clients: number;
+}
+
 const TXN_TTL_MS = 15 * 60 * 1000;
 const CODE_TTL_MS = 5 * 60 * 1000;
 
@@ -67,6 +74,7 @@ export interface ProxyStore {
 	deleteUpstreamToken(id: string): void;
 	beginRefreshRotation(id: string, expectedRefreshId: string): boolean;
 	finishRefreshRotation(id: string, newRefreshId?: string): void;
+	stats(): ProxyStoreStats;
 }
 
 interface Expiring<T> {
@@ -106,6 +114,10 @@ export class InMemoryProxyStore implements ProxyStore {
 
 	public getClient(id: string): ClientRecord | undefined {
 		return this.clients.get(id);
+	}
+
+	public stats(): ProxyStoreStats {
+		return { upstreamTokens: this.upstream.size, clients: this.clients.size };
 	}
 
 	public putTransaction(id: string, t: TransactionRecord, ttlMs = TXN_TTL_MS): void {

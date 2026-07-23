@@ -1,6 +1,8 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { isErrnoException } from '../../errors/isErrnoException.js';
+import { recordStoreFlush, recordStoreFlushFailure } from '../../runtime/metrics.js';
 import { getProxyStorePath } from '../paths.js';
 import type { ProxyConfig } from './proxyConfig.js';
 import { deriveKey, decrypt, encrypt } from './proxyStoreCrypto.js';
@@ -10,6 +12,7 @@ import {
 	type CodeRecord,
 	type DurableSnapshot,
 	type ProxyStore,
+	type ProxyStoreStats,
 	type TransactionRecord,
 	type UpstreamToken,
 } from './proxyStore.js';
@@ -89,6 +92,10 @@ export class PersistentProxyStore implements ProxyStore {
 
 	public getClient(id: string): ClientRecord | undefined {
 		return this.inner.getClient(id);
+	}
+
+	public stats(): ProxyStoreStats {
+		return this.inner.stats();
 	}
 
 	public putTransaction(id: string, t: TransactionRecord, ttlMs?: number): void {
@@ -177,6 +184,7 @@ export class PersistentProxyStore implements ProxyStore {
 	}
 
 	private flushSync(): void {
+		const start = performance.now();
 		try {
 			const json = JSON.stringify(this.inner.snapshotDurable());
 			const blob = encrypt(this.key, Buffer.from(json, 'utf8'));
@@ -185,12 +193,16 @@ export class PersistentProxyStore implements ProxyStore {
 			writeFileSync(tmp, blob, { mode: 0o600 });
 			renameSync(tmp, this.file);
 			this.dirty = false;
+			recordStoreFlush(performance.now() - start);
 		} catch (err: unknown) {
 			// Best-effort durability: a disk failure must not break the live request. The
 			// record stays valid in memory; persistence is re-attempted by the next
 			// whole-snapshot flush — the deferred `dirty` flag drives it on the
 			// registration path, and any later token write-through re-persists the whole
 			// snapshot on the token path (where `dirty` is usually already clear).
+			// Count the failure so a slow-and-failing flush is visible to /metrics, not
+			// only in the onError log. inc() never throws, so it stays out of the way.
+			recordStoreFlushFailure();
 			try {
 				this.onError(err instanceof Error ? err : new Error(String(err)));
 			} catch {
