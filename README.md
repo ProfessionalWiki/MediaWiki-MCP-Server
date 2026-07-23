@@ -186,6 +186,7 @@ Follow the [guide](https://modelcontextprotocol.io/quickstart/user) and use the 
     "mediawiki-mcp-server": {
       "command": "npx",
       "args": [
+        "-y",
         "@professional-wiki/mediawiki-mcp-server@latest"
       ],
       "env": {
@@ -199,20 +200,20 @@ Follow the [guide](https://modelcontextprotocol.io/quickstart/user) and use the 
 
 <details><summary><b>Install in VS Code</b></summary>
 
-[![Install in VS Code](https://img.shields.io/badge/Add%20to-VS%20Code-blue?style=for-the-badge&labelColor=%230e1116&color=%234076b5)](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522mediawiki-mcp-server%2522%252C%2522command%2522%253A%2522npx%2522%252C%2522args%2522%253A%255B%2522%2540professional-wiki%252Fmediawiki-mcp-server%2540latest%2522%255D%257D)
-[![Install in VS Code Insiders](https://img.shields.io/badge/Add%20to-VS%20Code%20Insiders-blue?style=for-the-badge&labelColor=%230e1116&color=%234f967e)](https://insiders.vscode.dev/redirect?url=vscode-insiders%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522mediawiki-mcp-server%2522%252C%2522command%2522%253A%2522npx%2522%252C%2522args%2522%253A%255B%2522%2540professional-wiki%252Fmediawiki-mcp-server%2540latest%2522%255D%257D)
+[![Install in VS Code](https://img.shields.io/badge/Add%20to-VS%20Code-blue?style=for-the-badge&labelColor=%230e1116&color=%234076b5)](https://insiders.vscode.dev/redirect/mcp/install?name=mediawiki-mcp-server&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40professional-wiki%2Fmediawiki-mcp-server%40latest%22%5D%7D)
+[![Install in VS Code Insiders](https://img.shields.io/badge/Add%20to-VS%20Code%20Insiders-blue?style=for-the-badge&labelColor=%230e1116&color=%234f967e)](https://insiders.vscode.dev/redirect/mcp/install?name=mediawiki-mcp-server&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40professional-wiki%2Fmediawiki-mcp-server%40latest%22%5D%7D&quality=insiders)
 
 ```bash
-code --add-mcp '{"name":"mediawiki-mcp-server","command":"npx","args":["@professional-wiki/mediawiki-mcp-server@latest"]}'
+code --add-mcp '{"name":"mediawiki-mcp-server","command":"npx","args":["-y","@professional-wiki/mediawiki-mcp-server@latest"]}'
 ```
 </details>
 
 <details>
 <summary><b>Install in Cursor</b></summary>
 
-[![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=mediawiki-mcp-server&config=eyJjb21tYW5kIjoibnB4IEBwcm9mZXNzaW9uYWwtd2lraS9tZWRpYXdpa2ktbWNwLXNlcnZlckBsYXRlc3QifQ%3D%3D)
+[![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=mediawiki-mcp-server&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIkBwcm9mZXNzaW9uYWwtd2lraS9tZWRpYXdpa2ktbWNwLXNlcnZlckBsYXRlc3QiXX0%3D)
 
-Go to `Cursor Settings` -> `MCP` -> `Add new MCP Server`. Name it to your liking, and use `command` type with the command `npx @professional-wiki/mediawiki-mcp-server`.
+Go to `Cursor Settings` -> `MCP` -> `Add new MCP Server`. Name it to your liking, and use `command` type with the command `npx -y @professional-wiki/mediawiki-mcp-server@latest`.
 
 ```json
 {
@@ -220,6 +221,7 @@ Go to `Cursor Settings` -> `MCP` -> `Add new MCP Server`. Name it to your liking
     "mediawiki-mcp-server": {
       "command": "npx",
       "args": [
+        "-y",
         "@professional-wiki/mediawiki-mcp-server@latest"
       ],
       "env": {
@@ -242,6 +244,7 @@ Follow the [guide](https://docs.windsurf.com/windsurf/cascade/mcp) and use the f
     "mediawiki-mcp-server": {
       "command": "npx",
       "args": [
+        "-y",
         "@professional-wiki/mediawiki-mcp-server@latest"
       ],
       "env": {
@@ -265,10 +268,13 @@ Install it as a plugin. Add this repository as a plugin marketplace, then instal
 
 When installed as a plugin, the tools are namespaced `mcp__plugin_mediawiki-mcp-server_mediawiki__<tool>`; update any tool allowlists or hooks accordingly.
 
-Or configure the server directly by following the [Claude Code MCP docs](https://docs.anthropic.com/en/docs/claude-code/mcp), optionally with `-e` flags to specify environment variables.
+Or configure the server directly by following the [Claude Code MCP docs](https://docs.anthropic.com/en/docs/claude-code/mcp).
 
 ```bash
-claude mcp add mediawiki-mcp-server npx @professional-wiki/mediawiki-mcp-server@latest
+claude mcp add mediawiki-mcp-server -- npx -y @professional-wiki/mediawiki-mcp-server@latest
+
+# Environment variables go before the `--`:
+claude mcp add mediawiki-mcp-server -e CONFIG=path/to/config.json -- npx -y @professional-wiki/mediawiki-mcp-server@latest
 ```
 
 You should end up with something like the below in your `.claude.json` config:
@@ -279,6 +285,7 @@ You should end up with something like the below in your `.claude.json` config:
     "type": "stdio",
     "command": "npx",
     "args": [
+      "-y",
       "@professional-wiki/mediawiki-mcp-server@latest"
     ],
     "env": {
@@ -327,6 +334,7 @@ Add the server to Antigravity's MCP config, either globally in `~/.gemini/config
     "mediawiki-mcp-server": {
       "command": "npx",
       "args": [
+        "-y",
         "@professional-wiki/mediawiki-mcp-server@latest"
       ],
       "env": {
