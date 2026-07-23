@@ -538,6 +538,40 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		expect(fetchCalls).toBe(0);
 		expect(rejected.text).toMatch(/not a trusted CIMD host|evil\.example/);
 	});
+
+	it('CIMD: rejects a document that lists a cleartext http non-loopback redirect', async () => {
+		const store = new InMemoryProxyStore();
+		const pc = proxyConfig('https://test.example');
+		const clientId = 'https://vscode.dev/oauth/client-metadata.json';
+		const badRedirect = 'http://evil.example/cb';
+		// Allowlisted host, but the fetched document declares a cleartext http redirect to
+		// a non-loopback host — validateCimdDocument rejects it, so resolve fails and
+		// /authorize renders the 400 auth-error page. No code is ever minted.
+		const fetcher = async (url: string): Promise<CimdFetchResult> => ({
+			status: 200,
+			body: JSON.stringify({
+				client_id: url,
+				client_name: 'VS Code',
+				redirect_uris: [badRedirect],
+			}),
+			cacheControl: null,
+		});
+		const cimdResolver = new CimdResolver((h) => h === 'vscode.dev', fetcher);
+		const { app } = buildApp({ ...makeDeps('https://test.example', store, pc), cimdResolver });
+
+		const res = await request(app).get('/mcp/authorize').query({
+			response_type: 'code',
+			client_id: clientId,
+			code_challenge: 'abc123',
+			code_challenge_method: 'S256',
+			redirect_uri: badRedirect,
+			state: 's',
+			resource: ISSUER,
+		});
+		expect(res.status).toBe(400);
+		expect(res.headers['content-type']).toMatch(/html/);
+		expect(res.text).toMatch(/Authorization failed/);
+	});
 });
 
 describe('private wiki — connection-time auth challenge', () => {
