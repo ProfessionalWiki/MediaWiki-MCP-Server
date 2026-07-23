@@ -82,7 +82,7 @@
 		"lefthook": "^2.1.6",
 		"oxfmt": "^0.59.0",
 		"oxlint": "^1.62.0",
-		"oxlint-tsgolint": "^0.24.0",
+		"oxlint-tsgolint": "^7.0.2001",
 		"supertest": "^7.2.2",
 		"typescript": "^7.0.2",
 		"vitest": "^4.1.1"
