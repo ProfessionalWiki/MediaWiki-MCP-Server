@@ -1,4 +1,5 @@
 import type { ClientRecord } from './proxyStore.js';
+import { isLoopbackHost } from './redirectPolicy.js';
 import type { CimdFetchResult } from '../../transport/cimdFetch.js';
 
 export class CimdValidationError extends Error {
@@ -110,6 +111,24 @@ export interface CimdDocument {
 	redirect_uris: string[];
 }
 
+// Each CIMD redirect_uri must be an https URL, a loopback http URL (RFC 8252:
+// http://127.0.0.1 / localhost / [::1], any port), or a custom app scheme (e.g.
+// vscode:// or com.example.app:/…). Anything else is rejected: a cleartext http
+// redirect to a NON-loopback host is interceptable by a network attacker on the
+// redirect's path, and a string that is not a parseable absolute URL is refused
+// fail-closed (every legitimate redirect form parses). The curated CIMD host allowlist
+// is the trust anchor, and MCP_OAUTH_ALLOWED_REDIRECTS does not gate CIMD clients, so
+// this is the redirect check they get.
+function isDisallowedCimdRedirect(uri: string): boolean {
+	let u: URL;
+	try {
+		u = new URL(uri);
+	} catch {
+		return true; // not a parseable absolute URL — fail closed
+	}
+	return u.protocol === 'http:' && !isLoopbackHost(u.hostname);
+}
+
 // Validates a parsed metadata document against the MCP required-field set plus the
 // IETF self-reference rule. Self-reference is a SIMPLE STRING comparison with NO
 // normalization: `https://h/c` and `https://h:443/c` are distinct. The token auth
@@ -134,7 +153,14 @@ export function validateCimdDocument(clientId: string, raw: unknown): CimdDocume
 	) {
 		throw new CimdValidationError('document is missing a non-empty redirect_uris array');
 	}
-	return { client_id: clientId, client_name: d.client_name, redirect_uris: [...d.redirect_uris] };
+	const redirectUris: string[] = [...d.redirect_uris];
+	const disallowed = redirectUris.find(isDisallowedCimdRedirect);
+	if (disallowed !== undefined) {
+		throw new CimdValidationError(
+			`redirect_uri must be a parseable https, loopback http, or custom-scheme URL; rejected "${disallowed}"`,
+		);
+	}
+	return { client_id: clientId, client_name: d.client_name, redirect_uris: redirectUris };
 }
 
 // A CIMD client is a public (PKCE) client. It is never stored in ProxyStore, so

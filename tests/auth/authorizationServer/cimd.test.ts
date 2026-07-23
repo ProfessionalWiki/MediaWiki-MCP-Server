@@ -108,6 +108,41 @@ describe('validateCimdDocument', () => {
 	])('rejects %#', (doc) =>
 		expect(() => validateCimdDocument(URL_ID, doc)).toThrow(CimdValidationError),
 	);
+
+	it.each([
+		['http://evil.example/cb'], // cleartext http, non-loopback
+		['HTTP://EVIL.EXAMPLE/cb'], // scheme/host are case-folded before the check
+		['http://user@evil.example/cb'], // userinfo does not change the host
+		['http://127.0.0.1.evil.example/cb'], // deceptive: starts with a loopback literal but is NOT loopback
+		['//evil.example/cb'], // protocol-relative: not a parseable absolute URL
+		['not-a-url'], // unparseable
+		[''], // empty
+	])('rejects a disallowed redirect %s', (uri) => {
+		expect(() => validateCimdDocument(URL_ID, { ...goodDoc, redirect_uris: [uri] })).toThrow(
+			CimdValidationError,
+		);
+	});
+
+	it('rejects when ANY redirect_uri is disallowed', () => {
+		expect(() =>
+			validateCimdDocument(URL_ID, {
+				...goodDoc,
+				redirect_uris: ['https://vscode.dev/redirect', 'http://evil.example/cb'],
+			}),
+		).toThrow(CimdValidationError);
+	});
+
+	it.each([
+		['https://vscode.dev/redirect'],
+		['https://app.example.com:8443/cb'],
+		['http://127.0.0.1:8080/cb'],
+		['http://localhost/cb'],
+		['http://[::1]:1234/cb'],
+		['vscode://vscode.dev/callback'],
+		['com.example.app:/oauth2redirect'], // RFC 8252 private-use scheme
+	])('accepts %s (https, loopback http, or custom scheme)', (uri) => {
+		expect(() => validateCimdDocument(URL_ID, { ...goodDoc, redirect_uris: [uri] })).not.toThrow();
+	});
 });
 
 describe('synthesizeClientRecord', () => {

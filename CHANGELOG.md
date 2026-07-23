@@ -25,6 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Fixed
 
+- Hosted OAuth proxy: a client that identifies by a vendor-hosted URL (Client ID Metadata Document) is now rejected if any redirect URI in its document is not an `https`, loopback-`http`, or custom-scheme (for example `vscode://`) URL — notably a cleartext `http` redirect to a non-loopback host, which a network attacker on that path could intercept the authorization code at.
 - The HTTP server now logs a clear message and exits cleanly when it cannot bind its port — already in use, or permission denied — instead of terminating with an uncaught exception and a raw stack trace.
 - OAuth clients that use a loopback callback on a variable port (including clients that register a portless `http://127.0.0.1/` URI) now complete the flow instead of failing with "redirect_uri not registered", per RFC 8252.
 - Hosted OAuth proxy: an upstream token refresh the wiki rejects with `invalid_client` (client authentication failed) is now reported as an authentication failure the client re-signs-in on, instead of a retryable "temporarily unavailable" that the client would loop on.
