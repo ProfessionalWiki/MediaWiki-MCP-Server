@@ -179,10 +179,7 @@ export function createOAuthProtectedResourceHandler(deps: {
 				res.status(503).json({ error: 'discovery_failed' });
 				return;
 			}
-			const protoHeader = req.headers['x-forwarded-proto'];
-			const proto = typeof protoHeader === 'string' ? protoHeader.split(',')[0]?.trim() : undefined;
-			const requestProto =
-				proto === 'https' || proto === 'http' ? proto : req.secure ? 'https' : 'http';
+			const requestProto = resolveRequestProto(req);
 			const proxyConfig = deps.getProxyConfig?.() ?? null;
 			const doc = buildProtectedResource({
 				wikis,
@@ -200,6 +197,14 @@ export function createOAuthProtectedResourceHandler(deps: {
 			next(err);
 		}
 	};
+}
+
+// Resolves the request's scheme, honouring a trusted reverse proxy's
+// x-forwarded-proto (first value) and falling back to the socket's own security.
+function resolveRequestProto(req: Request): 'http' | 'https' {
+	const protoHeader = req.headers['x-forwarded-proto'];
+	const proto = typeof protoHeader === 'string' ? protoHeader.split(',')[0]?.trim() : undefined;
+	return proto === 'https' || proto === 'http' ? proto : req.secure ? 'https' : 'http';
 }
 
 // A wiki needs auth when it is OAuth-only with no usable static fallback.
@@ -362,10 +367,7 @@ function setTxnCookie(res: Response, upstreamLocation: string): void {
 }
 
 function emit401Challenge(req: Request, res: Response): void {
-	const protoHeader = req.headers['x-forwarded-proto'];
-	const proto = typeof protoHeader === 'string' ? protoHeader.split(',')[0]?.trim() : undefined;
-	const requestProto =
-		proto === 'https' || proto === 'http' ? proto : req.secure ? 'https' : 'http';
+	const requestProto = resolveRequestProto(req);
 	const base = resolvePublicBase(req.headers.host ?? undefined, requestProto);
 	// The protected-resource document is served at the ORIGIN root (RFC 9728), not
 	// under MCP_PUBLIC_URL's path segment. Point resource_metadata at the origin so
