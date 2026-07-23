@@ -1,6 +1,6 @@
 # Advanced configuration
 
-Covers configuration topics beyond the basic `config.json` shape documented in [README.md](../README.md#configuration): the full field reference, environment variable substitution, secret sources, plaintext fallback, and the `tags` field.
+Covers configuration topics beyond the basic `config.json` shape documented in [README.md](../README.md#configuration): the full field reference, environment variable substitution, secret sources, plaintext fallback, and the `tags` and `attributeEdits` fields.
 
 ## Configuration fields
 
@@ -30,6 +30,7 @@ Covers configuration topics beyond the basic `config.json` shape documented in [
 | `private` | No | Whether the wiki requires authentication to read (default: `false`) |
 | `readOnly` | No | When `true`, hides the six 🔐 write tools from `tools/list` while this wiki is active. Pairs with `allowWikiManagement: false` for a [hosted read-only endpoint](deployment.md). Default: `false` |
 | `tags` | No | Change tag(s) to apply to every write (string or array). The tag must exist and be active at `Special:Tags` — see [change tags](#change-tags-tags) for details. |
+| `attributeEdits` | No | Whether page and file writes carry the `(via <tool> on MediaWiki MCP Server)` suffix in their edit summary. Default: `true`. See [edit attribution](#edit-attribution-attributeedits). |
 
 URLs returned to the caller — page links, and the `server` field in `list-wikis` and `mcp://wikis` resources — are built from the wiki's public address, so an internal `server` hostname does not leak into links. If the wiki cannot be reached, they fall back to the configured `server`.
 
@@ -95,7 +96,7 @@ Plaintext credentials in `config.json` still work but print a one-line warning t
 
 ## Change tags (`tags`)
 
-The `tags` field applies one or more [change tags](https://www.mediawiki.org/wiki/Manual:Tags) to every write (create, update, delete, upload). Register and activate the tag at `Special:Tags` first — otherwise MediaWiki returns a `badtags` error and the write fails.
+The `tags` field applies one or more [change tags](https://www.mediawiki.org/wiki/Manual:Tags) to every write (create, update, delete, undelete, move, upload). Register and activate the tag at `Special:Tags` first — otherwise MediaWiki returns a `badtags` error and the write fails.
 
 Accepts a string or an array of strings:
 
@@ -118,6 +119,24 @@ Accepts a string or an array of strings:
   }
 }
 ```
+
+## Edit attribution (`attributeEdits`)
+
+Every write (create, update, delete, undelete, move, upload) appends `(via <tool> on MediaWiki MCP Server)` to its edit summary — for example `Fix typo (via update-page on MediaWiki MCP Server)`. With no caller comment, the summary is `Automated edit (via <tool> on MediaWiki MCP Server)`. This is the default (`true`).
+
+Set `attributeEdits` to `false` to drop the suffix. The write then carries only the caller's comment, or an empty summary when none was given:
+
+```json
+{
+  "wikis": {
+    "my.wiki.org": {
+      "attributeEdits": false
+    }
+  }
+}
+```
+
+A change [`tags`](#change-tags-tags) value keeps MCP writes identifiable without the suffix, and stays visible in recent changes and page history.
 
 ## Upload directories
 

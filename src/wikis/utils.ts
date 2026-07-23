@@ -11,7 +11,10 @@ export async function buildPageUrl(ctx: ToolContext, title: string): Promise<str
 	return `${server}${articlepath}/${encodeURI(title.replace(/ /g, '_'))}`;
 }
 
-export function formatEditComment(tool: string, comment?: string): string {
+export function formatEditComment(ctx: ToolContext, tool: string, comment?: string): string {
+	if (ctx.activeWiki.get().config.attributeEdits === false) {
+		return comment ?? '';
+	}
 	const suffix = `(via ${tool} on MediaWiki MCP Server)`;
 	if (!comment) {
 		return `Automated edit ${suffix}`;

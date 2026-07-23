@@ -55,7 +55,7 @@ export const createPage: Tool<typeof inputSchema> = {
 		const result = await mwn.create(
 			title,
 			source,
-			formatEditComment('create-page', comment),
+			formatEditComment(ctx, 'create-page', comment),
 			options,
 		);
 

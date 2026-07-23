@@ -91,6 +91,15 @@ export interface WikiConfig {
 	 * the action, MediaWiki returns a badtags error and the write fails.
 	 */
 	tags?: string | string[] | null;
+	/**
+	 * Whether write actions made through this MCP server carry the
+	 * `(via <tool> on MediaWiki MCP Server)` attribution suffix in their edit
+	 * summary. Defaults to true. Set to false to drop the suffix, leaving only
+	 * the caller-supplied comment — or an empty summary when none was given.
+	 * A change tag (`tags`) keeps MCP edits identifiable without the suffix when
+	 * you control the target wiki.
+	 */
+	attributeEdits?: boolean;
 }
 
 export type PublicWikiConfig = Omit<WikiConfig, 'token' | 'username' | 'password'>;

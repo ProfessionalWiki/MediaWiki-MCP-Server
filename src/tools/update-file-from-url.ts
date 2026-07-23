@@ -44,7 +44,7 @@ export const updateFileFromUrl: Tool<typeof inputSchema> = {
 		}
 
 		const baseParams: ApiUploadParams = {
-			comment: formatEditComment('update-file-from-url', comment),
+			comment: formatEditComment(ctx, 'update-file-from-url', comment),
 			ignorewarnings: true,
 		};
 
