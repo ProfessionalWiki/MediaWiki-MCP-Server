@@ -2,13 +2,13 @@
 import { logger } from '../runtime/logger.js';
 import { OAuthFlowError, refreshTokens } from './oauthFlow.js';
 import { createTokenStore, type StoredToken } from './tokenStore.js';
-import type { AsMetadata } from './metadata.js';
+import type { UpstreamAsMetadata } from './metadata.js';
 
 const REFRESH_THRESHOLD_MS = 60_000;
 
 export interface RefreshContext {
 	clientId: string;
-	metadata: Pick<AsMetadata, 'token_endpoint'>;
+	metadata: Pick<UpstreamAsMetadata, 'token_endpoint'>;
 }
 
 const inFlight = new Map<string, Promise<string>>();
