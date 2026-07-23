@@ -1,34 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('../../src/config/loadConfig.js', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('../../src/config/loadConfig.js')>();
-	return {
-		...actual,
-		loadConfigFromFile: () => ({
-			defaultWiki: 'test',
-			wikis: {
-				test: {
-					sitename: 'Test',
-					server: 'https://test.example',
-					articlepath: '/wiki',
-					scriptpath: '/w',
-					token: null,
-					username: null,
-					password: null,
-				},
-			},
-			uploadDirs: [],
-		}),
-	};
-});
-
-vi.mock('../../src/wikis/mwnProvider.js', () => ({
-	MwnProviderImpl: class {
-		get = () => Promise.reject(new Error('mwn not available in tests'));
-		invalidate = () => {};
-	},
-}));
-
 import express, { type Express, type Request } from 'express';
 import request from 'supertest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
