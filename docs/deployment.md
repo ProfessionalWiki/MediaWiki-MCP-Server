@@ -328,13 +328,13 @@ The server accepts a standard OAuth 2.1 `Authorization: Bearer` header on each r
 Authorization: Bearer <oauth2-access-token>
 ```
 
-Use a MediaWiki OAuth2 access token obtained from `Special:OAuthConsumerRegistration/propose/oauth2` on the target wiki, with [Extension:OAuth](https://www.mediawiki.org/wiki/Extension:OAuth) installed. The server forwards it to MediaWiki as that caller's token, so writes are attributable and MediaWiki's per-user rate limits apply. A bearer is scoped to a single MediaWiki OAuth2 realm, so this is single-wiki only for now.
+Use a MediaWiki OAuth2 access token obtained from `Special:OAuthConsumerRegistration/propose/oauth2` on the target wiki, with [Extension:OAuth](https://www.mediawiki.org/wiki/Extension:OAuth) installed. The server forwards it to MediaWiki as that caller's token, so writes are attributable and MediaWiki's per-user rate limits apply. A bearer is scoped to a single MediaWiki OAuth2 realm, and there is no per-session bearer pin: one session can address wikis on different authorization servers by sending the right token per request. `list-wikis` reports each OAuth wiki's `authorizationServer`.
 
-When the target wiki sets `oauth2ClientId`, the server also advertises OAuth discovery on this path, so a capable client can run the authorization-code flow against the wiki's **own** authorization server and fetch that token itself instead of you pasting one in. See [configuration.md: OAuth (browser-based)](configuration.md#oauth-browser-based) for the per-wiki opt-in.
+When a wiki sets `oauth2ClientId` (see [configuration.md: OAuth (browser-based)](configuration.md#oauth-browser-based)), the server also advertises OAuth discovery on this path: the protected-resource document lists every OAuth-configured wiki's authorization server, and a capable client can run the authorization-code flow against the wiki's **own** authorization server and fetch that token itself instead of you pasting one in. A bearer-less request is challenged with `401` only when no configured wiki is usable without a token; a deployment that mixes OAuth and non-OAuth wikis still serves tokenless clients on the wikis that allow anonymous access.
 
 **Precedence:** request header → `config.json` `token` → `config.json` `username`/`password` → anonymous. The HTTP transport refuses to start with static credentials in `config.json` unless `MCP_ALLOW_STATIC_FALLBACK=true` is set; see [the Security checklist](#security-checklist) for why.
 
-Each request builds an independent MediaWiki session using the supplied token. Token rotation and revocation take effect on the next MCP session started with the new token.
+Each request builds an independent MediaWiki session using the supplied token. Token rotation and revocation take effect on the next MCP session started with the new token. The MCP session id is the session's only credential, so run the transport behind TLS; idle sessions close after `MCP_SESSION_IDLE_TIMEOUT`, bounding how long a leaked session id stays usable.
 
 Example with Claude Code:
 

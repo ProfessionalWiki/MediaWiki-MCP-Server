@@ -157,7 +157,7 @@ Create a `config.json` file to configure wiki connections. Use the `config.examp
 }
 ```
 
-**Internal vs public address.** The `server` you configure is the address the MCP server uses to reach the wiki's API — it may be an internal hostname (e.g. `http://mediawiki` in Docker). URLs handed back to the AI (page links, the `server` field in `list-wikis` and `mcp://wikis` resources) are built from the wiki's own public address, so internal hostnames don't leak into links. If a wiki can't be reached, links fall back to the configured `server`.
+**Internal vs public address.** The `server` you configure may be an internal hostname (e.g. `http://mediawiki` in Docker); URLs handed back to the caller are built from the wiki's public address, so internal hostnames don't leak into links. See [docs/configuration.md — per-wiki fields](docs/configuration.md#per-wiki-fields).
 
 For the full field reference, env-var substitution, secret sources, change tags, upload directories, and authentication options, see [docs/configuration.md](docs/configuration.md).
 
@@ -305,7 +305,7 @@ Defaults are safe for single-user use. Before exposing the HTTP transport to oth
 - **Trust the proxy, not the header.** The server forwards any `Authorization: Bearer` header straight to MediaWiki — authentication is the reverse proxy's job. Terminate TLS there, and don't expose the MCP port directly on an untrusted network. See [docs/deployment.md — security checklist](docs/deployment.md#security-checklist).
 - **Pair `MCP_BIND` with `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS`.** The HTTP transport binds to `127.0.0.1` by default. When you open it up with `MCP_BIND=0.0.0.0`, set `MCP_ALLOWED_HOSTS` to the hostnames your proxy forwards and `MCP_ALLOWED_ORIGINS` to the browser origins allowed to call the server — these block DNS-rebinding and cross-origin attacks respectively.
 - **Uploads are opt-in.** `upload-file` is disabled until you list allowed directories in `uploadDirs` or `MCP_UPLOAD_DIRS`. See [docs/configuration.md — upload directories](docs/configuration.md#upload-directories).
-- **Internal destinations need `MCP_TRUSTED_HOSTS`.** Outbound fetches — the anonymous siteinfo probe, wiki discovery, `*-file-from-url` — are SSRF-guarded: a destination resolving to a private or loopback address is refused. To deliberately run against an internal host — e.g. a Docker-network alias like `mediawiki.svc` that bypasses your public proxy — list it in `MCP_TRUSTED_HOSTS` to exempt it from the public-IP check. The host is still resolved and pinned, and the guard stays on for every other destination. This is the **outbound** counterpart to the inbound `MCP_ALLOWED_HOSTS` (Host-header) check — the two are unrelated despite the similar names.
+- **Internal destinations need `MCP_TRUSTED_HOSTS`.** Outbound fetches are SSRF-guarded: a destination resolving to a private or loopback address (e.g. a Docker-network alias like `mediawiki.svc`) is refused until you list its host in `MCP_TRUSTED_HOSTS`. See [docs/deployment.md — outbound SSRF guard](docs/deployment.md#outbound-ssrf-guard).
 
 Report a vulnerability via GitHub's [security advisory form](https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/security/advisories/new) — full policy in [SECURITY.md](SECURITY.md).
 
