@@ -312,7 +312,10 @@ When in doubt, open your deployed site in a browser and log `window.location.ori
 
 These apply to the [hosted OAuth sign-in](#hosted-oauth-sign-in) setup:
 
-- **Single instance.** The proxy runs as a single instance: there is no shared store across replicas, so horizontal scaling and zero-downtime rolling deploys are not yet supported.
+- **Single instance only.** Run exactly one proxy process. All of its sign-in state — registered clients, stored MediaWiki tokens, and the in-flight sign-in handshakes (authorization transactions, one-time codes, and refresh-rotation guards) — is held in that process's memory and mirrored to a single local file (see [Proxy state persistence](#proxy-state-persistence)). Horizontal scaling and zero-downtime rolling deploys are not yet supported. Supporting more than one instance would need **both** a shared store for that state (replacing the per-process file) **and** session affinity, so every request from a client — including the two browser legs of a single sign-in — reaches the same instance.
+
+> [!WARNING]
+> Do not run more than one instance against a shared store file. There is no runtime guard against a mis-scaled deployment: each process keeps its own in-memory copy of the sign-in state and rewrites the entire encrypted file on every change, so the instances overwrite one another silently — sign-ins and client registrations are lost with no error logged.
 
 ### Proxy state persistence
 
