@@ -69,7 +69,7 @@ export const movePage: Tool<typeof inputSchema> = {
 		} = await mwn.move(
 			args.fromTitle,
 			args.toTitle,
-			formatEditComment('move-page', args.comment),
+			formatEditComment(ctx, 'move-page', args.comment),
 			options,
 		);
 

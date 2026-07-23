@@ -31,7 +31,7 @@ export const deletePage: Tool<typeof inputSchema> = {
 		const options = ctx.edit.applyTags<ApiDeleteParams>({});
 		const data: ApiDeleteResponse & { logid?: number } = await mwn.delete(
 			title,
-			formatEditComment('delete-page', comment),
+			formatEditComment(ctx, 'delete-page', comment),
 			options,
 		);
 		return ctx.format.ok({

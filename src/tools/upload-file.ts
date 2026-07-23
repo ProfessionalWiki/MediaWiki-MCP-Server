@@ -42,7 +42,7 @@ export const uploadFile: Tool<typeof inputSchema> = {
 
 		const mwn = await ctx.mwn();
 		const params: ApiUploadParams = {
-			comment: formatEditComment('upload-file', comment),
+			comment: formatEditComment(ctx, 'upload-file', comment),
 		};
 		const data: ApiUploadResponse = await ctx.edit.submitUpload(
 			mwn,

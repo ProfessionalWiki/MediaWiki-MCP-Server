@@ -33,7 +33,7 @@ export const uploadFileFromUrl: Tool<typeof inputSchema> = {
 	async handle({ url, title, text, comment }, ctx: ToolContext): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
 		const baseParams: ApiUploadParams = {
-			comment: formatEditComment('upload-file-from-url', comment),
+			comment: formatEditComment(ctx, 'upload-file-from-url', comment),
 		};
 
 		// Server-first: fetch the bytes ourselves (SSRF-guarded, size-capped) and

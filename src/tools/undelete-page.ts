@@ -31,7 +31,7 @@ export const undeletePage: Tool<typeof inputSchema> = {
 		const options = ctx.edit.applyTags<ApiUndeleteParams>({});
 		const data: ApiUndeleteResponse & { revisions?: number } = await mwn.undelete(
 			title,
-			formatEditComment('undelete-page', comment),
+			formatEditComment(ctx, 'undelete-page', comment),
 			options,
 		);
 

@@ -53,7 +53,7 @@ export const updateFile: Tool<typeof inputSchema> = {
 		}
 
 		const params: ApiUploadParams = {
-			comment: formatEditComment('update-file', comment),
+			comment: formatEditComment(ctx, 'update-file', comment),
 			ignorewarnings: true,
 		};
 		const data: ApiUploadResponse = await ctx.edit.submitUpload(

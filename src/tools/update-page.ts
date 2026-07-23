@@ -68,22 +68,16 @@ function validateArgs({ section, mode, sectionTitle }: UpdatePageArgs): string |
 	return undefined;
 }
 
-function buildEditParams({
-	title,
-	source,
-	latestId,
-	comment,
-	section,
-	mode,
-	sectionTitle,
-	bot,
-}: UpdatePageArgs): Record<string, string | number | boolean> {
+function buildEditParams(
+	ctx: ToolContext,
+	{ title, source, latestId, comment, section, mode, sectionTitle, bot }: UpdatePageArgs,
+): Record<string, string | number | boolean> {
 	const sourceField =
 		mode === 'append' ? 'appendtext' : mode === 'prepend' ? 'prependtext' : 'text';
 	return {
 		action: 'edit',
 		title,
-		summary: formatEditComment('update-page', comment),
+		summary: formatEditComment(ctx, 'update-page', comment),
 		nocreate: true,
 		[sourceField]: source,
 		...(latestId !== undefined ? { baserevid: latestId } : {}),
@@ -117,7 +111,9 @@ export const updatePage: Tool<typeof inputSchema> = {
 		const mwn = await ctx.mwn();
 		const response =
 			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
-			(await ctx.edit.submit(mwn, buildEditParams(args))) as { edit?: ApiEditResponse } | undefined;
+			(await ctx.edit.submit(mwn, buildEditParams(ctx, args))) as
+				| { edit?: ApiEditResponse }
+				| undefined;
 		const edit = response?.edit;
 		if (!edit || edit.result !== 'Success') {
 			return ctx.format.error(
