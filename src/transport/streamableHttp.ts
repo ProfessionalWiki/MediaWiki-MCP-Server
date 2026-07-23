@@ -37,7 +37,7 @@ import { loadConfigFromFile, type WikiConfig } from '../config/loadConfig.js';
 import type { MwnProvider } from '../wikis/mwnProvider.js';
 import type { ActiveWiki } from '../wikis/activeWiki.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
-import { fetchMetadata, type AsMetadata } from '../auth/metadata.js';
+import { fetchMetadata, type UpstreamAsMetadata } from '../auth/metadata.js';
 import { buildProtectedResource, resolvePublicBase } from '../auth/protectedResource.js';
 import { resolveProxyConfig, type ProxyConfig } from '../auth/authorizationServer/proxyConfig.js';
 import type { ProxyStore } from '../auth/authorizationServer/proxyStore.js';
@@ -142,7 +142,7 @@ export function createOAuthProtectedResourceHandler(deps: {
 				),
 			);
 			const metadatas = settled
-				.filter((r): r is PromiseFulfilledResult<AsMetadata> => r.status === 'fulfilled')
+				.filter((r): r is PromiseFulfilledResult<UpstreamAsMetadata> => r.status === 'fulfilled')
 				.map((r) => r.value);
 			if (metadatas.length === 0) {
 				const reasons = settled

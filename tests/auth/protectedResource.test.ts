@@ -4,9 +4,9 @@ import {
 	buildProtectedResource,
 	type ProtectedResourceInput,
 } from '../../src/auth/protectedResource.js';
-import type { AsMetadata } from '../../src/auth/metadata.js';
+import type { UpstreamAsMetadata } from '../../src/auth/metadata.js';
 
-const baseMetadata: AsMetadata = {
+const baseMetadata: UpstreamAsMetadata = {
 	issuer: 'https://wiki.example.org',
 	authorization_endpoint: 'https://wiki.example.org/w/rest.php/oauth2/authorize',
 	token_endpoint: 'https://wiki.example.org/w/rest.php/oauth2/access_token',
@@ -14,7 +14,7 @@ const baseMetadata: AsMetadata = {
 	synthesized: false,
 };
 
-const metadataWithScopes: AsMetadata = {
+const metadataWithScopes: UpstreamAsMetadata = {
 	...baseMetadata,
 	scopes_supported: ['basic', 'editpage'],
 };

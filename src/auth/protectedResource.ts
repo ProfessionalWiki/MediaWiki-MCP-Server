@@ -1,12 +1,12 @@
 // src/auth/protectedResource.ts
-import type { AsMetadata } from './metadata.js';
+import type { UpstreamAsMetadata } from './metadata.js';
 
 const RESOURCE_DOCUMENTATION =
 	'https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/blob/master/docs/configuration.md#oauth';
 
 export interface ProtectedResourceInput {
 	wikis: Record<string, { oauth2ClientId?: string | null }>;
-	metadatas: readonly AsMetadata[];
+	metadatas: readonly UpstreamAsMetadata[];
 	requestHost: string | undefined;
 	requestProto: 'http' | 'https' | undefined;
 	/**

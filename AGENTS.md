@@ -6,9 +6,10 @@ Project context for AI coding agents working on this repo. For human users, star
 
 - `src/tools/` — one file per non-extension MCP tool (descriptor + handler + registration).
 - `src/tools/extensions/<id>/` — extension packs: tools gated on a specific MediaWiki extension (SMW / Bucket / Cargo / …), grouped under a per-pack module.
-- `src/runtime/` — context, dispatcher, register, reconcile, logger, constants.
+- `src/runtime/` — context, dispatcher, register, reconcile, logger, constants, request-scoped context, auth-shape classifier.
 - `src/wikis/` — wiki registry, selection, mwn provider, discovery, error sanitiser.
-- `src/transport/` — stdio and streamable HTTP entry points, SSRF/upload guards, request context, low-level HTTP helpers.
+- `src/transport/` — stdio and streamable HTTP entry points, SSRF/upload guards, low-level HTTP helpers.
+- `src/auth/` — OAuth for MediaWiki, in two roles (client to a wiki, and the hosted authorization-server proxy). See [src/auth/README.md](src/auth/README.md).
 - `src/config/` — `config.json` loader and substitution.
 - `src/services/` — section, edit, revision, response services consumed via `ToolContext`.
 - `src/results/` — response shaping (truncation, format, schemas).
