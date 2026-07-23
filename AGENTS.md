@@ -32,6 +32,10 @@ Project context for AI coding agents working on this repo. For human users, star
 
 See [docs/tool-conventions.md](docs/tool-conventions.md) for tool design stance, description voice, parameter docs, annotation hints, sibling disambiguation, canonical MediaWiki terminology, and result-cap behavior. Consult before adding or modifying a tool.
 
+## Documentation conventions
+
+See [docs/documentation-conventions.md](docs/documentation-conventions.md) for the reader, register, and length rules for prose documentation. Consult before writing or editing `README.md`, `CHANGELOG.md`, or any page under `docs/`.
+
 ## Tool handlers
 
 Each tool exports a typed descriptor (`name`, `description`, `inputSchema`, `annotations`, `handle`) from `src/tools/<name>.ts`. Tests import the descriptor and route through `dispatch( descriptor, ctx )` — see `tests/helpers/fakeContext.ts`.
