@@ -217,6 +217,8 @@ Download [MediaWiki-MCP-Server.mcpb](https://github.com/ProfessionalWiki/MediaWi
 [![Install in VS Code Insiders](https://img.shields.io/badge/Add%20to-VS%20Code%20Insiders-blue?style=for-the-badge&labelColor=%230e1116&color=%234f967e)](https://insiders.vscode.dev/redirect/mcp/install?name=mediawiki-mcp-server&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40professional-wiki%2Fmediawiki-mcp-server%40latest%22%5D%7D&quality=insiders)
 [![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=mediawiki-mcp-server&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIkBwcm9mZXNzaW9uYWwtd2lraS9tZWRpYXdpa2ktbWNwLXNlcnZlckBsYXRlc3QiXX0%3D)
 
+Or add the [standard configuration](#standard-configuration) by hand.
+
 ### Antigravity
 
 Add the [standard configuration](#standard-configuration) to Antigravity's MCP config, either globally in `~/.gemini/config/mcp_config.json` or per-workspace in `.agents/mcp_config.json`.
@@ -249,7 +251,7 @@ Most clients read the same server block. Paste it into the file listed for your 
 | Client | Configuration file | Root key |
 | --- | --- | --- |
 | Cursor | `~/.cursor/mcp.json`, or `.cursor/mcp.json` per project | `mcpServers` |
-| VS Code | `.vscode/mcp.json` per workspace | `servers` |
+| VS Code | `.vscode/mcp.json` per workspace, or the **MCP: Open User Configuration** command | `servers` |
 | Devin Desktop (formerly Windsurf) | `~/.codeium/windsurf/mcp_config.json` | `mcpServers` |
 | Zed | `~/.config/zed/settings.json` | `context_servers` |
 | LM Studio | `~/.lmstudio/mcp.json` | `mcpServers` |
