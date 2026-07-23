@@ -91,7 +91,29 @@ Pass an optional `wiki` argument (a wiki key such as `en.wikipedia.org`, or the 
 To point an MCP client at a locally-built copy of the server:
 
 1. [Install](../README.md#installation) the server on the client.
-2. Replace the `command` and `args` values with the ones from [`mcp.json`](../mcp.json) (or [`mcp.docker.json`](../mcp.docker.json) for Docker).
+2. Replace the `command` and `args` values with:
+
+   ```json
+   "command": "node",
+   "args": ["/path/to/MediaWiki-MCP-Server/dist/index.js"]
+   ```
+
+   Or, to run the server in Docker:
+
+   ```json
+   "command": "docker",
+   "args": [
+     "run", "-i", "--rm",
+     "-v", "/path/to/MediaWiki-MCP-Server/:/home/node/app",
+     "-w", "/home/node/app",
+     "-u", "node",
+     "node:22",
+     "npm", "run", "start", "--silent"
+   ]
+   ```
+
+   The Docker variant mounts the repository at `/home/node/app`, so point `CONFIG` at a path inside the container.
+
 3. Run the `dev` command so sources recompile on save:
 
    ```sh
