@@ -26,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - OAuth clients that use a loopback callback on a variable port (including clients that register a portless `http://127.0.0.1/` URI) now complete the flow instead of failing with "redirect_uri not registered", per RFC 8252.
 - Hosted OAuth proxy: an upstream token refresh the wiki rejects with `invalid_client` (client authentication failed) is now reported as an authentication failure the client re-signs-in on, instead of a retryable "temporarily unavailable" that the client would loop on.
+- Hosted OAuth proxy: a momentary wiki outage while refreshing a near-expiry token on an active connection no longer forces the client to sign in again. The request now continues with the still-valid token, or gets a retryable response, instead of a sign-in challenge the client would act on for a transient blip. Concurrent requests that both trigger a refresh now share one upstream refresh rather than racing.
 
 ## [0.13.1] - 2026-07-09
 

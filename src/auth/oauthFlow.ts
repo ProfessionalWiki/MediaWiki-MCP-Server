@@ -22,6 +22,21 @@ export class OAuthFlowError extends Error {
 	}
 }
 
+export type RefreshErrorClass = 'retryable' | 'dead';
+
+// Classifies a refresh-grant failure so every caller reacts consistently. A
+// transient or malformed upstream failure (wiki 5xx, connection blip, garbled
+// body) is `retryable`: the presented refresh token is still good, so a caller
+// should surface a retryable error rather than force a full re-authentication. A
+// genuine rejection (invalid_grant/invalid_client) — or any non-OAuth error — is
+// `dead`: the refresh token cannot be used again.
+export function classifyRefreshError(err: unknown): RefreshErrorClass {
+	if (err instanceof OAuthFlowError && (err.kind === 'transient' || err.kind === 'malformed')) {
+		return 'retryable';
+	}
+	return 'dead';
+}
+
 export interface ExchangeArgs {
 	tokenEndpoint: string;
 	code: string;

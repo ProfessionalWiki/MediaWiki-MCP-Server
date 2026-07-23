@@ -1,7 +1,12 @@
 // tests/auth/oauthFlow.test.ts
 import type { RequestHandler } from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
-import { exchangeCode, OAuthFlowError, refreshTokens } from '../../src/auth/oauthFlow.js';
+import {
+	classifyRefreshError,
+	exchangeCode,
+	OAuthFlowError,
+	refreshTokens,
+} from '../../src/auth/oauthFlow.js';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.js';
 
 let fakeAs: FakeAsHandle;
@@ -291,5 +296,27 @@ describe('confidential client secret', () => {
 			clientSecret: 'shh',
 		});
 		expect(ok.access_token).toBe('access-refreshed');
+	});
+});
+
+describe('classifyRefreshError', () => {
+	it('classifies a transient upstream failure as retryable', () => {
+		expect(classifyRefreshError(new OAuthFlowError('transient', 'wiki 503'))).toBe('retryable');
+	});
+
+	it('classifies a malformed upstream response as retryable', () => {
+		expect(classifyRefreshError(new OAuthFlowError('malformed', 'garbled'))).toBe('retryable');
+	});
+
+	it('classifies a rejected refresh token (invalid_grant) as dead', () => {
+		expect(classifyRefreshError(new OAuthFlowError('invalid_grant', 'expired'))).toBe('dead');
+	});
+
+	it('classifies a rejected client (invalid_client) as dead', () => {
+		expect(classifyRefreshError(new OAuthFlowError('invalid_client', 'bad client'))).toBe('dead');
+	});
+
+	it('classifies a non-OAuth error as dead', () => {
+		expect(classifyRefreshError(new Error('boom'))).toBe('dead');
 	});
 });
