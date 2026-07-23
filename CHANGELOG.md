@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-07-23
+
 ### Breaking changes
 
 - Hosted OAuth proxy: the upstream OAuth consumer must now be **confidential**. Set `oauth2ClientSecret` (or the `MCP_OAUTH2_CLIENT_SECRET` environment variable) for the default wiki; the proxy refuses to start without it. A confidential consumer is what lets the proxy refresh the upstream token, so users stay signed in past the wiki's OAuth2 access-token lifetime (one hour by default). A deployment using a public or PKCE consumer must register a confidential one and supply its secret.
@@ -241,7 +243,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - Smithery integration.
 
-[Unreleased]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.13.1...HEAD
+[Unreleased]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.11.0...v0.12.0
