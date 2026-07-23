@@ -1,6 +1,13 @@
 #!/usr/bin/env node
 
 async function main(): Promise<void> {
+	// Before anything can log: stdout belongs to the stdio transport, and a
+	// dependency writing there corrupts the JSON-RPC stream. Imported
+	// dynamically like the transports below so a failure here still reaches the
+	// fail-safe handler rather than escaping as a module-load error.
+	const { guardStdout } = await import('./runtime/stdoutGuard.js');
+	guardStdout();
+
 	const transportType = process.env.MCP_TRANSPORT || 'stdio';
 	if (transportType === 'http') {
 		const { startHttpServer } = await import('./transport/streamableHttp.js');

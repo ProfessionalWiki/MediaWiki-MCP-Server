@@ -39,6 +39,16 @@ One line on server boot — a snapshot of the effective configuration that's saf
 
 Tokens, usernames, and passwords never appear.
 
+### Stray output
+
+Log output from the MediaWiki client library, relocated here so it cannot corrupt the protocol stream. Expect it on a bot-password login, an API warning, or a request retry:
+
+```json
+{"ts":"...","level":"warning","event":"stray_stdout","text":"[2026-07-23 16:48:43] [W] Warning received from API: main: ..."}
+```
+
+`text` is one line of library output, passed through unaltered, so it is neither JSON nor redacted — a login line carries the configured username.
+
 ### Health vs readiness
 
 - **`GET /health`** — liveness. Returns `200 { "status": "ok" }` whenever the process is responsive. Wire this into your orchestrator's restart policy.
