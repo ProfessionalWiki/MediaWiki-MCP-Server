@@ -270,7 +270,7 @@ Most clients read the same server block. Paste it into the file listed for your 
 }
 ```
 
-For any other client, `npx add-mcp @professional-wiki/mediawiki-mcp-server` may work: [add-mcp](https://github.com/neon-solutions/add-mcp) is a community CLI that writes your client's configuration file for you.
+For any other client, `npx add-mcp @professional-wiki/mediawiki-mcp-server` may work: [add-mcp](https://github.com/neon-solutions/add-mcp) is a community CLI that writes your client's configuration file for you. It sets the launch command only; add `CONFIG` yourself to point at your own wiki.
 
 ## Deployment
 
