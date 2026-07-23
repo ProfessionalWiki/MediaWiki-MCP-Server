@@ -31,9 +31,11 @@ Covers configuration topics beyond the basic `config.json` shape documented in [
 | `readOnly` | No | When `true`, hides the six 🔐 write tools from `tools/list` while this wiki is active. Pairs with `allowWikiManagement: false` for a [hosted read-only endpoint](deployment.md). Default: `false` |
 | `tags` | No | Change tag(s) to apply to every write (string or array). The tag must exist and be active at `Special:Tags` — see [change tags](#change-tags-tags) for details. |
 
+URLs returned to the caller — page links, and the `server` field in `list-wikis` and `mcp://wikis` resources — are built from the wiki's public address, so an internal `server` hostname does not leak into links. If the wiki cannot be reached, they fall back to the configured `server`.
+
 ## Environment variable substitution
 
-Config values support `${VAR_NAME}` syntax for referencing environment variables. This allows you to keep secrets out of your `config.json` file.
+Config values support `${VAR_NAME}` syntax for referencing environment variables, keeping secrets out of `config.json`.
 
 ```json
 {
@@ -54,7 +56,7 @@ Config values support `${VAR_NAME}` syntax for referencing environment variables
 
 If a referenced variable is not set:
 
-- **Secret fields** (`token`, `username`, `password`): the server exits at startup with an error naming the wiki, the field, and the missing variable. This surfaces authentication problems up front, not as confusing failures later.
+- **Secret fields** (`token`, `username`, `password`): the server exits at startup with an error naming the wiki, the field, and the missing variable.
 - **Non-secret fields**: the `${VAR_NAME}` text is kept as-is.
 
 ## Secret sources
@@ -134,12 +136,9 @@ Enable uploads by setting one or both of:
 }
 ```
 
-Entries from both sources are merged. Each entry is canonicalised with `fs.realpathSync` at startup — if an entry doesn't exist or isn't an absolute path, the server fails to start with a specific error.
+Entries from both sources are merged. Each entry is canonicalised with `fs.realpathSync` at startup — if an entry doesn't exist or isn't an absolute path, the server fails to start with a specific error. The allowlist is fixed for the lifetime of the process.
 
 At upload time, the supplied `filepath` must be absolute, must exist, and its symlink-resolved form must sit inside one of the configured directories. Symlinks are followed *before* the allowlist check, so a symlink pointing outside the allowlist is rejected. `..` traversal is also rejected. The resolved (canonical) path — not the caller-supplied one — is what gets uploaded.
-
-> [!NOTE]
-> Dynamic client-supplied allow-listing via the MCP Roots protocol is a planned follow-up; today the allowlist is static at startup.
 
 ## OAuth (browser-based)
 
@@ -179,32 +178,15 @@ If your wiki doesn't have an OAuth consumer set up, omit `oauth2ClientId`. Stati
 
 #### Optional environment variables
 
-- `MCP_OAUTH_CREDENTIALS_FILE` — store the credentials file somewhere other than the default path.
-- `MCP_OAUTH_NO_BROWSER` — set to `1` in headless or CI environments. The server prints the consent URL to stderr instead of trying to open a browser.
-- `MCP_PUBLIC_URL` — set when running the HTTP transport behind a reverse proxy that rewrites the request `Host`. Used in the OAuth discovery document and the `WWW-Authenticate` header so an OAuth-aware client can find its way back.
+`MCP_OAUTH_CREDENTIALS_FILE` (move the credentials file) and `MCP_OAUTH_NO_BROWSER` (print the consent URL instead of opening a browser) are in the [README environment-variable table](../README.md#environment-variables). When the HTTP transport runs behind a reverse proxy that rewrites the request `Host`, also set `MCP_PUBLIC_URL` so the OAuth discovery document and the `WWW-Authenticate` header advertise the public URL.
 
 #### HTTP transport behaviour
 
-When you run the HTTP transport with at least one OAuth-enabled wiki, the server publishes `/.well-known/oauth-protected-resource` so OAuth-aware MCP clients (Claude Desktop, mcp-remote, Claude Code) can discover the wikis and run the consent flow themselves. The discovery document lists the authorization server of every OAuth-configured wiki, so a client can pick the one it needs. Wikis without `oauth2ClientId` are unaffected.
-
-A bearer-less request gets `401` with a `WWW-Authenticate` header pointing at the discovery document only when no configured wiki is usable without a token. A deployment that mixes OAuth and non-OAuth wikis still lets tokenless clients connect and use the wikis that don't require authentication.
-
-An HTTP client sends the `Authorization: Bearer` token appropriate to each call's target wiki. There is no per-session bearer pin: one session can carry tokens for wikis on different authorization servers, with a different token per request. The MCP session id is the session capability, so run the HTTP transport behind TLS. Idle sessions are closed after `MCP_SESSION_IDLE_TIMEOUT`, bounding how long a leaked session id stays usable.
-
-Use `list-wikis` to retrieve the wiki-to-authorization-server mapping — it reports each OAuth wiki's `authorizationServer`.
-
-If `MCP_ALLOW_STATIC_FALLBACK=true` and the wiki has static credentials, bearer-less requests fall back to those credentials instead of returning 401. Use this only if you specifically want a hybrid where OAuth-aware clients sign in per user but unauthenticated callers still get service through a shared identity.
+Over the HTTP transport, OAuth runs through discovery and `401` challenges instead of a local browser flow, and each request carries the bearer for its target wiki. That behaviour is in [deployment.md — per-request bearer token](deployment.md#per-request-bearer-token-http-transport).
 
 #### Hosted OAuth proxy environment variables
 
-Setting these on the HTTP transport turns the server into an OAuth Authorization Server in front of one MediaWiki consumer, so OAuth-aware MCP clients sign in with no manual token handling. See [deployment.md — hosted OAuth sign-in](deployment.md#hosted-oauth-sign-in) for the full picture; the knobs are:
-
-- `MCP_PUBLIC_URL` — the proxy's public issuer/base, set to the public `/mcp` URL (e.g. `https://wiki.example.org/mcp`). Beyond its discovery role above, this is also the AS identity from which `/authorize`, `/token`, `/register`, and the fixed `/oauth/callback` are derived. **Required** to enable the proxy.
-- `MCP_OAUTH_JWT_SIGNING_KEY` — a secret of **at least 32 characters** the proxy signs its issued JWTs and consent cookies with. **Required** to enable the proxy. Keep it **fixed**: changing it invalidates every issued token and logs all users out.
-- `MCP_OAUTH_TOKEN_TTL` — lifetime of a proxy-minted access JWT. Default `55m`; must be shorter than the upstream 30-day refresh window.
-- `MCP_OAUTH_CONSENT_TTL` — lifetime of the signed consent cookie that lets a returning user skip the consent page. Default `30d`.
-
-`MCP_OAUTH_TOKEN_TTL` and `MCP_OAUTH_CONSENT_TTL` accept a number with an optional `s`/`m`/`h`/`d` unit (e.g. `55m`, `1h`, `30d`); a bare number is seconds. The proxy activates only when `MCP_TRANSPORT=http`, both required variables are set, and the default wiki has an `oauth2ClientId` and `oauth2ClientSecret`.
+Setting `MCP_PUBLIC_URL` and `MCP_OAUTH_JWT_SIGNING_KEY` on the HTTP transport turns the server into an OAuth Authorization Server in front of one MediaWiki consumer, so OAuth-aware MCP clients sign in with no manual token handling. The variables and setup steps are in [deployment.md — hosted OAuth sign-in](deployment.md#hosted-oauth-sign-in).
 
 ### For wiki admins: registering the OAuth consumer
 

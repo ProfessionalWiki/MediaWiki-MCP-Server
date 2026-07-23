@@ -1,7 +1,7 @@
 # Deployment
 
 > [!WARNING]
-> **Experimental: work in progress.** Hosting the server for other people is supported for **one wiki at a time**; multi-wiki hosted deployments are on the roadmap. Do not expose the server to mutually untrusted users with a shared `config.json` token or bot password. That collapses every caller into one wiki identity, with no audit trail and no per-user rate limits. The sign-in setup below avoids that.
+> **Experimental: work in progress.** Hosting the server for other people is supported for **one wiki at a time**. Do not expose the server to mutually untrusted users with a shared `config.json` token or bot password. That collapses every caller into one wiki identity, with no audit trail and no per-user rate limits. The sign-in setup below avoids that.
 
 This guide is for administrators running the MediaWiki MCP Server as a **shared HTTP endpoint** that other people (and their AI clients) reach over the network. If you only want the server for yourself, install it locally with the default stdio transport instead; see the [README](../README.md#installation).
 
@@ -61,8 +61,6 @@ How sign-in is triggered depends on the wiki:
 
 - **Public wiki:** reads work without signing in; the client is prompted to sign in only when a write needs authentication.
 - **Private wiki** (`private: true`): nothing is readable anonymously, so the client is challenged to sign in the moment it connects rather than failing on the first tool call.
-
-[How the proxy works](#how-the-proxy-works) covers exactly how each challenge is issued.
 
 Set it up in five steps.
 
@@ -200,7 +198,7 @@ docker build --build-arg GIT_SHA=$(git rev-parse HEAD) -t mediawiki-mcp-server .
 docker run --rm -p 8080:8080 -v "$(pwd)/config.json:/app/config.json:ro" mediawiki-mcp-server
 ```
 
-The `GIT_SHA` build arg populates the `org.opencontainers.image.revision` label so `docker inspect` reports which commit the image was built from. Omit it for ad-hoc builds; the label defaults to `unknown`.
+The `GIT_SHA` build arg populates the image's `org.opencontainers.image.revision` label; omit it for ad-hoc builds.
 
 ## Security checklist
 
@@ -258,12 +256,9 @@ Set `MCP_TRANSPORT=http` to select this transport (the Docker image defaults to 
 
 ### How the proxy works
 
-When enabled, the [hosted OAuth sign-in](#hosted-oauth-sign-in) setup turns the server into an OAuth 2.1 Authorization Server toward MCP clients. It:
+When enabled, the [hosted OAuth sign-in](#hosted-oauth-sign-in) setup makes this server the OAuth authorization server the MCP client talks to, through the endpoints routed in [step 4](#4-route-the-oauth-endpoints-through-your-proxy). The bearer a client sends to `/mcp` is a token the proxy minted, not a MediaWiki token. The user's MediaWiki token stays server-side, keyed to that bearer, and is refreshed server-to-server through the confidential consumer — this is what keeps users signed in past the wiki's ~1-hour access-token lifetime, and it is the state the [store file](#proxy-state-persistence) persists.
 
-- Serves authorization-server metadata ([RFC 8414](https://www.rfc-editor.org/rfc/rfc8414)) and protected-resource metadata ([RFC 9728](https://www.rfc-editor.org/rfc/rfc9728)), a Dynamic Client Registration endpoint ([RFC 7591](https://www.rfc-editor.org/rfc/rfc7591)) at `/register`, an `/authorize` endpoint with a consent page, a fixed `/oauth/callback`, and a `/token` endpoint that mints the proxy's **own** audience-bound JWT. The bearer the client then sends to `/mcp` is a proxy JWT, not a MediaWiki token.
-- Brokers **one** pre-registered MediaWiki Extension:OAuth consumer as a **public + PKCE** client. When a user signs in, the proxy runs the upstream auth-code + PKCE flow against the wiki, stores the resulting MediaWiki token, and hands the client a proxy JWT keyed to it. On each `/mcp` call the server verifies the JWT and resolves it back to the stored MediaWiki token, refreshing it server-to-server when near expiry.
-
-How the sign-in challenge is issued depends on the wiki. On a **public wiki**, a tokenless request is served anonymously, and only a write tool that needs authentication returns an authentication error naming the protected-resource document; the user signs in and retries. An invalid or expired bearer is rejected with a `401` + `WWW-Authenticate` challenge. A **private wiki** (`private: true`, MediaWiki's `$wgGroupPermissions['*']['read'] = false`) answers every request, including the initial connection, with a `401` + `WWW-Authenticate`; this connection-time challenge is the broadly client-compatible trigger for sign-in at connect. It requires the wiki's `oauth2ClientId`; without it, the `401` advertises an authorization server the wiki does not, and the server logs a warning at startup.
+How the sign-in challenge is issued depends on the wiki. On a **public wiki**, a tokenless request is served anonymously; a write that needs authentication returns an authentication error, and an invalid or expired bearer gets a `401` + `WWW-Authenticate` challenge. A **private wiki** (`private: true`, MediaWiki's `$wgGroupPermissions['*']['read'] = false`) answers every request, including the initial connection, with that challenge, so a client prompts for sign-in at connect. The connection-time challenge requires the wiki's `oauth2ClientId`; without it, the `401` advertises an authorization server the wiki does not have, and the server logs a warning at startup.
 
 #### Three-base topology
 
@@ -275,7 +270,7 @@ The proxy reads three distinct URLs, which usually differ:
 | Upstream authorize host | per-wiki `publicServer` (falls back to `server`) | The **browser-facing** wiki URL the user is redirected to for the upstream MediaWiki consent screen (`…/rest.php/oauth2/authorize`). |
 | Internal API host | per-wiki `server` | The wiki API used for tool calls **and** the server→wiki token exchange/refresh (`…/rest.php/oauth2/access_token`). |
 
-The split exists because the browser must reach a **public** authorize URL (the user's browser is redirected there and back), while the server's own API traffic and the confidential token exchange should stay on the **internal** address (e.g. a Docker-network alias that bypasses the public reverse proxy). Set `publicServer` to the public wiki URL and `server` to the internal one; when there is no internal/public split, omit `publicServer` and it falls back to `server`.
+The split exists because the browser must reach a **public** authorize URL (the user's browser is redirected there and back), while the server's own API traffic and the confidential token exchange should stay on the **internal** address (e.g. a Docker-network alias that bypasses the public reverse proxy).
 
 ### Outbound SSRF guard
 
@@ -333,13 +328,13 @@ The server accepts a standard OAuth 2.1 `Authorization: Bearer` header on each r
 Authorization: Bearer <oauth2-access-token>
 ```
 
-Use a MediaWiki OAuth2 access token obtained from `Special:OAuthConsumerRegistration/propose/oauth2` on the target wiki, with [Extension:OAuth](https://www.mediawiki.org/wiki/Extension:OAuth) installed. The server forwards it to MediaWiki as that caller's token, so writes are attributable and MediaWiki's per-user rate limits apply. A bearer is scoped to a single MediaWiki OAuth2 realm, so this is single-wiki only for now.
+Use a MediaWiki OAuth2 access token obtained from `Special:OAuthConsumerRegistration/propose/oauth2` on the target wiki, with [Extension:OAuth](https://www.mediawiki.org/wiki/Extension:OAuth) installed. The server forwards it to MediaWiki as that caller's token, so writes are attributable and MediaWiki's per-user rate limits apply. A bearer is scoped to a single MediaWiki OAuth2 realm, and there is no per-session bearer pin: one session can address wikis on different authorization servers by sending the right token per request. `list-wikis` reports each OAuth wiki's `authorizationServer`.
 
-When the target wiki sets `oauth2ClientId`, the server also advertises OAuth discovery on this path, so a capable client can fetch that token itself instead of you pasting one in. It publishes `/.well-known/oauth-protected-resource` and answers a bearer-less request with `WWW-Authenticate: Bearer realm="MediaWiki MCP Server", resource_metadata="..."`. The client follows that to run the authorization-code + PKCE flow against the wiki's **own** authorization server and obtain a MediaWiki access token directly. (This differs from [Hosted OAuth sign-in](#hosted-oauth-sign-in), where the MCP server itself is the authorization server.) See [configuration.md: OAuth (browser-based)](configuration.md#oauth-browser-based) for the per-wiki opt-in.
+When a wiki sets `oauth2ClientId` (see [configuration.md: OAuth (browser-based)](configuration.md#oauth-browser-based)), the server also advertises OAuth discovery on this path: the protected-resource document lists every OAuth-configured wiki's authorization server, and a capable client can run the authorization-code flow against the wiki's **own** authorization server and fetch that token itself instead of you pasting one in. A bearer-less request is challenged with `401` only when no configured wiki is usable without a token; a deployment that mixes OAuth and non-OAuth wikis still serves tokenless clients on the wikis that allow anonymous access.
 
 **Precedence:** request header → `config.json` `token` → `config.json` `username`/`password` → anonymous. The HTTP transport refuses to start with static credentials in `config.json` unless `MCP_ALLOW_STATIC_FALLBACK=true` is set; see [the Security checklist](#security-checklist) for why.
 
-Each request builds an independent MediaWiki session using the supplied token. Token rotation and revocation take effect on the next MCP session started with the new token.
+Each request builds an independent MediaWiki session using the supplied token. Token rotation and revocation take effect on the next MCP session started with the new token. The MCP session id is the session's only credential, so run the transport behind TLS; idle sessions close after `MCP_SESSION_IDLE_TIMEOUT`, bounding how long a leaked session id stays usable.
 
 Example with Claude Code:
 
@@ -347,9 +342,6 @@ Example with Claude Code:
 claude mcp add --transport http my-wiki https://wiki.example.org/mcp \
   --header "Authorization: Bearer eyJhbGciOi..."
 ```
-
-> [!NOTE]
-> The MCP authorization spec envisions the server as a distinct OAuth resource server with its **own** token audience, obtaining a separate upstream token when it calls MediaWiki. This server instead uses MediaWiki's OAuth realm directly. The bearer is a MediaWiki access token, which the server forwards without re-issuing, whether you supply it or the discovery flow above fetches it. That is simpler to deploy against existing wikis but means clients hold a MediaWiki-audience token. The [hosted OAuth sign-in](#hosted-oauth-sign-in) setup is the fully spec-aligned path, where the server issues its own audience-bound token.
 
 ## Operations
 

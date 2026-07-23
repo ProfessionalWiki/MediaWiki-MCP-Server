@@ -88,7 +88,7 @@ Pass an optional `wiki` argument (a wiki key such as `en.wikipedia.org`, or the 
 
 ## Using a local build from your MCP client
 
-To point an MCP client (Claude Desktop, VS Code, Cursor, etc.) at a locally-built copy of the server:
+To point an MCP client at a locally-built copy of the server:
 
 1. [Install](../README.md#installation) the server on the client.
 2. Replace the `command` and `args` values with the ones from [`mcp.json`](../mcp.json) (or [`mcp.docker.json`](../mcp.docker.json) for Docker).
@@ -110,6 +110,8 @@ docker exec <container> php /var/www/html/maintenance/run.php createBotPassword 
   <username>
 ```
 
+(Adjust `/var/www/html` to your wiki's install path.)
+
 Then add the credentials to `config.json` (copy from `config.example.json` if it
 doesn't exist). Use environment-variable substitution to keep secrets out of the
 file:
@@ -125,14 +127,12 @@ For production authentication, use OAuth2 — see [Authentication](../README.md#
 To exercise the full browser sign-in flow of the hosted OAuth proxy end to end,
 see [End-to-end testing the hosted OAuth proxy](#end-to-end-testing-the-hosted-oauth-proxy) below.
 
-(Adjust `/var/www/html` to your wiki's install path.)
-
 ## End-to-end testing the hosted OAuth proxy
 
 A manual, repeatable walkthrough of the full browser sign-in flow — discovery,
 sign-in, upstream consent, token exchange, and an attributed write — against a
-real wiki. Written so an agent (or a person) can follow it verbatim. It needs no
-bundled environment: any MediaWiki container with Extension:OAuth works.
+real wiki. It needs no bundled environment: any MediaWiki container with
+Extension:OAuth works.
 
 ### 1. Prerequisites and the environment contract
 
