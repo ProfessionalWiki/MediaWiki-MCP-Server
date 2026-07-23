@@ -12,7 +12,7 @@ import type { SessionRegistry } from '../../src/transport/sessionRegistry.js';
 import { createAppState } from '../../src/wikis/state.js';
 import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.js';
 import { CimdResolver } from '../../src/auth/authorizationServer/cimd.js';
-import type { CimdFetchResult } from '../../src/transport/cimdFetch.js';
+import type { CimdFetchResult } from '../../src/auth/authorizationServer/cimd.js';
 import { verifyAccessToken } from '../../src/auth/authorizationServer/jwt.js';
 import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.js';
 import {

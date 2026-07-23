@@ -1,6 +1,5 @@
 import type { ClientRecord } from './proxyStore.js';
 import { isLoopbackHost } from './redirectPolicy.js';
-import type { CimdFetchResult } from '../../transport/cimdFetch.js';
 
 export class CimdValidationError extends Error {
 	public constructor(message: string) {
@@ -198,6 +197,16 @@ export type CimdResolveResult = { ok: true; client: ClientRecord } | { ok: false
 // returned record in place cannot corrupt the resolver's cached copy.
 function cloneRecord(r: ClientRecord): ClientRecord {
 	return { ...r, redirectUris: [...r.redirectUris], scopes: [...r.scopes] };
+}
+
+// The result contract for the injected CIMD fetcher — the resolver's port. The
+// transport adapter (cimdFetch.ts) implements it; owning the type here keeps the
+// dependency pointing from the outer transport adapter inward to this policy
+// layer rather than the reverse.
+export interface CimdFetchResult {
+	status: number;
+	body: string;
+	cacheControl: string | null;
 }
 
 // Resolves a URL client_id into a public ClientRecord, or a reason string. The
