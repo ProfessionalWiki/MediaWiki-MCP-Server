@@ -79,6 +79,14 @@ describe('resolveUpstreamBearer', () => {
 		expect(store.getUpstreamToken(id)?.accessToken).toBe('NEW');
 		expect(store.getUpstreamToken(id)?.refreshToken).toBe('WR2');
 		expect(refresh).toHaveBeenCalledOnce();
+		// Pin the upstream token endpoint: the proactive-refresh path builds it from
+		// tokenExchangeBase + scriptpath, and this is the only one of the shared
+		// mwOauth2TokenEndpoint call sites otherwise not asserted by URL.
+		expect(refresh).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tokenEndpoint: 'http://mediawiki.svc:80/w/rest.php/oauth2/access_token',
+			}),
+		);
 	});
 
 	it('does not refresh a still-valid token', async () => {
