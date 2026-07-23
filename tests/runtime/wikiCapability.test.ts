@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { checkWikiCapability, WRITE_TOOL_NAMES } from '../../src/runtime/wikiCapability.js';
 import { fakeContext } from '../helpers/fakeContext.js';
-import { withRequestFields } from '../../src/transport/requestContext.js';
+import { withRequestFields } from '../../src/runtime/requestContext.js';
 
 const rwWiki = {
 	sitename: 'X',

@@ -22,7 +22,7 @@ import {
 import { checkWikiCapability } from '../../src/runtime/wikiCapability.js';
 import { createToolContext } from '../../src/runtime/createContext.js';
 import { logger } from '../../src/runtime/logger.js';
-import { withRequestContext, getRuntimeToken } from '../../src/transport/requestContext.js';
+import { withRequestContext, getRuntimeToken } from '../../src/runtime/requestContext.js';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.js';
 import { runHostedFlow } from '../helpers/fakeMcpClient.js';
 

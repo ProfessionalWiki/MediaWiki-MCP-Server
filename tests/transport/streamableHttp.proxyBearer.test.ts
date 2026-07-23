@@ -16,7 +16,7 @@ import { mintAccessToken } from '../../src/auth/authorizationServer/jwt.js';
 import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.js';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
-import { getRuntimeToken } from '../../src/transport/requestContext.js';
+import { getRuntimeToken } from '../../src/runtime/requestContext.js';
 
 const pc = {
 	issuer: 'https://wiki.example/mcp',

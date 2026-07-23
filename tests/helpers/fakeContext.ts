@@ -3,7 +3,7 @@ import type { ToolContext, ManagementContext } from '../../src/runtime/context.j
 import { ResponseFormatterImpl } from '../../src/results/response.js';
 import { ErrorClassifierImpl } from '../../src/errors/classifyError.js';
 import { RevisionNormalizerImpl } from '../../src/services/revisionNormalize.js';
-import { getRequestWiki } from '../../src/transport/requestContext.js';
+import { getRequestWiki } from '../../src/runtime/requestContext.js';
 
 const throws = (label: string) => () => {
 	throw new Error(`fakeContext: ${label} called but not stubbed`);

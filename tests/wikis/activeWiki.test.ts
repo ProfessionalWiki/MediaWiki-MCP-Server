@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { ActiveWikiImpl } from '../../src/wikis/activeWiki.js';
 import { WikiRegistryImpl } from '../../src/wikis/wikiRegistry.js';
-import { withRequestFields } from '../../src/transport/requestContext.js';
+import { withRequestFields } from '../../src/runtime/requestContext.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 
 const sample = (name: string): WikiConfig => ({
