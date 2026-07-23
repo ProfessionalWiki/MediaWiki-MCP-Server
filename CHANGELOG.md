@@ -8,36 +8,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Breaking changes
 
-- Hosted OAuth proxy: the upstream OAuth consumer must now be **confidential**. Set `oauth2ClientSecret` (or the `MCP_OAUTH2_CLIENT_SECRET` environment variable) for the default wiki; the proxy refuses to start without it. This is what lets the proxy refresh the upstream MediaWiki token, so users stay signed in past the wiki's OAuth2 access-token lifetime (one hour by default). Deployments that used a public/PKCE consumer must register a confidential consumer and supply its secret.
+- Hosted OAuth proxy: the upstream OAuth consumer must now be **confidential**. Set `oauth2ClientSecret` (or the `MCP_OAUTH2_CLIENT_SECRET` environment variable) for the default wiki; the proxy refuses to start without it. A confidential consumer is what lets the proxy refresh the upstream token, so users stay signed in past the wiki's OAuth2 access-token lifetime (one hour by default). A deployment using a public or PKCE consumer must register a confidential one and supply its secret.
 
 ### Added
 
-- Hosted OAuth proxy: verified first-party MCP clients now work with the hosted proxy out of the box — their OAuth callbacks are trusted by default, with no `MCP_OAUTH_ALLOWED_REDIRECTS` configuration.
-- Hosted OAuth proxy: the `MCP_OAUTH_ALLOWED_REDIRECTS` environment variable lets a deployment admit further MCP clients beyond the trusted defaults. List exact redirect URIs or use an `https://…/*` prefix pattern. Loopback, claude.ai, and the verified first-party clients always remain allowed.
-- The OAuth consent page now shows where the user will be sent after approving — the client's callback host, or "an application on this device" for local clients.
-- IPv6 loopback (`http://[::1]:…`) redirect URIs are now accepted at client registration, per RFC 8252.
-- Hosted OAuth proxy: support for Client ID Metadata Documents (CIMD). CIMD-capable clients connect using a stable, vendor-hosted client identity, with no per-client redirect entry to curate. The proxy trusts the verified first-party document hosts by default; add more with `MCP_OAUTH_CIMD_ALLOWED_HOSTS`.
-- Metrics: the `/metrics` endpoint now reports the hosted OAuth proxy store's size and flush cost — `mcp_proxy_store_upstream_tokens` and `mcp_proxy_store_clients` gauges, an `mcp_proxy_store_flush_duration_seconds` histogram, and an `mcp_proxy_store_flush_failures_total` counter — so operators can watch the store grow, see how long each persistence write takes, and alert when a write fails.
-- The `(via <tool> on MediaWiki MCP Server)` attribution appended to page and file edit summaries can now be turned off per wiki by setting `"attributeEdits": false` in that wiki's `config.json` entry. It stays on by default.
-- Claude Code and Codex can now install the server as a plugin. The repository doubles as a plugin marketplace for both clients, so users add it once and install the bundled MediaWiki MCP server instead of configuring the server by hand. See the README install section.
+- Edit attribution can now be turned off per wiki. Set `"attributeEdits": false` in a wiki's `config.json` entry to drop the `(via <tool> on MediaWiki MCP Server)` suffix from page and file edit summaries. It stays on by default.
+- Claude Code and Codex can now install the server as a plugin. Add the repository as a plugin marketplace once, then install from it, instead of writing configuration by hand. See the README install section.
+- Hosted OAuth proxy: verified first-party MCP clients now work out of the box. Their OAuth callbacks are trusted by default, with no `MCP_OAUTH_ALLOWED_REDIRECTS` configuration.
+- Hosted OAuth proxy: the `MCP_OAUTH_ALLOWED_REDIRECTS` environment variable lets a deployment admit further MCP clients beyond the trusted defaults. List exact redirect URIs, or use an `https://…/*` prefix pattern. Loopback, claude.ai, and the verified first-party clients always remain allowed.
+- Hosted OAuth proxy: support for Client ID Metadata Documents (CIMD). A CIMD-capable client connects using a stable, vendor-hosted identity, so there is no per-client redirect entry to curate. The proxy trusts the verified first-party document hosts by default; add more with `MCP_OAUTH_CIMD_ALLOWED_HOSTS`.
+- Hosted OAuth proxy: the consent page now shows where the user will be sent after approving, either the client's callback host or "an application on this device" for a local client.
+- Hosted OAuth proxy: IPv6 loopback (`http://[::1]:…`) redirect URIs are now accepted at client registration, per RFC 8252.
+- Metrics: the `/metrics` endpoint now reports the hosted OAuth proxy store's size and flush cost, so operators can watch the store grow, see how long each persistence write takes, and alert when one fails. The new series are the `mcp_proxy_store_upstream_tokens` and `mcp_proxy_store_clients` gauges, an `mcp_proxy_store_flush_duration_seconds` histogram, and an `mcp_proxy_store_flush_failures_total` counter.
 
 ### Changed
 
-- Hosted OAuth proxy: sign-in state now survives server restarts and deploys. Registered clients and upstream tokens are persisted to a local, encrypted file, so users are no longer signed out on every upgrade. In Docker, mount a volume at the store path (`/app/data`); see the deployment guide.
 - The documented install configurations and one-click install badges now pass `-y` to npx, matching the bundled plugin manifests. This avoids an install-confirmation step for anyone whose npm is configured to require one.
+- Hosted OAuth proxy: sign-in state now survives server restarts and deploys. Registered clients and upstream tokens are persisted to a local, encrypted file, so users are no longer signed out on every upgrade. In Docker, mount a volume at the store path (`/app/data`); see the deployment guide.
 
 ### Removed
 
-- The Gemini CLI extension has been retired. Gemini CLI stopped serving consumer Google AI tiers in June 2026; use Antigravity instead, which offers to import an existing Gemini CLI configuration. If your licence keeps Gemini CLI (for example a Code Assist Standard or Enterprise licence), add the standard configuration to its `~/.gemini/settings.json` instead.
+- The Gemini CLI extension has been retired, because Gemini CLI stopped serving consumer Google AI tiers in June 2026. Use Antigravity instead, which offers to import an existing Gemini CLI configuration. If your licence keeps Gemini CLI (for example a Code Assist Standard or Enterprise licence), add the standard configuration to its `~/.gemini/settings.json`.
 
 ### Fixed
 
 - Clients no longer show a spurious `Expected ',' or ']' after array element in JSON` warning next to otherwise successful requests.
-- Hosted OAuth proxy: a client that identifies by a vendor-hosted URL (Client ID Metadata Document) is now rejected if any redirect URI in its document is not an `https`, loopback-`http`, or custom-scheme (for example `vscode://`) URL — notably a cleartext `http` redirect to a non-loopback host, which a network attacker on that path could intercept the authorization code at.
-- The HTTP server now logs a clear message and exits cleanly when it cannot bind its port — already in use, or permission denied — instead of terminating with an uncaught exception and a raw stack trace.
-- OAuth clients that use a loopback callback on a variable port (including clients that register a portless `http://127.0.0.1/` URI) now complete the flow instead of failing with "redirect_uri not registered", per RFC 8252.
-- Hosted OAuth proxy: an upstream token refresh the wiki rejects with `invalid_client` (client authentication failed) is now reported as an authentication failure the client re-signs-in on, instead of a retryable "temporarily unavailable" that the client would loop on.
-- Hosted OAuth proxy: a momentary wiki outage while refreshing a near-expiry token on an active connection no longer forces the client to sign in again. The request now continues with the still-valid token, or gets a retryable response, instead of a sign-in challenge the client would act on for a transient blip. Concurrent requests that both trigger a refresh now share one upstream refresh rather than racing.
+- The HTTP server now logs a clear message and exits cleanly when it cannot bind its port, for example because the port is already in use or permission is denied, instead of terminating with an uncaught exception and a raw stack trace.
+- Hosted OAuth proxy: a client that identifies by a vendor-hosted URL (Client ID Metadata Document) is now rejected if any redirect URI in its document is not an `https`, loopback-`http`, or custom-scheme (for example `vscode://`) URL. A cleartext `http` redirect to a non-loopback host would let a network attacker on that path intercept the authorization code.
+- Hosted OAuth proxy: clients that use a loopback callback on a variable port, including those that register a portless `http://127.0.0.1/` URI, now complete the flow instead of failing with "redirect_uri not registered", per RFC 8252.
+- Hosted OAuth proxy: an upstream token refresh the wiki rejects with `invalid_client` (client authentication failed) is now reported as an authentication failure, so the client prompts for sign-in again instead of looping on a retryable "temporarily unavailable".
+- Hosted OAuth proxy: a momentary wiki outage while refreshing a near-expiry token on an active connection no longer forces the client to sign in again. The request continues with the still-valid token, or gets a retryable response, instead of a sign-in challenge triggered by a transient failure. Concurrent requests that both trigger a refresh now share one upstream refresh rather than racing.
 
 ## [0.13.1] - 2026-07-09
 
