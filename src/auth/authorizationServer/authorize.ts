@@ -35,7 +35,7 @@ export type AuthorizePlan =
  * a SEPARATE upstream PKCE verifier and produces the upstream authorize URL.
  *
  * The transaction binds the downstream client's PKCE challenge + state + scopes
- * to the proxy's own verifier so the callback (Task 8) can complete both legs.
+ * to the proxy's own verifier so the /mcp/oauth/callback handler can complete both legs.
  *
  * `_wikiName` is the human-readable sitename, threaded through for symmetry with
  * the Express glue (which uses it for the consent page); the planner itself does

@@ -25,6 +25,13 @@ import {
 	setProxyStoreStatsProvider,
 } from '../runtime/metrics.js';
 import { withRequestContext } from './requestContext.js';
+import {
+	createInFlightCounter,
+	markSessionActive,
+	markSessionIdle,
+	type SessionRegistry,
+	type InFlightCounter,
+} from './sessionRegistry.js';
 
 export { withRequestContext } from './requestContext.js';
 import { loadConfigFromFile, type WikiConfig } from '../config/loadConfig.js';
@@ -133,73 +140,6 @@ export function handleListenError(
 	onFatal(1);
 }
 
-export type SessionEntry = {
-	readonly transport: StreamableHTTPServerTransport;
-	idleTimer?: ReturnType<typeof setTimeout>;
-	activeRequests: number;
-};
-
-export type SessionRegistry = { [sessionId: string]: SessionEntry };
-
-export interface InFlightCounter {
-	readonly middleware: RequestHandler;
-	readonly count: () => number;
-}
-
-export function createInFlightCounter(): InFlightCounter {
-	let n = 0;
-	const middleware: RequestHandler = (_req, res, next) => {
-		n++;
-		res.on('close', () => {
-			n--;
-		});
-		next();
-	};
-	return { middleware, count: () => n };
-}
-
-// Marks a session as having an in-flight request or open response stream:
-// increments the active-request count and cancels any pending idle expiry.
-// Pair every call with markSessionIdle on the response's 'close' event.
-export function markSessionActive(sessions: SessionRegistry, sessionId: string): void {
-	const entry = sessions[sessionId];
-	if (!entry) {
-		return;
-	}
-	entry.activeRequests += 1;
-	if (entry.idleTimer) {
-		clearTimeout(entry.idleTimer);
-		entry.idleTimer = undefined;
-	}
-}
-
-// Marks one request/stream finished. When the session has no remaining
-// in-flight requests, arms the idle-expiry timer; when it elapses the transport
-// is closed and its onclose handler removes the registry entry. A timeout of 0
-// disables expiry. Because this runs on response 'close', a long-lived GET SSE
-// stream keeps the session active for as long as the client holds it open.
-export function markSessionIdle(
-	sessions: SessionRegistry,
-	sessionId: string,
-	idleTimeoutMs: number,
-): void {
-	const entry = sessions[sessionId];
-	if (!entry) {
-		return;
-	}
-	entry.activeRequests = Math.max(0, entry.activeRequests - 1);
-	if (entry.activeRequests > 0 || idleTimeoutMs <= 0) {
-		return;
-	}
-	if (entry.idleTimer) {
-		clearTimeout(entry.idleTimer);
-	}
-	entry.idleTimer = setTimeout(() => {
-		void sessions[sessionId]?.transport.close();
-	}, idleTimeoutMs);
-	entry.idleTimer.unref();
-}
-
 // Returns the active hosted-OAuth-proxy config, or null when the proxy is
 // disabled. getDefaultProxyConfig (below) is the production implementation.
 export type ProxyConfigGetter = () => ProxyConfig | null;
@@ -239,10 +179,7 @@ export function createOAuthProtectedResourceHandler(deps: {
 				res.status(503).json({ error: 'discovery_failed' });
 				return;
 			}
-			const protoHeader = req.headers['x-forwarded-proto'];
-			const proto = typeof protoHeader === 'string' ? protoHeader.split(',')[0]?.trim() : undefined;
-			const requestProto =
-				proto === 'https' || proto === 'http' ? proto : req.secure ? 'https' : 'http';
+			const requestProto = resolveRequestProto(req);
 			const proxyConfig = deps.getProxyConfig?.() ?? null;
 			const doc = buildProtectedResource({
 				wikis,
@@ -260,6 +197,14 @@ export function createOAuthProtectedResourceHandler(deps: {
 			next(err);
 		}
 	};
+}
+
+// Resolves the request's scheme, honouring a trusted reverse proxy's
+// x-forwarded-proto (first value) and falling back to the socket's own security.
+function resolveRequestProto(req: Request): 'http' | 'https' {
+	const protoHeader = req.headers['x-forwarded-proto'];
+	const proto = typeof protoHeader === 'string' ? protoHeader.split(',')[0]?.trim() : undefined;
+	return proto === 'https' || proto === 'http' ? proto : req.secure ? 'https' : 'http';
 }
 
 // A wiki needs auth when it is OAuth-only with no usable static fallback.
@@ -422,10 +367,7 @@ function setTxnCookie(res: Response, upstreamLocation: string): void {
 }
 
 function emit401Challenge(req: Request, res: Response): void {
-	const protoHeader = req.headers['x-forwarded-proto'];
-	const proto = typeof protoHeader === 'string' ? protoHeader.split(',')[0]?.trim() : undefined;
-	const requestProto =
-		proto === 'https' || proto === 'http' ? proto : req.secure ? 'https' : 'http';
+	const requestProto = resolveRequestProto(req);
 	const base = resolvePublicBase(req.headers.host ?? undefined, requestProto);
 	// The protected-resource document is served at the ORIGIN root (RFC 9728), not
 	// under MCP_PUBLIC_URL's path segment. Point resource_metadata at the origin so

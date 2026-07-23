@@ -4,18 +4,20 @@ import express, { type Express, type Request } from 'express';
 import request from 'supertest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
-	createInFlightCounter,
 	createMcpPostHandler,
 	createSessionRequestHandler,
 	extractBearerToken,
 	handleListenError,
-	markSessionActive,
-	markSessionIdle,
 	payloadTooLargeHandler,
 	resolveMcpHostValidation,
-	type SessionRegistry,
 	withRequestContext,
 } from '../../src/transport/streamableHttp.js';
+import {
+	createInFlightCounter,
+	markSessionActive,
+	markSessionIdle,
+	type SessionRegistry,
+} from '../../src/transport/sessionRegistry.js';
 import { getRuntimeToken, getSessionId } from '../../src/transport/requestContext.js';
 import { logger } from '../../src/runtime/logger.js';
 
