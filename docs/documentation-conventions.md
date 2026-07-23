@@ -24,6 +24,7 @@ Every page sits in one genre. Write to that genre's reader and register.
 | `docs/deployment.md` | Self-hosters running the HTTP transport or the hosted OAuth proxy | Tasks and env-var tables; system model only where needed to act |
 | `docs/operations.md` | Sysadmins keeping a deployment healthy | Log, probe, and metric contracts, with remedies |
 | `docs/testing.md`, `docs/releasing.md` | Contributors and maintainers executing a procedure | Runbooks and checklists; no design history |
+| `docs/distribution.md` | Contributors adding an install channel or editing a manifest | The channel map, manifest contracts, and the install-test runbook; no design history |
 | `docs/tool-conventions.md` | Anyone adding or changing a tool | Rules and decision guides |
 | `src/auth/README.md` | Maintainers orienting in the auth code | A map of roles and files; no line-level detail that goes stale |
 
