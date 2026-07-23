@@ -223,6 +223,25 @@ Add the [standard configuration](#standard-configuration) to Antigravity's MCP c
 
 If you previously installed the Gemini CLI extension, Antigravity shares Gemini's `~/.gemini/` configuration namespace and can import an existing Gemini CLI setup.
 
+### OpenCode
+
+OpenCode uses its own configuration shape rather than `mcpServers`; add this to `opencode.json` in your project root, or `~/.config/opencode/opencode.json` for a global install.
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "mediawiki-mcp-server": {
+      "type": "local",
+      "command": ["npx", "-y", "@professional-wiki/mediawiki-mcp-server@latest"],
+      "environment": {
+        "CONFIG": "path/to/config.json"
+      }
+    }
+  }
+}
+```
+
 ### Standard configuration
 
 Most clients read the same server block. Paste it into the file listed for your client, replacing `mcpServers` with that client's root key:
