@@ -7,9 +7,9 @@ import {
 	resolveUpstreamBearer,
 	createMcpPostHandler,
 	type ProxyConfigGetter,
-	type SessionRegistry,
 	type McpPostHandlerOptions,
 } from '../../src/transport/streamableHttp.js';
+import type { SessionRegistry } from '../../src/transport/sessionRegistry.js';
 import { OAuthFlowError } from '../../src/auth/oauthFlow.js';
 import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.js';
 import { mintAccessToken } from '../../src/auth/authorizationServer/jwt.js';

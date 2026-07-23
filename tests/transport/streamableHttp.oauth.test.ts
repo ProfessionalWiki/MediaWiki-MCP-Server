@@ -6,8 +6,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
 	createOAuthProtectedResourceHandler,
 	createMcpPostHandler,
-	type SessionRegistry,
 } from '../../src/transport/streamableHttp.js';
+import type { SessionRegistry } from '../../src/transport/sessionRegistry.js';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.js';

@@ -7,8 +7,8 @@ import {
 	buildApp,
 	resolveUpstreamBearer,
 	type BuildAppDeps,
-	type SessionRegistry,
 } from '../../src/transport/streamableHttp.js';
+import type { SessionRegistry } from '../../src/transport/sessionRegistry.js';
 import { createAppState } from '../../src/wikis/state.js';
 import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.js';
 import { CimdResolver } from '../../src/auth/authorizationServer/cimd.js';
