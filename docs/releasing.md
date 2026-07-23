@@ -25,7 +25,7 @@ npm version 0.2.0
 This command automatically:
 
 - Updates `package.json` and `package-lock.json`
-- Syncs the version and shared metadata across the distribution manifests (`server.json`, `mcpb/manifest.json`, `gemini-extension.json`, and the Claude Code and Codex plugin files) via `scripts/sync-manifests.cjs`
+- Syncs the version and shared metadata across the distribution manifests via `scripts/sync-manifests.cjs` (see [distribution.md](distribution.md#fields-the-sync-script-owns) for the per-manifest field list)
 - Promotes `## [Unreleased]` in `CHANGELOG.md` to `## [<version>] - <today>` and refreshes the link references
 - Creates a git commit
 - Creates a git tag (e.g. `v0.2.0`)
