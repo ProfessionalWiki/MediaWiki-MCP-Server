@@ -1,0 +1,14 @@
+{
+  "name": "professional-wiki",
+  "description": "Claude Code plugins published by Professional Wiki.",
+  "owner": {
+    "name": "Professional Wiki"
+  },
+  "plugins": [
+    {
+      "name": "mediawiki-mcp-server",
+      "source": "./plugins/mediawiki-mcp-server",
+      "description": "MCP server enabling AI clients to interact with any MediaWiki wiki through standard tools"
+    }
+  ]
+}

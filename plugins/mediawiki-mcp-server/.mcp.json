@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "mediawiki": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@professional-wiki/mediawiki-mcp-server@latest"
+      ]
+    }
+  }
+}

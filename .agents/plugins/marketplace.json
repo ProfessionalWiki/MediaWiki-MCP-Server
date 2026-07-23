@@ -1,0 +1,21 @@
+{
+  "name": "professional-wiki",
+  "interface": {
+    "displayName": "Professional Wiki"
+  },
+  "plugins": [
+    {
+      "name": "mediawiki-mcp-server",
+      "source": {
+        "source": "local",
+        "path": "./plugins/mediawiki-mcp-server"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Developer Tools",
+      "description": "MCP server enabling AI clients to interact with any MediaWiki wiki through standard tools"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "name": "mediawiki-mcp-server",
+  "version": "0.13.1",
+  "description": "MCP server enabling AI clients to interact with any MediaWiki wiki through standard tools",
+  "author": {
+    "name": "Professional Wiki",
+    "url": "https://professional.wiki"
+  },
+  "homepage": "https://github.com/ProfessionalWiki/MediaWiki-MCP-Server",
+  "repository": "https://github.com/ProfessionalWiki/MediaWiki-MCP-Server",
+  "license": "MIT",
+  "keywords": [
+    "modelcontextprotocol",
+    "mcp",
+    "mediawiki",
+    "wiki",
+    "wikipedia",
+    "wikimedia",
+    "knowledge",
+    "wikibase",
+    "smw"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "MediaWiki MCP Server",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ]
+  }
+}

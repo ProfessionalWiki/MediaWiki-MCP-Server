@@ -56,8 +56,9 @@
 		"inspector:http": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest\" \"MCP_TRANSPORT=http node dist/index.js\"",
 		"mcpjam": "concurrently --kill-others \"tsc --watch\" \"npx -y @mcpjam/inspector@latest node $(pwd)/dist/index.js\"",
 		"bundle": "npm run build && node scripts/bundle.cjs",
+		"sync-manifests": "node scripts/sync-manifests.cjs",
 		"preversion": "npm run preflight",
-		"version": "node scripts/sync-version.cjs && node scripts/promote-changelog.cjs && git add server.json mcpb/manifest.json gemini-extension.json CHANGELOG.md"
+		"version": "node scripts/sync-manifests.cjs && node scripts/promote-changelog.cjs && git add server.json mcpb/manifest.json gemini-extension.json .claude-plugin/marketplace.json plugins/mediawiki-mcp-server/.claude-plugin/plugin.json .agents/plugins/marketplace.json plugins/mediawiki-mcp-server/.codex-plugin/plugin.json CHANGELOG.md"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.29.0",
