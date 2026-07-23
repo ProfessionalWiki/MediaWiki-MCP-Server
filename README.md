@@ -256,11 +256,20 @@ Follow the [guide](https://docs.windsurf.com/windsurf/cascade/mcp) and use the f
 <details>
 <summary><b>Install in Claude Code</b></summary>
 
-Follow the [Claude Code MCP docs](https://docs.anthropic.com/en/docs/claude-code/mcp).
+Install it as a plugin. Add this repository as a plugin marketplace, then install the bundled server:
 
-Run the below command, optionally with `-e` flags to specify environment variables.
+```
+/plugin marketplace add ProfessionalWiki/MediaWiki-MCP-Server
+/plugin install mediawiki-mcp-server@professional-wiki
+```
 
-    claude mcp add mediawiki-mcp-server npx @professional-wiki/mediawiki-mcp-server@latest
+When installed as a plugin, the tools are namespaced `mcp__plugin_mediawiki-mcp-server_mediawiki__<tool>`; update any tool allowlists or hooks accordingly.
+
+Or configure the server directly by following the [Claude Code MCP docs](https://docs.anthropic.com/en/docs/claude-code/mcp), optionally with `-e` flags to specify environment variables.
+
+```bash
+claude mcp add mediawiki-mcp-server npx @professional-wiki/mediawiki-mcp-server@latest
+```
 
 You should end up with something like the below in your `.claude.json` config:
 
@@ -281,6 +290,19 @@ You should end up with something like the below in your `.claude.json` config:
 </details>
 
 <details>
+<summary><b>Install in Codex</b></summary>
+
+Add this repository as a plugin marketplace, then install the bundled server:
+
+```bash
+codex plugin marketplace add ProfessionalWiki/MediaWiki-MCP-Server
+codex plugin add mediawiki-mcp-server@professional-wiki
+```
+
+See the [Codex plugins documentation](https://developers.openai.com/codex/plugins) for how to list, update, or remove plugins.
+</details>
+
+<details>
 <summary><b>Install in Gemini CLI</b></summary>
 
 Run:
@@ -292,6 +314,30 @@ gemini extensions install https://github.com/ProfessionalWiki/MediaWiki-MCP-Serv
 This installs the extension from the latest GitHub Release. To pin a specific version, append `--ref=<tag>` (for example `--ref=v0.6.5`).
 
 See the [Gemini CLI extensions documentation](https://github.com/google-gemini/gemini-cli/tree/main/docs/extensions) for how to update, list, or uninstall extensions.
+</details>
+
+<details>
+<summary><b>Install in Antigravity</b></summary>
+
+Add the server to Antigravity's MCP config, either globally in `~/.gemini/config/mcp_config.json` or per-workspace in `.agents/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "mediawiki-mcp-server": {
+      "command": "npx",
+      "args": [
+        "@professional-wiki/mediawiki-mcp-server@latest"
+      ],
+      "env": {
+        "CONFIG": "path/to/config.json"
+      }
+    }
+  }
+}
+```
+
+Antigravity does not read Gemini CLI extensions, so it is configured separately from the Gemini CLI install above.
 </details>
 
 ## Deployment

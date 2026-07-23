@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - Hosted OAuth proxy: support for Client ID Metadata Documents (CIMD). CIMD-capable clients connect using a stable, vendor-hosted client identity, with no per-client redirect entry to curate. The proxy trusts the verified first-party document hosts by default; add more with `MCP_OAUTH_CIMD_ALLOWED_HOSTS`.
 - Metrics: the `/metrics` endpoint now reports the hosted OAuth proxy store's size and flush cost — `mcp_proxy_store_upstream_tokens` and `mcp_proxy_store_clients` gauges, an `mcp_proxy_store_flush_duration_seconds` histogram, and an `mcp_proxy_store_flush_failures_total` counter — so operators can watch the store grow, see how long each persistence write takes, and alert when a write fails.
 - The `(via <tool> on MediaWiki MCP Server)` attribution appended to page and file edit summaries can now be turned off per wiki by setting `"attributeEdits": false` in that wiki's `config.json` entry. It stays on by default.
+- Claude Code and Codex can now install the server as a plugin. The repository doubles as a plugin marketplace for both clients, so users add it once and install the bundled MediaWiki MCP server instead of configuring the server by hand. See the README install section.
 
 ### Changed
 
