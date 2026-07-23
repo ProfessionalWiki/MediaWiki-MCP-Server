@@ -310,20 +310,6 @@ See the [Codex plugins documentation](https://developers.openai.com/codex/plugin
 </details>
 
 <details>
-<summary><b>Install in Gemini CLI</b></summary>
-
-Run:
-
-```bash
-gemini extensions install https://github.com/ProfessionalWiki/MediaWiki-MCP-Server
-```
-
-This installs the extension from the latest GitHub Release. To pin a specific version, append `--ref=<tag>` (for example `--ref=v0.6.5`).
-
-See the [Gemini CLI extensions documentation](https://github.com/google-gemini/gemini-cli/tree/main/docs/extensions) for how to update, list, or uninstall extensions.
-</details>
-
-<details>
 <summary><b>Install in Antigravity</b></summary>
 
 Add the server to Antigravity's MCP config, either globally in `~/.gemini/config/mcp_config.json` or per-workspace in `.agents/mcp_config.json`:
@@ -345,7 +331,7 @@ Add the server to Antigravity's MCP config, either globally in `~/.gemini/config
 }
 ```
 
-Antigravity does not read Gemini CLI extensions, so it is configured separately from the Gemini CLI install above.
+If you previously installed the Gemini CLI extension, Antigravity shares Gemini's `~/.gemini/` configuration namespace and can import an existing Gemini CLI setup.
 </details>
 
 ## Deployment

@@ -6,7 +6,6 @@ const {
 	PACKAGE_JSON_PATH,
 	SERVER_JSON_PATH,
 	MANIFEST_JSON_PATH,
-	GEMINI_EXTENSION_JSON_PATH,
 	CLAUDE_MARKETPLACE_JSON_PATH,
 	CLAUDE_PLUGIN_JSON_PATH,
 	CODEX_MARKETPLACE_JSON_PATH,
@@ -17,8 +16,8 @@ const packageJson = JSON.parse(fs.readFileSync(PACKAGE_JSON_PATH, 'utf8'));
 
 // Single source of truth for the metadata shared across the distribution
 // manifests. Everything but the description is read from package.json; the
-// description is the fuller, client-facing wording the registry, extension, and
-// plugins use (package.json and the mcpb bundle keep their own shorter one).
+// description is the wording the registry and plugins use (package.json and
+// the mcpb bundle keep their own shorter one).
 const metadata = {
 	version: packageJson.version,
 	description:
@@ -50,14 +49,6 @@ const targets = [
 			author: metadata.author,
 			homepage: metadata.homepage,
 			license: metadata.license,
-		},
-	},
-	{
-		file: GEMINI_EXTENSION_JSON_PATH,
-		label: 'gemini-extension.json',
-		fields: {
-			version: metadata.version,
-			description: metadata.description,
 		},
 	},
 	{
