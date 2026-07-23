@@ -3,7 +3,7 @@ import type { ProxyConfig } from './proxyConfig.js';
 import type { ProxyStore } from './proxyStore.js';
 import { s256 } from '../pkce.js';
 import { mintAccessToken, mintRefreshToken, verifyRefreshToken } from './jwt.js';
-import { refreshTokens as defaultRefresh, OAuthFlowError } from '../oauthFlow.js';
+import { refreshTokens as defaultRefresh, classifyRefreshError } from '../oauthFlow.js';
 
 type RefreshFn = typeof defaultRefresh;
 
@@ -101,7 +101,7 @@ export async function handleToken(
 			// its refresh token and force a full re-auth. invalid_grant/invalid_client
 			// (the upstream genuinely rejecting the refresh token) still map to 400.
 			store.finishRefreshRotation(claims.upstreamTokenId);
-			if (err instanceof OAuthFlowError && (err.kind === 'transient' || err.kind === 'malformed')) {
+			if (classifyRefreshError(err) === 'retryable') {
 				return {
 					status: 503,
 					body: {

@@ -36,6 +36,7 @@ vi.mock('../../src/wikis/mwnProvider.js', () => ({
 }));
 
 import request from 'supertest';
+import type { RequestHandler } from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
 	buildApp,
@@ -857,6 +858,175 @@ describe('operator redirect allowlist — end-to-end (config → route → handl
 		});
 		expect(authz.status).toBe(200);
 		expect(authz.text).toContain('an application on this device');
+	});
+});
+
+// Exercises the REAL proactive-refresh path on the /mcp connection: buildApp uses
+// the production refresh (defaultRefresh) against a live fake AS, so the full
+// oauthFlow.refreshTokens -> classifyRefreshError -> UpstreamBearerError chain runs
+// over HTTP — not through an injected refresh stub.
+describe('hosted OAuth proxy — upstream refresh on the /mcp path (e2e)', () => {
+	let fakeAs: FakeAsHandle | undefined;
+
+	beforeEach(() => {
+		vi.stubEnv('MCP_PUBLIC_URL', ISSUER);
+	});
+	afterEach(async () => {
+		vi.unstubAllEnvs();
+		await fakeAs?.close();
+		fakeAs = undefined;
+	});
+
+	// Mints normally on the auth-code grant but fails the refresh grant with a
+	// transient 503, standing in for a momentary wiki outage during the proactive
+	// refresh.
+	const refreshBlipsToken: RequestHandler = (req, res) => {
+		const grant = String(req.body.grant_type ?? '');
+		if (grant === 'authorization_code') {
+			res.json({
+				access_token: 'access-' + String(req.body.code),
+				refresh_token: 'refresh-' + String(req.body.code),
+				expires_in: 3600,
+				scope: 'edit',
+				token_type: 'Bearer',
+			});
+			return;
+		}
+		if (grant === 'refresh_token') {
+			res.status(503).end();
+			return;
+		}
+		res.status(400).json({ error: 'unsupported_grant_type' });
+	};
+
+	// Overrides the stored upstream token's expiry (leaving its tokens intact) so a
+	// subsequent /mcp call takes the proactive-refresh branch. Returns the stored
+	// upstream access token so a test can assert which token reaches the wiki API.
+	async function setUpstreamExpiry(
+		store: InMemoryProxyStore,
+		pc: ProxyConfig,
+		proxyAccessToken: string,
+		expiresAt: number,
+	): Promise<string> {
+		const { upstreamTokenId } = await verifyAccessToken(proxyAccessToken, pc);
+		const u = store.getUpstreamToken(upstreamTokenId);
+		if (!u) {
+			throw new Error('expected an upstream token in the store');
+		}
+		store.updateUpstreamToken(upstreamTokenId, {
+			accessToken: u.accessToken,
+			refreshToken: u.refreshToken,
+			expiresAt,
+		});
+		return u.accessToken;
+	}
+
+	// Pre-seeds a session whose fake transport calls the wiki action API with the
+	// runtime token resolved for the request, so a test can observe which bearer
+	// mwn would send upstream.
+	function seedApiCallingSession(
+		app: ReturnType<typeof buildApp>['app'],
+		sessions: SessionRegistry,
+	) {
+		const handleRequest = vi.fn(
+			async (_req: unknown, res: { status: (n: number) => { json: (b: unknown) => void } }) => {
+				const runtimeToken = getRuntimeToken();
+				await fetch(`${fakeAs!.url}/w/api.php?action=query&meta=tokens`, {
+					headers: runtimeToken ? { Authorization: `Bearer ${runtimeToken}` } : {},
+				});
+				res.status(200).json({ ok: true });
+			},
+		);
+		sessions['sid-1'] = {
+			transport: {
+				sessionId: 'sid-1',
+				handleRequest,
+			} as unknown as SessionRegistry[string]['transport'],
+			activeRequests: 0,
+		};
+		return handleRequest;
+	}
+
+	const MCP_BODY = { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} };
+
+	it('answers 503 (retryable, no re-auth challenge) when an expired token cannot be refreshed', async () => {
+		fakeAs = await startFakeAs({ autoApproveAuthorize: true, token: refreshBlipsToken });
+		const store = new InMemoryProxyStore();
+		const pc = proxyConfig(fakeAs.url);
+		const { app } = buildApp(makeDeps(fakeAs.url, store, pc));
+		const result = await runHostedFlow({ app });
+		await setUpstreamExpiry(store, pc, result.accessToken, Date.now() - 1000);
+
+		const res = await request(app)
+			.post('/mcp')
+			.set('Content-Type', 'application/json')
+			.set('mcp-session-id', 'sid-1')
+			.set('Authorization', `Bearer ${result.accessToken}`)
+			.send(MCP_BODY);
+
+		expect(res.status).toBe(503);
+		// A retryable failure must NOT tell the client to re-authenticate.
+		expect(res.headers['www-authenticate']).toBeUndefined();
+	});
+
+	it('serves the request with the still-valid upstream token when a proactive refresh blips', async () => {
+		fakeAs = await startFakeAs({
+			autoApproveAuthorize: true,
+			captureApi: true,
+			token: refreshBlipsToken,
+		});
+		const store = new InMemoryProxyStore();
+		const pc = proxyConfig(fakeAs.url);
+		const { app, sessions } = buildApp(makeDeps(fakeAs.url, store, pc));
+		const result = await runHostedFlow({ app });
+		// Inside the 30s skew but still valid: the refresh runs and blips, and the
+		// current token is still usable.
+		const upstreamAccess = await setUpstreamExpiry(
+			store,
+			pc,
+			result.accessToken,
+			Date.now() + 10_000,
+		);
+		const handleRequest = seedApiCallingSession(app, sessions);
+
+		const res = await request(app)
+			.post('/mcp')
+			.set('Content-Type', 'application/json')
+			.set('mcp-session-id', 'sid-1')
+			.set('Authorization', `Bearer ${result.accessToken}`)
+			.send(MCP_BODY);
+
+		expect(res.status).not.toBe(401);
+		expect(res.status).not.toBe(503);
+		expect(handleRequest).toHaveBeenCalledOnce();
+		// The wiki API saw the still-valid upstream token, not a re-auth.
+		expect(fakeAs.capturedApiBearers).toContain(upstreamAccess);
+	});
+
+	it('refreshes the upstream token server-to-server and the NEW token reaches the wiki API', async () => {
+		fakeAs = await startFakeAs({ autoApproveAuthorize: true, captureApi: true });
+		const store = new InMemoryProxyStore();
+		const pc = proxyConfig(fakeAs.url);
+		const { app, sessions } = buildApp(makeDeps(fakeAs.url, store, pc));
+		const result = await runHostedFlow({ app });
+		await setUpstreamExpiry(store, pc, result.accessToken, Date.now() + 10_000);
+		const handleRequest = seedApiCallingSession(app, sessions);
+
+		const res = await request(app)
+			.post('/mcp')
+			.set('Content-Type', 'application/json')
+			.set('mcp-session-id', 'sid-1')
+			.set('Authorization', `Bearer ${result.accessToken}`)
+			.send(MCP_BODY);
+
+		expect(res.status).not.toBe(401);
+		expect(handleRequest).toHaveBeenCalledOnce();
+		// The default fake AS rotates on refresh, so the wiki API sees the refreshed
+		// token and the store now holds the rotated pair.
+		expect(fakeAs.capturedApiBearers).toContain('access-refreshed');
+		const { upstreamTokenId } = await verifyAccessToken(result.accessToken, pc);
+		expect(store.getUpstreamToken(upstreamTokenId)?.accessToken).toBe('access-refreshed');
+		expect(store.getUpstreamToken(upstreamTokenId)?.refreshToken).toBe('refresh-rotated');
 	});
 });
 

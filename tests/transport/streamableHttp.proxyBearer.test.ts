@@ -40,7 +40,9 @@ import {
 	createMcpPostHandler,
 	type ProxyConfigGetter,
 	type SessionRegistry,
+	type McpPostHandlerOptions,
 } from '../../src/transport/streamableHttp.js';
+import { OAuthFlowError } from '../../src/auth/oauthFlow.js';
 import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.js';
 import { mintAccessToken } from '../../src/auth/authorizationServer/jwt.js';
 import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.js';
@@ -129,6 +131,104 @@ describe('resolveUpstreamBearer', () => {
 		expect(await resolveUpstreamBearer(jwt, pc, store, refresh)).toBe('STILLGOOD');
 		expect(refresh).not.toHaveBeenCalled();
 	});
+
+	it('falls back to the still-valid token when a proactive refresh fails transiently', async () => {
+		const store = new InMemoryProxyStore();
+		// Inside the 30s refresh skew, but not yet expired: the proactive refresh runs,
+		// and when it blips the current token is still usable.
+		const id = store.putUpstreamToken({
+			accessToken: 'STILLGOOD',
+			refreshToken: 'WR',
+			expiresAt: Date.now() + 10_000,
+		});
+		const jwt = await mintAccessToken({
+			issuer: pc.issuer,
+			signingKey: pc.signingKey,
+			upstreamTokenId: id,
+			ttlMs: 60_000,
+			scopes: [],
+		});
+		const refresh = vi.fn().mockRejectedValue(new OAuthFlowError('transient', 'wiki 503'));
+		expect(await resolveUpstreamBearer(jwt, pc, store, refresh)).toBe('STILLGOOD');
+		expect(refresh).toHaveBeenCalledOnce();
+		// The stored token is left intact for the next attempt.
+		expect(store.getUpstreamToken(id)?.accessToken).toBe('STILLGOOD');
+	});
+
+	it('throws a retryable error when an expired token cannot be refreshed transiently', async () => {
+		const store = new InMemoryProxyStore();
+		const id = store.putUpstreamToken({
+			accessToken: 'OLD',
+			refreshToken: 'WR',
+			expiresAt: Date.now() - 1000,
+		});
+		const jwt = await mintAccessToken({
+			issuer: pc.issuer,
+			signingKey: pc.signingKey,
+			upstreamTokenId: id,
+			ttlMs: 60_000,
+			scopes: [],
+		});
+		const refresh = vi.fn().mockRejectedValue(new OAuthFlowError('transient', 'wiki 503'));
+		await expect(resolveUpstreamBearer(jwt, pc, store, refresh)).rejects.toMatchObject({
+			retryable: true,
+		});
+	});
+
+	it('throws a non-retryable error when an expired token refresh is rejected', async () => {
+		const store = new InMemoryProxyStore();
+		const id = store.putUpstreamToken({
+			accessToken: 'OLD',
+			refreshToken: 'WR',
+			expiresAt: Date.now() - 1000,
+		});
+		const jwt = await mintAccessToken({
+			issuer: pc.issuer,
+			signingKey: pc.signingKey,
+			upstreamTokenId: id,
+			ttlMs: 60_000,
+			scopes: [],
+		});
+		const refresh = vi.fn().mockRejectedValue(new OAuthFlowError('invalid_grant', 'dead'));
+		await expect(resolveUpstreamBearer(jwt, pc, store, refresh)).rejects.toMatchObject({
+			retryable: false,
+		});
+	});
+
+	it('coalesces concurrent proactive refreshes into a single upstream call', async () => {
+		const store = new InMemoryProxyStore();
+		const id = store.putUpstreamToken({
+			accessToken: 'OLD',
+			refreshToken: 'WR',
+			expiresAt: Date.now() - 1000,
+		});
+		const jwt = await mintAccessToken({
+			issuer: pc.issuer,
+			signingKey: pc.signingKey,
+			upstreamTokenId: id,
+			ttlMs: 60_000,
+			scopes: [],
+		});
+		// Slow upstream refresh so both callers are genuinely in flight at once.
+		const refresh = vi
+			.fn()
+			.mockImplementation(
+				() =>
+					new Promise((resolve) =>
+						setTimeout(
+							() => resolve({ access_token: 'NEW', refresh_token: 'WR2', expires_in: 3600 }),
+							15,
+						),
+					),
+			);
+		const [a, b] = await Promise.all([
+			resolveUpstreamBearer(jwt, pc, store, refresh),
+			resolveUpstreamBearer(jwt, pc, store, refresh),
+		]);
+		expect(a).toBe('NEW');
+		expect(b).toBe('NEW');
+		expect(refresh).toHaveBeenCalledOnce();
+	});
 });
 
 function fakeRegistry(wikis: Record<string, Partial<WikiConfig>>): WikiRegistry {
@@ -158,6 +258,7 @@ function buildMcpApp(
 	getProxyConfig: ProxyConfigGetter | undefined,
 	store: InMemoryProxyStore | undefined,
 	captured: { token?: string; seen: boolean },
+	refresh?: McpPostHandlerOptions['refresh'],
 ): Express {
 	const app = express();
 	app.use(express.json());
@@ -179,6 +280,7 @@ function buildMcpApp(
 			wikiRegistry: registry,
 			getProxyConfig,
 			proxyStore: store,
+			refresh,
 		}),
 	);
 	return app;
@@ -294,5 +396,101 @@ describe('POST /mcp proxy bearer rewire', () => {
 		expect(res.status).not.toBe(401);
 		expect(captured.seen).toBe(true);
 		expect(captured.token).toBe('raw-wiki-token');
+	});
+
+	it('returns 503 (not 401) when a proxy refresh fails transiently for an expired token', async () => {
+		const store = new InMemoryProxyStore();
+		const id = store.putUpstreamToken({
+			accessToken: 'OLD',
+			refreshToken: 'WR',
+			expiresAt: Date.now() - 1000,
+		});
+		const jwt = await mintAccessToken({
+			issuer: pc.issuer,
+			signingKey: pc.signingKey,
+			upstreamTokenId: id,
+			ttlMs: 60_000,
+			scopes: [],
+		});
+		const refresh = vi.fn().mockRejectedValue(new OAuthFlowError('transient', 'wiki 503'));
+		const captured: { token?: string; seen: boolean } = { seen: false };
+		const app = buildMcpApp(fakeRegistry({ test: oauthWiki }), () => pc, store, captured, refresh);
+
+		const res = await request(app)
+			.post('/mcp')
+			.set('Content-Type', 'application/json')
+			.set('mcp-session-id', 'sid-1')
+			.set('Authorization', `Bearer ${jwt}`)
+			.send(body);
+
+		expect(res.status).toBe(503);
+		// A 503 must NOT carry an invalid_token challenge, which would tell the client
+		// to throw away its session and re-authenticate for a transient upstream blip.
+		expect(res.headers['www-authenticate']).toBeUndefined();
+		expect(captured.seen).toBe(false);
+	});
+
+	it('returns 401 with a re-auth challenge when an expired token refresh is rejected as a dead credential', async () => {
+		const store = new InMemoryProxyStore();
+		const id = store.putUpstreamToken({
+			accessToken: 'OLD',
+			refreshToken: 'WR',
+			expiresAt: Date.now() - 1000,
+		});
+		const jwt = await mintAccessToken({
+			issuer: pc.issuer,
+			signingKey: pc.signingKey,
+			upstreamTokenId: id,
+			ttlMs: 60_000,
+			scopes: [],
+		});
+		const refresh = vi.fn().mockRejectedValue(new OAuthFlowError('invalid_grant', 'dead'));
+		const captured: { token?: string; seen: boolean } = { seen: false };
+		const app = buildMcpApp(fakeRegistry({ test: oauthWiki }), () => pc, store, captured, refresh);
+
+		const res = await request(app)
+			.post('/mcp')
+			.set('Content-Type', 'application/json')
+			.set('mcp-session-id', 'sid-1')
+			.set('Authorization', `Bearer ${jwt}`)
+			.send(body);
+
+		expect(res.status).toBe(401);
+		// A dead credential DOES carry the discovery challenge so the client re-signs-in.
+		const wwwAuth = res.headers['www-authenticate'];
+		expect(typeof wwwAuth).toBe('string');
+		expect(wwwAuth).toMatch(/error="invalid_token"/);
+		expect(captured.seen).toBe(false);
+	});
+
+	it('serves the request with the still-valid token when a proactive refresh fails transiently', async () => {
+		const store = new InMemoryProxyStore();
+		const id = store.putUpstreamToken({
+			accessToken: 'STILLGOOD',
+			refreshToken: 'WR',
+			expiresAt: Date.now() + 10_000,
+		});
+		const jwt = await mintAccessToken({
+			issuer: pc.issuer,
+			signingKey: pc.signingKey,
+			upstreamTokenId: id,
+			ttlMs: 60_000,
+			scopes: [],
+		});
+		const refresh = vi.fn().mockRejectedValue(new OAuthFlowError('transient', 'wiki 503'));
+		const captured: { token?: string; seen: boolean } = { seen: false };
+		const app = buildMcpApp(fakeRegistry({ test: oauthWiki }), () => pc, store, captured, refresh);
+
+		const res = await request(app)
+			.post('/mcp')
+			.set('Content-Type', 'application/json')
+			.set('mcp-session-id', 'sid-1')
+			.set('Authorization', `Bearer ${jwt}`)
+			.send(body);
+
+		expect(res.status).not.toBe(401);
+		expect(res.status).not.toBe(503);
+		expect(captured.seen).toBe(true);
+		expect(captured.token).toBe('STILLGOOD');
 	});
 });
