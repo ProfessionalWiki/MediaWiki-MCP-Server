@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { ProxyConfig } from './proxyConfig.js';
 import type { ProxyStore } from './proxyStore.js';
 import { exchangeCode as defaultExchange } from '../oauthFlow.js';
+import { mwOauth2TokenEndpoint } from '../mwOauth2Endpoints.js';
 
 type ExchangeFn = typeof defaultExchange;
 
@@ -87,7 +88,7 @@ export async function handleCallback(
 		// uses tokenExchangeBase (the internal service URL), distinct from the
 		// public authorizeBase the browser was redirected to.
 		tokens = await exchange({
-			tokenEndpoint: `${pc.tokenExchangeBase}${pc.scriptpath}/rest.php/oauth2/access_token`,
+			tokenEndpoint: mwOauth2TokenEndpoint(pc.tokenExchangeBase, pc.scriptpath),
 			code: q.code,
 			redirectUri: pc.callbackUrl,
 			clientId: pc.upstreamClientId,
