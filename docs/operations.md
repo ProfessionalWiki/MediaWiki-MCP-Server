@@ -80,6 +80,10 @@ Exposed series:
 - `mcp_upstream_status_total{tool,wiki,status}` — counter of upstream MediaWiki HTTP status codes.
 - `mcp_active_sessions` — gauge of active StreamableHTTP MCP sessions.
 - `mcp_ready_failures_total` — counter of `/ready` probes that returned non-200.
+- `mcp_proxy_store_upstream_tokens` — gauge of upstream MediaWiki tokens held in the hosted OAuth proxy store. This set grows with cumulative sign-ins over the process lifetime; watch it to size memory and the flush cost below.
+- `mcp_proxy_store_clients` — gauge of registered clients held in the hosted OAuth proxy store. FIFO-capped at 10,000, so this plateaus rather than growing without bound.
+- `mcp_proxy_store_flush_duration_seconds` — histogram of hosted-proxy store durable-flush durations (serialize + encrypt + write). Every upstream-token write flushes the whole store synchronously, so this scales with the token count above. Records successful flushes only.
+- `mcp_proxy_store_flush_failures_total` — counter of durable flushes that failed to write (a disk error). A failure means the most recent sign-in change is held in memory only and would be lost on restart; alert on any increase.
 
 The endpoint is **unauthenticated**. Restrict reverse-proxy access to your scrape network only — most Kubernetes-style deployments expose `/metrics` on a separate port or path that isn't routable from the public ingress.
 

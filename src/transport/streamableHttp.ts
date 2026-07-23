@@ -22,6 +22,7 @@ import {
 	isMetricsEnabled,
 	recordReadyFailure,
 	setSessionsProvider,
+	setProxyStoreStatsProvider,
 } from '../runtime/metrics.js';
 import { withRequestContext } from './requestContext.js';
 
@@ -1298,6 +1299,7 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 	mountReadyEndpoint(app, { activeWiki: state.activeWiki, mwnProvider: state.mwnProvider });
 	mountMetricsEndpoint(app);
 	setSessionsProvider(() => Object.keys(sessions).length);
+	setProxyStoreStatsProvider(() => store.stats());
 
 	return { app, sessions, inFlight };
 }

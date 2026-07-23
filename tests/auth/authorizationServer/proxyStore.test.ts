@@ -1,6 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import { InMemoryProxyStore } from '../../../src/auth/authorizationServer/proxyStore.js';
 
+describe('InMemoryProxyStore stats', () => {
+	it('reports upstream-token and client counts', () => {
+		const s = new InMemoryProxyStore();
+		expect(s.stats()).toEqual({ upstreamTokens: 0, clients: 0 });
+		s.putClient({ redirectUris: ['http://127.0.0.1/cb'], scopes: [], name: 'c' });
+		const id = s.putUpstreamToken({ accessToken: 'a', expiresAt: Date.now() + 1000 });
+		s.putUpstreamToken({ accessToken: 'b', expiresAt: Date.now() + 1000 });
+		expect(s.stats()).toEqual({ upstreamTokens: 2, clients: 1 });
+		s.deleteUpstreamToken(id);
+		expect(s.stats()).toEqual({ upstreamTokens: 1, clients: 1 });
+	});
+});
+
 describe('InMemoryProxyStore', () => {
 	it('registers and reads a client', () => {
 		const s = new InMemoryProxyStore();
