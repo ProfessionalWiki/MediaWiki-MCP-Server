@@ -32,7 +32,7 @@ Which role is active depends on configuration. The proxy path turns on only when
 - `token.ts` — the `/token` endpoint: authorization-code and refresh grants.
 - `jwt.ts` — mint and verify the proxy's own access / refresh JWTs, and sign / verify the consent cookie.
 - `cimd.ts` — client-id metadata documents: resolve a URL `client_id` into a client record, host-gated.
-- `redirectPolicy.ts` — redirect-URI matching and the registration-time redirect-URI allowlist (the CIMD *host* allowlist lives in `cimd.ts`).
+- `redirectPolicy.ts` — redirect-URI matching and the registration-time redirect-URI allowlist (the CIMD _host_ allowlist lives in `cimd.ts`).
 - `proxyStore.ts` — the in-memory store (clients, transactions, codes, upstream tokens).
 - `proxyStoreCrypto.ts` — encrypt and decrypt the persisted store.
 - `proxyStorePersistence.ts` — mirror the store to an encrypted file with write-through.
