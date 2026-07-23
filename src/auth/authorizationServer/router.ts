@@ -56,15 +56,14 @@ function errorReason(body: Record<string, unknown>, fallback: string): string {
 // to a single string (Express may parse repeated/array/nested params, which the
 // OAuth params are never expected to be; only the first scalar is honoured).
 function readAuthorizeQuery(query: Request['query']): AuthorizeQuery {
-	const one = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
 	return {
-		client_id: one(query.client_id),
-		redirect_uri: one(query.redirect_uri),
-		state: one(query.state),
-		code_challenge: one(query.code_challenge),
-		code_challenge_method: one(query.code_challenge_method),
-		scope: one(query.scope),
-		resource: one(query.resource),
+		client_id: firstScalar(query.client_id),
+		redirect_uri: firstScalar(query.redirect_uri),
+		state: firstScalar(query.state),
+		code_challenge: firstScalar(query.code_challenge),
+		code_challenge_method: firstScalar(query.code_challenge_method),
+		scope: firstScalar(query.scope),
+		resource: firstScalar(query.resource),
 	};
 }
 
@@ -95,6 +94,17 @@ function redirectHostOf(redirectUri: string | undefined): string | undefined {
 	}
 }
 
+// Coerces a possibly-array/undefined query param to its first scalar string.
+function firstScalar(v: unknown): string | undefined {
+	return typeof v === 'string' ? v : undefined;
+}
+
+// Renders the styled OAuth error page with the given status and reason. Reused by
+// every authorize / consent / callback failure path.
+function sendAuthError(res: Response, status: number, reason: string): void {
+	res.status(status).type('html').send(renderAuthErrorPage({ reason }));
+}
+
 // Mounts the hosted OAuth proxy's authorization-server endpoints (RFC 8414 metadata,
 // RFC 7591 registration, and the authorize / consent / callback / token flow) on the
 // app. Each endpoint 404s while the proxy is disabled. Kept out of the transport's
@@ -112,16 +122,23 @@ export function mountAuthorizationServer(
 		defaultWikiSitename,
 	} = deps;
 
+	// Shared guard: returns the active proxy config, or sends the empty-body 404 and
+	// null when the proxy is disabled. Every AS endpoint exists only while enabled.
+	const proxyEnabledOr404 = (res: Response): ProxyConfig | null => {
+		const pc = getProxyConfig();
+		if (!pc) {
+			res.status(404).end();
+		}
+		return pc;
+	};
+
 	// RFC 8414 authorization-server metadata. Served only when the hosted OAuth
 	// proxy is enabled, in which case this server names itself as the AS. The
 	// `/mcp` suffix variant covers clients that append the resource path segment
 	// to the well-known location.
 	const asMetadataHandler: RequestHandler = (_req, res) => {
-		const pc = getProxyConfig();
-		if (!pc) {
-			res.status(404).end();
-			return;
-		}
+		const pc = proxyEnabledOr404(res);
+		if (!pc) return;
 		res.json(buildAsMetadata(pc));
 	};
 	app.get('/.well-known/oauth-authorization-server', asMetadataHandler);
@@ -163,11 +180,8 @@ export function mountAuthorizationServer(
 	// + the default wiki key), and either renders the consent page or 302s to the
 	// upstream wiki authorize URL.
 	app.get('/mcp/authorize', async (req, res) => {
-		const pc = getProxyConfig();
-		if (!pc) {
-			res.status(404).end();
-			return;
-		}
+		const pc = proxyEnabledOr404(res);
+		if (!pc) return;
 		const q = readAuthorizeQuery(req.query);
 
 		let consent: ConsentClaims | undefined;
@@ -187,18 +201,12 @@ export function mountAuthorizationServer(
 
 		const resolved = await resolveClient(q.client_id);
 		if (resolved.error) {
-			res
-				.status(400)
-				.type('html')
-				.send(renderAuthErrorPage({ reason: resolved.error }));
+			sendAuthError(res, 400, resolved.error);
 			return;
 		}
 		const plan = planAuthorize(q, consent, pc, store, defaultWikiSitename, resolved.client);
 		if (plan.kind === 'error') {
-			res
-				.status(plan.status)
-				.type('html')
-				.send(renderAuthErrorPage({ reason: errorReason(plan.body, 'invalid request') }));
+			sendAuthError(res, plan.status, errorReason(plan.body, 'invalid request'));
 			return;
 		}
 		if (plan.kind === 'consent') {
@@ -229,18 +237,12 @@ export function mountAuthorizationServer(
 	// the one response is correct: the browser stores the cookie and follows the
 	// redirect, so the subsequent upstream callback can be matched).
 	app.post('/mcp/consent', express.urlencoded({ extended: false }), async (req, res) => {
-		const pc = getProxyConfig();
-		if (!pc) {
-			res.status(404).end();
-			return;
-		}
+		const pc = proxyEnabledOr404(res);
+		if (!pc) return;
 		const q = readAuthorizeQuery(req.query);
 		const resolved = await resolveClient(q.client_id);
 		if (resolved.error) {
-			res
-				.status(400)
-				.type('html')
-				.send(renderAuthErrorPage({ reason: resolved.error }));
+			sendAuthError(res, 400, resolved.error);
 			return;
 		}
 		const client = resolved.client;
@@ -269,19 +271,13 @@ export function mountAuthorizationServer(
 		const csrfCookie = readCsrfCookie(req.headers.cookie);
 		const csrfField = typeof body.csrf === 'string' ? body.csrf : undefined;
 		if (!csrfCookie || !csrfField || csrfCookie !== csrfField) {
-			res
-				.status(400)
-				.type('html')
-				.send(renderAuthErrorPage({ reason: 'CSRF check failed' }));
+			sendAuthError(res, 400, 'CSRF check failed');
 			return;
 		}
 
 		const redirectHost = redirectHostOf(q.redirect_uri);
 		if (!q.client_id || !redirectHost) {
-			res
-				.status(400)
-				.type('html')
-				.send(renderAuthErrorPage({ reason: 'missing client_id or redirect_uri' }));
+			sendAuthError(res, 400, 'missing client_id or redirect_uri');
 			return;
 		}
 
@@ -297,10 +293,7 @@ export function mountAuthorizationServer(
 		const consent: ConsentClaims = { clientId: q.client_id, redirectHost, wiki: defaultWikiKey };
 		const plan = planAuthorize(q, consent, pc, store, defaultWikiSitename, client);
 		if (plan.kind === 'error') {
-			res
-				.status(plan.status)
-				.type('html')
-				.send(renderAuthErrorPage({ reason: errorReason(plan.body, 'invalid request') }));
+			sendAuthError(res, plan.status, errorReason(plan.body, 'invalid request'));
 			return;
 		}
 		if (plan.kind === 'redirect') {
@@ -311,10 +304,7 @@ export function mountAuthorizationServer(
 		// planAuthorize returned 'consent' despite a freshly built ConsentClaims —
 		// only reachable if the client vanished between validation steps. Treat as a
 		// transient error rather than re-prompting (the cookie is already set).
-		res
-			.status(400)
-			.type('html')
-			.send(renderAuthErrorPage({ reason: 'consent could not be applied' }));
+		sendAuthError(res, 400, 'consent could not be applied');
 	});
 
 	// GET /mcp/oauth/callback — the upstream wiki's authorization-code redirect back
@@ -324,23 +314,19 @@ export function mountAuthorizationServer(
 	// wiki code on the internal tokenExchangeBase, stores the upstream token, mints a
 	// one-time downstream client code, and 302s back to the client redirect.
 	app.get('/mcp/oauth/callback', async (req, res) => {
-		const pc = getProxyConfig();
-		if (!pc) {
-			res.status(404).end();
-			return;
-		}
-		const one = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
-		const queryError = one(req.query.error);
+		const pc = proxyEnabledOr404(res);
+		if (!pc) return;
+		const queryError = firstScalar(req.query.error);
 		const q = {
-			code: one(req.query.code),
+			code: firstScalar(req.query.code),
 			// Fall back to the txn cookie ONLY on a denial that dropped `state`
 			// (MediaWiki does). Never let the cookie supply `state` for the success/code
 			// path, so an injected cookie can't drive a code redemption to a stale txn.
 			state:
-				one(req.query.state) ??
+				firstScalar(req.query.state) ??
 				(queryError !== undefined ? readTxnCookie(req.headers.cookie) : undefined),
 			error: queryError,
-			errorDescription: one(req.query.error_description),
+			errorDescription: firstScalar(req.query.error_description),
 		};
 		// The txn cookie is single-use per flow; expire it now that the callback fired.
 		res.append('Set-Cookie', clearTxnCookie());
@@ -362,10 +348,7 @@ export function mountAuthorizationServer(
 
 		const plan = await handleCallback(q, pc, store, consentOk);
 		if (plan.kind === 'error') {
-			res
-				.status(plan.status)
-				.type('html')
-				.send(renderAuthErrorPage({ reason: errorReason(plan.body, 'authorization failed') }));
+			sendAuthError(res, plan.status, errorReason(plan.body, 'authorization failed'));
 			return;
 		}
 		res.redirect(302, plan.location);
@@ -378,11 +361,8 @@ export function mountAuthorizationServer(
 	// proxy JWTs) and the refresh_token grant (verify the proxy refresh JWT, refresh
 	// the upstream token server-to-server, re-mint).
 	app.post('/mcp/token', express.urlencoded({ extended: false }), async (req, res) => {
-		const pc = getProxyConfig();
-		if (!pc) {
-			res.status(404).end();
-			return;
-		}
+		const pc = proxyEnabledOr404(res);
+		if (!pc) return;
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- form-encoded body is untyped; handleToken reads each field defensively
 		const body = (req.body ?? {}) as Record<string, string>;
 		const result = await handleToken(body, pc, store);
