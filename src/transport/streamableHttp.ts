@@ -53,6 +53,7 @@ import { buildRedirectPolicy } from '../auth/authorizationServer/redirectPolicy.
 import { buildCimdHostPredicate, CimdResolver } from '../auth/authorizationServer/cimd.js';
 import { fetchCimdDocument } from './cimdFetch.js';
 import { verifyAccessToken } from '../auth/authorizationServer/jwt.js';
+import { mwOauth2TokenEndpoint } from '../auth/mwOauth2Endpoints.js';
 import { createAppState, type AppState } from '../wikis/state.js';
 import { createServer } from '../server.js';
 import { emitStartupBanner } from '../runtime/banner.js';
@@ -250,7 +251,7 @@ async function performUpstreamRefresh(
 	refresh: RefreshFn,
 ): Promise<string> {
 	const r = await refresh({
-		tokenEndpoint: `${pc.tokenExchangeBase}${pc.scriptpath}/rest.php/oauth2/access_token`,
+		tokenEndpoint: mwOauth2TokenEndpoint(pc.tokenExchangeBase, pc.scriptpath),
 		refreshToken: currentRefreshToken,
 		clientId: pc.upstreamClientId,
 		clientSecret: pc.upstreamClientSecret,

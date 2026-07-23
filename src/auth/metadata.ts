@@ -1,5 +1,6 @@
 // src/auth/metadata.ts
 import { logger } from '../runtime/logger.js';
+import { mwOauth2AuthorizeEndpoint, mwOauth2TokenEndpoint } from './mwOauth2Endpoints.js';
 
 export interface AsMetadata {
 	issuer: string;
@@ -74,8 +75,8 @@ async function doFetch(wikiKey: string, wiki: WikiSlice): Promise<AsMetadata> {
 	// Both probes failed or returned malformed docs — synthesise from conventions.
 	const synthesized: AsMetadata = {
 		issuer: wiki.server,
-		authorization_endpoint: `${wiki.server}${wiki.scriptpath}/rest.php/oauth2/authorize`,
-		token_endpoint: `${wiki.server}${wiki.scriptpath}/rest.php/oauth2/access_token`,
+		authorization_endpoint: mwOauth2AuthorizeEndpoint(wiki.server, wiki.scriptpath),
+		token_endpoint: mwOauth2TokenEndpoint(wiki.server, wiki.scriptpath),
 		source: 'synthesized',
 		synthesized: true,
 	};

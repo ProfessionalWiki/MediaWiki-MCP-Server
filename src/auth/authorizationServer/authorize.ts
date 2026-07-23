@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { ProxyConfig } from './proxyConfig.js';
 import type { ClientRecord, ProxyStore } from './proxyStore.js';
 import { randomVerifier, s256 } from '../pkce.js';
+import { mwOauth2AuthorizeEndpoint } from '../mwOauth2Endpoints.js';
 import { redirectUriMatches } from './redirectPolicy.js';
 
 export interface AuthorizeQuery {
@@ -98,7 +99,7 @@ export function planAuthorize(
 		proxyVerifier,
 	});
 
-	const u = new URL(`${pc.authorizeBase}${pc.scriptpath}/rest.php/oauth2/authorize`);
+	const u = new URL(mwOauth2AuthorizeEndpoint(pc.authorizeBase, pc.scriptpath));
 	u.searchParams.set('response_type', 'code');
 	u.searchParams.set('client_id', pc.upstreamClientId);
 	u.searchParams.set('redirect_uri', pc.callbackUrl);

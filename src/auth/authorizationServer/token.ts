@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { ProxyConfig } from './proxyConfig.js';
 import type { ProxyStore } from './proxyStore.js';
 import { s256 } from '../pkce.js';
+import { mwOauth2TokenEndpoint } from '../mwOauth2Endpoints.js';
 import { mintAccessToken, mintRefreshToken, verifyRefreshToken } from './jwt.js';
 import { refreshTokens as defaultRefresh, classifyRefreshError } from '../oauthFlow.js';
 
@@ -88,7 +89,7 @@ export async function handleToken(
 			// Server-to-server on the INTERNAL tokenExchangeBase, exactly as the
 			// /oauth/callback exchange does — distinct from the public authorizeBase.
 			refreshed = await refresh({
-				tokenEndpoint: `${pc.tokenExchangeBase}${pc.scriptpath}/rest.php/oauth2/access_token`,
+				tokenEndpoint: mwOauth2TokenEndpoint(pc.tokenExchangeBase, pc.scriptpath),
 				refreshToken: upstream.refreshToken,
 				clientId: pc.upstreamClientId,
 				clientSecret: pc.upstreamClientSecret,
