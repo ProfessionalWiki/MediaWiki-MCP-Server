@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { logger } from './logger.js';
-import { classifyAuthShape } from '../transport/bearerGuard.js';
+import { classifyAuthShape } from './authShape.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
 import type { ActiveWiki } from '../wikis/activeWiki.js';
 import type { UploadDirs } from '../wikis/uploadDirs.js';

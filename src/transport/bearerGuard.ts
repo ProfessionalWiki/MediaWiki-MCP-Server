@@ -1,5 +1,5 @@
 import type { WikiConfig } from '../config/loadConfig.js';
-import { isCredentialConfigured } from '../config/loadConfig.js';
+import { hasStaticCredentials } from '../runtime/authShape.js';
 
 export interface BearerGuardEnv {
 	MCP_ALLOW_STATIC_FALLBACK?: string;
@@ -9,13 +9,6 @@ export type BearerGuardResult =
 	| { readonly kind: 'ok' }
 	| { readonly kind: 'override'; readonly wikis: readonly string[] }
 	| { readonly kind: 'block'; readonly wikis: readonly string[] };
-
-export function hasStaticCredentials(wiki: WikiConfig): boolean {
-	if (isCredentialConfigured(wiki.token)) {
-		return true;
-	}
-	return isCredentialConfigured(wiki.username) && isCredentialConfigured(wiki.password);
-}
 
 export function evaluateBearerGuard(
 	wikis: Readonly<Record<string, WikiConfig>>,
@@ -32,25 +25,4 @@ export function evaluateBearerGuard(
 		return { kind: 'override', wikis: offenders };
 	}
 	return { kind: 'block', wikis: offenders };
-}
-
-export type AuthShape = 'anonymous' | 'static-credential' | 'bearer-passthrough' | 'oauth-proxy';
-export type Transport = 'stdio' | 'http';
-
-export function classifyAuthShape(
-	wikis: Readonly<Record<string, WikiConfig>>,
-	transport: Transport,
-	proxyEnabled = false,
-): AuthShape {
-	const anyStatic = Object.values(wikis).some(hasStaticCredentials);
-	if (anyStatic) {
-		return 'static-credential';
-	}
-	if (transport !== 'http') {
-		return 'anonymous';
-	}
-	// When the hosted OAuth proxy is active this server is itself the
-	// authorization server (minting per-user tokens), not a plain
-	// bearer-passthrough that forwards a client-supplied token verbatim.
-	return proxyEnabled ? 'oauth-proxy' : 'bearer-passthrough';
 }
