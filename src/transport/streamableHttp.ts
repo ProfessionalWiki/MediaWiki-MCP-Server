@@ -13,7 +13,8 @@ import {
 } from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
-import { evaluateBearerGuard, hasStaticCredentials } from './bearerGuard.js';
+import { evaluateBearerGuard } from './bearerGuard.js';
+import { hasStaticCredentials } from '../runtime/authShape.js';
 import { LOCALHOST_HOSTS, resolveHttpConfig } from './httpConfig.js';
 import { logger } from '../runtime/logger.js';
 import {
