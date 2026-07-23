@@ -110,6 +110,29 @@ export function resolveMcpHostValidation(
 	return undefined;
 }
 
+// Handles a fatal error from app.listen — a failed bind (EADDRINUSE / EACCES) or
+// any other listen error. The 'error' event fires asynchronously after
+// startHttpServer() has returned, so index.ts's main().catch cannot catch it and,
+// with no listener registered, a net.Server 'error' event would surface as an
+// uncaught exception with a raw stack trace. Log a clear, actionable message and
+// terminate. onFatal is injectable so tests can assert the message without exiting
+// the test process.
+export function handleListenError(
+	err: NodeJS.ErrnoException,
+	host: string,
+	port: number,
+	onFatal: (code: number) => void = (code) => process.exit(code),
+): void {
+	if (err.code === 'EADDRINUSE') {
+		logger.error(`Cannot start HTTP server: ${host}:${port} is already in use.`);
+	} else if (err.code === 'EACCES') {
+		logger.error(`Cannot start HTTP server: permission denied binding ${host}:${port}.`);
+	} else {
+		logger.error(`HTTP server failed to start on ${host}:${port}: ${err.message}`);
+	}
+	onFatal(1);
+}
+
 export type SessionEntry = {
 	readonly transport: StreamableHTTPServerTransport;
 	idleTimer?: ReturnType<typeof setTimeout>;
@@ -1347,8 +1370,14 @@ export function startHttpServer(): void {
 	});
 
 	const httpServer = app.listen(port, host, () => {
-		logger.info(`MCP Streamable HTTP Server listening on ${host}:${port}`);
+		// Express fires this callback even when the bind failed (e.g. EADDRINUSE), where
+		// httpServer.listening is false. Guard the success log so a failed start does not
+		// print a misleading "listening" line just before handleListenError reports it.
+		if (httpServer.listening) {
+			logger.info(`MCP Streamable HTTP Server listening on ${host}:${port}`);
+		}
 	});
+	httpServer.on('error', (err) => handleListenError(err, host, port));
 
 	registerShutdownHandlers({
 		transport: 'http',

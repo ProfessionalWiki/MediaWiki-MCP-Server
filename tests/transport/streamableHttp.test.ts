@@ -8,6 +8,7 @@ import {
 	createMcpPostHandler,
 	createSessionRequestHandler,
 	extractBearerToken,
+	handleListenError,
 	markSessionActive,
 	markSessionIdle,
 	payloadTooLargeHandler,
@@ -16,6 +17,42 @@ import {
 	withRequestContext,
 } from '../../src/transport/streamableHttp.js';
 import { getRuntimeToken, getSessionId } from '../../src/transport/requestContext.js';
+import { logger } from '../../src/runtime/logger.js';
+
+describe('handleListenError', () => {
+	function listenErr(code: string): NodeJS.ErrnoException {
+		return Object.assign(new Error(`${code} boom`), { code });
+	}
+
+	it('reports EADDRINUSE with the address and exits non-zero', () => {
+		const onFatal = vi.fn();
+		const spy = vi.spyOn(logger, 'error').mockImplementation(() => {});
+		handleListenError(listenErr('EADDRINUSE'), '127.0.0.1', 3000, onFatal);
+		expect(spy.mock.calls[0][0]).toContain('127.0.0.1:3000');
+		expect(spy.mock.calls[0][0]).toMatch(/already in use/i);
+		expect(onFatal).toHaveBeenCalledWith(1);
+		spy.mockRestore();
+	});
+
+	it('reports EACCES as a permission error and exits non-zero', () => {
+		const onFatal = vi.fn();
+		const spy = vi.spyOn(logger, 'error').mockImplementation(() => {});
+		handleListenError(listenErr('EACCES'), '0.0.0.0', 80, onFatal);
+		expect(spy.mock.calls[0][0]).toContain('0.0.0.0:80');
+		expect(spy.mock.calls[0][0]).toMatch(/permission/i);
+		expect(onFatal).toHaveBeenCalledWith(1);
+		spy.mockRestore();
+	});
+
+	it('reports an unexpected listen error generically and exits non-zero', () => {
+		const onFatal = vi.fn();
+		const spy = vi.spyOn(logger, 'error').mockImplementation(() => {});
+		handleListenError(listenErr('EPIPE'), '127.0.0.1', 3000, onFatal);
+		expect(spy.mock.calls[0][0]).toContain('EPIPE boom');
+		expect(onFatal).toHaveBeenCalledWith(1);
+		spy.mockRestore();
+	});
+});
 
 function req(authorization: string | undefined): Request {
 	return { headers: { authorization } } as unknown as Request;
