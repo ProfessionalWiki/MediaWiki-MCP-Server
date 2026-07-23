@@ -15,7 +15,7 @@ For contributors adding an install channel, editing a plugin manifest, or testin
 
 Every plugin manifest is a wrapper that launches the published npm package with `npx`. The `.mcpb` bundle and the Docker image each ship their own build instead.
 
-Commit a manifest for a client only when that client installs plugins from a repository. For any other client, add a copy-paste `npx` snippet to the README install section and commit no file.
+Commit a manifest for a client only when that client installs plugins from a repository. For any other client, add it to the README install section (normally a row in the configuration-path table, a `###` section when required) and commit no file.
 
 ## Plugin layout
 

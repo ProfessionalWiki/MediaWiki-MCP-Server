@@ -79,6 +79,16 @@ A PR that adds, removes, or renames an env var read by the server — or that ch
 - **`CHANGELOG.md`** — an entry under `## [Unreleased]` if the change is user-visible.
 - **`Dockerfile`** — only if the var needs a default baked into the docker image.
 
+## Adding a client
+
+A client that just pastes the standard block gets a row in the `Client | Configuration file | Root key` table under "Standard configuration" in the README, not a `###` section; confirm the configuration file path and root key against the client's own current documentation first, since a wrong path costs a user a debugging session.
+
+A client earns its own `###` section when its configuration shape differs from the standard `mcpServers` object, as OpenCode's `mcp` key does, or when it needs install-flow prose a table row cannot carry: plugin install commands, a bundle download, install badges, or more than one configuration file location. Antigravity is an example of the latter: its configuration shape is the standard one, but it needs two file locations plus a note about importing an existing Gemini CLI setup.
+
+Never add another copy of the launch configuration JSON: the standard configuration block exists once so that a change to the package name, flags, or environment variables needs only one edit.
+
+See "Distribution" below for the channel map and the manifest contracts.
+
 ## Distribution
 
 See [docs/distribution.md](docs/distribution.md) for the install channels, the Claude Code and Codex plugin layout, the manifest fields `scripts/sync-manifests.cjs` owns, and how to test an install before publishing. Consult before adding an install channel or editing a plugin manifest.
