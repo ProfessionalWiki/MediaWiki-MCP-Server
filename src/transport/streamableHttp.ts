@@ -744,103 +744,11 @@ export function mountReadyEndpoint(
 	});
 }
 
-// Wiki config must load before HTTP config so evaluateBearerGuard below
-// can inspect wikiRegistry.getAll() to decide whether static credentials
-// are configured. resolveHttpConfig() reads only env vars and is order-
-// independent — placed after for visual grouping with the HTTP setup.
-const config = loadConfigFromFile();
-const state = createAppState(config);
-
-// Shared hosted-OAuth-proxy infrastructure, reused by the authorization-server
-// endpoints (AS metadata, register, authorize, callback, token). The proxy is
-// active only when the default wiki has an oauth2ClientId, the transport is
-// http, and the JWT signing key + public URL are set (see resolveProxyConfig).
-//
-// getDefaultProxyConfig is memoized: resolveProxyConfig reads only the default
-// wiki and process.env, both fixed for the process lifetime, so resolving once
-// is sufficient. A ProxyConfigError (e.g. signing key too short) is left to
-// propagate as a fatal misconfiguration; the eager call at startup (below)
-// forces it during boot, consistent with how the server treats other fatal
-// config errors (e.g. the static-credentials guard).
-let cachedProxyConfig: ProxyConfig | null | undefined;
-function getDefaultProxyConfig(): ProxyConfig | null {
-	if (cachedProxyConfig === undefined) {
-		const defaultKey = state.activeWiki.getDefaultKey();
-		const wiki = state.wikiRegistry.get(defaultKey);
-		cachedProxyConfig = wiki ? resolveProxyConfig(defaultKey, wiki, process.env) : null;
-	}
-	return cachedProxyConfig;
-}
-
-// The consent cookie binds a deployment-stable wiki id; we use the default
-// wiki KEY (the same key getDefaultProxyConfig resolves) for that binding, so
-// signing (buildConsentCookie) and verification (verifyConsent) agree on it.
-// The sitename is the human-readable display name shown on the consent page.
-const defaultWikiKey = state.activeWiki.getDefaultKey();
-const defaultWikiSitename = state.wikiRegistry.get(defaultWikiKey)?.sitename ?? defaultWikiKey;
-
-const { host, port, allowedHosts, allowedOrigins, maxRequestBody, sessionIdleTimeoutMs, warnings } =
-	resolveHttpConfig();
-const guard = evaluateBearerGuard(state.wikiRegistry.getAll(), process.env);
-if (guard.kind === 'block') {
-	logger.error(
-		'HTTP transport refuses to start because static credentials are configured for wiki(s): ' +
-			guard.wikis.join(', ') +
-			'.\n' +
-			'A request without an Authorization header would silently act as the configured identity, ' +
-			'defeating per-caller bearer passthrough.\n' +
-			'Remove `token`, `username`, and `password` from these wikis in config.json, ' +
-			'or set MCP_ALLOW_STATIC_FALLBACK=true to acknowledge the shared-identity deployment shape.',
-	);
-	process.exit(1);
-}
-if (guard.kind === 'override') {
-	logger.warning(
-		'MCP_ALLOW_STATIC_FALLBACK=true is set. Wiki(s) with static credentials: ' +
-			guard.wikis.join(', ') +
-			'. ' +
-			'Requests without an Authorization header will act as the configured identity. ' +
-			'This deployment cannot attribute writes to individual callers.',
-	);
-}
-for (const warning of warnings) {
-	logger.warning(warning);
-}
-// Resolve the proxy config eagerly so a ProxyConfigError fails the boot rather
-// than the first request. Memoized, so the route handlers below reuse the
-// cached result.
-const eagerProxyConfig = getDefaultProxyConfig();
-const proxyEnabled = eagerProxyConfig !== null;
-// Single process-wide proxy store, shared by the proxy handlers
-// (register/authorize/callback/token) and their tests via the export. It persists
-// its durable state (client registrations + upstream tokens) to an encrypted local
-// file when the proxy is enabled; otherwise it is a plain in-memory store.
-// createProxyStore hydrates synchronously here, before the server binds, so a
-// restart resolves existing tokens with no browser round-trip.
-export const proxyStore: ProxyStore = createProxyStore(eagerProxyConfig, {
-	onError: (err) => logger.error(`Proxy store persistence write failed: ${err.message}`),
-});
-// Built once: the register-time redirect predicate (built-ins + operator
-// entries from MCP_OAUTH_ALLOWED_REDIRECTS). /authorize keeps matching the
-// registered URIs verbatim and never re-applies this policy.
-const proxyRedirectPolicy = eagerProxyConfig
-	? buildRedirectPolicy(eagerProxyConfig.redirectAllowlist)
-	: null;
-// Built once from the resolved proxy config: resolves a URL client_id into a
-// ClientRecord by fetching its CIMD metadata document over the SSRF-guarded
-// fetcher. Null when the proxy is disabled.
-const cimdResolver = eagerProxyConfig
-	? new CimdResolver(buildCimdHostPredicate(eagerProxyConfig.cimdAllowedHosts), fetchCimdDocument)
-	: null;
-emitStartupBanner(
-	{ transport: 'http', http: { host, port, allowedHosts, allowedOrigins, maxRequestBody } },
-	{
-		wikiRegistry: state.wikiRegistry,
-		activeWiki: state.activeWiki,
-		uploadDirs: state.uploadDirs,
-		proxyEnabled,
-	},
-);
+// The HTTP server's boot — config load, the static-credentials guard, proxy-
+// infrastructure construction, route wiring, and app.listen — lives in
+// startHttpServer() at the bottom of this module. Importing this module has no
+// side effects; index.ts calls startHttpServer() for the `http` transport, and
+// tests import the pure factory/helpers without booting a server.
 
 // Extracts a human-readable reason string from an OAuth error body. The fields
 // are statically typed as `unknown` (the body is a Record<string, unknown>), so
@@ -893,11 +801,11 @@ function redirectHostOf(redirectUri: string | undefined): string | undefined {
 	}
 }
 
-// Everything buildApp needs that the production boot resolves from config/env.
+// Everything buildApp needs that startHttpServer resolves from config/env.
 // Extracting these into an explicit deps object lets the end-to-end test mount
 // the REAL routes against a fake authorization server (with a proxy config whose
-// upstream base is only known at runtime), without booting the side-effecting
-// module top-level (no app.listen, no process.exit guard).
+// upstream base is only known at runtime), without running startHttpServer (no
+// app.listen, no process.exit guard, no encrypted-store hydration).
 export interface BuildAppDeps {
 	state: AppState;
 	getProxyConfig: ProxyConfigGetter;
@@ -930,9 +838,9 @@ export interface BuiltApp {
 
 // Builds the HTTP transport's Express app and all its routes. Pure with respect
 // to its deps: no app.listen, no process.exit, no config/env reads beyond what
-// the deps carry. The production boot (bottom of this module) resolves the deps
-// and calls this; the end-to-end test calls it directly with a fake-AS-backed
-// proxy config so it can drive the real OAuth-proxy routes.
+// the deps carry. startHttpServer (bottom of this module) resolves the deps and
+// calls this; the end-to-end test calls it directly with a fake-AS-backed proxy
+// config so it can drive the real OAuth-proxy routes.
 export function buildApp(deps: BuildAppDeps): BuiltApp {
 	const {
 		state,
@@ -1302,37 +1210,149 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 	return { app, sessions, inFlight };
 }
 
-const ctx = createToolContext({
-	logger,
-	state,
-	transport: 'http',
-	getProxyConfig: getDefaultProxyConfig,
-});
+// Boots the HTTP transport: loads config, enforces the static-credentials guard,
+// constructs the shared proxy infrastructure, wires the app via buildApp, and
+// binds the listening socket. Called by index.ts for the `http` transport. Kept
+// out of module top-level so importing this module (for buildApp or a pure
+// helper, as the tests do) has no side effects — no config read, no process.exit,
+// no bound socket.
+export function startHttpServer(): void {
+	// Wiki config must load before HTTP config so evaluateBearerGuard below can
+	// inspect wikiRegistry.getAll() to decide whether static credentials are
+	// configured. resolveHttpConfig() reads only env vars and is order-independent
+	// — placed after for visual grouping with the HTTP setup.
+	const config = loadConfigFromFile();
+	const state = createAppState(config);
 
-const { app, sessions, inFlight } = buildApp({
-	state,
-	getProxyConfig: getDefaultProxyConfig,
-	proxyStore,
-	proxyRedirectPolicy,
-	cimdResolver,
-	defaultWikiKey,
-	defaultWikiSitename,
-	createServerFn: () => createServer(ctx),
-	host,
-	allowedHosts,
-	allowedOrigins,
-	maxRequestBody,
-	sessionIdleTimeoutMs,
-});
+	// Shared hosted-OAuth-proxy infrastructure, reused by the authorization-server
+	// endpoints (AS metadata, register, authorize, callback, token). The proxy is
+	// active only when the default wiki has an oauth2ClientId, the transport is
+	// http, and the JWT signing key + public URL are set (see resolveProxyConfig).
+	//
+	// getDefaultProxyConfig is memoized: resolveProxyConfig reads only the default
+	// wiki and process.env, both fixed for the process lifetime, so resolving once
+	// is sufficient. A ProxyConfigError (e.g. signing key too short) is left to
+	// propagate as a fatal misconfiguration; the eager call at startup (below)
+	// forces it during boot, consistent with how the server treats other fatal
+	// config errors (e.g. the static-credentials guard).
+	let cachedProxyConfig: ProxyConfig | null | undefined;
+	function getDefaultProxyConfig(): ProxyConfig | null {
+		if (cachedProxyConfig === undefined) {
+			const defaultKey = state.activeWiki.getDefaultKey();
+			const wiki = state.wikiRegistry.get(defaultKey);
+			cachedProxyConfig = wiki ? resolveProxyConfig(defaultKey, wiki, process.env) : null;
+		}
+		return cachedProxyConfig;
+	}
 
-const httpServer = app.listen(port, host, () => {
-	logger.info(`MCP Streamable HTTP Server listening on ${host}:${port}`);
-});
+	// The consent cookie binds a deployment-stable wiki id; we use the default
+	// wiki KEY (the same key getDefaultProxyConfig resolves) for that binding, so
+	// signing (buildConsentCookie) and verification (verifyConsent) agree on it.
+	// The sitename is the human-readable display name shown on the consent page.
+	const defaultWikiKey = state.activeWiki.getDefaultKey();
+	const defaultWikiSitename = state.wikiRegistry.get(defaultWikiKey)?.sitename ?? defaultWikiKey;
 
-registerShutdownHandlers({
-	transport: 'http',
-	graceMs: resolveShutdownGrace(process.env),
-	httpServer,
-	sessions,
-	inFlight,
-});
+	const {
+		host,
+		port,
+		allowedHosts,
+		allowedOrigins,
+		maxRequestBody,
+		sessionIdleTimeoutMs,
+		warnings,
+	} = resolveHttpConfig();
+	const guard = evaluateBearerGuard(state.wikiRegistry.getAll(), process.env);
+	if (guard.kind === 'block') {
+		logger.error(
+			'HTTP transport refuses to start because static credentials are configured for wiki(s): ' +
+				guard.wikis.join(', ') +
+				'.\n' +
+				'A request without an Authorization header would silently act as the configured identity, ' +
+				'defeating per-caller bearer passthrough.\n' +
+				'Remove `token`, `username`, and `password` from these wikis in config.json, ' +
+				'or set MCP_ALLOW_STATIC_FALLBACK=true to acknowledge the shared-identity deployment shape.',
+		);
+		process.exit(1);
+	}
+	if (guard.kind === 'override') {
+		logger.warning(
+			'MCP_ALLOW_STATIC_FALLBACK=true is set. Wiki(s) with static credentials: ' +
+				guard.wikis.join(', ') +
+				'. ' +
+				'Requests without an Authorization header will act as the configured identity. ' +
+				'This deployment cannot attribute writes to individual callers.',
+		);
+	}
+	for (const warning of warnings) {
+		logger.warning(warning);
+	}
+	// Resolve the proxy config eagerly so a ProxyConfigError fails the boot rather
+	// than the first request. Memoized, so the route handlers reuse the cached result.
+	const eagerProxyConfig = getDefaultProxyConfig();
+	const proxyEnabled = eagerProxyConfig !== null;
+	// Single process-wide proxy store, shared by the proxy handlers
+	// (register/authorize/callback/token). It persists its durable state (client
+	// registrations + upstream tokens) to an encrypted local file when the proxy is
+	// enabled; otherwise it is a plain in-memory store. createProxyStore hydrates
+	// synchronously here, before the server binds, so a restart resolves existing
+	// tokens with no browser round-trip.
+	const proxyStore: ProxyStore = createProxyStore(eagerProxyConfig, {
+		onError: (err) => logger.error(`Proxy store persistence write failed: ${err.message}`),
+	});
+	// Built once: the register-time redirect predicate (built-ins + operator
+	// entries from MCP_OAUTH_ALLOWED_REDIRECTS). /authorize keeps matching the
+	// registered URIs verbatim and never re-applies this policy.
+	const proxyRedirectPolicy = eagerProxyConfig
+		? buildRedirectPolicy(eagerProxyConfig.redirectAllowlist)
+		: null;
+	// Built once from the resolved proxy config: resolves a URL client_id into a
+	// ClientRecord by fetching its CIMD metadata document over the SSRF-guarded
+	// fetcher. Null when the proxy is disabled.
+	const cimdResolver = eagerProxyConfig
+		? new CimdResolver(buildCimdHostPredicate(eagerProxyConfig.cimdAllowedHosts), fetchCimdDocument)
+		: null;
+	emitStartupBanner(
+		{ transport: 'http', http: { host, port, allowedHosts, allowedOrigins, maxRequestBody } },
+		{
+			wikiRegistry: state.wikiRegistry,
+			activeWiki: state.activeWiki,
+			uploadDirs: state.uploadDirs,
+			proxyEnabled,
+		},
+	);
+
+	const ctx = createToolContext({
+		logger,
+		state,
+		transport: 'http',
+		getProxyConfig: getDefaultProxyConfig,
+	});
+
+	const { app, sessions, inFlight } = buildApp({
+		state,
+		getProxyConfig: getDefaultProxyConfig,
+		proxyStore,
+		proxyRedirectPolicy,
+		cimdResolver,
+		defaultWikiKey,
+		defaultWikiSitename,
+		createServerFn: () => createServer(ctx),
+		host,
+		allowedHosts,
+		allowedOrigins,
+		maxRequestBody,
+		sessionIdleTimeoutMs,
+	});
+
+	const httpServer = app.listen(port, host, () => {
+		logger.info(`MCP Streamable HTTP Server listening on ${host}:${port}`);
+	});
+
+	registerShutdownHandlers({
+		transport: 'http',
+		graceMs: resolveShutdownGrace(process.env),
+		httpServer,
+		sessions,
+		inFlight,
+	});
+}

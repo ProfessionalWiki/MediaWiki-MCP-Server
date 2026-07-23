@@ -3,7 +3,8 @@
 async function main(): Promise<void> {
 	const transportType = process.env.MCP_TRANSPORT || 'stdio';
 	if (transportType === 'http') {
-		await import('./transport/streamableHttp.js');
+		const { startHttpServer } = await import('./transport/streamableHttp.js');
+		startHttpServer();
 	} else {
 		await import('./transport/stdio.js');
 	}

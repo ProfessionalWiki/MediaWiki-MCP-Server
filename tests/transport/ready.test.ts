@@ -2,48 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const mockRequest = vi.fn();
 
-// Two mock layers are needed and they serve different purposes:
-//
-// 1. The vi.mock() calls below intercept module imports so that the top-level
-//    bootstrap in streamableHttp.ts (loadConfigFromFile, evaluateBearerGuard,
-//    emitStartupBanner, app.listen) can run on import without needing a real
-//    config.json or a reachable wiki. These keep the *module's own* state
-//    benign so importing it doesn't crash.
-//
-// 2. The mockActiveWiki and mockMwnProvider objects below are passed
-//    explicitly to mountReadyEndpoint() in each test's makeApp(). The tests
-//    create their own express app independent of the module-level one, so
-//    these inline mocks are what actually drive the test logic. Do not
-//    collapse the two layers — they target different code paths.
-
-vi.mock('../../src/config/loadConfig.js', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('../../src/config/loadConfig.js')>();
-	return {
-		...actual,
-		loadConfigFromFile: () => ({
-			defaultWiki: 'example.org',
-			wikis: {
-				'example.org': {
-					sitename: 'Example',
-					server: 'https://example.org',
-					articlepath: '/wiki',
-					scriptpath: '/w',
-					token: null,
-					username: null,
-					password: null,
-				},
-			},
-			uploadDirs: [],
-		}),
-	};
-});
-
-vi.mock('../../src/wikis/mwnProvider.js', () => ({
-	MwnProviderImpl: class {
-		get = async () => ({ request: mockRequest });
-		invalidate = () => {};
-	},
-}));
+// mockActiveWiki and mockMwnProvider are passed explicitly to mountReadyEndpoint()
+// (and __probeDefaultWikiForTesting) in each test: the tests build their own express
+// app and these inline stubs drive the probe. streamableHttp.ts no longer runs any
+// boot on import, so no module-level loadConfig/mwnProvider mock is needed.
 
 import express from 'express';
 import request from 'supertest';

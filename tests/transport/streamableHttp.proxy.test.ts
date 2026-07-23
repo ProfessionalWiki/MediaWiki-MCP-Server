@@ -1,40 +1,5 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 
-// Importing streamableHttp.ts runs its module top-level boot (config load,
-// startup guard, app.listen). Mock the config + mwn provider so that boot is
-// harmless under test, matching the sibling streamableHttp.*.test.ts files. This
-// e2e test does NOT use the module-level booted `app`; it calls the exported
-// buildApp() factory directly with a fake-AS-backed proxy config, so the boot's
-// proxy stays disabled (the mock config has no oauth2ClientId).
-vi.mock('../../src/config/loadConfig.js', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('../../src/config/loadConfig.js')>();
-	return {
-		...actual,
-		loadConfigFromFile: () => ({
-			defaultWiki: 'test',
-			wikis: {
-				test: {
-					sitename: 'Test',
-					server: 'https://test.example',
-					articlepath: '/wiki',
-					scriptpath: '/w',
-					token: null,
-					username: null,
-					password: null,
-				},
-			},
-			uploadDirs: [],
-		}),
-	};
-});
-
-vi.mock('../../src/wikis/mwnProvider.js', () => ({
-	MwnProviderImpl: class {
-		get = () => Promise.reject(new Error('mwn not available in tests'));
-		invalidate = () => {};
-	},
-}));
-
 import request from 'supertest';
 import type { RequestHandler } from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
