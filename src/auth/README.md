@@ -18,7 +18,7 @@ Which role is active depends on configuration. The proxy path turns on only when
 - `tokenStore.ts` — persist and read back acquired tokens on disk.
 - `protectedResource.ts` — build the protected-resource metadata this server advertises to MCP clients.
 - `pkce.ts` — PKCE verifier / challenge helpers (used by both roles).
-- `paths.ts` — resolve the on-disk credential directory.
+- `paths.ts` — resolve the on-disk config-dir file paths: the client credentials file and the proxy's durable store.
 
 ## Authorization server side (`authorizationServer/`, the hosted proxy)
 
@@ -27,16 +27,16 @@ Which role is active depends on configuration. The proxy path turns on only when
 - `asMetadata.ts` — build the RFC 8414 metadata document advertising this server as the authorization server (`AsMetadataDoc`).
 - `register.ts` — dynamic client registration.
 - `authorize.ts` — plan the `/authorize` step: validate the downstream client and redirect, then produce the upstream authorize URL.
-- `consent.ts` — the consent page and its cryptographic verification.
+- `consent.ts` — the consent / cancelled / error pages, plus the CSRF, transaction, and consent cookie plumbing (the consent cookie is signed and verified in `jwt.ts`).
 - `callback.ts` — handle the upstream wiki's callback, exchange the code, mint a downstream client code.
 - `token.ts` — the `/token` endpoint: authorization-code and refresh grants.
-- `jwt.ts` — mint and verify the proxy's own access / refresh JWTs.
+- `jwt.ts` — mint and verify the proxy's own access / refresh JWTs, and sign / verify the consent cookie.
 - `cimd.ts` — client-id metadata documents: resolve a URL `client_id` into a client record, host-gated.
-- `redirectPolicy.ts` — redirect-URI matching and the registration-time host allowlist.
+- `redirectPolicy.ts` — redirect-URI matching and the registration-time redirect-URI allowlist (the CIMD *host* allowlist lives in `cimd.ts`).
 - `proxyStore.ts` — the in-memory store (clients, transactions, codes, upstream tokens).
 - `proxyStoreCrypto.ts` — encrypt and decrypt the persisted store.
 - `proxyStorePersistence.ts` — mirror the store to an encrypted file with write-through.
 
-## Shared with the transport layer
+## Shared
 
-`pageShell.ts` renders the HTML shell for the consent and error pages. Request-scoped state (`runtime/requestContext.ts`) and the auth-shape classifier (`runtime/authShape.ts`) live under `runtime/`, not here, because the transport uses them too.
+`pageShell.ts` renders the HTML shell used by both roles' user-facing pages — the proxy's consent / status pages and the stdio loopback login pages. Request-scoped state (`runtime/requestContext.ts`) and the auth-shape classifier (`runtime/authShape.ts`) live under `runtime/`, not here, because the transport layer uses them too.
