@@ -58,7 +58,7 @@
 		"bundle": "npm run build && node scripts/bundle.cjs",
 		"sync-manifests": "node scripts/sync-manifests.cjs",
 		"preversion": "npm run preflight",
-		"version": "node scripts/sync-manifests.cjs && node scripts/promote-changelog.cjs && git add server.json mcpb/manifest.json gemini-extension.json .claude-plugin/marketplace.json plugins/mediawiki-mcp-server/.claude-plugin/plugin.json .agents/plugins/marketplace.json plugins/mediawiki-mcp-server/.codex-plugin/plugin.json CHANGELOG.md"
+		"version": "node scripts/sync-manifests.cjs && node scripts/promote-changelog.cjs && git add server.json mcpb/manifest.json .claude-plugin/marketplace.json plugins/mediawiki-mcp-server/.claude-plugin/plugin.json .agents/plugins/marketplace.json plugins/mediawiki-mcp-server/.codex-plugin/plugin.json CHANGELOG.md"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.29.0",

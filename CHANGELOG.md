@@ -24,6 +24,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Changed
 
 - Hosted OAuth proxy: sign-in state now survives server restarts and deploys. Registered clients and upstream tokens are persisted to a local, encrypted file, so users are no longer signed out on every upgrade. In Docker, mount a volume at the store path (`/app/data`); see the deployment guide.
+- The documented install configurations and one-click install badges now pass `-y` to npx, matching the bundled plugin manifests. This avoids an install-confirmation step for anyone whose npm is configured to require one.
+
+### Removed
+
+- The Gemini CLI extension has been retired. Gemini CLI stopped serving consumer Google AI tiers in June 2026; use Antigravity instead, which offers to import an existing Gemini CLI configuration. If your licence keeps Gemini CLI (for example a Code Assist Standard or Enterprise licence), add the standard configuration to its `~/.gemini/settings.json` instead.
 
 ### Fixed
 

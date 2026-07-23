@@ -175,88 +175,11 @@ The Cargo tools (`cargo-query`, `cargo-list-tables`, `cargo-describe-table`) cal
 
 ## Installation
 
-<details>
-<summary><b>Install in Claude Desktop</b></summary>
+Pick your client below, or use the [standard configuration](#standard-configuration) if it is not listed. `CONFIG` is optional; without it the server targets English Wikipedia. To point it at your own wiki and set up authentication for writes, see [docs/configuration.md](docs/configuration.md).
 
-Follow the [guide](https://modelcontextprotocol.io/quickstart/user) and use the following configuration:
+### Claude Code
 
-```json
-{
-  "mcpServers": {
-    "mediawiki-mcp-server": {
-      "command": "npx",
-      "args": [
-        "@professional-wiki/mediawiki-mcp-server@latest"
-      ],
-      "env": {
-        "CONFIG": "path/to/config.json"
-      }
-    }
-  }
-}
-```
-</details>
-
-<details><summary><b>Install in VS Code</b></summary>
-
-[![Install in VS Code](https://img.shields.io/badge/Add%20to-VS%20Code-blue?style=for-the-badge&labelColor=%230e1116&color=%234076b5)](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522mediawiki-mcp-server%2522%252C%2522command%2522%253A%2522npx%2522%252C%2522args%2522%253A%255B%2522%2540professional-wiki%252Fmediawiki-mcp-server%2540latest%2522%255D%257D)
-[![Install in VS Code Insiders](https://img.shields.io/badge/Add%20to-VS%20Code%20Insiders-blue?style=for-the-badge&labelColor=%230e1116&color=%234f967e)](https://insiders.vscode.dev/redirect?url=vscode-insiders%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522mediawiki-mcp-server%2522%252C%2522command%2522%253A%2522npx%2522%252C%2522args%2522%253A%255B%2522%2540professional-wiki%252Fmediawiki-mcp-server%2540latest%2522%255D%257D)
-
-```bash
-code --add-mcp '{"name":"mediawiki-mcp-server","command":"npx","args":["@professional-wiki/mediawiki-mcp-server@latest"]}'
-```
-</details>
-
-<details>
-<summary><b>Install in Cursor</b></summary>
-
-[![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=mediawiki-mcp-server&config=eyJjb21tYW5kIjoibnB4IEBwcm9mZXNzaW9uYWwtd2lraS9tZWRpYXdpa2ktbWNwLXNlcnZlckBsYXRlc3QifQ%3D%3D)
-
-Go to `Cursor Settings` -> `MCP` -> `Add new MCP Server`. Name it to your liking, and use `command` type with the command `npx @professional-wiki/mediawiki-mcp-server`.
-
-```json
-{
-  "mcpServers": {
-    "mediawiki-mcp-server": {
-      "command": "npx",
-      "args": [
-        "@professional-wiki/mediawiki-mcp-server@latest"
-      ],
-      "env": {
-        "CONFIG": "path/to/config.json"
-      }
-    }
-  }
-}
-```
-</details>
-
-<details>
-<summary><b>Install in Windsurf</b></summary>
-
-Follow the [guide](https://docs.windsurf.com/windsurf/cascade/mcp) and use the following configuration:
-
-```json
-{
-  "mcpServers": {
-    "mediawiki-mcp-server": {
-      "command": "npx",
-      "args": [
-        "@professional-wiki/mediawiki-mcp-server@latest"
-      ],
-      "env": {
-        "CONFIG": "path/to/config.json"
-      }
-    }
-  }
-}
-```
-</details>
-
-<details>
-<summary><b>Install in Claude Code</b></summary>
-
-Install it as a plugin. Add this repository as a plugin marketplace, then install the bundled server:
+Add this repository as a plugin marketplace, then install the bundled server:
 
 ```
 /plugin marketplace add ProfessionalWiki/MediaWiki-MCP-Server
@@ -265,32 +188,15 @@ Install it as a plugin. Add this repository as a plugin marketplace, then instal
 
 When installed as a plugin, the tools are namespaced `mcp__plugin_mediawiki-mcp-server_mediawiki__<tool>`; update any tool allowlists or hooks accordingly.
 
-Or configure the server directly by following the [Claude Code MCP docs](https://docs.anthropic.com/en/docs/claude-code/mcp), optionally with `-e` flags to specify environment variables.
+To configure the server directly instead, see the [Claude Code MCP docs](https://docs.anthropic.com/en/docs/claude-code/mcp). The short version:
 
 ```bash
-claude mcp add mediawiki-mcp-server npx @professional-wiki/mediawiki-mcp-server@latest
+claude mcp add mediawiki-mcp-server -- npx -y @professional-wiki/mediawiki-mcp-server@latest
+# Environment variables go before the `--`:
+claude mcp add mediawiki-mcp-server -e CONFIG=path/to/config.json -- npx -y @professional-wiki/mediawiki-mcp-server@latest
 ```
 
-You should end up with something like the below in your `.claude.json` config:
-
-```json
-"mcpServers": {
-  "mediawiki-mcp-server": {
-    "type": "stdio",
-    "command": "npx",
-    "args": [
-      "@professional-wiki/mediawiki-mcp-server@latest"
-    ],
-    "env": {
-      "CONFIG": "path/to/config.json"
-    }
-  }
-},
-```
-</details>
-
-<details>
-<summary><b>Install in Codex</b></summary>
+### Codex
 
 Add this repository as a plugin marketplace, then install the bundled server:
 
@@ -300,35 +206,62 @@ codex plugin add mediawiki-mcp-server@professional-wiki
 ```
 
 See the [Codex plugins documentation](https://developers.openai.com/codex/plugins) for how to list, update, or remove plugins.
-</details>
 
-<details>
-<summary><b>Install in Gemini CLI</b></summary>
+### Claude Desktop
 
-Run:
+Download [MediaWiki-MCP-Server.mcpb](https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/releases/latest/download/MediaWiki-MCP-Server.mcpb) and double-click it to install the extension, which prompts for a configuration file path so you can point it at your own wiki instead of English Wikipedia.
 
-```bash
-gemini extensions install https://github.com/ProfessionalWiki/MediaWiki-MCP-Server
+### VS Code and Cursor
+
+[![Install in VS Code](https://img.shields.io/badge/Add%20to-VS%20Code-blue?style=for-the-badge&labelColor=%230e1116&color=%234076b5)](https://insiders.vscode.dev/redirect/mcp/install?name=mediawiki-mcp-server&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40professional-wiki%2Fmediawiki-mcp-server%40latest%22%5D%7D)
+[![Install in VS Code Insiders](https://img.shields.io/badge/Add%20to-VS%20Code%20Insiders-blue?style=for-the-badge&labelColor=%230e1116&color=%234f967e)](https://insiders.vscode.dev/redirect/mcp/install?name=mediawiki-mcp-server&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40professional-wiki%2Fmediawiki-mcp-server%40latest%22%5D%7D&quality=insiders)
+[![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=mediawiki-mcp-server&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIkBwcm9mZXNzaW9uYWwtd2lraS9tZWRpYXdpa2ktbWNwLXNlcnZlckBsYXRlc3QiXX0%3D)
+
+Or add the [standard configuration](#standard-configuration) by hand.
+
+### Antigravity
+
+Add the [standard configuration](#standard-configuration) to Antigravity's MCP config, either globally in `~/.gemini/config/mcp_config.json` or per-workspace in `.agents/mcp_config.json`.
+
+If you previously installed the Gemini CLI extension, Antigravity's setup wizard offers to import your existing Gemini CLI configuration.
+
+### OpenCode
+
+OpenCode uses its own configuration shape rather than `mcpServers`; add this to `opencode.json` in your project root, or `~/.config/opencode/opencode.json` for a global install.
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "mediawiki-mcp-server": {
+      "type": "local",
+      "command": ["npx", "-y", "@professional-wiki/mediawiki-mcp-server@latest"],
+      "environment": {
+        "CONFIG": "path/to/config.json"
+      }
+    }
+  }
+}
 ```
 
-This installs the extension from the latest GitHub Release. To pin a specific version, append `--ref=<tag>` (for example `--ref=v0.6.5`).
+### Standard configuration
 
-See the [Gemini CLI extensions documentation](https://github.com/google-gemini/gemini-cli/tree/main/docs/extensions) for how to update, list, or uninstall extensions.
-</details>
+Most clients read the same server block. Paste it into the file listed for your client, replacing `mcpServers` with that client's root key:
 
-<details>
-<summary><b>Install in Antigravity</b></summary>
-
-Add the server to Antigravity's MCP config, either globally in `~/.gemini/config/mcp_config.json` or per-workspace in `.agents/mcp_config.json`:
+| Client | Configuration file | Root key |
+| --- | --- | --- |
+| Cursor | `~/.cursor/mcp.json`, or `.cursor/mcp.json` per project | `mcpServers` |
+| VS Code | `.vscode/mcp.json` per workspace, or the **MCP: Open User Configuration** command | `servers` |
+| Devin Desktop (formerly Windsurf) | `~/.codeium/windsurf/mcp_config.json` | `mcpServers` |
+| Zed | `~/.config/zed/settings.json` | `context_servers` |
+| LM Studio | `~/.lmstudio/mcp.json` | `mcpServers` |
 
 ```json
 {
   "mcpServers": {
     "mediawiki-mcp-server": {
       "command": "npx",
-      "args": [
-        "@professional-wiki/mediawiki-mcp-server@latest"
-      ],
+      "args": ["-y", "@professional-wiki/mediawiki-mcp-server@latest"],
       "env": {
         "CONFIG": "path/to/config.json"
       }
@@ -337,8 +270,7 @@ Add the server to Antigravity's MCP config, either globally in `~/.gemini/config
 }
 ```
 
-Antigravity does not read Gemini CLI extensions, so it is configured separately from the Gemini CLI install above.
-</details>
+For any other client, `npx add-mcp @professional-wiki/mediawiki-mcp-server` may work: [add-mcp](https://github.com/neon-solutions/add-mcp) is a community CLI that writes your client's configuration file for you. It sets the launch command only; add `CONFIG` yourself to point at your own wiki.
 
 ## Deployment
 

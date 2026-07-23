@@ -10,13 +10,12 @@ For contributors adding an install channel, editing a plugin manifest, or testin
 | MCP registry entry | `server.json` |
 | `.mcpb` bundle | `mcpb/manifest.json` |
 | Docker image | `Dockerfile` |
-| Gemini CLI extension | `gemini-extension.json` |
 | Claude Code plugin | `.claude-plugin/marketplace.json` and the plugin directory |
 | Codex plugin | `.agents/plugins/marketplace.json` and the plugin directory |
 
-Every extension and plugin manifest is a wrapper that launches the published npm package with `npx`. The `.mcpb` bundle and the Docker image each ship their own build instead.
+Every plugin manifest is a wrapper that launches the published npm package with `npx`. The `.mcpb` bundle and the Docker image each ship their own build instead.
 
-Commit a manifest for a client only when that client installs plugins from a repository. For any other client, add a copy-paste `npx` snippet to the README install section and commit no file.
+Commit a manifest for a client only when that client installs plugins from a repository. For any other client, add it to the README install section and commit no file.
 
 ## Plugin layout
 
@@ -48,7 +47,6 @@ Keep `.mcp.json` inside the plugin directory. Claude Code loads a repository-roo
 | --- | --- |
 | `server.json` | `version`, `description` |
 | `mcpb/manifest.json` | `version`, `keywords`, `author`, `homepage`, `license` |
-| `gemini-extension.json` | `version`, `description` |
 | `.claude-plugin/marketplace.json` | `plugins[0].description` |
 | `.agents/plugins/marketplace.json` | `plugins[0].description` |
 | `plugins/mediawiki-mcp-server/.claude-plugin/plugin.json` | `version`, `description`, `keywords`, `author`, `homepage`, `license` |
