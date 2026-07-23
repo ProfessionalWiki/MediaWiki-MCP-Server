@@ -1,5 +1,5 @@
 import type { Config } from '../config/loadConfig.js';
-import { getRuntimeToken } from '../transport/requestContext.js';
+import { getRuntimeToken } from '../runtime/requestContext.js';
 import { WikiRegistryImpl, type WikiRegistry } from './wikiRegistry.js';
 import { ActiveWikiImpl, type ActiveWiki } from './activeWiki.js';
 import { UploadDirsImpl, type UploadDirs } from './uploadDirs.js';

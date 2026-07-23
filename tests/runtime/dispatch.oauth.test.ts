@@ -9,7 +9,7 @@ import { fakeContext } from '../helpers/fakeContext.js';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.js';
 import { fakeBrowserDriver } from '../helpers/fakeBrowserDriver.js';
 import { useTempTokenStore } from '../helpers/tempTokenStore.js';
-import { getRequestWiki, getRuntimeToken } from '../../src/transport/requestContext.js';
+import { getRequestWiki, getRuntimeToken } from '../../src/runtime/requestContext.js';
 import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.js';
 import { _resetBrowserAuthDedupForTesting } from '../../src/auth/browserAuth.js';
 import { _resetRefreshDedupForTesting } from '../../src/auth/tokenRefresh.js';

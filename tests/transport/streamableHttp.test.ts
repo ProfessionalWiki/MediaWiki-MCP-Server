@@ -10,7 +10,6 @@ import {
 	handleListenError,
 	payloadTooLargeHandler,
 	resolveMcpHostValidation,
-	withRequestContext,
 } from '../../src/transport/streamableHttp.js';
 import {
 	createInFlightCounter,
@@ -18,7 +17,11 @@ import {
 	markSessionIdle,
 	type SessionRegistry,
 } from '../../src/transport/sessionRegistry.js';
-import { getRuntimeToken, getSessionId } from '../../src/transport/requestContext.js';
+import {
+	getRuntimeToken,
+	getSessionId,
+	withRequestContext,
+} from '../../src/runtime/requestContext.js';
 import { logger } from '../../src/runtime/logger.js';
 
 describe('handleListenError', () => {

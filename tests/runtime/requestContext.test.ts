@@ -6,7 +6,7 @@ import {
 	getSessionId,
 	withRequestContext,
 	withRequestFields,
-} from '../../src/transport/requestContext.js';
+} from '../../src/runtime/requestContext.js';
 
 describe('requestContext', () => {
 	it('returns undefined outside a run', () => {

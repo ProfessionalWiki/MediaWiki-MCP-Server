@@ -3,7 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
 import type { Tool } from '../../src/runtime/tool.js';
 import { fakeContext } from '../helpers/fakeContext.js';
-import { getRequestWiki } from '../../src/transport/requestContext.js';
+import { getRequestWiki } from '../../src/runtime/requestContext.js';
 import { updatePage } from '../../src/tools/update-page.js';
 import { getPage } from '../../src/tools/get-page.js';
 import { cargoQuery } from '../../src/tools/extensions/cargo/cargo-query.js';
