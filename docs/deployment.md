@@ -1,7 +1,7 @@
 # Deployment
 
 > [!WARNING]
-> **Experimental: work in progress.** Hosting the server for other people is supported for **one wiki at a time**; multi-wiki hosted deployments are on the roadmap. Do not expose the server to mutually untrusted users with a shared `config.json` token or bot password. That collapses every caller into one wiki identity, with no audit trail and no per-user rate limits. The sign-in setup below avoids that.
+> **Experimental: work in progress.** Hosting the server for other people is supported for **one wiki at a time**. Do not expose the server to mutually untrusted users with a shared `config.json` token or bot password. That collapses every caller into one wiki identity, with no audit trail and no per-user rate limits. The sign-in setup below avoids that.
 
 This guide is for administrators running the MediaWiki MCP Server as a **shared HTTP endpoint** that other people (and their AI clients) reach over the network. If you only want the server for yourself, install it locally with the default stdio transport instead; see the [README](../README.md#installation).
 
@@ -61,8 +61,6 @@ How sign-in is triggered depends on the wiki:
 
 - **Public wiki:** reads work without signing in; the client is prompted to sign in only when a write needs authentication.
 - **Private wiki** (`private: true`): nothing is readable anonymously, so the client is challenged to sign in the moment it connects rather than failing on the first tool call.
-
-[How the proxy works](#how-the-proxy-works) covers exactly how each challenge is issued.
 
 Set it up in five steps.
 

@@ -178,7 +178,7 @@ The Cargo tools (`cargo-query`, `cargo-list-tables`, `cargo-describe-table`) cal
 <details>
 <summary><b>Install in Claude Desktop</b></summary>
 
-Follow the [guide](https://modelcontextprotocol.io/quickstart/user), use following configuration:
+Follow the [guide](https://modelcontextprotocol.io/quickstart/user) and use the following configuration:
 
 ```json
 {
@@ -212,7 +212,7 @@ code --add-mcp '{"name":"mediawiki-mcp-server","command":"npx","args":["@profess
 
 [![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=mediawiki-mcp-server&config=eyJjb21tYW5kIjoibnB4IEBwcm9mZXNzaW9uYWwtd2lraS9tZWRpYXdpa2ktbWNwLXNlcnZlckBsYXRlc3QifQ%3D%3D)
 
-Go to `Cursor Settings` -> `MCP` -> `Add new MCP Server`. Name to your liking, use `command` type with the command `npx @professional-wiki/mediawiki-mcp-server`. You can also verify config or add command like arguments via clicking `Edit`.
+Go to `Cursor Settings` -> `MCP` -> `Add new MCP Server`. Name it to your liking, and use `command` type with the command `npx @professional-wiki/mediawiki-mcp-server`.
 
 ```json
 {
@@ -234,7 +234,7 @@ Go to `Cursor Settings` -> `MCP` -> `Add new MCP Server`. Name to your liking, u
 <details>
 <summary><b>Install in Windsurf</b></summary>
 
-Follow the [guide](https://docs.windsurf.com/windsurf/cascade/mcp), use following configuration:
+Follow the [guide](https://docs.windsurf.com/windsurf/cascade/mcp) and use the following configuration:
 
 ```json
 {
