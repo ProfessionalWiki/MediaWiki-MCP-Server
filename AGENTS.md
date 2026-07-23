@@ -81,11 +81,13 @@ A PR that adds, removes, or renames an env var read by the server — or that ch
 
 ## Adding a client
 
-A client that just pastes the standard block gets a row in the `Client | Configuration file | Root key` table under "Standard configuration" in the README, not a `###` section; confirm the configuration file path and root key against the client's own current documentation first, since a wrong path costs a user a debugging session.
+A client that just pastes the standard configuration gets a row in the client table under "Standard configuration" in the README, not a `###` section by itself — though a client can have both, as Cursor and VS Code do, when it also needs install badges or other prose a row can't carry; confirm the configuration file path and root key against the client's own current documentation first, since a wrong path costs a user a debugging session.
 
 A client earns its own `###` section when its configuration shape differs from the standard `mcpServers` object, as OpenCode's `mcp` key does, or when it needs install-flow prose a table row cannot carry: plugin install commands, a bundle download, install badges, or more than one configuration file location. Antigravity is an example of the latter: its configuration shape is the standard one, but it needs two file locations plus a note about importing an existing Gemini CLI setup.
 
-Never add another copy of the launch configuration JSON: the standard configuration block exists once so that a change to the package name, flags, or environment variables needs only one edit.
+Never add another copy of the standard configuration block: it exists once so that a change to the package name, flags, or environment variables needs only one edit.
+
+Retiring or adding a committed install channel needs a `## [Unreleased]` entry in CHANGELOG.md; documenting a client that only pastes the standard configuration does not.
 
 See "Distribution" below for the channel map and the manifest contracts.
 

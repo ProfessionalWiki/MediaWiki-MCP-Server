@@ -209,7 +209,7 @@ See the [Codex plugins documentation](https://developers.openai.com/codex/plugin
 
 ### Claude Desktop
 
-Download [MediaWiki-MCP-Server.mcpb](https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/releases/latest/download/MediaWiki-MCP-Server.mcpb) and double-click it to install the extension.
+Download [MediaWiki-MCP-Server.mcpb](https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/releases/latest/download/MediaWiki-MCP-Server.mcpb) and double-click it to install the extension, which prompts for a configuration file path so you can point it at your own wiki instead of English Wikipedia.
 
 ### VS Code and Cursor
 
@@ -221,7 +221,7 @@ Download [MediaWiki-MCP-Server.mcpb](https://github.com/ProfessionalWiki/MediaWi
 
 Add the [standard configuration](#standard-configuration) to Antigravity's MCP config, either globally in `~/.gemini/config/mcp_config.json` or per-workspace in `.agents/mcp_config.json`.
 
-If you previously installed the Gemini CLI extension, Antigravity shares Gemini's `~/.gemini/` configuration namespace and can import an existing Gemini CLI setup.
+If you previously installed the Gemini CLI extension, Antigravity's setup wizard offers to import your existing Gemini CLI configuration.
 
 ### OpenCode
 

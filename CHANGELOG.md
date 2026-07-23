@@ -28,7 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Removed
 
-- The Gemini CLI extension has been retired. Gemini CLI stopped serving consumer Google AI tiers in June 2026; use Antigravity instead, which imports an existing Gemini CLI configuration.
+- The Gemini CLI extension has been retired. Gemini CLI stopped serving consumer Google AI tiers in June 2026; use Antigravity instead, which imports an existing Gemini CLI configuration. If your licence keeps Gemini CLI (Code Assist Standard or Enterprise), add the standard configuration to its `~/.gemini/settings.json` instead.
 
 ### Fixed
 
