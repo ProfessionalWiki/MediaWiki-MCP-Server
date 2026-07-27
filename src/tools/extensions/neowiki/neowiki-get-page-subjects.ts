@@ -24,7 +24,7 @@ interface SubjectData {
 	id?: string;
 	label?: string;
 	schema?: string;
-	statements?: Record<string, { type?: string; value?: unknown }>;
+	statements?: Record<string, { propertyType?: string; value?: unknown }>;
 }
 
 interface PageSubjectsResponse {

@@ -14,7 +14,7 @@ const inputSchema = {
 } as const;
 
 interface SubjectStatement {
-	type?: string;
+	propertyType?: string;
 	value?: unknown;
 }
 
@@ -77,7 +77,7 @@ export function flattenSubject(
 } {
 	const statements = Object.entries(subject.statements ?? {}).map(([property, statement]) => ({
 		property,
-		type: typeof statement.type === 'string' ? statement.type : '',
+		type: typeof statement.propertyType === 'string' ? statement.propertyType : '',
 		value: statement.value,
 	}));
 	return {
