@@ -1,4 +1,4 @@
-import type { CallToolResult, TextContent } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, TextContent } from '@modelcontextprotocol/server';
 import type { ErrorEnvelope } from '../results/schemas.js';
 import type { ErrorCategory } from '../errors/classifyError.js';
 import { formatPayload } from './format.js';
@@ -19,8 +19,7 @@ export function structuredResult(data: unknown): CallToolResult {
 		content: [{ type: 'text', text: formatPayload(data) } as TextContent],
 		// structuredContent mirrors the typed payload so the dispatcher can detect
 		// truncation via the `truncation` field without reparsing the rendered text.
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP structuredContent shape; constructed from typed inputs
-		structuredContent: data as Record<string, unknown>,
+		structuredContent: data,
 	};
 }
 

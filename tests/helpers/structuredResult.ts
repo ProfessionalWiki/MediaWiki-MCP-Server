@@ -1,5 +1,5 @@
 import { expect } from 'vitest';
-import type { CallToolResult, TextContent } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, TextContent } from '@modelcontextprotocol/server';
 import { ErrorEnvelopeSchema, type ErrorEnvelope } from '../../src/results/schemas.js';
 
 // Tool responses ride entirely in content[0].text. Successful responses carry

@@ -1,6 +1,6 @@
 // tests/runtime/dispatch.oauth.test.ts
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 import type { ToolContext } from '../../src/runtime/context.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';

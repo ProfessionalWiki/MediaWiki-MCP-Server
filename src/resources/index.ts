@@ -1,6 +1,5 @@
-import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { Resource } from '@modelcontextprotocol/sdk/types.js';
+import { ResourceTemplate } from '@modelcontextprotocol/server';
+import type { McpServer, Resource } from '@modelcontextprotocol/server';
 import type { ToolContext } from '../runtime/context.js';
 import type { WikiConfig, PublicWikiConfig } from '../config/loadConfig.js';
 import { WIKI_RESOURCE_URI_PREFIX } from '../runtime/constants.js';
@@ -32,7 +31,7 @@ export function registerAllResources(server: McpServer, ctx: ToolContext): void 
 		},
 	});
 
-	server.resource('wikis', resourceTemplate, async (uri, variables) => {
+	server.registerResource('wikis', resourceTemplate, {}, async (uri, variables) => {
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP ResourceTemplate variables typed as string|string[]; URI template guarantees a single string
 		const wikiKey = variables.wikiKey as string;
 		const wikiConfig = ctx.wikis.get(wikiKey);

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import { emitTelemetryEvent } from './logger.js';
 import { recordToolCall } from './metrics.js';
 import type { ErrorCategory } from '../errors/classifyError.js';
@@ -76,7 +76,7 @@ export function parseEnvelope(text: string | undefined): ParsedEnvelope {
 export function detectTruncation(result: CallToolResult): boolean {
 	const sc = result.structuredContent;
 	if (sc !== undefined && sc !== null && typeof sc === 'object') {
-		return 'truncation' in (sc as Record<string, unknown>);
+		return 'truncation' in sc;
 	}
 	return false;
 }

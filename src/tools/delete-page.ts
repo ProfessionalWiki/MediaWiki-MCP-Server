@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
 import type { ApiDeleteResponse } from 'mwn';
 import type { ApiDeleteParams } from 'types-mediawiki-api';
 import type { Tool } from '../runtime/tool.js';

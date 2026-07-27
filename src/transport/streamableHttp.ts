@@ -7,12 +7,13 @@ import express, {
 	type Request,
 	type Response,
 } from 'express';
+import { isInitializeRequest } from '@modelcontextprotocol/server';
+import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
 import {
 	hostHeaderValidation,
 	localhostHostValidation,
-} from '@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+	originValidation,
+} from '@modelcontextprotocol/express';
 import { evaluateBearerGuard } from './bearerGuard.js';
 import { hasStaticCredentials } from '../runtime/authShape.js';
 import { LOCALHOST_HOSTS, resolveHttpConfig } from './httpConfig.js';
@@ -90,6 +91,41 @@ export function resolveMcpHostValidation(
 		);
 	}
 	return undefined;
+}
+
+// MCP_ALLOWED_ORIGINS is configured as full origins (`https://wiki.example.org`),
+// but the SDK's Origin middleware matches on hostname alone. Reduce each entry to
+// its hostname so existing configuration keeps working untouched. A value that is
+// not a parseable URL is taken to be a bare hostname already, lowercased to match
+// how the URL parser normalises one. IPv6 keeps its brackets (`[::1]`), which is
+// the form the middleware expects.
+export function toOriginHostnames(allowedOrigins: readonly string[]): string[] {
+	const hostnames = new Set<string>();
+	for (const entry of allowedOrigins) {
+		const trimmed = entry.trim();
+		if (trimmed === '') {
+			continue;
+		}
+		try {
+			hostnames.add(new URL(trimmed).hostname);
+		} catch {
+			hostnames.add(trimmed.toLowerCase());
+		}
+	}
+	return [...hostnames];
+}
+
+// Origin validation runs as Express middleware on /mcp, mirroring how Host-header
+// validation is mounted. An absent allowlist leaves it off, which is the same
+// policy the transport option it replaced applied.
+export function resolveMcpOriginValidation(
+	allowedOrigins: string[] | undefined,
+): RequestHandler | undefined {
+	if (!allowedOrigins) {
+		return undefined;
+	}
+	const hostnames = toOriginHostnames(allowedOrigins);
+	return hostnames.length > 0 ? originValidation(hostnames) : undefined;
 }
 
 // Handles a fatal error from app.listen — a failed bind (EADDRINUSE / EACCES) or
@@ -308,7 +344,6 @@ export async function resolveUpstreamBearer(
 }
 
 export interface McpPostHandlerOptions {
-	allowedOrigins?: string[];
 	wikiRegistry?: WikiRegistry;
 	idleTimeoutMs?: number;
 	// When the hosted OAuth proxy is enabled, the /mcp bearer is a proxy-minted
@@ -375,7 +410,6 @@ export function createMcpPostHandler(
 	options: McpPostHandlerOptions = {},
 ): RequestHandler {
 	const {
-		allowedOrigins,
 		wikiRegistry,
 		idleTimeoutMs = 0,
 		getProxyConfig,
@@ -444,7 +478,7 @@ export function createMcpPostHandler(
 				return;
 			}
 		}
-		let transport: StreamableHTTPServerTransport;
+		let transport: NodeStreamableHTTPServerTransport;
 
 		if (sessionId && sessions[sessionId]) {
 			transport = sessions[sessionId].transport;
@@ -452,14 +486,12 @@ export function createMcpPostHandler(
 			// request now and release it when the response closes.
 			markSessionActive(sessions, sessionId);
 		} else if (!sessionId && isInitializeRequest(req.body)) {
-			transport = new StreamableHTTPServerTransport({
+			transport = new NodeStreamableHTTPServerTransport({
 				sessionIdGenerator: () => randomUUID(),
-				// The SDK transport's Origin check is gated behind this flag.
-				// Host-header validation stays in Express middleware upstream, so
-				// we don't pass allowedHosts here (that inner check no-ops when
-				// _allowedHosts is undefined, regardless of the flag).
-				enableDnsRebindingProtection: allowedOrigins !== undefined,
-				allowedOrigins,
+				// Host-header and Origin validation both run as Express middleware
+				// upstream of this handler, so no DNS-rebinding options are passed
+				// here — the transport's own copies are deprecated in favour of
+				// exactly that arrangement.
 				// onsessioninitialized fires during handleRequest below — the only
 				// point where the registry entry and transport.sessionId both
 				// exist. Seed activeRequests to 1 so the init POST counts as
@@ -789,6 +821,17 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		app.use('/mcp', hostValidation);
 	}
 
+	// Attached per route below rather than with app.use('/mcp', …), which would
+	// prefix-match and so also guard the authorization-server endpoints mounted
+	// under /mcp/register, /mcp/authorize, /mcp/consent, /mcp/oauth/callback and
+	// /mcp/token. Those are browser-facing: the consent form POSTs from the
+	// server's OWN origin, which an operator listing only their client origins
+	// would not have allowlisted, and the sign-in would 403 at the Approve click.
+	// Host-header validation above is prefix-mounted on purpose — it matches the
+	// server's own hostname, so it is correct for every route under /mcp.
+	const originCheck = resolveMcpOriginValidation(allowedOrigins);
+	const mcpOriginGuard: RequestHandler[] = originCheck ? [originCheck] : [];
+
 	if ((host === '0.0.0.0' || host === '::') && !allowedOrigins) {
 		logger.warning(
 			`Server is binding to ${host} without an Origin allowlist. ` +
@@ -810,8 +853,8 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 
 	app.post(
 		'/mcp',
+		...mcpOriginGuard,
 		createMcpPostHandler(sessions, createServerFn, {
-			allowedOrigins,
 			wikiRegistry: state.wikiRegistry,
 			idleTimeoutMs: sessionIdleTimeoutMs,
 			getProxyConfig,
@@ -819,8 +862,8 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 			defaultWikiKey,
 		}),
 	);
-	app.get('/mcp', sessionRequestHandler);
-	app.delete('/mcp', sessionRequestHandler);
+	app.get('/mcp', ...mcpOriginGuard, sessionRequestHandler);
+	app.delete('/mcp', ...mcpOriginGuard, sessionRequestHandler);
 
 	app.get('/health', (_req: Request, res: Response) => {
 		res.status(200).json({ status: 'ok' });

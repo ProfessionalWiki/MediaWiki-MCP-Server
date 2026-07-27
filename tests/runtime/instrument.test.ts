@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createHash } from 'node:crypto';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 
 vi.mock('../../src/runtime/metrics.js', () => ({
 	recordToolCall: vi.fn(),
 }));
-
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import {
 	detectTruncation,
 	emitToolCall,

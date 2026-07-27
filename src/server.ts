@@ -1,4 +1,5 @@
-import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
+import type { RegisteredTool } from '@modelcontextprotocol/server';
 import { createRequire } from 'node:module';
 import { registerServer, unregisterServer } from './runtime/logger.js';
 import { registerAllTools } from './tools/index.js';

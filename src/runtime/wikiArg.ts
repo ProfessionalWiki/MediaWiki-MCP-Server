@@ -21,15 +21,19 @@ export function isWikiScoped(tool: { wikiScoped?: boolean }): boolean {
 }
 
 // Returns the schema a tool should be registered with: wiki-scoped tools get
-// the shared `wiki` field merged in; others are returned unchanged. Only the
+// the shared `wiki` field merged in; others are wrapped as-is. Only the
 // `inputSchema`/`wikiScoped` slice of the descriptor is needed, so the
 // parameter is narrowed to avoid the generic-variance issues of `Tool<...>`.
+//
+// Descriptors declare `inputSchema` as a raw shape, but `registerTool` takes a
+// Standard Schema object, so the `z.object()` wrap happens here — the one place
+// every tool's shape passes through on its way to registration.
 export function buildToolInputSchema(tool: {
 	readonly inputSchema: ZodRawShape;
 	readonly wikiScoped?: boolean;
-}): ZodRawShape {
+}): z.ZodObject<ZodRawShape> {
 	if (!isWikiScoped(tool)) {
-		return tool.inputSchema;
+		return z.object(tool.inputSchema);
 	}
-	return { ...tool.inputSchema, wiki: wikiArgSchema };
+	return z.object({ ...tool.inputSchema, wiki: wikiArgSchema });
 }

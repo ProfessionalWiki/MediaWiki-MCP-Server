@@ -1,5 +1,5 @@
 import type { Server as HttpServer } from 'node:http';
-import type { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import type { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
 import { emitTelemetryEvent, logger } from './logger.js';
 
 const DEFAULT_GRACE_MS = 10_000;
@@ -28,7 +28,7 @@ export interface InFlightCounterReader {
 export type ShutdownSessionRegistry = Record<
 	string,
 	{
-		readonly transport: Pick<StreamableHTTPServerTransport, 'close'>;
+		readonly transport: Pick<NodeStreamableHTTPServerTransport, 'close'>;
 	}
 >;
 

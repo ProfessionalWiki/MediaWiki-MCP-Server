@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import { dispatch } from '../../src/runtime/dispatcher.js';
 import { listWikis } from '../../src/tools/list-wikis.js';
 import { fakeContext } from '../helpers/fakeContext.js';

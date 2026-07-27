@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import type { ImageContent, TextContent } from '@modelcontextprotocol/sdk/types.js';
+import type { ImageContent, TextContent } from '@modelcontextprotocol/server';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 import { getFileData } from '../../src/tools/get-file-data.js';

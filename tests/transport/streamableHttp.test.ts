@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 import express, { type Express, type Request } from 'express';
 import request from 'supertest';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import {
 	createMcpPostHandler,
 	createSessionRequestHandler,
@@ -10,6 +10,8 @@ import {
 	handleListenError,
 	payloadTooLargeHandler,
 	resolveMcpHostValidation,
+	resolveMcpOriginValidation,
+	toOriginHostnames,
 } from '../../src/transport/streamableHttp.js';
 import {
 	createInFlightCounter,
@@ -293,7 +295,33 @@ describe('POST to an existing session (per-request bearer)', () => {
 	});
 });
 
-describe('origin validation (transport-level)', () => {
+describe('toOriginHostnames', () => {
+	it('reduces a configured origin to its hostname', () => {
+		expect(toOriginHostnames(['https://wiki.example.org'])).toEqual(['wiki.example.org']);
+	});
+
+	it('normalises the spellings that an exact-origin match used to reject', () => {
+		expect(
+			toOriginHostnames([
+				'https://wiki.example.org/',
+				'https://wiki.example.org/mcp',
+				'https://wiki.example.org:443',
+				'HTTPS://WIKI.EXAMPLE.ORG',
+				'wiki.example.org',
+			]),
+		).toEqual(['wiki.example.org']);
+	});
+
+	it('keeps the brackets on an IPv6 loopback origin', () => {
+		expect(toOriginHostnames(['http://[::1]:3000'])).toEqual(['[::1]']);
+	});
+
+	it('skips blank entries', () => {
+		expect(toOriginHostnames(['', '   ', 'http://localhost:3000'])).toEqual(['localhost']);
+	});
+});
+
+describe('origin validation (middleware)', () => {
 	const initializeBody = {
 		jsonrpc: '2.0',
 		id: 1,
@@ -309,20 +337,29 @@ describe('origin validation (transport-level)', () => {
 		return new McpServer({ name: 'origin-test-server', version: '0.0.0' }, { capabilities: {} });
 	}
 
+	// Mirrors how buildApp mounts the guard: Origin validation is Express
+	// middleware on /mcp, ahead of the POST handler.
 	function buildApp(allowedOrigins: string[] | undefined): Express {
 		const app = express();
 		app.use(express.json());
+		const originCheck = resolveMcpOriginValidation(allowedOrigins);
+		if (originCheck) {
+			app.use('/mcp', originCheck);
+		}
 		const sessions: SessionRegistry = {};
-		app.post('/mcp', createMcpPostHandler(sessions, stubCreateServer, { allowedOrigins }));
+		app.post('/mcp', createMcpPostHandler(sessions, stubCreateServer, {}));
 		return app;
 	}
 
+	function post(app: Express, origin?: string): request.Test {
+		const req = request(app).post('/mcp').set('Accept', 'application/json, text/event-stream');
+		return origin === undefined
+			? req.send(initializeBody)
+			: req.set('Origin', origin).send(initializeBody);
+	}
+
 	it('returns 403 with a JSON-RPC error body when the Origin header is not in the allowlist', async () => {
-		const res = await request(buildApp(['http://good.example']))
-			.post('/mcp')
-			.set('Accept', 'application/json, text/event-stream')
-			.set('Origin', 'http://evil.example')
-			.send(initializeBody);
+		const res = await post(buildApp(['http://good.example']), 'http://evil.example');
 		expect(res.status).toBe(403);
 		expect(res.body?.jsonrpc).toBe('2.0');
 		expect(res.body?.id).toBeNull();
@@ -332,28 +369,30 @@ describe('origin validation (transport-level)', () => {
 	});
 
 	it('does not reject when the Origin header matches an allowlist entry', async () => {
-		const res = await request(buildApp(['http://good.example']))
-			.post('/mcp')
-			.set('Accept', 'application/json, text/event-stream')
-			.set('Origin', 'http://good.example')
-			.send(initializeBody);
+		const res = await post(buildApp(['http://good.example']), 'http://good.example');
 		expect(res.status).not.toBe(403);
 	});
 
+	// The match is on hostname, so a different port or scheme on an allowed host
+	// passes where the previous exact-origin comparison would have rejected it.
+	it('accepts another port on an allowlisted host', async () => {
+		const res = await post(buildApp(['https://good.example']), 'https://good.example:8443');
+		expect(res.status).not.toBe(403);
+	});
+
+	it('rejects an Origin header that cannot be parsed', async () => {
+		const res = await post(buildApp(['http://good.example']), 'not-a-url');
+		expect(res.status).toBe(403);
+		expect(res.body?.error?.message).toMatch(/origin/i);
+	});
+
 	it('does not reject on Origin when the allowlist is undefined', async () => {
-		const res = await request(buildApp(undefined))
-			.post('/mcp')
-			.set('Accept', 'application/json, text/event-stream')
-			.set('Origin', 'http://anything.example')
-			.send(initializeBody);
+		const res = await post(buildApp(undefined), 'http://anything.example');
 		expect(res.status).not.toBe(403);
 	});
 
 	it('does not reject on Origin when the header is absent', async () => {
-		const res = await request(buildApp(['http://good.example']))
-			.post('/mcp')
-			.set('Accept', 'application/json, text/event-stream')
-			.send(initializeBody);
+		const res = await post(buildApp(['http://good.example']));
 		expect(res.status).not.toBe(403);
 	});
 });
