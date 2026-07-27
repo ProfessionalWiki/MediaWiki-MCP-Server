@@ -13,7 +13,7 @@ const pageSubjectsBody = {
 				id: 'sMain',
 				label: 'Rijksmuseum',
 				schema: 'Museum',
-				statements: { Founded: { type: 'number', value: 1800 } },
+				statements: { Founded: { propertyType: 'number', value: 1800 } },
 			},
 			sChild: { id: 'sChild', label: 'Rijksmuseum 2024', schema: 'Attendance', statements: {} },
 		},
@@ -39,7 +39,12 @@ describe('neowiki-get-page-subjects', () => {
 			pageId: 65,
 			mainSubjectId: 'sMain',
 			subjects: [
-				{ id: 'sMain', isMain: true, schema: 'Museum' },
+				{
+					id: 'sMain',
+					isMain: true,
+					schema: 'Museum',
+					statements: [{ property: 'Founded', type: 'number', value: 1800 }],
+				},
 				{ id: 'sChild', isMain: false, schema: 'Attendance' },
 			],
 		});

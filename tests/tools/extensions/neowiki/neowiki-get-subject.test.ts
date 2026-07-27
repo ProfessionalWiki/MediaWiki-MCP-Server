@@ -15,7 +15,7 @@ describe('neowiki-get-subject', () => {
 							id: 's1demo1aaaaaaa1',
 							label: 'ACME Inc',
 							schema: 'Company',
-							statements: { Status: { type: 'select', value: ['o1demo1aaaaaaa1'] } },
+							statements: { Status: { propertyType: 'select', value: ['o1demo1aaaaaaa1'] } },
 						},
 					},
 				},

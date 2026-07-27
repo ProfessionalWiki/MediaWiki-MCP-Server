@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Breaking changes
+
+- Reading NeoWiki subjects now requires a wiki running NeoWiki from 2026-07-27 or later, when a Statement's property type was renamed to `propertyType` (ProfessionalWiki/NeoWiki#1169). This fixes `neowiki-get-subject` and `neowiki-get-page-subjects` reporting an empty type for every statement against an updated wiki, and requires one: against an earlier NeoWiki the type now reads as empty. Update the wiki before upgrading the server.
+
 ## [0.14.0] - 2026-07-23
 
 ### Breaking changes
