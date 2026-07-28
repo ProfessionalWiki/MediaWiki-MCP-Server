@@ -68,6 +68,8 @@ Adding a manifest to the sync takes three edits:
 - a `targets` entry in `scripts/sync-manifests.cjs`
 - the file added to the `git add` list in the `version` script in `package.json`, so the bump lands in the release commit
 
+The sync script checks that last edit was made, and stops on the first target missing from the `git add` list, because an unstaged manifest is synced on disk yet left out of the tag.
+
 ## Testing an install
 
 Both CLIs accept a local directory as a marketplace source, so an install can be exercised before publishing. From the repository root:

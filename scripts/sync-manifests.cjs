@@ -2,7 +2,9 @@
 'use strict';
 
 const fs = require('fs');
+const path = require('path');
 const {
+	ROOT_DIR,
 	PACKAGE_JSON_PATH,
 	SERVER_JSON_PATH,
 	MANIFEST_JSON_PATH,
@@ -103,6 +105,33 @@ function setPath(target, dottedPath, value) {
 function getPath(target, dottedPath) {
 	return dottedPath.split('.').reduce((node, key) => node[key], target);
 }
+
+// The `version` script in package.json stages these same files by name, and
+// nothing but this check ties the two lists together. A target absent from the
+// `git add` list fails quietly: the manifest is synced on disk but never
+// committed, so the tag ships the previous version and the release leaves the
+// working tree dirty. Fail before anything is written instead.
+function assertTargetsAreStaged() {
+	const versionScript = packageJson.scripts?.version ?? '';
+	const gitAddCommands = [...versionScript.matchAll(/(?:^|&&|;)[^\S\n]*git\s+add\s+([^&|;\n]+)/g)];
+	if (gitAddCommands.length === 0) {
+		throw new Error(
+			'package.json: the version script no longer runs `git add`, so a release would commit no synced manifest',
+		);
+	}
+
+	const staged = new Set(gitAddCommands.flatMap((match) => match[1].trim().split(/\s+/)));
+	for (const { file, label } of targets) {
+		const relativePath = path.relative(ROOT_DIR, file).split(path.sep).join('/');
+		if (!staged.has(relativePath)) {
+			throw new Error(
+				`${label}: '${relativePath}' is missing from the \`git add\` list in the version script in package.json`,
+			);
+		}
+	}
+}
+
+assertTargetsAreStaged();
 
 console.log(`Syncing distribution manifests to version ${metadata.version}...`);
 
