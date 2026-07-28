@@ -162,6 +162,41 @@ describe('loadConfigFromFile', () => {
 		});
 	});
 
+	describe('wiki keys', () => {
+		// Percent-encoding carries these through to a reachable resource URI.
+		it.each(['a/b', 'a?b', 'a#b', 'my wiki'])('accepts a wiki key containing %j', async (key) => {
+			setConfigFile({ defaultWiki: key, wikis: { [key]: baseWiki } });
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(Object.keys(loadConfigFromFile().wikis)).toEqual([key]);
+		});
+
+		it('throws when a wiki key begins with the resource URI prefix', async () => {
+			const key = 'mcp://wikis/x';
+			setConfigFile({ defaultWiki: key, wikis: { [key]: baseWiki } });
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(() => loadConfigFromFile()).toThrow(/cannot start with/);
+		});
+
+		it('throws when a wiki key is empty', async () => {
+			setConfigFile({ defaultWiki: '', wikis: { '': baseWiki } });
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(() => loadConfigFromFile()).toThrow(/cannot be empty/);
+		});
+
+		it('throws when a wiki key is not valid Unicode', async () => {
+			const key = 'a\ud800b';
+			setConfigFile({ defaultWiki: key, wikis: { [key]: baseWiki } });
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(() => loadConfigFromFile()).toThrow(/not valid Unicode/);
+		});
+
+		it('accepts a host:port key', async () => {
+			setConfigFile({ defaultWiki: 'localhost:8080', wikis: { 'localhost:8080': baseWiki } });
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(Object.keys(loadConfigFromFile().wikis)).toEqual(['localhost:8080']);
+		});
+	});
+
 	describe('MCP_OAUTH2_CLIENT_ID override', () => {
 		it('overrides the default wiki oauth2ClientId from the environment', async () => {
 			vi.stubEnv('MCP_OAUTH2_CLIENT_ID', 'env-client-id');

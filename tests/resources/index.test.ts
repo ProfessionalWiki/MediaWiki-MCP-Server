@@ -1,8 +1,17 @@
 import { describe, it, expect, vi } from 'vitest';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
+import {
+	createMcpHandler,
+	InMemoryServerEventBus,
+	McpServer,
+	ResourceNotFoundError,
+} from '@modelcontextprotocol/server';
+import type { ResourceTemplate } from '@modelcontextprotocol/server';
 import { registerAllResources } from '../../src/resources/index.js';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 import type { SiteInfo } from '../../src/wikis/siteInfoCache.js';
+import type { WikiConfig } from '../../src/config/loadConfig.js';
 
 function emptyCache() {
 	const map = new Map<string, SiteInfo>();
@@ -17,21 +26,64 @@ function emptyCache() {
 	};
 }
 
-function captureHandler(ctx: ReturnType<typeof fakeContext>) {
-	let handler!: (
-		uri: { toString: () => string },
-		vars: { wikiKey: string },
-	) => Promise<{
-		contents: Array<{ text: string }>;
-	}>;
+type ReadHandler = (
+	uri: { toString: () => string },
+	vars: { wikiKey: string },
+) => Promise<{
+	contents: Array<{ text: string }>;
+}>;
+
+function captureResource(ctx: ReturnType<typeof fakeContext>) {
+	let handler!: ReadHandler;
+	let template!: ResourceTemplate;
 	const fakeServer = {
-		registerResource: (_name: string, _template: unknown, _config: unknown, h: typeof handler) => {
+		registerResource: (_name: string, t: ResourceTemplate, _config: unknown, h: ReadHandler) => {
+			template = t;
 			handler = h;
 		},
 	};
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- minimal McpServer double for resource registration
 	registerAllResources(fakeServer as never, ctx);
-	return handler;
+	return { handler, template };
+}
+
+function captureHandler(ctx: ReturnType<typeof fakeContext>): ReadHandler {
+	return captureResource(ctx).handler;
+}
+
+// registerAllResources always supplies a list callback, and that callback
+// ignores the server context it is handed.
+async function listedUris(template: ResourceTemplate): Promise<string[]> {
+	// oxlint-disable-next-line typescript/no-non-null-assertion -- see above
+	const listed = await template.listCallback!({} as never);
+	return listed.resources.map((resource) => resource.uri);
+}
+
+// A context whose registry holds exactly the given keys, so a test can name a
+// key the shared fakeContext registry does not carry.
+function ctxWithWikis(keys: string[]) {
+	const config: WikiConfig = {
+		sitename: 'Test',
+		server: 'https://test.wiki',
+		articlepath: '/wiki',
+		scriptpath: '/w',
+	};
+	const registry: Record<string, WikiConfig> = {};
+	for (const key of keys) {
+		registry[key] = config;
+	}
+	return fakeContext({
+		mwn: async () =>
+			createMockMwn({ request: vi.fn().mockRejectedValue(new Error('down')) }) as never,
+		siteInfoCache: emptyCache() as never,
+		wikis: {
+			getAll: () => registry as never,
+			get: ((key: string) => (Object.hasOwn(registry, key) ? registry[key] : undefined)) as never,
+			add: vi.fn() as never,
+			remove: vi.fn() as never,
+			isManagementAllowed: () => false,
+		},
+	});
 }
 
 describe('wikis resource', () => {
@@ -141,5 +193,142 @@ describe('wikis resource', () => {
 		expect(payload.sitename).toBe('Secretive');
 		expect(payload.private).toBe(true);
 		expect(payload.readOnly).toBe(true);
+	});
+
+	it('rejects an unknown wiki with a resource-not-found error', async () => {
+		const handler = captureHandler(ctxWithWikis(['test-wiki']));
+
+		const error: unknown = await handler(
+			{ toString: () => 'mcp://wikis/typo-wiki' },
+			{ wikiKey: 'typo-wiki' },
+		).then(
+			() => undefined,
+			(err: unknown) => err,
+		);
+
+		expect(ResourceNotFoundError.isInstance(error)).toBe(true);
+		expect((error as ResourceNotFoundError).code).toBe(-32602);
+		expect((error as ResourceNotFoundError).data).toEqual({ uri: 'mcp://wikis/typo-wiki' });
+	});
+
+	it('carries the not-found error to the client as -32602 over the stateless HTTP path', async () => {
+		const bus = new InMemoryServerEventBus();
+		const handler = createMcpHandler(
+			() => {
+				const server = new McpServer(
+					{ name: 'resource-conformance-test', version: '0.0.0' },
+					{ capabilities: { resources: { listChanged: true } } },
+				);
+				registerAllResources(server, ctxWithWikis(['test-wiki']));
+				return Promise.resolve(server);
+			},
+			{ legacy: 'stateless', bus },
+		);
+		const client = new Client({ name: 'resource-conformance-test', version: '0.0.0' });
+		await client.connect(
+			new StreamableHTTPClientTransport(new URL('http://in-memory.test/mcp'), {
+				fetch: (url, init) => handler.fetch(new Request(url, init)),
+			}),
+		);
+
+		try {
+			const error: unknown = await client.readResource({ uri: 'mcp://wikis/typo-wiki' }).then(
+				() => undefined,
+				(err: unknown) => err,
+			);
+
+			expect((error as { code?: number }).code).toBe(-32602);
+			expect((error as { data?: unknown }).data).toEqual({ uri: 'mcp://wikis/typo-wiki' });
+		} finally {
+			await client.close();
+			await handler.close();
+		}
+	});
+
+	// A key the registry still admits, unlike one containing whitespace.
+	it('round-trips a wiki key that needs percent-encoding from the listing to a read', async () => {
+		const { handler, template } = captureResource(ctxWithWikis(['wiki-\u00fc']));
+
+		const [uri] = await listedUris(template);
+		expect(uri).toBe('mcp://wikis/wiki-%C3%BC');
+
+		const matched = template.uriTemplate.match(uri);
+		expect(matched).toEqual({ wikiKey: 'wiki-%C3%BC' });
+
+		const result = await handler({ toString: () => uri }, { wikiKey: 'wiki-%C3%BC' });
+		expect(JSON.parse(result.contents[0].text)).toMatchObject({ sitename: 'Test' });
+	});
+
+	// The ":" exception exists so the shipped default configuration's host:port
+	// keys keep their URIs. That is worth something only if those URIs still read,
+	// which rests on the SDK's template capture and on WHATWG URL normalisation —
+	// neither of them ours. Read every published URI back through a real client.
+	it('reads back every URI it publishes, whatever the key needs', async () => {
+		const keys = ['localhost:8080', 'wiki-\u00fc', '100%', 'a,b'];
+		const bus = new InMemoryServerEventBus();
+		const handler = createMcpHandler(
+			() => {
+				const server = new McpServer(
+					{ name: 'resource-roundtrip-test', version: '0.0.0' },
+					{ capabilities: { resources: { listChanged: true } } },
+				);
+				registerAllResources(server, ctxWithWikis(keys));
+				return Promise.resolve(server);
+			},
+			{ legacy: 'stateless', bus },
+		);
+		const client = new Client({ name: 'resource-roundtrip-test', version: '0.0.0' });
+		await client.connect(
+			new StreamableHTTPClientTransport(new URL('http://in-memory.test/mcp'), {
+				fetch: (url, init) => handler.fetch(new Request(url, init)),
+			}),
+		);
+
+		try {
+			const listed = await client.listResources();
+			expect(listed.resources).toHaveLength(keys.length);
+			expect(listed.resources.map((r) => r.uri)).toContain('mcp://wikis/localhost:8080');
+
+			for (const resource of listed.resources) {
+				const read = await client.readResource({ uri: resource.uri });
+				expect(read.contents).toHaveLength(1);
+				expect(read.contents[0].uri).toBe(resource.uri);
+			}
+		} finally {
+			await client.close();
+			await handler.close();
+		}
+	});
+
+	it('leaves a host:port key unencoded, as RFC 3986 permits ":" in a path segment', async () => {
+		const { template } = captureResource(ctxWithWikis(['localhost:8080']));
+
+		expect(await listedUris(template)).toEqual(['mcp://wikis/localhost:8080']);
+	});
+
+	it('rejects a URI whose key is not valid percent-encoding', async () => {
+		// A client that sends the "100%" key unescaped: decodeURIComponent throws
+		// URIError on the stray "%", which must not surface as an internal error.
+		const handler = captureHandler(ctxWithWikis(['100%']));
+
+		const error: unknown = await handler(
+			{ toString: () => 'mcp://wikis/100%' },
+			{ wikiKey: '100%' },
+		).then(
+			() => undefined,
+			(err: unknown) => err,
+		);
+
+		expect(ResourceNotFoundError.isInstance(error)).toBe(true);
+		expect((error as ResourceNotFoundError).data).toEqual({ uri: 'mcp://wikis/100%' });
+	});
+
+	it('reads the "100%" wiki through its encoded URI', async () => {
+		const { handler, template } = captureResource(ctxWithWikis(['100%']));
+
+		expect(await listedUris(template)).toEqual(['mcp://wikis/100%25']);
+
+		const result = await handler({ toString: () => 'mcp://wikis/100%25' }, { wikiKey: '100%25' });
+		expect(JSON.parse(result.contents[0].text)).toMatchObject({ sitename: 'Test' });
 	});
 });

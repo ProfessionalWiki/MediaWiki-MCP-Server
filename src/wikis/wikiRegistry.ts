@@ -1,4 +1,5 @@
 import type { WikiConfig } from '../config/loadConfig.js';
+import { wikiKeyProblem, wikiKeyProblemMessage } from '../runtime/wikiKey.js';
 
 export interface WikiRegistry {
 	getAll(): Readonly<Record<string, WikiConfig>>;
@@ -40,6 +41,10 @@ export class WikiRegistryImpl implements WikiRegistry {
 		// bracket notation, or otherwise alias an inherited member.
 		if (key === '__proto__' || key === 'prototype' || key === 'constructor') {
 			throw new Error(`Wiki key "${key}" is not allowed`);
+		}
+		const problem = wikiKeyProblem(key);
+		if (problem !== undefined) {
+			throw new Error(`Wiki key "${key}" is not allowed: it ${wikiKeyProblemMessage(problem)}`);
 		}
 		if (Object.hasOwn(this.wikis, key)) {
 			throw new DuplicateWikiKeyError(key);

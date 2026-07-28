@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from '../runtime/logger.js';
 import { errorMessage } from '../errors/isErrnoException.js';
+import { wikiKeyProblem, wikiKeyProblemMessage } from '../runtime/wikiKey.js';
 
 export interface WikiConfig {
 	/**
@@ -353,6 +354,10 @@ function resolveConfig(parsed: unknown): Config {
 	}
 	const wikis: Record<string, WikiConfig> = {};
 	for (const [key, rawWiki] of Object.entries(rawWikis)) {
+		const problem = wikiKeyProblem(key);
+		if (problem !== undefined) {
+			throw new Error(`Config error: wiki key "${key}" ${wikiKeyProblemMessage(problem)}`);
+		}
 		wikis[key] = resolveWiki(rawWiki, key);
 	}
 	applyOAuth2ClientIdOverride(wikis, defaultWiki);

@@ -1,4 +1,5 @@
 import { WIKI_RESOURCE_URI_PREFIX } from '../runtime/constants.js';
+import { decodeWikiKey } from '../runtime/wikiKey.js';
 
 export interface ParsedWikiUri {
 	wikiKey: string;
@@ -18,10 +19,18 @@ export function parseWikiResourceUri(uri: string): ParsedWikiUri {
 		);
 	}
 
-	const wikiKey = uri.slice(WIKI_RESOURCE_URI_PREFIX.length).trim();
+	const segment = uri.slice(WIKI_RESOURCE_URI_PREFIX.length).trim();
 
-	if (!wikiKey || wikiKey === '') {
+	if (!segment) {
 		throw new InvalidWikiResourceUriError('Invalid wiki resource URI. Wiki key cannot be empty.');
+	}
+
+	const wikiKey = decodeWikiKey(segment);
+
+	if (wikiKey === undefined) {
+		throw new InvalidWikiResourceUriError(
+			'Invalid wiki resource URI. Wiki key is not valid percent-encoding.',
+		);
 	}
 
 	return { wikiKey };
