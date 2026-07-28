@@ -13,8 +13,8 @@ import {
 	resolveMcpOriginValidation,
 	toOriginHostnames,
 } from '../../src/transport/streamableHttp.js';
+import { createInFlightCounter } from '../../src/transport/inFlight.js';
 import {
-	createInFlightCounter,
 	markSessionActive,
 	markSessionIdle,
 	type SessionRegistry,

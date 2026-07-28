@@ -27,13 +27,8 @@ import {
 	setProxyStoreStatsProvider,
 } from '../runtime/metrics.js';
 import { withRequestContext } from '../runtime/requestContext.js';
-import {
-	createInFlightCounter,
-	markSessionActive,
-	markSessionIdle,
-	type SessionRegistry,
-	type InFlightCounter,
-} from './sessionRegistry.js';
+import { createInFlightCounter, type InFlightCounter } from './inFlight.js';
+import { markSessionActive, markSessionIdle, type SessionRegistry } from './sessionRegistry.js';
 import { loadConfigFromFile, type WikiConfig } from '../config/loadConfig.js';
 import type { MwnProvider } from '../wikis/mwnProvider.js';
 import type { ActiveWiki } from '../wikis/activeWiki.js';
