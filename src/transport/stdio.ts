@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
+import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { logger } from '../runtime/logger.js';
 import { createServer } from '../server.js';
 import { emitStartupBanner } from '../runtime/banner.js';
@@ -20,17 +20,23 @@ async function main(): Promise<void> {
 			uploadDirs: state.uploadDirs,
 		},
 	);
-	const transport = new StdioServerTransport();
 	const ctx = createToolContext({ logger, state, transport: 'stdio' });
-	const server = await createServer(ctx);
 
-	await server.connect(transport);
+	// serveStdio owns the connection: the opening exchange pins the era, one
+	// instance from the factory serves the connection's lifetime, and on a
+	// modern-pinned connection the entry rewrites outbound change
+	// notifications onto its subscriptions/listen streams — so the default
+	// change publisher in createServer covers both eras here.
+	const handle = serveStdio((reqCtx) => createServer(ctx, reqCtx), {
+		onerror: (error) => logger.error(`stdio serving error: ${error.message}`),
+	});
+
 	// Stdio has no in-flight queue, so grace doesn't apply — log graceMs: 0
 	// to make that explicit in the shutdown event.
 	registerShutdownHandlers({
 		transport: 'stdio',
 		graceMs: 0,
-		stdioTransport: transport,
+		stdioTransport: handle,
 	});
 }
 
