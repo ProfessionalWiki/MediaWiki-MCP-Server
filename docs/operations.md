@@ -32,7 +32,7 @@ One line on server boot — a snapshot of the effective configuration that's saf
 ```
 
 - **`auth_shape`** — `anonymous`, `static-credential`, or `bearer-passthrough`.
-- **`host`, `port`, `allowed_hosts`, `allowed_origins`** — HTTP transport only. The two allowlists are also omitted when not configured.
+- **`host`, `port`, `allowed_hosts`, `allowed_origins`** — HTTP transport only. `allowed_hosts` is omitted when not configured. `allowed_origins` is always present: an empty array means every browser request is refused, not that the check is off.
 - **`upload_dirs_configured`** — `true` when `uploadDirs` (config) or `MCP_UPLOAD_DIRS` (env) is set. The actual paths are not logged.
 - **`max_request_body`** — HTTP transport only. The resolved `MCP_MAX_REQUEST_BODY` value.
 

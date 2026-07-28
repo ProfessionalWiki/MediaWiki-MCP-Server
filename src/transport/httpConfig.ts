@@ -2,7 +2,10 @@ export interface HttpConfig {
 	host: string;
 	port: number;
 	allowedHosts: string[] | undefined;
-	allowedOrigins: string[] | undefined;
+	// Always an array, never undefined: the Origin guard is mounted
+	// unconditionally, and an empty allowlist means "refuse every cross-origin
+	// request", which is the safe default rather than an absent control.
+	allowedOrigins: string[];
 	maxRequestBody: string;
 	warnings: string[];
 }
@@ -58,7 +61,14 @@ function defaultLocalhostOrigins(port: number): string[] {
 	return [`http://localhost:${port}`, `http://127.0.0.1:${port}`, `http://[::1]:${port}`];
 }
 
-function resolveAllowedOrigins(host: string, port: number): string[] | undefined {
+// The Origin allowlist: the operator's explicit list, or the loopback spellings
+// for a local bind. Any other bind gets an empty list, which refuses every
+// request carrying an Origin while leaving requests without one — every
+// non-browser MCP client — untouched. Nothing else is inferred: MCP_PUBLIC_URL
+// names this server's OAuth issuer, which in the usual topology is the wiki's
+// own host, and a host that serves user-editable JavaScript must not become a
+// browser-origin allowlist as a side effect of configuring sign-in.
+function resolveAllowedOrigins(host: string, port: number): string[] {
 	const raw = process.env.MCP_ALLOWED_ORIGINS;
 	if (raw !== undefined && raw !== '') {
 		const entries = raw
@@ -72,7 +82,7 @@ function resolveAllowedOrigins(host: string, port: number): string[] | undefined
 	if (LOCALHOST_HOSTS.includes(host)) {
 		return defaultLocalhostOrigins(port);
 	}
-	return undefined;
+	return [];
 }
 
 function resolveMaxRequestBody(): { value: string; warning?: string } {

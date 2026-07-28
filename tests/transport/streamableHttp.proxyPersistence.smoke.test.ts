@@ -73,7 +73,7 @@ function makeDeps(fakeAsUrl: string, store: ProxyStore, pc: ProxyConfig): BuildA
 		createServerFn: () => new McpServer({ name: 'smoke', version: '0.0.0' }, { capabilities: {} }),
 		host: '127.0.0.1',
 		allowedHosts: undefined,
-		allowedOrigins: undefined,
+		allowedOrigins: [],
 		maxRequestBody: '1mb',
 	};
 }

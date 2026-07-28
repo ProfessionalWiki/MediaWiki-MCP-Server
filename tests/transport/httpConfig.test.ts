@@ -136,14 +136,24 @@ describe('resolveHttpConfig', () => {
 			]);
 		});
 
-		it('is undefined when bound to 0.0.0.0 without MCP_ALLOWED_ORIGINS', () => {
+		// Empty, not absent: an empty allowlist refuses every cross-origin request,
+		// where an absent one used to mean the guard was never mounted.
+		it('is empty when bound to 0.0.0.0 without MCP_ALLOWED_ORIGINS', () => {
 			vi.stubEnv('MCP_BIND', '0.0.0.0');
-			expect(resolveHttpConfig().allowedOrigins).toBeUndefined();
+			expect(resolveHttpConfig().allowedOrigins).toEqual([]);
 		});
 
-		it('is undefined when bound to an external host without MCP_ALLOWED_ORIGINS', () => {
+		it('is empty when bound to an external host without MCP_ALLOWED_ORIGINS', () => {
 			vi.stubEnv('MCP_BIND', 'wiki.example.org');
-			expect(resolveHttpConfig().allowedOrigins).toBeUndefined();
+			expect(resolveHttpConfig().allowedOrigins).toEqual([]);
+		});
+
+		// MCP_PUBLIC_URL names the OAuth issuer, which is usually the wiki's own
+		// host. Configuring sign-in must not admit that host's scripts.
+		it('does not infer an allowlist from MCP_PUBLIC_URL', () => {
+			vi.stubEnv('MCP_BIND', '0.0.0.0');
+			vi.stubEnv('MCP_PUBLIC_URL', 'https://wiki.example.org/mcp');
+			expect(resolveHttpConfig().allowedOrigins).toEqual([]);
 		});
 
 		it('MCP_ALLOWED_ORIGINS overrides the localhost default', () => {
@@ -178,10 +188,10 @@ describe('resolveHttpConfig', () => {
 			]);
 		});
 
-		it('is undefined when MCP_ALLOWED_ORIGINS is only separators and bound to 0.0.0.0', () => {
+		it('is empty when MCP_ALLOWED_ORIGINS is only separators and bound to 0.0.0.0', () => {
 			vi.stubEnv('MCP_BIND', '0.0.0.0');
 			vi.stubEnv('MCP_ALLOWED_ORIGINS', ',,,');
-			expect(resolveHttpConfig().allowedOrigins).toBeUndefined();
+			expect(resolveHttpConfig().allowedOrigins).toEqual([]);
 		});
 	});
 
