@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Added
 
 - Plugin installs can now be pointed at your own wiki. Claude Code prompts for a configuration file when the plugin is enabled, and the Codex plugin forwards the `CONFIG` environment variable from the shell Codex is launched from. Previously neither plugin offered a way to set `CONFIG`, leaving the server on English Wikipedia.
+- The server now warns at startup when `CONFIG` points at a file that does not exist. It previously fell back to the default English Wikipedia configuration with no indication of the misconfiguration, so a typo in the path meant silently talking to the wrong wiki.
 
 ## [0.14.0] - 2026-07-23
 
