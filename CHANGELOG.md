@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Changed
+
+- The HTTP transport's own `401`, `503` and `413` replies carry new JSON-RPC error codes. Clients read the HTTP status for these conditions, so no change is expected; anything matching on the old codes `-32001` and `-32000` needs updating.
+
 ### Fixed
 
 - Reading an `mcp://wikis/{wikiKey}` resource for a wiki that is not configured now fails with a JSON-RPC `-32602` error naming the URI, as the protocol requires. It previously returned an empty document, which a client could not tell from a wiki with nothing to report.
@@ -13,10 +17,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - A wiki key beginning with `mcp://wikis/` is refused at startup instead of being accepted and then resolving to the wrong wiki.
 - A request to the HTTP transport whose body is not valid JSON now gets a JSON-RPC parse error, and one to an OAuth endpoint an `invalid_request` error, instead of an HTML page that could carry a stack trace when `NODE_ENV` is not `production`.
 - The HTTP transport's `401` and `503` replies now echo the id of the request they answer, where before they always sent `null`.
-
-### Changed
-
-- The HTTP transport's own `401`, `503` and `413` replies carry new JSON-RPC error codes, moved out of the range MCP reserves. Clients read the HTTP status for these conditions, so no change is expected; anything matching on the old codes `-32001` and `-32000` needs updating.
 
 ## [0.15.0] - 2026-07-28
 

@@ -255,7 +255,7 @@ function bodyErrorType(err: unknown): string | undefined {
 // limit and `entity.parse.failed` when it is not valid JSON. Without this handler
 // both reach Express's finalhandler, which answers HTML — unparseable by an MCP
 // client, and carrying a stack trace outside production. Other body-parser failure
-// types are left to propagate as before.
+// types propagate untouched.
 export function bodyErrorHandler(limit: string): ErrorRequestHandler {
 	return (err, req, res, next) => {
 		const type = bodyErrorType(err);

@@ -73,8 +73,6 @@ function echoableRequestId(body: unknown): string | number | undefined {
 	return typeof id === 'string' || typeof id === 'number' ? id : undefined;
 }
 
-// Spreads into a JSON-RPC error body, contributing the `id` key only when the
-// request carried one this layer could read.
 function echoedId(req: Request): { id?: string | number } {
 	const id = echoableRequestId(req.body);
 	return id === undefined ? {} : { id };
