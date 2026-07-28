@@ -74,8 +74,30 @@ describe('createServer change publishing', () => {
 			expect(result.isError ?? false).toBe(false);
 			expect(publisher.resourcesChanged).toHaveBeenCalledTimes(1);
 			expect(publisher.toolsChanged).toHaveBeenCalledTimes(1);
+			expect(publisher.resourcesChanged.mock.invocationCallOrder[0]).toBeLessThan(
+				publisher.toolsChanged.mock.invocationCallOrder[0],
+			);
 		} finally {
 			await client.close();
 		}
+	});
+
+	it('does not leave a failed construction registered with the logger broadcast', async () => {
+		const ctx = fakeContext({
+			wikiProbe: {
+				hasExtension: (async () => false) as never,
+				// Fails the construction-time gating pass, after tool registration.
+				hasAnyExtension: (async () => {
+					throw new Error('probe exploded');
+				}) as never,
+				inspect: (() => {}) as never,
+				invalidate: (() => {}) as never,
+			},
+		});
+		await expect(createServer(ctx, { era: 'legacy' })).rejects.toThrow('probe exploded');
+		// The throw happened before registration, so nothing leaked: the only
+		// unregister path is onclose, which never fires for an instance that was
+		// never connected.
+		expect(getRegisteredServerCount()).toBe(0);
 	});
 });

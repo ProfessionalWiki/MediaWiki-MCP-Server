@@ -65,21 +65,6 @@ export const createServer = async (
 		},
 	);
 
-	// Only legacy-era instances join the sendLoggingMessage broadcast: the
-	// 2026-07-28 revision has no unsolicited notifications/message channel
-	// (SEP-2577 deprecates the API), and a modern instance would churn the
-	// registry without ever delivering anything. A per-request legacy instance
-	// registers for its request's lifetime, so mid-call log lines still reach
-	// the caller on the response stream.
-	if (reqCtx === undefined || reqCtx.era === 'legacy') {
-		registerServer(server);
-		const previousOnClose = server.server.onclose;
-		server.server.onclose = (): void => {
-			unregisterServer(server);
-			previousOnClose?.();
-		};
-	}
-
 	const publisher: ChangePublisher = options.publisher ?? {
 		// A live connection's RegisteredTool toggles already emit their own
 		// listChanged; only the resource list needs an explicit push.
@@ -117,6 +102,24 @@ export const createServer = async (
 	// publish would fan change events out to unrelated clients on every
 	// request.
 	await applyGates();
+
+	// Only legacy-era instances join the sendLoggingMessage broadcast: the
+	// 2026-07-28 revision has no unsolicited notifications/message channel
+	// (SEP-2577 deprecates the API), and a modern instance would churn the
+	// registry without ever delivering anything. A per-request legacy instance
+	// registers for its request's lifetime, so mid-call log lines still reach
+	// the caller on the response stream. Registration comes last on purpose:
+	// the only unregister path is onclose, which never fires for an instance
+	// that failed mid-construction and was never connected, so registering any
+	// earlier would leak a dead entry per construction throw.
+	if (reqCtx === undefined || reqCtx.era === 'legacy') {
+		registerServer(server);
+		const previousOnClose = server.server.onclose;
+		server.server.onclose = (): void => {
+			unregisterServer(server);
+			previousOnClose?.();
+		};
+	}
 
 	return server;
 };
