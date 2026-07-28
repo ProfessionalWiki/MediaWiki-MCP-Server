@@ -38,6 +38,27 @@ describe('loadConfigFromFile', () => {
 			const { loadConfigFromFile, defaultConfig } = await import('../../src/config/loadConfig.js');
 			expect(loadConfigFromFile()).toEqual(defaultConfig);
 		});
+
+		it('warns when CONFIG points at a missing file', async () => {
+			vi.stubEnv('CONFIG', '/etc/mediawiki-mcp/absent.json');
+			vi.mocked(fs.existsSync).mockReturnValue(false);
+			const { loadConfigFromFile, defaultConfig } = await import('../../src/config/loadConfig.js');
+			expect(loadConfigFromFile()).toEqual(defaultConfig);
+
+			const output = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
+			expect(output).toContain('/etc/mediawiki-mcp/absent.json');
+			expect(output).toContain('does not exist');
+		});
+
+		it('does not warn when CONFIG is empty and config.json does not exist', async () => {
+			vi.stubEnv('CONFIG', '');
+			vi.mocked(fs.existsSync).mockReturnValue(false);
+			const { loadConfigFromFile, defaultConfig } = await import('../../src/config/loadConfig.js');
+			expect(loadConfigFromFile()).toEqual(defaultConfig);
+
+			const output = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
+			expect(output).not.toContain('does not exist');
+		});
 	});
 
 	describe('${VAR} substitution in secret fields', () => {

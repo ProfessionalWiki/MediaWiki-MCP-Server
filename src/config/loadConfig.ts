@@ -384,6 +384,11 @@ function applyOAuth2ClientSecretOverride(
 
 export function loadConfigFromFile(): Config {
 	if (!fs.existsSync(configPath)) {
+		if (process.env.CONFIG) {
+			logger.warning(
+				`CONFIG points at "${configPath}", which does not exist. Falling back to the built-in default configuration (English Wikipedia). A relative path resolves against the server's working directory.`,
+			);
+		}
 		return { ...defaultConfig, uploadDirs: resolveUploadDirs(undefined) };
 	}
 	const rawData = fs.readFileSync(configPath, 'utf-8');
