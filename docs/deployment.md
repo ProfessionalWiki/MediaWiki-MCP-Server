@@ -287,19 +287,20 @@ The exemption skips **only** the public-IP check; the host is still DNS-resolved
 
 ### Host and Origin matching
 
-Both `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS` from the [Security checklist](#security-checklist) are matched on hostname alone.
+Both `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS` from the [Security checklist](#security-checklist) compare hostnames, ignoring any port. They differ in what they accept as a value, so the two paragraphs below are not interchangeable.
 
-**Host header.** On a localhost bind, leaving `MCP_ALLOWED_HOSTS` unset is safe: the SDK auto-allows `localhost`, `127.0.0.1`, and `[::1]`. On a public bind, leaving it unset turns the DNS-rebinding check off and the SDK logs a warning at startup.
+**Host header.** Entries are used exactly as written, so give bare lowercase hostnames: `wiki.example.org`, not `https://wiki.example.org` and not `wiki.example.org:8443`. A value carrying a scheme or a port matches nothing and silently 403s every request. On a localhost bind, leaving `MCP_ALLOWED_HOSTS` unset is safe: `localhost`, `127.0.0.1`, and `[::1]` are allowed automatically. On a public bind, leaving it unset turns the DNS-rebinding check off and the server logs a warning at startup.
 
-**Origin header.** Set this to the origins your browser clients are served from, for example `https://wiki.example.org`. On a localhost bind, the default allowlist is the three loopback origins on the bound port (`http://localhost:<port>`, `http://127.0.0.1:<port>`, `http://[::1]:<port>`) so browser clients running alongside the server keep working. A non-localhost bind with no allowlist turns Origin validation off, and the server logs a startup warning.
+**Origin header.** Set this to the origins your browser clients are served from, for example `https://wiki.example.org`. You do not need to list the server's own origin; the sign-in pages under `/mcp` are not subject to this check. On a localhost bind, Origin validation is on by default and admits `localhost`, `127.0.0.1`, and `[::1]` on any port, so browser clients running alongside the server keep working. A non-localhost bind with no allowlist turns Origin validation off, and the server logs a startup warning. An allowlist that is set but unreadable also turns it off, and says so at startup.
 
 Only the hostname is compared, so port and scheme are ignored: `https://wiki.example.org` also admits `http://wiki.example.org` and `https://wiki.example.org:8443`. That is the boundary the check is meant to enforce, since anyone able to serve content on another port of your host already controls it. If you need a given port or scheme to be the only one accepted, enforce that at your reverse proxy.
 
-Because the hostname is what counts, the value is forgiving about how you write it. A trailing slash, a path, an explicit default port, an uppercase scheme, and a bare hostname with no scheme at all are each accepted and reduced to the same host:
+Because the hostname is what counts, the value is forgiving about how you write it. A trailing slash, a path, an explicit port, an uppercase scheme, a bare hostname, and a bare `host:port` pair are each accepted and reduced to the same host:
 
 ```
 https://wiki.example.org      https://wiki.example.org/mcp    HTTPS://WIKI.EXAMPLE.ORG
 https://wiki.example.org/     https://wiki.example.org:443    wiki.example.org
+wiki.example.org:8443         [::1]:3000                      localhost:3000
 ```
 
 A request carrying an `Origin` the server cannot parse at all is rejected with a 403. Requests with no `Origin` header pass, because non-browser MCP clients do not send one.

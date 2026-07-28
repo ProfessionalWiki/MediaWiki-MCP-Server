@@ -308,16 +308,42 @@ describe('toOriginHostnames', () => {
 				'https://wiki.example.org:443',
 				'HTTPS://WIKI.EXAMPLE.ORG',
 				'wiki.example.org',
+				// `host:port` parses as a scheme with an opaque path, yielding an
+				// empty hostname instead of throwing, so it needs the retry path.
+				'wiki.example.org:8443',
 			]),
 		).toEqual(['wiki.example.org']);
 	});
 
-	it('keeps the brackets on an IPv6 loopback origin', () => {
+	it('keeps the brackets on an IPv6 loopback origin, with or without a scheme', () => {
 		expect(toOriginHostnames(['http://[::1]:3000'])).toEqual(['[::1]']);
+		expect(toOriginHostnames(['[::1]:3000'])).toEqual(['[::1]']);
+		expect(toOriginHostnames(['[::1]'])).toEqual(['[::1]']);
+	});
+
+	it('reads a bare host:port for the loopback spellings an operator is likely to write', () => {
+		expect(toOriginHostnames(['localhost:3000', '127.0.0.1:3000'])).toEqual([
+			'localhost',
+			'127.0.0.1',
+		]);
+	});
+
+	// A browser sends the punycode form in the Origin header, so a Unicode entry
+	// has to be folded to match rather than compared verbatim.
+	it('punycodes an internationalised hostname', () => {
+		expect(toOriginHostnames(['exämple.com'])).toEqual(['xn--exmple-cua.com']);
+		expect(toOriginHostnames(['https://exämple.com'])).toEqual(['xn--exmple-cua.com']);
 	});
 
 	it('skips blank entries', () => {
 		expect(toOriginHostnames(['', '   ', 'http://localhost:3000'])).toEqual(['localhost']);
+	});
+
+	it('drops an entry no hostname can be read from rather than adding an unmatchable one', () => {
+		const warn = vi.spyOn(logger, 'warning').mockImplementation(() => {});
+		expect(toOriginHostnames(['https://', 'wiki.example.org'])).toEqual(['wiki.example.org']);
+		expect(warn.mock.calls[0][0]).toContain('https://');
+		warn.mockRestore();
 	});
 });
 
@@ -337,17 +363,16 @@ describe('origin validation (middleware)', () => {
 		return new McpServer({ name: 'origin-test-server', version: '0.0.0' }, { capabilities: {} });
 	}
 
-	// Mirrors how buildApp mounts the guard: Origin validation is Express
-	// middleware on /mcp, ahead of the POST handler.
+	// Attaches the guard per route, as the real buildApp does. Mounting it on the
+	// '/mcp' prefix instead would also cover the authorization-server routes; the
+	// proxy suite covers that specifically.
 	function buildApp(allowedOrigins: string[] | undefined): Express {
 		const app = express();
 		app.use(express.json());
 		const originCheck = resolveMcpOriginValidation(allowedOrigins);
-		if (originCheck) {
-			app.use('/mcp', originCheck);
-		}
+		const guard = originCheck ? [originCheck] : [];
 		const sessions: SessionRegistry = {};
-		app.post('/mcp', createMcpPostHandler(sessions, stubCreateServer, {}));
+		app.post('/mcp', ...guard, createMcpPostHandler(sessions, stubCreateServer, {}));
 		return app;
 	}
 

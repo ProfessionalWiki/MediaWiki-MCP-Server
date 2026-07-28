@@ -18,7 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Changed
 
 - The server now runs on version 2 of the MCP TypeScript SDK. An install pulls several smaller packages in place of the single previous one, and the downloadable bundle is slightly smaller as a result. No configuration changes are needed. Tool input schemas are now published as JSON Schema 2020-12 instead of draft-07, which matters only to a client that validates arguments against a draft-07-only validator.
-- Calling a tool the server is not currently offering now fails the call outright, instead of returning an error message as the tool's result. Tools are withheld when they do not apply to the configured wikis, for example write tools when every wiki is read-only. Clients that call only what the server advertises are unaffected.
+- Calling a tool the server is not offering now fails the call outright, instead of returning an error message as the tool's result. That covers both a name that does not exist and one withheld because it does not apply to the configured wikis, for example write tools when every wiki is read-only. Clients that call only what the server advertises are unaffected.
 - `MCP_ALLOWED_ORIGINS` is now matched on hostname rather than as a whole origin, so a configured `https://wiki.example.org` also admits `http://wiki.example.org` and other ports on that host. Enforce a particular scheme or port at your reverse proxy if you need one. In exchange the setting is much harder to get silently wrong: a trailing slash, a path, an explicit `:443`, an uppercase scheme, and a bare hostname with no scheme are all accepted now, where each previously rejected every browser request without explanation.
 
 ### Fixed

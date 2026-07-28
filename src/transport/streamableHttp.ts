@@ -93,31 +93,71 @@ export function resolveMcpHostValidation(
 	return undefined;
 }
 
+// Reduces one configured value to the hostname the Origin middleware compares
+// against. Three spellings have to work: a full origin, a bare hostname, and a
+// `host:port` pair. Only the first parses as a URL on its own — a bare hostname
+// throws, and `host:port` is worse, parsing as a scheme with an opaque path and
+// yielding an EMPTY hostname rather than throwing. Retrying behind `https://`
+// covers both, and has the side benefit of punycoding an internationalised name,
+// which is the form a browser actually sends in the Origin header.
+function hostnameOf(value: string): string | undefined {
+	try {
+		const { hostname } = new URL(value);
+		if (hostname !== '') {
+			return hostname;
+		}
+	} catch {
+		// Not a URL on its own; it may still be a bare hostname or host:port.
+	}
+	// Only retry a value that carries no scheme of its own. Prefixing one that
+	// already has a scheme would read the hostname back out of the scheme itself,
+	// turning the malformed `https://` into the hostname `https`. A `host:port`
+	// pair has no `//`, so this still lets that case through to the retry.
+	if (value.includes('://')) {
+		return undefined;
+	}
+	try {
+		const { hostname } = new URL(`https://${value}`);
+		return hostname === '' ? undefined : hostname;
+	} catch {
+		return undefined;
+	}
+}
+
 // MCP_ALLOWED_ORIGINS is configured as full origins (`https://wiki.example.org`),
 // but the SDK's Origin middleware matches on hostname alone. Reduce each entry to
-// its hostname so existing configuration keeps working untouched. A value that is
-// not a parseable URL is taken to be a bare hostname already, lowercased to match
-// how the URL parser normalises one. IPv6 keeps its brackets (`[::1]`), which is
-// the form the middleware expects.
+// its hostname so existing configuration keeps working untouched. IPv6 keeps its
+// brackets (`[::1]`), which is the form the middleware expects. An entry nothing
+// can be read from is dropped with a warning rather than poisoning the allowlist
+// with a value no Origin header could ever match.
 export function toOriginHostnames(allowedOrigins: readonly string[]): string[] {
 	const hostnames = new Set<string>();
+	const unusable: string[] = [];
 	for (const entry of allowedOrigins) {
 		const trimmed = entry.trim();
 		if (trimmed === '') {
 			continue;
 		}
-		try {
-			hostnames.add(new URL(trimmed).hostname);
-		} catch {
-			hostnames.add(trimmed.toLowerCase());
+		const hostname = hostnameOf(trimmed);
+		if (hostname === undefined) {
+			unusable.push(trimmed);
+			continue;
 		}
+		hostnames.add(hostname);
+	}
+	if (unusable.length > 0) {
+		logger.warning(
+			`Ignoring unreadable MCP_ALLOWED_ORIGINS ${unusable.length === 1 ? 'entry' : 'entries'}: ` +
+				`${unusable.join(', ')}. Expected an origin (https://wiki.example.org), ` +
+				'a hostname, or host:port.',
+		);
 	}
 	return [...hostnames];
 }
 
-// Origin validation runs as Express middleware on /mcp, mirroring how Host-header
-// validation is mounted. An absent allowlist leaves it off, which is the same
-// policy the transport option it replaced applied.
+// Builds the Origin guard. See buildApp for why it is attached per route rather
+// than mounted on the /mcp prefix. An absent allowlist leaves validation off,
+// which is the policy the transport option this replaced also applied.
 export function resolveMcpOriginValidation(
 	allowedOrigins: string[] | undefined,
 ): RequestHandler | undefined {
@@ -125,7 +165,18 @@ export function resolveMcpOriginValidation(
 		return undefined;
 	}
 	const hostnames = toOriginHostnames(allowedOrigins);
-	return hostnames.length > 0 ? originValidation(hostnames) : undefined;
+	if (hostnames.length === 0) {
+		// An allowlist was configured but nothing in it survived parsing. Say so:
+		// turning a control off because its configuration was unreadable must not
+		// be silent, and the unset-allowlist warning in buildApp does not fire for
+		// an array that was non-empty to begin with.
+		logger.warning(
+			'MCP_ALLOWED_ORIGINS is set but no usable hostname could be read from it, ' +
+				'so Origin validation is disabled. Correct the values or unset the variable.',
+		);
+		return undefined;
+	}
+	return originValidation(hostnames);
 }
 
 // Handles a fatal error from app.listen — a failed bind (EADDRINUSE / EACCES) or
