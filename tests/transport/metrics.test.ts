@@ -90,6 +90,30 @@ describe('GET /metrics — enabled', () => {
 		expect(metrics.text).toMatch(/mcp_ready_failures_total 1/);
 	});
 
+	it('mcp_ready_failures_total counts one failure for concurrent probes', async () => {
+		// One outage, three simultaneous readiness probes: they share a single
+		// probe, so only the request that started it records the failure. The
+		// failure has to be slower than the requests take to arrive, or the first
+		// probe finishes and fills the cache before the others reach the handler.
+		mockRequest.mockImplementation(
+			() =>
+				new Promise((_resolve, reject) => {
+					setTimeout(() => reject(new Error('upstream down')), 50);
+				}),
+		);
+		const app = makeApp();
+		const responses = await Promise.all([
+			request(app).get('/ready'),
+			request(app).get('/ready'),
+			request(app).get('/ready'),
+		]);
+		for (const res of responses) {
+			expect(res.status).toBe(503);
+		}
+		const metrics = await request(app).get('/metrics');
+		expect(metrics.text).toMatch(/mcp_ready_failures_total 1/);
+	});
+
 	it('mcp_ready_failures_total does not double-count cached 503 replays', async () => {
 		mockRequest.mockRejectedValue(new Error('upstream down'));
 		const app = makeApp();

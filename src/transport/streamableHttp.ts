@@ -591,9 +591,14 @@ const READY_CACHE_TTL_MS = 5_000;
 // Exported so the probe tests can size their fixtures against the real budget.
 export const READY_PROBE_TIMEOUT_MS = 3_000;
 let readyCache: ReadyCacheEntry | null = null;
+// The probe currently running, shared by every request that arrives while it is
+// still going. The cache alone cannot do this: it only fills once a probe
+// finishes, which is the whole window a slow wiki spends in.
+let readyProbeInFlight: Promise<ReadyCacheEntry> | null = null;
 
 export function __resetReadyCacheForTesting(): void {
 	readyCache = null;
+	readyProbeInFlight = null;
 }
 
 // Both halves of the check as one promise, so the race spans the whole of it:
@@ -669,16 +674,32 @@ export function mountReadyEndpoint(
 	},
 ): void {
 	app.get('/ready', async (_req, res) => {
-		if (!readyCache || Date.now() >= readyCache.expiresAt) {
-			readyCache = await probeDefaultWiki(deps.activeWiki, deps.mwnProvider);
-			// Count distinct probe failures, not cached replays — K8s readiness
-			// probes that fire every second would otherwise inflate the counter
-			// 5x against a 5s cache for the same underlying outage.
-			if (readyCache.httpStatus !== 200) {
-				recordReadyFailure();
+		let entry = readyCache;
+		if (!entry || Date.now() >= entry.expiresAt) {
+			if (readyProbeInFlight) {
+				entry = await readyProbeInFlight;
+			} else {
+				const probe = probeDefaultWiki(deps.activeWiki, deps.mwnProvider);
+				readyProbeInFlight = probe;
+				try {
+					entry = await probe;
+				} finally {
+					// Retire only our own probe. Nothing can replace it mid-flight
+					// today, but clearing blind would discard a successor's.
+					if (readyProbeInFlight === probe) {
+						readyProbeInFlight = null;
+					}
+				}
+				readyCache = entry;
+				// Count distinct probe failures, not cached replays or the requests
+				// that merely waited on this probe — K8s readiness probes that fire
+				// every second would otherwise inflate the counter for one outage.
+				if (entry.httpStatus !== 200) {
+					recordReadyFailure();
+				}
 			}
 		}
-		res.status(readyCache.httpStatus).json(readyCache.payload);
+		res.status(entry.httpStatus).json(entry.payload);
 	});
 }
 

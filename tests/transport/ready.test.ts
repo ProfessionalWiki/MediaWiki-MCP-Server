@@ -87,6 +87,30 @@ describe('/ready', () => {
 		expect(res.body.reason).toContain('connection refused');
 	});
 
+	it('shares one probe between requests that arrive before the first finishes', async () => {
+		// The cache only fills once a probe finishes, so without in-flight sharing
+		// every request arriving during a slow probe starts another one. Slow here
+		// means slower than the requests take to arrive, but well inside the budget.
+		mockRequest.mockImplementation(
+			() =>
+				new Promise((resolve) => {
+					setTimeout(() => resolve({ query: { general: {} } }), 50);
+				}),
+		);
+		const app = makeApp();
+
+		const responses = await Promise.all([
+			request(app).get('/ready'),
+			request(app).get('/ready'),
+			request(app).get('/ready'),
+		]);
+
+		for (const res of responses) {
+			expect(res.status).toBe(200);
+		}
+		expect(mockRequest).toHaveBeenCalledTimes(1);
+	});
+
 	it('caches the result for 5 seconds', async () => {
 		vi.useFakeTimers();
 		mockRequest.mockResolvedValue({ query: { general: {} } });
