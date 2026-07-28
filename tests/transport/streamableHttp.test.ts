@@ -348,6 +348,15 @@ describe('malformed JSON body', () => {
 		expect(res.body?.error).toBe('invalid_request');
 	});
 
+	// Express routes case-insensitively by default, so these spellings reach the
+	// MCP handler and must be answered in its dialect rather than OAuth's.
+	it.each(['/MCP', '/Mcp', '/mcp/'])('answers %s in the JSON-RPC dialect', async (path) => {
+		const res = await postBroken(path);
+		expect(res.status).toBe(400);
+		expect(res.body?.jsonrpc).toBe('2.0');
+		expect(res.body?.error?.code).toBe(PARSE_ERROR_CODE);
+	});
+
 	it('never leaks a stack trace', async () => {
 		for (const path of ['/mcp', '/mcp/register']) {
 			const res = await postBroken(path);

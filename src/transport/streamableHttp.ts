@@ -236,10 +236,12 @@ export function createOAuthProtectedResourceHandler(deps: {
 // express.json() is mounted app-wide, so its failures also reach the browser-facing
 // authorization-server routes under the same /mcp prefix, where an OAuth client
 // expects RFC 6749's error shape rather than a JSON-RPC envelope. Only the JSON-RPC
-// endpoint itself gets the JSON-RPC dialect. Express matches `/mcp` non-strictly, so
-// the trailing-slash form reaches that same route.
+// endpoint itself gets the JSON-RPC dialect. Express matches `/mcp` non-strictly and
+// case-insensitively by default, so the trailing-slash and case-variant spellings
+// reach that same route and must be recognised here too.
 function isMcpEndpoint(req: Request): boolean {
-	return req.path === '/mcp' || req.path === '/mcp/';
+	const path = req.path.toLowerCase();
+	return path === '/mcp' || path === '/mcp/';
 }
 
 // body-parser tags each of its failures with a `type` discriminator; anything
