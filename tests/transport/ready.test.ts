@@ -15,7 +15,7 @@ import {
 	__resetReadyCacheForTesting,
 	__probeDefaultWikiForTesting,
 	READY_PROBE_TIMEOUT_MS,
-} from '../../src/transport/streamableHttp.js';
+} from '../../src/transport/ready.js';
 import type { ActiveWiki } from '../../src/wikis/activeWiki.js';
 import type { MwnProvider } from '../../src/wikis/mwnProvider.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';

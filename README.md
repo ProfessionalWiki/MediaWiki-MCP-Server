@@ -123,7 +123,7 @@ Each pack's tools register only on wikis where its extension is installed.
 
 ### Environment variables
 
-The variables below are relevant to any setup. Variables that only apply when self-hosting the HTTP transport (ports, timeouts, session limits, Host/Origin and SSRF guards) or running the hosted OAuth proxy are in [docs/deployment.md — environment variables](docs/deployment.md#environment-variables). Config-file substitution and upload-directory variables are in [docs/configuration.md](docs/configuration.md).
+The variables below are relevant to any setup. Variables that only apply when self-hosting the HTTP transport (ports, timeouts, Host/Origin and SSRF guards) or running the hosted OAuth proxy are in [docs/deployment.md — environment variables](docs/deployment.md#environment-variables). Config-file substitution and upload-directory variables are in [docs/configuration.md](docs/configuration.md).
 
 | Name | Description | Default |
 |---|---|---|

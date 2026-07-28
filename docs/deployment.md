@@ -232,7 +232,6 @@ Set `MCP_TRANSPORT=http` to select this transport (the Docker image defaults to 
 | `PORT` | `3000` (Docker: `8080`) | Listen port. |
 | `MCP_BIND` | `127.0.0.1` (Docker: `0.0.0.0`) | Listen interface. Set to `0.0.0.0` outside Docker only when you need remote access. |
 | `MCP_MAX_REQUEST_BODY` | `1mb` | HTTP request body cap. Accepts size strings (`b`, `kb`, `mb`, `gb`). |
-| `MCP_SESSION_IDLE_TIMEOUT` | `1800` | Seconds an HTTP session may sit idle before it is closed and removed. Any request resets the timer. `0` disables expiry. |
 | `MCP_SHUTDOWN_GRACE_MS` | `10000` | Drain timeout in ms on `SIGTERM` / `SIGINT`. See [Graceful shutdown](operations.md#graceful-shutdown). |
 | `MCP_METRICS` | unset | Set to `true` to expose Prometheus metrics at `GET /metrics`. See [Metrics](operations.md#metrics). |
 | `MCP_ALLOWED_HOSTS` | auto on localhost | Comma-separated Host-header allowlist. See [Security checklist](#security-checklist). |
@@ -330,13 +329,13 @@ The server accepts a standard OAuth 2.1 `Authorization: Bearer` header on each r
 Authorization: Bearer <oauth2-access-token>
 ```
 
-Use a MediaWiki OAuth2 access token obtained from `Special:OAuthConsumerRegistration/propose/oauth2` on the target wiki, with [Extension:OAuth](https://www.mediawiki.org/wiki/Extension:OAuth) installed. The server forwards it to MediaWiki as that caller's token, so writes are attributable and MediaWiki's per-user rate limits apply. A bearer is scoped to a single MediaWiki OAuth2 realm, and there is no per-session bearer pin: one session can address wikis on different authorization servers by sending the right token per request. `list-wikis` reports each OAuth wiki's `authorizationServer`.
+Use a MediaWiki OAuth2 access token obtained from `Special:OAuthConsumerRegistration/propose/oauth2` on the target wiki, with [Extension:OAuth](https://www.mediawiki.org/wiki/Extension:OAuth) installed. The server forwards it to MediaWiki as that caller's token, so writes are attributable and MediaWiki's per-user rate limits apply. A bearer is scoped to a single MediaWiki OAuth2 realm, and the server pins nothing across requests: one client can address wikis on different authorization servers by sending the right token per request. `list-wikis` reports each OAuth wiki's `authorizationServer`.
 
 When a wiki sets `oauth2ClientId` (see [configuration.md: OAuth (browser-based)](configuration.md#oauth-browser-based)), the server also advertises OAuth discovery on this path: the protected-resource document lists every OAuth-configured wiki's authorization server, and a capable client can run the authorization-code flow against the wiki's **own** authorization server and fetch that token itself instead of you pasting one in. A bearer-less request is challenged with `401` only when no configured wiki is usable without a token; a deployment that mixes OAuth and non-OAuth wikis still serves tokenless clients on the wikis that allow anonymous access.
 
 **Precedence:** request header → `config.json` `token` → `config.json` `username`/`password` → anonymous. The HTTP transport refuses to start with static credentials in `config.json` unless `MCP_ALLOW_STATIC_FALLBACK=true` is set; see [the Security checklist](#security-checklist) for why.
 
-Each request builds an independent MediaWiki session using the supplied token. Token rotation and revocation take effect on the next MCP session started with the new token. The MCP session id is the session's only credential, so run the transport behind TLS; idle sessions close after `MCP_SESSION_IDLE_TIMEOUT`, bounding how long a leaked session id stays usable.
+HTTP serving is per-request, following MCP protocol revision 2026-07-28: the server issues no session ids, serves 2026-07-28 clients natively, and serves earlier 2025-era clients statelessly. Each request builds an independent MediaWiki session from the token it carries, so rotation and revocation take effect on the very next request; run the transport behind TLS so bearers stay confidential in transit.
 
 Example with Claude Code:
 

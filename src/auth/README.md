@@ -12,6 +12,7 @@ Which role is active depends on configuration. The proxy path turns on only when
 - `metadata.ts` — discover an upstream wiki's AS metadata (`.well-known`, pathed, or synthesized). `UpstreamAsMetadata` is the wiki's metadata — not to be confused with the proxy's own `AsMetadataDoc`.
 - `mwOauth2Endpoints.ts` — build a wiki's `rest.php/oauth2/{authorize,access_token}` URLs. Single source of truth for those paths, shared with the proxy side.
 - `oauthFlow.ts` — the low-level token exchange and refresh HTTP calls, plus the error classifier (`invalid_grant` / `invalid_client` / transient / malformed).
+- `upstreamBearer.ts` — resolve a proxy-minted `/mcp` JWT to the stored upstream wiki token it stands for, proactively refreshing near-expiry tokens with per-token coalescing. Used by the HTTP transport's request guard; bridges the two roles.
 - `acquireToken.ts` — orchestrate acquiring a token for a wiki (discovery → browser login → store).
 - `browserAuth.ts` — the interactive login: open the browser, catch the redirect on a loopback listener.
 - `tokenRefresh.ts` — refresh a stored token when it is near expiry, with per-wiki dedup.

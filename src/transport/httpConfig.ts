@@ -4,7 +4,6 @@ export interface HttpConfig {
 	allowedHosts: string[] | undefined;
 	allowedOrigins: string[] | undefined;
 	maxRequestBody: string;
-	sessionIdleTimeoutMs: number;
 	warnings: string[];
 }
 
@@ -14,11 +13,6 @@ const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 3000;
 const MAX_PORT = 65535;
 const DEFAULT_MAX_REQUEST_BODY = '1mb';
-const DEFAULT_SESSION_IDLE_TIMEOUT_S = 1800;
-// setTimeout clamps delays above its 32-bit signed ceiling to 1ms, which would
-// expire every session almost immediately. Cap the resolved value at that
-// ceiling so a large MCP_SESSION_IDLE_TIMEOUT stays a long-but-valid delay.
-const MAX_SESSION_IDLE_TIMEOUT_MS = 2147483647;
 
 // Mirrors body-parser's size grammar: optional decimal number followed by an
 // optional unit (bytes if omitted). Validating at startup prevents body-parser
@@ -44,25 +38,6 @@ function resolvePort(): number {
 		return DEFAULT_PORT;
 	}
 	return parsed;
-}
-
-function resolveSessionIdleTimeoutMs(): number {
-	const raw = process.env.MCP_SESSION_IDLE_TIMEOUT;
-	if (raw === undefined || raw.trim() === '') {
-		return DEFAULT_SESSION_IDLE_TIMEOUT_S * 1000;
-	}
-	// Strict parse: require a plain run of digits so trailing garbage ('300abc')
-	// and scientific notation ('1e9') — both of which Number.parseInt silently
-	// truncates to a wrong value — fall back to the default instead. 0 disables
-	// expiry. Number.isInteger guards the (practically unreachable) overflow case.
-	const trimmed = raw.trim();
-	const seconds = Number(trimmed);
-	if (!/^\d+$/.test(trimmed) || !Number.isInteger(seconds)) {
-		return DEFAULT_SESSION_IDLE_TIMEOUT_S * 1000;
-	}
-	// Clamp to setTimeout's ceiling so an over-large value stays a valid delay
-	// instead of being clamped to 1ms by Node.
-	return Math.min(seconds * 1000, MAX_SESSION_IDLE_TIMEOUT_MS);
 }
 
 function resolveAllowedHosts(): string[] | undefined {
@@ -132,13 +107,21 @@ export function resolveHttpConfig(): HttpConfig {
 	if (body.warning) {
 		warnings.push(body.warning);
 	}
+	// HTTP serving is per-request as of the 2026-07-28 MCP revision: there are
+	// no sessions left to expire, so the knob is obsolete. Warn rather than
+	// silently ignore a value still pinned in a deployment manifest.
+	if (process.env.MCP_SESSION_IDLE_TIMEOUT !== undefined) {
+		warnings.push(
+			'MCP_SESSION_IDLE_TIMEOUT is obsolete: HTTP serving is per-request and sessions ' +
+				'no longer exist. Remove it from the environment.',
+		);
+	}
 	return {
 		host,
 		port,
 		allowedHosts: resolveAllowedHosts(),
 		allowedOrigins: resolveAllowedOrigins(host, port),
 		maxRequestBody: body.value,
-		sessionIdleTimeoutMs: resolveSessionIdleTimeoutMs(),
 		warnings,
 	};
 }

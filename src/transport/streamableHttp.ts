@@ -1,77 +1,52 @@
 #!/usr/bin/env node
 
-import { randomUUID } from 'node:crypto';
 import express, {
 	type ErrorRequestHandler,
 	type RequestHandler,
 	type Request,
 	type Response,
 } from 'express';
-import { isInitializeRequest } from '@modelcontextprotocol/server';
-import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
+import {
+	createMcpHandler,
+	InMemoryServerEventBus,
+	type McpRequestContext,
+	type McpServer,
+} from '@modelcontextprotocol/server';
 import {
 	hostHeaderValidation,
 	localhostHostValidation,
 	originValidation,
 } from '@modelcontextprotocol/express';
 import { evaluateBearerGuard } from './bearerGuard.js';
-import { hasStaticCredentials } from '../runtime/authShape.js';
 import { LOCALHOST_HOSTS, resolveHttpConfig } from './httpConfig.js';
 import { logger } from '../runtime/logger.js';
 import {
 	getMetricsHandler,
 	initMetrics,
 	isMetricsEnabled,
-	recordReadyFailure,
-	setSessionsProvider,
+	setInFlightProvider,
+	setSubscriptionStreamsProvider,
 	setProxyStoreStatsProvider,
 } from '../runtime/metrics.js';
-import { withRequestContext } from '../runtime/requestContext.js';
-import {
-	createInFlightCounter,
-	markSessionActive,
-	markSessionIdle,
-	type SessionRegistry,
-	type InFlightCounter,
-} from './sessionRegistry.js';
-import { loadConfigFromFile, type WikiConfig } from '../config/loadConfig.js';
-import type { MwnProvider } from '../wikis/mwnProvider.js';
-import type { ActiveWiki } from '../wikis/activeWiki.js';
+import { createInFlightCounter, type InFlightCounter } from './inFlight.js';
+import { createMcpRouteHandler, resolveRequestProto, type ProxyConfigGetter } from './mcpRoute.js';
+import { mountReadyEndpoint } from './ready.js';
+import { loadConfigFromFile } from '../config/loadConfig.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
 import { fetchMetadata, type UpstreamAsMetadata } from '../auth/metadata.js';
-import { buildProtectedResource, resolvePublicBase } from '../auth/protectedResource.js';
+import { buildProtectedResource } from '../auth/protectedResource.js';
 import { resolveProxyConfig, type ProxyConfig } from '../auth/authorizationServer/proxyConfig.js';
 import type { ProxyStore } from '../auth/authorizationServer/proxyStore.js';
-import {
-	refreshTokens as defaultRefresh,
-	classifyRefreshError,
-	type RefreshArgs,
-} from '../auth/oauthFlow.js';
 import { createProxyStore } from '../auth/authorizationServer/proxyStorePersistence.js';
 import { mountAuthorizationServer } from '../auth/authorizationServer/router.js';
 import { buildRedirectPolicy } from '../auth/authorizationServer/redirectPolicy.js';
 import { buildCimdHostPredicate, CimdResolver } from '../auth/authorizationServer/cimd.js';
 import { fetchCimdDocument } from './cimdFetch.js';
-import { verifyAccessToken } from '../auth/authorizationServer/jwt.js';
-import { mwOauth2TokenEndpoint } from '../auth/mwOauth2Endpoints.js';
 import { createAppState, type AppState } from '../wikis/state.js';
-import { createServer } from '../server.js';
+import { createServer, type ChangePublisher, type CreateServerOptions } from '../server.js';
 import { emitStartupBanner } from '../runtime/banner.js';
 import { createToolContext } from '../runtime/createContext.js';
 import { registerShutdownHandlers, resolveShutdownGrace } from '../runtime/shutdown.js';
-
-export function extractBearerToken(req: Request): string | undefined {
-	const raw = req.headers.authorization;
-	if (typeof raw !== 'string') {
-		return undefined;
-	}
-	const first = raw.split(',')[0].trim();
-	if (!first.toLowerCase().startsWith('bearer ')) {
-		return undefined;
-	}
-	const token = first.slice(7).trim();
-	return token || undefined;
-}
 
 export function resolveMcpHostValidation(
 	host: string,
@@ -202,10 +177,6 @@ export function handleListenError(
 	onFatal(1);
 }
 
-// Returns the active hosted-OAuth-proxy config, or null when the proxy is
-// disabled. getDefaultProxyConfig (below) is the production implementation.
-export type ProxyConfigGetter = () => ProxyConfig | null;
-
 export function createOAuthProtectedResourceHandler(deps: {
 	wikiRegistry: WikiRegistry;
 	// When the hosted OAuth proxy is enabled, this server is itself the
@@ -261,383 +232,6 @@ export function createOAuthProtectedResourceHandler(deps: {
 	};
 }
 
-// Resolves the request's scheme, honouring a trusted reverse proxy's
-// x-forwarded-proto (first value) and falling back to the socket's own security.
-function resolveRequestProto(req: Request): 'http' | 'https' {
-	const protoHeader = req.headers['x-forwarded-proto'];
-	const proto = typeof protoHeader === 'string' ? protoHeader.split(',')[0]?.trim() : undefined;
-	return proto === 'https' || proto === 'http' ? proto : req.secure ? 'https' : 'http';
-}
-
-// A wiki needs auth when it is OAuth-only with no usable static fallback.
-function wikiNeedsAuth(cfg: WikiConfig, fallbackAllowed: boolean): boolean {
-	const oauthOnly = typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
-	if (!oauthOnly) {
-		return false;
-	}
-	const hasStatic = hasStaticCredentials(cfg);
-	return !(hasStatic && fallbackAllowed);
-}
-
-// Refresh tokens within this window of expiry rather than waiting for an actual
-// upstream 401, so the very next wiki call uses a fresh token.
-const UPSTREAM_REFRESH_SKEW_MS = 30_000;
-
-type RefreshFn = (a: RefreshArgs) => Promise<{
-	access_token: string;
-	refresh_token?: string;
-	expires_in: number;
-}>;
-
-// Thrown by resolveUpstreamBearer when a proxy JWT cannot be resolved to a usable
-// upstream token. `retryable` distinguishes a transient upstream failure (the /mcp
-// handler answers 503 temporarily_unavailable) from a dead credential (a 401 +
-// re-auth challenge), mirroring how the /token grant maps the same refresh errors.
-export class UpstreamBearerError extends Error {
-	public constructor(
-		public readonly retryable: boolean,
-		message: string,
-	) {
-		super(message);
-		this.name = 'UpstreamBearerError';
-	}
-}
-
-// In-flight proactive refreshes keyed by upstreamTokenId. When two /mcp requests
-// both land inside the refresh-skew window they would otherwise present the SAME
-// upstream refresh token to the wiki concurrently; if the wiki rotates it on use,
-// the loser's token is revoked out from under it. Coalescing collapses them into a
-// single upstream refresh whose result both callers share. This guards proactive-
-// vs-proactive only. A proactive refresh racing a downstream /token refresh grant
-// for the same token is NOT coordinated here: beginRefreshRotation gates reuse of
-// the DOWNSTREAM refresh token on the /token path, but neither path locks the
-// UPSTREAM refresh token against the other, so both can still present it at once.
-// That race is pre-existing and left as accepted residual risk for the single-
-// process deployment; closing it needs a shared per-upstream-token refresh lock
-// held across both paths.
-const inFlightUpstreamRefresh = new Map<string, Promise<string>>();
-
-function coalesceUpstreamRefresh(id: string, run: () => Promise<string>): Promise<string> {
-	const existing = inFlightUpstreamRefresh.get(id);
-	if (existing) {
-		return existing;
-	}
-	const pending = run().finally(() => inFlightUpstreamRefresh.delete(id));
-	inFlightUpstreamRefresh.set(id, pending);
-	return pending;
-}
-
-// Performs the server-to-server upstream refresh, writes the rotated token back to
-// the store, and returns the fresh access token.
-async function performUpstreamRefresh(
-	upstreamTokenId: string,
-	currentRefreshToken: string,
-	pc: ProxyConfig,
-	store: ProxyStore,
-	refresh: RefreshFn,
-): Promise<string> {
-	const r = await refresh({
-		tokenEndpoint: mwOauth2TokenEndpoint(pc.tokenExchangeBase, pc.scriptpath),
-		refreshToken: currentRefreshToken,
-		clientId: pc.upstreamClientId,
-		clientSecret: pc.upstreamClientSecret,
-	});
-	store.updateUpstreamToken(upstreamTokenId, {
-		accessToken: r.access_token,
-		refreshToken: r.refresh_token ?? currentRefreshToken,
-		expiresAt: Date.now() + r.expires_in * 1000,
-	});
-	return r.access_token;
-}
-
-// Resolves a /mcp proxy JWT to the UPSTREAM wiki access token it stands for.
-// When the proxy is enabled the bearer is a proxy-minted JWT (aud=self), not a
-// wiki token, so mwn cannot use it directly: we verify the JWT, look up the
-// stored upstream token by its jti, and (when it is at/near expiry and a refresh
-// token exists) transparently refresh it server-to-server before returning.
-//
-// A proactive refresh is a pre-expiry optimization, so its failure must not by
-// itself fail an otherwise-serviceable request: while the stored access token is
-// still valid we fall back to it regardless of why the refresh failed (a transient
-// wiki blip, or a concurrent refresh that already rotated the token). Only once the
-// token is genuinely expired does a refresh failure surface — as a retryable
-// UpstreamBearerError for a transient upstream failure, or a non-retryable one for
-// a dead refresh token. verifyAccessToken throws on an invalid/expired/mis-
-// audienced JWT; the caller maps that (and a missing upstream token) to a 401.
-export async function resolveUpstreamBearer(
-	proxyJwt: string,
-	pc: ProxyConfig,
-	store: ProxyStore,
-	refresh: RefreshFn = defaultRefresh,
-): Promise<string> {
-	const { upstreamTokenId } = await verifyAccessToken(proxyJwt, pc);
-	const upstream = store.getUpstreamToken(upstreamTokenId);
-	if (!upstream) {
-		throw new Error('upstream token not found');
-	}
-	if (!(upstream.expiresAt <= Date.now() + UPSTREAM_REFRESH_SKEW_MS && upstream.refreshToken)) {
-		return upstream.accessToken;
-	}
-	const currentRefreshToken = upstream.refreshToken;
-	try {
-		return await coalesceUpstreamRefresh(upstreamTokenId, () =>
-			performUpstreamRefresh(upstreamTokenId, currentRefreshToken, pc, store, refresh),
-		);
-	} catch (err) {
-		if (Date.now() < upstream.expiresAt) {
-			return upstream.accessToken;
-		}
-		throw new UpstreamBearerError(
-			classifyRefreshError(err) === 'retryable',
-			'upstream token refresh failed',
-		);
-	}
-}
-
-export interface McpPostHandlerOptions {
-	wikiRegistry?: WikiRegistry;
-	idleTimeoutMs?: number;
-	// When the hosted OAuth proxy is enabled, the /mcp bearer is a proxy-minted
-	// JWT (not a wiki token): we verify it and resolve the upstream wiki token
-	// from the store before threading it into withRequestContext. Omitted (or
-	// returning null) leaves the legacy bearer-passthrough/401-discovery path
-	// unchanged.
-	getProxyConfig?: ProxyConfigGetter;
-	proxyStore?: ProxyStore;
-	// Injected for testing; production leaves it undefined so resolveUpstreamBearer
-	// uses the real server-to-server refresh.
-	refresh?: RefreshFn;
-	// The default wiki served by this transport. When that wiki is configured
-	// `private` (anonymous reads disabled upstream), a tokenless request is
-	// challenged with a connection-time 401 rather than served anonymously.
-	defaultWikiKey?: string;
-}
-
-// Emits the shared OAuth 401 challenge: a JSON-RPC error body with the
-// WWW-Authenticate: Bearer ... resource_metadata=... header pointing at this
-// server's protected-resource document. Reused by the legacy OAuth-only
-// short-circuit and the proxy invalid-JWT path so both speak the same dialect.
-function emit401Challenge(req: Request, res: Response): void {
-	const requestProto = resolveRequestProto(req);
-	const base = resolvePublicBase(req.headers.host ?? undefined, requestProto);
-	// The protected-resource document is served at the ORIGIN root (RFC 9728), not
-	// under MCP_PUBLIC_URL's path segment. Point resource_metadata at the origin so
-	// it resolves — the SDK fetches this URL verbatim with no root fallback. Preserve
-	// the authority (including any explicit port) and only drop a trailing path.
-	const origin = /^[a-z][a-z0-9+.-]*:\/\/[^/]+/i.exec(base)?.[0] ?? base.replace(/\/+$/, '');
-	const metadataUrl = `${origin}/.well-known/oauth-protected-resource`;
-	res.set(
-		'WWW-Authenticate',
-		`Bearer error="invalid_token", realm="MediaWiki MCP Server", resource_metadata="${metadataUrl}"`,
-	);
-	res.status(401).json({
-		jsonrpc: '2.0',
-		error: {
-			code: -32001,
-			message: 'Authentication required. See WWW-Authenticate header.',
-		},
-		id: null,
-	});
-}
-
-// Emitted when a proxy JWT is valid but its upstream token could not be refreshed
-// because of a transient upstream failure. Unlike emit401Challenge this carries NO
-// WWW-Authenticate header: the client should retry, not discard its session and
-// re-authenticate.
-function emit503Unavailable(res: Response): void {
-	res.status(503).json({
-		jsonrpc: '2.0',
-		error: {
-			code: -32000,
-			message: 'Upstream authorization temporarily unavailable. Please retry.',
-		},
-		id: null,
-	});
-}
-
-export function createMcpPostHandler(
-	sessions: SessionRegistry,
-	createServerFn: () => ReturnType<typeof createServer>,
-	options: McpPostHandlerOptions = {},
-): RequestHandler {
-	const {
-		wikiRegistry,
-		idleTimeoutMs = 0,
-		getProxyConfig,
-		proxyStore,
-		refresh,
-		defaultWikiKey,
-	} = options;
-	return async (req, res) => {
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Express headers are string|string[]|undefined; MCP transport sends a single header
-		const sessionId = req.headers['mcp-session-id'] as string | undefined;
-		const bearer = extractBearerToken(req);
-
-		// A `private` wiki disallows anonymous reads, so the deployment requires
-		// auth for everything: challenge any tokenless request up front — including
-		// `initialize` — so an OAuth-capable client signs in at connect. This
-		// connection-time 401 is the broadly client-compatible trigger.
-		if (
-			!bearer &&
-			defaultWikiKey !== undefined &&
-			wikiRegistry?.get(defaultWikiKey)?.private === true
-		) {
-			emit401Challenge(req, res);
-			return;
-		}
-
-		const pc = getProxyConfig?.() ?? null;
-
-		// The token threaded into withRequestContext (and thus into mwn). For the
-		// legacy path it is the raw request bearer. For the proxy path it is the
-		// UPSTREAM wiki token resolved from the proxy JWT (or undefined for an
-		// anonymous, tokenless request).
-		let resolvedBearer = bearer;
-
-		if (pc && proxyStore) {
-			// Proxy enabled. A bearer is a proxy JWT: verify + resolve it to the
-			// upstream wiki token. A 401 (with the discovery hint) is emitted only
-			// when a bearer is present but invalid/expired/unresolvable — never for a
-			// tokenless request, which is served anonymously (step-up for write tools
-			// happens later in checkWikiCapability, not as a transport 401).
-			if (bearer) {
-				try {
-					resolvedBearer = await resolveUpstreamBearer(bearer, pc, proxyStore, refresh);
-				} catch (err) {
-					// A transient upstream refresh failure is retryable: answer 503 without a
-					// re-auth challenge. Everything else (bad/expired JWT, dead refresh token)
-					// is a genuine auth failure: emit the 401 discovery challenge.
-					if (err instanceof UpstreamBearerError && err.retryable) {
-						emit503Unavailable(res);
-					} else {
-						emit401Challenge(req, res);
-					}
-					return;
-				}
-			} else {
-				resolvedBearer = undefined;
-			}
-		} else if (!bearer && wikiRegistry) {
-			// Legacy (proxy disabled): a tokenless request to a set of wikis that all
-			// require OAuth is rejected up front with the discovery challenge. This
-			// path is intentionally left UNCHANGED.
-			const all = Object.values(wikiRegistry.getAll());
-			const fallbackAllowed = process.env.MCP_ALLOW_STATIC_FALLBACK === 'true';
-			const allNeedAuth = all.length > 0 && all.every((cfg) => wikiNeedsAuth(cfg, fallbackAllowed));
-			if (allNeedAuth) {
-				emit401Challenge(req, res);
-				return;
-			}
-		}
-		let transport: NodeStreamableHTTPServerTransport;
-
-		if (sessionId && sessions[sessionId]) {
-			transport = sessions[sessionId].transport;
-			// Existing session: the registry entry already exists, so count this
-			// request now and release it when the response closes.
-			markSessionActive(sessions, sessionId);
-		} else if (!sessionId && isInitializeRequest(req.body)) {
-			transport = new NodeStreamableHTTPServerTransport({
-				sessionIdGenerator: () => randomUUID(),
-				// Host-header and Origin validation both run as Express middleware
-				// upstream of this handler, so no DNS-rebinding options are passed
-				// here — the transport's own copies are deprecated in favour of
-				// exactly that arrangement.
-				// onsessioninitialized fires during handleRequest below — the only
-				// point where the registry entry and transport.sessionId both
-				// exist. Seed activeRequests to 1 so the init POST counts as
-				// in-flight; the res.on('close') handler registered after
-				// handleRequest releases it.
-				onsessioninitialized: (newSessionId) => {
-					sessions[newSessionId] = { transport, activeRequests: 1 };
-				},
-			});
-
-			transport.onclose = () => {
-				if (transport.sessionId) {
-					const entry = sessions[transport.sessionId];
-					if (entry?.idleTimer) {
-						clearTimeout(entry.idleTimer);
-					}
-					delete sessions[transport.sessionId];
-				}
-			};
-			const server = await createServerFn();
-
-			await server.connect(transport);
-		} else {
-			res.status(400).json({
-				jsonrpc: '2.0',
-				error: {
-					code: -32000,
-					message: 'Bad Request: No valid session ID provided',
-				},
-				id: null,
-			});
-			return;
-		}
-
-		// Release the in-flight count when this response closes. transport.sessionId
-		// is populated by now for both branches (set synchronously during
-		// handleRequest for a new session). Registered before handleRequest so the
-		// 'close' listener is in place even if the response finishes synchronously.
-		res.on('close', () => {
-			const sid = transport.sessionId;
-			if (sid) {
-				markSessionIdle(sessions, sid, idleTimeoutMs);
-			}
-		});
-
-		await withRequestContext(resolvedBearer, transport.sessionId, () =>
-			transport.handleRequest(req, res, req.body),
-		);
-	};
-}
-
-export function createSessionRequestHandler(
-	sessions: SessionRegistry,
-	idleTimeoutMs = 0,
-	wikiRegistry?: WikiRegistry,
-	defaultWikiKey?: string,
-): RequestHandler {
-	return async (req, res) => {
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Express headers are string|string[]|undefined; MCP transport sends a single header
-		const sessionId = req.headers['mcp-session-id'] as string | undefined;
-		const bearer = extractBearerToken(req);
-
-		// A `private` deployment never serves a tokenless request — including the
-		// standalone GET SSE stream and DELETE.
-		if (
-			!bearer &&
-			defaultWikiKey !== undefined &&
-			wikiRegistry?.get(defaultWikiKey)?.private === true
-		) {
-			emit401Challenge(req, res);
-			return;
-		}
-
-		if (!sessionId || !sessions[sessionId]) {
-			res.status(400).send('Invalid or missing session ID');
-			return;
-		}
-		// A held-open GET SSE stream stays counted as active until it closes, so
-		// markSessionIdle (and the idle timer) won't run while a client holds it.
-		markSessionActive(sessions, sessionId);
-		res.on('close', () => markSessionIdle(sessions, sessionId, idleTimeoutMs));
-
-		const entry = sessions[sessionId];
-		// The session id (a 122-bit randomUUID) is itself the session capability:
-		// possession of a valid one authorizes GET/DELETE, with no bearer check.
-		// That is safe because every POST self-authenticates with its own per-
-		// request bearer (results return on that POST's own HTTP response), and
-		// the standalone GET SSE stream carries only global, non-client-specific
-		// notifications — so a session id alone grants nothing sensitive.
-		// The bearer is still extracted to thread into withRequestContext for
-		// consistency with the POST path.
-		await withRequestContext(bearer, sessionId, () => entry.transport.handleRequest(req, res));
-	};
-}
-
 // body-parser raises a PayloadTooLargeError with `type === 'entity.too.large'`
 // when the request body exceeds the configured limit. Without this handler the
 // default Express error page returns an HTML blob, which an MCP client cannot
@@ -664,80 +258,6 @@ export function payloadTooLargeHandler(limit: string): ErrorRequestHandler {
 	};
 }
 
-interface ReadyCacheEntry {
-	expiresAt: number;
-	payload: { status: 'ready' | 'not_ready'; wiki: string; reason?: string; checked_at: string };
-	httpStatus: 200 | 503;
-}
-
-const READY_CACHE_TTL_MS = 5_000;
-// Exported so the probe tests can size their fixtures against the real budget.
-export const READY_PROBE_TIMEOUT_MS = 3_000;
-let readyCache: ReadyCacheEntry | null = null;
-// The probe currently running, shared by every request that arrives while it is
-// still going. The cache alone cannot do this: it only fills once a probe
-// finishes, which is the whole window a slow wiki spends in.
-let readyProbeInFlight: Promise<ReadyCacheEntry> | null = null;
-
-export function __resetReadyCacheForTesting(): void {
-	readyCache = null;
-	readyProbeInFlight = null;
-}
-
-// Both halves of the check as one promise, so the race spans the whole of it:
-// resolving the provider can log in, which alone can outlast the budget.
-async function probeSiteInfo(mwnProvider: MwnProvider): Promise<void> {
-	const mwn = await mwnProvider.get();
-	await mwn.request({
-		action: 'query',
-		meta: 'siteinfo',
-		format: 'json',
-		siprop: 'general',
-	});
-}
-
-async function probeDefaultWiki(
-	activeWiki: ActiveWiki,
-	mwnProvider: MwnProvider,
-): Promise<ReadyCacheEntry> {
-	const wiki = activeWiki.getDefaultKey();
-	const checkedAt = new Date().toISOString();
-	// Resolves rather than rejects, so arming it before the race cannot orphan a
-	// rejection.
-	const timedOut = Symbol('probe timed out');
-	let timer: ReturnType<typeof setTimeout> | undefined;
-	const deadline = new Promise<typeof timedOut>((resolve) => {
-		timer = setTimeout(() => resolve(timedOut), READY_PROBE_TIMEOUT_MS);
-	});
-
-	try {
-		const outcome = await Promise.race([probeSiteInfo(mwnProvider), deadline]);
-		if (outcome === timedOut) {
-			throw new Error(`probe timeout after ${READY_PROBE_TIMEOUT_MS}ms`);
-		}
-		return {
-			expiresAt: Date.now() + READY_CACHE_TTL_MS,
-			payload: { status: 'ready', wiki, checked_at: checkedAt },
-			httpStatus: 200,
-		};
-	} catch (err) {
-		const reason = err instanceof Error ? err.message : String(err);
-		return {
-			expiresAt: Date.now() + READY_CACHE_TTL_MS,
-			payload: { status: 'not_ready', wiki, reason, checked_at: checkedAt },
-			httpStatus: 503,
-		};
-	} finally {
-		if (timer) {
-			clearTimeout(timer);
-		}
-	}
-}
-
-// Test seam: exported so the timeout test can call the probe directly,
-// bypassing supertest's lazy request sending under vi.useFakeTimers.
-export const __probeDefaultWikiForTesting = probeDefaultWiki;
-
 export function mountMetricsEndpoint(app: express.Express): void {
 	if (!isMetricsEnabled()) {
 		return;
@@ -747,43 +267,6 @@ export function mountMetricsEndpoint(app: express.Express): void {
 	if (handler) {
 		app.get('/metrics', handler);
 	}
-}
-
-export function mountReadyEndpoint(
-	app: express.Express,
-	deps: {
-		activeWiki: ActiveWiki;
-		mwnProvider: MwnProvider;
-	},
-): void {
-	app.get('/ready', async (_req, res) => {
-		let entry = readyCache;
-		if (!entry || Date.now() >= entry.expiresAt) {
-			if (readyProbeInFlight) {
-				entry = await readyProbeInFlight;
-			} else {
-				const probe = probeDefaultWiki(deps.activeWiki, deps.mwnProvider);
-				readyProbeInFlight = probe;
-				try {
-					entry = await probe;
-				} finally {
-					// Retire only our own probe. Nothing can replace it mid-flight
-					// today, but clearing blind would discard a successor's.
-					if (readyProbeInFlight === probe) {
-						readyProbeInFlight = null;
-					}
-				}
-				readyCache = entry;
-				// Count distinct probe failures, not cached replays or the requests
-				// that merely waited on this probe — K8s readiness probes that fire
-				// every second would otherwise inflate the counter for one outage.
-				if (entry.httpStatus !== 200) {
-					recordReadyFailure();
-				}
-			}
-		}
-		res.status(entry.httpStatus).json(entry.payload);
-	});
 }
 
 // The HTTP server's boot — config load, the static-credentials guard, proxy-
@@ -813,18 +296,28 @@ export interface BuildAppDeps {
 	// sitename (shown on the consent page). Match getProxyConfig's wiki.
 	defaultWikiKey: string;
 	defaultWikiSitename: string;
-	createServerFn: () => ReturnType<typeof createServer>;
+	// Called once per serving unit — every HTTP request under createMcpHandler
+	// (modern or stateless legacy alike) gets a fresh instance. The options
+	// carry the change publisher buildApp wires to the handler's notify facade.
+	createServerFn: (
+		reqCtx: McpRequestContext,
+		opts?: CreateServerOptions,
+	) => McpServer | Promise<McpServer>;
 	host: string;
 	allowedHosts?: string[];
 	allowedOrigins?: string[];
 	maxRequestBody: string;
-	sessionIdleTimeoutMs: number;
 }
 
 export interface BuiltApp {
 	app: express.Express;
-	sessions: SessionRegistry;
 	inFlight: InFlightCounter;
+	// The era-routing /mcp handler; shutdown calls close() after the in-flight
+	// drain to end subscriptions/listen streams gracefully.
+	mcpHandler: { close: () => Promise<void> };
+	// The change-event bus behind subscriptions/listen; its listenerCount is
+	// the number of open subscription streams.
+	bus: InMemoryServerEventBus;
 }
 
 // Builds the HTTP transport's Express app and all its routes. Pure with respect
@@ -846,7 +339,6 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		allowedHosts,
 		allowedOrigins,
 		maxRequestBody,
-		sessionIdleTimeoutMs,
 	} = deps;
 
 	// A `private` wiki challenges anonymous callers with a 401 whose discovery
@@ -891,30 +383,42 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		);
 	}
 
-	const sessions: SessionRegistry = {};
-	const sessionRequestHandler = createSessionRequestHandler(
-		sessions,
-		sessionIdleTimeoutMs,
-		state.wikiRegistry,
-		defaultWikiKey,
-	);
-
 	const inFlight = createInFlightCounter();
 	app.use('/mcp', inFlight.middleware);
 
-	app.post(
-		'/mcp',
-		...mcpOriginGuard,
-		createMcpPostHandler(sessions, createServerFn, {
-			wikiRegistry: state.wikiRegistry,
-			idleTimeoutMs: sessionIdleTimeoutMs,
-			getProxyConfig,
-			proxyStore: store,
-			defaultWikiKey,
-		}),
+	// The change-event bus behind subscriptions/listen. Owned here (rather than
+	// auto-created inside the handler) so the subscription-stream count is
+	// observable and the reconcile publisher can reach subscribers through the
+	// handler's notify facade below.
+	const bus = new InMemoryServerEventBus((error) =>
+		logger.error(`Change-event listener failed: ${error.message}`),
 	);
-	app.get('/mcp', ...mcpOriginGuard, sessionRequestHandler);
-	app.delete('/mcp', ...mcpOriginGuard, sessionRequestHandler);
+	// The publisher the per-request server factory hands to createServer's
+	// reconcile callback: a per-request instance has no client left to push to
+	// by the time add-wiki / remove-wiki changes anything, so change events go
+	// to every open subscriptions/listen stream instead. Deliberately closes
+	// over `handler` (assigned next) — the factory only runs per request, long
+	// after the handler exists.
+	const publisher: ChangePublisher = {
+		toolsChanged: (): void => handler.notify.toolsChanged(),
+		resourcesChanged: (): void => handler.notify.resourcesChanged(),
+	};
+	const handler = createMcpHandler((reqCtx) => createServerFn(reqCtx, { publisher }), {
+		legacy: 'stateless',
+		bus,
+		onerror: (error) => logger.error(`MCP handler error: ${error.message}`),
+	});
+
+	const mcpRoute = createMcpRouteHandler(handler, {
+		wikiRegistry: state.wikiRegistry,
+		getProxyConfig,
+		proxyStore: store,
+		defaultWikiKey,
+		onerror: (error) => logger.error(`MCP adapter error: ${error.message}`),
+	});
+	app.post('/mcp', ...mcpOriginGuard, mcpRoute);
+	app.get('/mcp', ...mcpOriginGuard, mcpRoute);
+	app.delete('/mcp', ...mcpOriginGuard, mcpRoute);
 
 	app.get('/health', (_req: Request, res: Response) => {
 		res.status(200).json({ status: 'ok' });
@@ -939,10 +443,13 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 
 	mountReadyEndpoint(app, { activeWiki: state.activeWiki, mwnProvider: state.mwnProvider });
 	mountMetricsEndpoint(app);
-	setSessionsProvider(() => Object.keys(sessions).length);
+	setInFlightProvider(inFlight.count);
+	// Every open subscriptions/listen stream registers one bus listener, so the
+	// listener count IS the open-stream count (nothing else subscribes).
+	setSubscriptionStreamsProvider(() => bus.listenerCount);
 	setProxyStoreStatsProvider(() => store.stats());
 
-	return { app, sessions, inFlight };
+	return { app, inFlight, mcpHandler: handler, bus };
 }
 
 // Boots the HTTP transport: loads config, enforces the static-credentials guard,
@@ -987,15 +494,8 @@ export function startHttpServer(): void {
 	const defaultWikiKey = state.activeWiki.getDefaultKey();
 	const defaultWikiSitename = state.wikiRegistry.get(defaultWikiKey)?.sitename ?? defaultWikiKey;
 
-	const {
-		host,
-		port,
-		allowedHosts,
-		allowedOrigins,
-		maxRequestBody,
-		sessionIdleTimeoutMs,
-		warnings,
-	} = resolveHttpConfig();
+	const { host, port, allowedHosts, allowedOrigins, maxRequestBody, warnings } =
+		resolveHttpConfig();
 	const guard = evaluateBearerGuard(state.wikiRegistry.getAll(), process.env);
 	if (guard.kind === 'block') {
 		logger.error(
@@ -1063,7 +563,7 @@ export function startHttpServer(): void {
 		getProxyConfig: getDefaultProxyConfig,
 	});
 
-	const { app, sessions, inFlight } = buildApp({
+	const { app, inFlight, mcpHandler } = buildApp({
 		state,
 		getProxyConfig: getDefaultProxyConfig,
 		proxyStore,
@@ -1071,12 +571,11 @@ export function startHttpServer(): void {
 		cimdResolver,
 		defaultWikiKey,
 		defaultWikiSitename,
-		createServerFn: () => createServer(ctx),
+		createServerFn: (reqCtx, opts) => createServer(ctx, reqCtx, opts),
 		host,
 		allowedHosts,
 		allowedOrigins,
 		maxRequestBody,
-		sessionIdleTimeoutMs,
 	});
 
 	const httpServer = app.listen(port, host, () => {
@@ -1093,7 +592,7 @@ export function startHttpServer(): void {
 		transport: 'http',
 		graceMs: resolveShutdownGrace(process.env),
 		httpServer,
-		sessions,
 		inFlight,
+		mcpHandler,
 	});
 }

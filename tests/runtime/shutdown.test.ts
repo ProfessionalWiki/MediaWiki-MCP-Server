@@ -92,20 +92,8 @@ describe('registerShutdownHandlers (http)', () => {
 		vi.unstubAllEnvs();
 	});
 
-	function setup(opts: { inFlight: number; sessions: number; graceMs?: number }) {
+	function setup(opts: { inFlight: number; graceMs?: number }) {
 		const proc = fakeProcess();
-		const closedSessions: string[] = [];
-		const sessions: Record<string, { transport: { close: () => Promise<void> } }> = {};
-		for (let i = 0; i < opts.sessions; i++) {
-			const id = `s-${i}`;
-			sessions[id] = {
-				transport: {
-					close: async () => {
-						closedSessions.push(id);
-					},
-				},
-			};
-		}
 
 		let httpClosed = false;
 		const httpServer = {
@@ -126,37 +114,53 @@ describe('registerShutdownHandlers (http)', () => {
 			},
 		};
 
+		// Records the in-flight count observed at close time, so the ordering
+		// contract (drain BEFORE handler close) is assertable.
+		const handlerCloseCountAt: number[] = [];
+		const mcpHandler = {
+			close: async () => {
+				handlerCloseCountAt.push(count);
+			},
+		};
+
 		registerShutdownHandlers({
 			transport: 'http',
 			graceMs: opts.graceMs ?? 10_000,
 			// oxlint-disable-next-line typescript/no-explicit-any
 			httpServer: httpServer as any,
-			// oxlint-disable-next-line typescript/no-explicit-any
-			sessions: sessions as any,
+			mcpHandler,
 			inFlight,
 			// oxlint-disable-next-line typescript/no-explicit-any
 			process: proc as any,
 			pollIntervalMs: 5,
 		});
 
-		return { proc, sessions, closedSessions, httpServer: { closed: () => httpClosed }, inFlight };
+		return {
+			proc,
+			handlerCloseCountAt,
+			httpServer: { closed: () => httpClosed },
+			inFlight,
+		};
 	}
 
 	it('registers SIGTERM and SIGINT', () => {
-		const { proc } = setup({ inFlight: 0, sessions: 0 });
+		const { proc } = setup({ inFlight: 0 });
 		expect(proc.signals.has('SIGTERM')).toBe(true);
 		expect(proc.signals.has('SIGINT')).toBe(true);
 	});
 
-	it('drains cleanly when in-flight reaches zero', async () => {
-		const { proc, httpServer, closedSessions, inFlight } = setup({ inFlight: 2, sessions: 1 });
+	it('drains cleanly when in-flight reaches zero, then closes the MCP handler', async () => {
+		const { proc, httpServer, handlerCloseCountAt, inFlight } = setup({ inFlight: 2 });
 		proc.signals.get('SIGTERM')!();
 		await new Promise((r) => setImmediate(r));
 		inFlight.drain();
 		await new Promise((r) => setTimeout(r, 20));
 
 		expect(httpServer.closed()).toBe(true);
-		expect(closedSessions).toEqual(['s-0']);
+		// The handler closed exactly once, AFTER the drain: had it run first, it
+		// would have observed the pre-drain in-flight count and aborted those
+		// exchanges mid-call.
+		expect(handlerCloseCountAt).toEqual([0]);
 		expect(proc.exitCalls).toEqual([0]);
 
 		const start = captureEvents(stderrSpy, 'shutdown');
@@ -167,19 +171,17 @@ describe('registerShutdownHandlers (http)', () => {
 			transport: 'http',
 			grace_ms: 10_000,
 			in_flight_at_signal: 2,
-			sessions_at_signal: 1,
 		});
 		expect(done).toHaveLength(1);
 		expect(done[0]).toMatchObject({
 			in_flight_drained: 2,
-			sessions_closed: 1,
 			grace_exceeded: false,
 		});
 		expect(typeof done[0].duration_ms).toBe('number');
 	});
 
 	it('exits 1 with grace_exceeded: true when in-flight is stuck', async () => {
-		const { proc } = setup({ inFlight: 3, sessions: 0, graceMs: 30 });
+		const { proc } = setup({ inFlight: 3, graceMs: 30 });
 		proc.signals.get('SIGINT')!();
 		await new Promise((r) => setTimeout(r, 60));
 		expect(proc.exitCalls).toEqual([1]);
@@ -191,7 +193,7 @@ describe('registerShutdownHandlers (http)', () => {
 	});
 
 	it('forces immediate exit on a second signal', async () => {
-		const { proc } = setup({ inFlight: 5, sessions: 0, graceMs: 10_000 });
+		const { proc } = setup({ inFlight: 5, graceMs: 10_000 });
 		proc.signals.get('SIGTERM')!();
 		await new Promise((r) => setImmediate(r));
 		proc.signals.get('SIGTERM')!();

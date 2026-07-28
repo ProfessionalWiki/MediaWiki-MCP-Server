@@ -4,7 +4,7 @@ import type { Tool } from './tool.js';
 import type { ToolContext } from './context.js';
 import { applySpecialCase } from '../errors/specialCases.js';
 import { errorMessage } from '../errors/isErrnoException.js';
-import { getRuntimeToken, getSessionId, withRequestFields } from './requestContext.js';
+import { getRuntimeToken, withRequestFields } from './requestContext.js';
 import { isWikiScoped, normalizeWikiArg } from './wikiArg.js';
 import {
 	emitToolCall,
@@ -173,7 +173,6 @@ async function runDispatchInner<TSchema extends ZodRawShape, TCtx extends ToolCo
 		upstreamStatus,
 		errorMessage: errorText,
 		runtimeToken: getRuntimeToken(),
-		sessionId: getSessionId(),
 		wikiKey: ctx.activeWiki.get().key,
 	});
 

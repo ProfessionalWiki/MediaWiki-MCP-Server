@@ -2,14 +2,12 @@ import { describe, it, expect, vi } from 'vitest';
 
 import express, { type Express } from 'express';
 import request from 'supertest';
-import { McpServer } from '@modelcontextprotocol/server';
 import {
-	resolveUpstreamBearer,
-	createMcpPostHandler,
+	createMcpRouteHandler,
+	type McpRouteOptions,
 	type ProxyConfigGetter,
-	type McpPostHandlerOptions,
-} from '../../src/transport/streamableHttp.js';
-import type { SessionRegistry } from '../../src/transport/sessionRegistry.js';
+} from '../../src/transport/mcpRoute.js';
+import { resolveUpstreamBearer } from '../../src/auth/upstreamBearer.js';
 import { OAuthFlowError } from '../../src/auth/oauthFlow.js';
 import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.js';
 import { mintAccessToken } from '../../src/auth/authorizationServer/jwt.js';
@@ -217,42 +215,32 @@ function fakeRegistry(wikis: Record<string, Partial<WikiConfig>>): WikiRegistry 
 	} as unknown as WikiRegistry;
 }
 
-function stubCreateServer(): McpServer {
-	return new McpServer(
-		{ name: 'proxy-bearer-test-server', version: '0.0.0' },
-		{ capabilities: {} },
-	);
-}
-
-// Pre-seeds a session whose transport.handleRequest captures the runtimeToken
-// threaded into withRequestContext. POSTing with that mcp-session-id drives the
-// existing-session branch, so the handler reaches the withRequestContext call
-// without booting the real MCP transport machinery — the same fake-transport
-// seam streamableHttp.test.ts uses.
+// A fake fetch-shaped handler captures the runtimeToken threaded into
+// withRequestContext: the route converts the request and calls fetch inside
+// the request-context scope, so the guard logic is exercised without booting
+// the real MCP serving machinery.
 function buildMcpApp(
 	registry: WikiRegistry,
 	getProxyConfig: ProxyConfigGetter | undefined,
 	store: InMemoryProxyStore | undefined,
 	captured: { token?: string; seen: boolean },
-	refresh?: McpPostHandlerOptions['refresh'],
+	refresh?: McpRouteOptions['refresh'],
 ): Express {
 	const app = express();
 	app.use(express.json());
-	const handleRequest = vi.fn(
-		async (_req: unknown, res: { status: (n: number) => { json: (b: unknown) => void } }) => {
+	const fakeHandler = {
+		fetch: async (): Promise<Response> => {
 			captured.seen = true;
 			captured.token = getRuntimeToken();
-			res.status(200).json({ ok: true });
+			return new Response(JSON.stringify({ ok: true }), {
+				status: 200,
+				headers: { 'content-type': 'application/json' },
+			});
 		},
-	);
-	const transport = {
-		sessionId: 'sid-1',
-		handleRequest,
-	} as unknown as SessionRegistry[string]['transport'];
-	const sessions: SessionRegistry = { 'sid-1': { transport, activeRequests: 0 } };
+	};
 	app.post(
 		'/mcp',
-		createMcpPostHandler(sessions, stubCreateServer, {
+		createMcpRouteHandler(fakeHandler, {
 			wikiRegistry: registry,
 			getProxyConfig,
 			proxyStore: store,
@@ -289,7 +277,6 @@ describe('POST /mcp proxy bearer rewire', () => {
 		const res = await request(app)
 			.post('/mcp')
 			.set('Content-Type', 'application/json')
-			.set('mcp-session-id', 'sid-1')
 			.set('Authorization', `Bearer ${jwt}`)
 			.send(body);
 
@@ -308,7 +295,6 @@ describe('POST /mcp proxy bearer rewire', () => {
 		const res = await request(app)
 			.post('/mcp')
 			.set('Content-Type', 'application/json')
-			.set('mcp-session-id', 'sid-1')
 			.set('Authorization', 'Bearer not-a-real-jwt')
 			.send(body);
 
@@ -330,11 +316,7 @@ describe('POST /mcp proxy bearer rewire', () => {
 		const captured: { token?: string; seen: boolean } = { seen: false };
 		const app = buildMcpApp(fakeRegistry({ test: oauthWiki }), () => pc, store, captured);
 
-		const res = await request(app)
-			.post('/mcp')
-			.set('Content-Type', 'application/json')
-			.set('mcp-session-id', 'sid-1')
-			.send(body);
+		const res = await request(app).post('/mcp').set('Content-Type', 'application/json').send(body);
 
 		expect(res.status).not.toBe(401);
 		expect(captured.seen).toBe(true);
@@ -347,11 +329,7 @@ describe('POST /mcp proxy bearer rewire', () => {
 		// wiki with no bearer must still get the legacy 401 short-circuit.
 		const app = buildMcpApp(fakeRegistry({ test: oauthWiki }), () => null, undefined, captured);
 
-		const res = await request(app)
-			.post('/mcp')
-			.set('Content-Type', 'application/json')
-			.set('mcp-session-id', 'sid-1')
-			.send(body);
+		const res = await request(app).post('/mcp').set('Content-Type', 'application/json').send(body);
 
 		expect(res.status).toBe(401);
 		expect(res.body?.error?.code).toBe(-32001);
@@ -365,7 +343,6 @@ describe('POST /mcp proxy bearer rewire', () => {
 		const res = await request(app)
 			.post('/mcp')
 			.set('Content-Type', 'application/json')
-			.set('mcp-session-id', 'sid-1')
 			.set('Authorization', 'Bearer raw-wiki-token')
 			.send(body);
 
@@ -395,7 +372,6 @@ describe('POST /mcp proxy bearer rewire', () => {
 		const res = await request(app)
 			.post('/mcp')
 			.set('Content-Type', 'application/json')
-			.set('mcp-session-id', 'sid-1')
 			.set('Authorization', `Bearer ${jwt}`)
 			.send(body);
 
@@ -427,7 +403,6 @@ describe('POST /mcp proxy bearer rewire', () => {
 		const res = await request(app)
 			.post('/mcp')
 			.set('Content-Type', 'application/json')
-			.set('mcp-session-id', 'sid-1')
 			.set('Authorization', `Bearer ${jwt}`)
 			.send(body);
 
@@ -460,7 +435,6 @@ describe('POST /mcp proxy bearer rewire', () => {
 		const res = await request(app)
 			.post('/mcp')
 			.set('Content-Type', 'application/json')
-			.set('mcp-session-id', 'sid-1')
 			.set('Authorization', `Bearer ${jwt}`)
 			.send(body);
 

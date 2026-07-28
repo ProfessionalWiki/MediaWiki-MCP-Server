@@ -8,11 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Breaking changes
 
+- The HTTP transport no longer creates sessions, following the per-request model of MCP protocol revision 2026-07-28. No session id is issued, the standalone `GET /mcp` notification stream answers `405 Method Not Allowed`, and clients on earlier protocol revisions no longer receive notifications between requests — most visibly, a tool-list change after `add-wiki` or `remove-wiki` reaches them on their next connection rather than as a push. Tool calls themselves are unaffected: every request is served independently, which is the shape most remote MCP servers already use. Clients that negotiate the 2026-07-28 revision receive change notifications over its subscription streams instead. stdio behaviour is unchanged on both protocol eras.
+- `MCP_SESSION_IDLE_TIMEOUT` is obsolete now that no sessions exist to expire. The server warns at startup while the variable is still set; remove it from the environment.
+- The `mcp_active_sessions` metric is gone. Watch `mcp_inflight_requests` (requests currently being served, the truer load signal) and `mcp_subscription_streams` (open change-notification streams, the closest measure of connected clients) instead.
 - Reading NeoWiki subjects now requires a wiki running NeoWiki from 2026-07-27 or later, when a Statement's property type was renamed to `propertyType` (ProfessionalWiki/NeoWiki#1169). This fixes `neowiki-get-subject` and `neowiki-get-page-subjects` reporting an empty type for every statement against an updated wiki, and requires one: against an earlier NeoWiki the type now reads as empty. Update the wiki before upgrading the server.
 
 ### Added
 
-- The server now speaks MCP protocol revision 2026-07-28 on the stdio transport. A client that negotiates it gets the revision's per-connection serving and receives tool and resource list-change notifications over its subscription streams; clients on earlier revisions are served exactly as before.
+- The server now speaks MCP protocol revision 2026-07-28 on both transports. A client that negotiates it gets per-request serving over HTTP, per-connection serving over stdio, and tool and resource list-change notifications over the revision's subscription streams; clients on earlier revisions are served as before on stdio and statelessly over HTTP.
 - Plugin installs can now be pointed at your own wiki. Claude Code prompts for a configuration file when the plugin is enabled, and the Codex plugin forwards the `CONFIG` environment variable from the shell Codex is launched from. Previously neither plugin offered a way to set `CONFIG`, leaving the server on English Wikipedia.
 - The server now warns at startup when `CONFIG` points at a file that does not exist. It previously fell back to the default English Wikipedia configuration with no indication of the misconfiguration, so a typo in the path meant silently talking to the wrong wiki.
 
@@ -22,6 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - Over HTTP, event streams now carry a keep-alive every 15 seconds. A reverse proxy that drops idle connections no longer cuts a client's notification stream while it is simply waiting.
 - Calling a tool the server is not offering now fails the call outright, instead of returning an error message as the tool's result. That covers both a name that does not exist and one withheld because it does not apply to the configured wikis, for example write tools when every wiki is read-only. Clients that call only what the server advertises are unaffected.
 - `MCP_ALLOWED_ORIGINS` is now matched on hostname rather than as a whole origin, so a configured `https://wiki.example.org` also admits `http://wiki.example.org` and other ports on that host. Enforce a particular scheme or port at your reverse proxy if you need one. In exchange the setting is much harder to get silently wrong: a trailing slash, a path, an explicit `:443`, an uppercase scheme, and a bare hostname with no scheme are all accepted now, where each previously rejected every browser request without explanation.
+- `tool_call` telemetry lines no longer carry a `session_id` field, and shutdown events no longer report `sessions_at_signal` / `sessions_closed` — with per-request HTTP serving there is no session to attribute. The hashed `caller` field remains the per-caller signal.
 
 ### Fixed
 
