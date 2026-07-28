@@ -2,9 +2,14 @@ import { describe, it, expect, vi } from 'vitest';
 
 import express, { type Express } from 'express';
 import request from 'supertest';
-import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
 import {
-	bodyErrorHandler,
+	createMcpHandler,
+	INTERNAL_ERROR,
+	McpServer,
+	PARSE_ERROR,
+} from '@modelcontextprotocol/server';
+import {
+	errorHandler,
 	handleListenError,
 	resolveMcpHostValidation,
 	resolveMcpOriginValidation,
@@ -12,7 +17,6 @@ import {
 } from '../../src/transport/streamableHttp.js';
 import {
 	AUTHENTICATION_REQUIRED_ERROR_CODE,
-	PARSE_ERROR_CODE,
 	PAYLOAD_TOO_LARGE_ERROR_CODE,
 	UPSTREAM_UNAVAILABLE_ERROR_CODE,
 } from '../../src/transport/errorCodes.js';
@@ -254,7 +258,7 @@ describe('request body size cap', () => {
 	function buildApp(limit: string): Express {
 		const app = express();
 		app.use(express.json({ limit }));
-		app.use(bodyErrorHandler(limit));
+		app.use(errorHandler(limit));
 		app.post('/mcp', (req, res) => {
 			res.status(200).json({ ok: true, length: JSON.stringify(req.body).length });
 		});
@@ -293,8 +297,9 @@ describe('request body size cap', () => {
 		expect(res.status).toBe(413);
 		expect(res.headers['content-type']).toMatch(/application\/json/);
 		expect(res.body?.jsonrpc).toBe('2.0');
-		// body-parser aborted before parsing, so the request id could not be read.
-		expect(res.body?.id).toBeNull();
+		// The id is omitted, never null: this revision admits only a string or a
+		// number, and body-parser aborted before any id could be read.
+		expect('id' in res.body).toBe(false);
 		expect(res.body?.error?.code).toBe(PAYLOAD_TOO_LARGE_ERROR_CODE);
 		expect(res.body?.error?.message).toMatch(/50kb/);
 	});
@@ -315,7 +320,7 @@ describe('malformed JSON body', () => {
 	function buildApp(): Express {
 		const app = express();
 		app.use(express.json());
-		app.use(bodyErrorHandler('1mb'));
+		app.use(errorHandler('1mb'));
 		app.post('/mcp', (_req, res) => {
 			res.status(200).json({ ok: true });
 		});
@@ -335,8 +340,7 @@ describe('malformed JSON body', () => {
 		expect(res.headers['content-type']).toMatch(/application\/json/);
 		expect(res.body).toEqual({
 			jsonrpc: '2.0',
-			error: { code: PARSE_ERROR_CODE, message: 'Parse error' },
-			id: null,
+			error: { code: PARSE_ERROR, message: 'Request body is not valid JSON' },
 		});
 	});
 
@@ -354,7 +358,7 @@ describe('malformed JSON body', () => {
 		const res = await postBroken(path);
 		expect(res.status).toBe(400);
 		expect(res.body?.jsonrpc).toBe('2.0');
-		expect(res.body?.error?.code).toBe(PARSE_ERROR_CODE);
+		expect(res.body?.error?.code).toBe(PARSE_ERROR);
 	});
 
 	it('never leaks a stack trace', async () => {
@@ -365,37 +369,58 @@ describe('malformed JSON body', () => {
 	});
 });
 
-describe('bodyErrorHandler', () => {
+describe('errorHandler', () => {
 	const mcpReq = { path: '/mcp' } as never;
 
-	it('forwards non-body-parser errors to the next handler', () => {
-		const handler = bodyErrorHandler('1mb');
+	// Terminal: nothing may reach Express's finalhandler, which answers HTML and
+	// leaks absolute paths in a stack trace outside production.
+	it('answers an unrecognised error as JSON without serialising it', () => {
+		const handler = errorHandler('1mb');
 		const next = vi.fn();
-		const otherErr = new Error('unrelated');
-		const res = { status: vi.fn(), json: vi.fn() };
-		handler(otherErr, mcpReq, res as never, next as never);
-		expect(next).toHaveBeenCalledWith(otherErr);
-		expect(res.status).not.toHaveBeenCalled();
-		expect(res.json).not.toHaveBeenCalled();
+		const json = vi.fn();
+		const status = vi.fn(() => ({ json }));
+		handler(new Error('boom at /home/someone/secret'), mcpReq, { status } as never, next as never);
+		expect(next).not.toHaveBeenCalled();
+		expect(status).toHaveBeenCalledWith(500);
+		const body = JSON.stringify(json.mock.calls[0][0]);
+		expect(body).not.toMatch(/boom|secret/);
+		expect(json).toHaveBeenCalledWith(
+			expect.objectContaining({ error: expect.objectContaining({ code: INTERNAL_ERROR }) }),
+		);
 	});
 
-	it('forwards a non-error-shaped value (string) to next', () => {
-		const handler = bodyErrorHandler('1mb');
+	it('answers a non-error-shaped value without serialising it', () => {
+		const handler = errorHandler('1mb');
 		const next = vi.fn();
-		handler('oops' as never, mcpReq, {} as never, next as never);
-		expect(next).toHaveBeenCalledWith('oops');
+		const json = vi.fn();
+		const status = vi.fn(() => ({ json }));
+		handler('oops' as never, mcpReq, { status } as never, next as never);
+		expect(next).not.toHaveBeenCalled();
+		expect(status).toHaveBeenCalledWith(500);
+		expect(JSON.stringify(json.mock.calls[0][0])).not.toMatch(/oops/);
+	});
+
+	it('honours an Express-supplied status', () => {
+		const handler = errorHandler('1mb');
+		const json = vi.fn();
+		const status = vi.fn(() => ({ json }));
+		const err = Object.assign(new Error('unsupported charset'), { status: 415 });
+		handler(err, mcpReq, { status } as never, vi.fn() as never);
+		expect(status).toHaveBeenCalledWith(415);
 	});
 
 	// Express matches `/mcp` non-strictly, so the trailing-slash form reaches the
 	// MCP route and must get the MCP envelope with it.
 	it('treats the trailing-slash form of the MCP path as the MCP endpoint', () => {
-		const handler = bodyErrorHandler('1mb');
+		const handler = errorHandler('1mb');
 		const json = vi.fn();
 		const res = { status: vi.fn(() => ({ json })) };
 		const parseErr = Object.assign(new SyntaxError('bad'), { type: 'entity.parse.failed' });
 		handler(parseErr, { path: '/mcp/' } as never, res as never, vi.fn() as never);
 		expect(json).toHaveBeenCalledWith(
-			expect.objectContaining({ error: { code: PARSE_ERROR_CODE, message: 'Parse error' } }),
+			expect.objectContaining({
+				error: { code: PARSE_ERROR, message: 'Request body is not valid JSON' },
+			}),
 		);
 	});
 });

@@ -2,9 +2,8 @@ import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 
 import request from 'supertest';
 import type { RequestHandler } from 'express';
-import { McpServer } from '@modelcontextprotocol/server';
+import { McpServer, PARSE_ERROR } from '@modelcontextprotocol/server';
 import { buildApp, type BuildAppDeps } from '../../src/transport/streamableHttp.js';
-import { PARSE_ERROR_CODE } from '../../src/transport/errorCodes.js';
 import { resolveUpstreamBearer } from '../../src/auth/upstreamBearer.js';
 import { createAppState } from '../../src/wikis/state.js';
 import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.js';
@@ -164,7 +163,7 @@ describe('hosted OAuth proxy — malformed JSON body scope', () => {
 
 		expect(res.status).toBe(400);
 		expect(res.headers['content-type']).toMatch(/application\/json/);
-		expect(res.body?.error?.code).toBe(PARSE_ERROR_CODE);
+		expect(res.body?.error?.code).toBe(PARSE_ERROR);
 		expect(res.text).not.toMatch(/SyntaxError/);
 	});
 

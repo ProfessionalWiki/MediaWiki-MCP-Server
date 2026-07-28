@@ -8,7 +8,9 @@ import express, {
 } from 'express';
 import {
 	createMcpHandler,
+	INTERNAL_ERROR,
 	InMemoryServerEventBus,
+	PARSE_ERROR,
 	type McpRequestContext,
 	type McpServer,
 } from '@modelcontextprotocol/server';
@@ -30,7 +32,7 @@ import {
 } from '../runtime/metrics.js';
 import { createInFlightCounter, type InFlightCounter } from './inFlight.js';
 import { createMcpRouteHandler, resolveRequestProto, type ProxyConfigGetter } from './mcpRoute.js';
-import { PARSE_ERROR_CODE, PAYLOAD_TOO_LARGE_ERROR_CODE } from './errorCodes.js';
+import { PAYLOAD_TOO_LARGE_ERROR_CODE } from './errorCodes.js';
 import { mountReadyEndpoint } from './ready.js';
 import { loadConfigFromFile } from '../config/loadConfig.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
@@ -244,6 +246,31 @@ function isMcpEndpoint(req: Request): boolean {
 	return path === '/mcp' || path === '/mcp/';
 }
 
+// The browser-facing authorization-server routes speak RFC 6749; the JSON-RPC
+// endpoint speaks JSON-RPC. A body-parser failure happens before routing, so an
+// unrouted path reaches this handler too and gets neither dialect: telling an
+// arbitrary path it is an OAuth endpoint would advertise the whole server as one.
+const AUTHORIZATION_SERVER_PATHS: ReadonlySet<string> = new Set([
+	'/mcp/register',
+	'/mcp/authorize',
+	'/mcp/consent',
+	'/mcp/oauth/callback',
+	'/mcp/token',
+	'/.well-known/oauth-authorization-server',
+	'/.well-known/oauth-authorization-server/mcp',
+]);
+
+type ErrorDialect = 'jsonrpc' | 'oauth' | 'plain';
+
+function dialectFor(req: Request): ErrorDialect {
+	const path = req.path.toLowerCase();
+	if (isMcpEndpoint(req)) {
+		return 'jsonrpc';
+	}
+	const withoutTrailingSlash = path.length > 1 ? path.replace(/\/+$/, '') : path;
+	return AUTHORIZATION_SERVER_PATHS.has(withoutTrailingSlash) ? 'oauth' : 'plain';
+}
+
 // body-parser tags each of its failures with a `type` discriminator; anything
 // else reaching an error handler carries none.
 function bodyErrorType(err: unknown): string | undefined {
@@ -253,44 +280,62 @@ function bodyErrorType(err: unknown): string | undefined {
 	return typeof err.type === 'string' ? err.type : undefined;
 }
 
-// body-parser fails with `entity.too.large` when the body exceeds the configured
-// limit and `entity.parse.failed` when it is not valid JSON. Without this handler
-// both reach Express's finalhandler, which answers HTML — unparseable by an MCP
-// client, and carrying a stack trace outside production. Other body-parser failure
-// types propagate untouched.
-export function bodyErrorHandler(limit: string): ErrorRequestHandler {
-	return (err, req, res, next) => {
+// Express attaches a status to the failures it can characterise; anything else
+// is ours and is a 500.
+function errorStatus(err: unknown): number {
+	if (typeof err === 'object' && err !== null && 'status' in err) {
+		const { status } = err;
+		if (typeof status === 'number' && status >= 400 && status <= 599) {
+			return status;
+		}
+	}
+	return 500;
+}
+
+// The terminal error handler, mounted after every route so that both a
+// body-parser failure and a throw from a route reach it. Without it they reach
+// Express's finalhandler, which answers HTML — unparseable by an MCP client, and
+// carrying absolute filesystem paths in a stack trace outside production. The
+// error is never serialised into the response for that reason.
+export function errorHandler(limit: string): ErrorRequestHandler {
+	return (err, req, res, _next) => {
+		if (res.headersSent) {
+			return;
+		}
 		const type = bodyErrorType(err);
-		if (type === 'entity.too.large') {
-			const message = `Request body exceeds the configured maximum size of ${limit}`;
-			if (isMcpEndpoint(req)) {
-				res.status(413).json({
+		const tooLarge = type === 'entity.too.large';
+		const parseFailed = type === 'entity.parse.failed';
+		const status = tooLarge ? 413 : parseFailed ? 400 : errorStatus(err);
+		const message = tooLarge
+			? `Request body exceeds the configured maximum size of ${limit}`
+			: parseFailed
+				? 'Request body is not valid JSON'
+				: 'Request could not be processed';
+
+		switch (dialectFor(req)) {
+			case 'jsonrpc':
+				res.status(status).json({
 					jsonrpc: '2.0',
-					error: { code: PAYLOAD_TOO_LARGE_ERROR_CODE, message },
-					// body-parser aborted before parsing, so no request id was ever read.
-					id: null,
+					// The id is omitted rather than null: this revision's error shape
+					// admits only a string or a number, and every failure reaching here
+					// happened before a request id could be read.
+					error: { code: jsonRpcCodeFor(tooLarge, parseFailed), message },
 				});
-			} else {
-				res.status(413).json({ error: 'invalid_request', error_description: message });
-			}
-			return;
+				return;
+			case 'oauth':
+				res.status(status).json({ error: 'invalid_request', error_description: message });
+				return;
+			default:
+				res.status(status).json({ error: message });
 		}
-		if (type === 'entity.parse.failed') {
-			if (isMcpEndpoint(req)) {
-				res.status(400).json({
-					jsonrpc: '2.0',
-					error: { code: PARSE_ERROR_CODE, message: 'Parse error' },
-					id: null,
-				});
-			} else {
-				res
-					.status(400)
-					.json({ error: 'invalid_request', error_description: 'Request body is not valid JSON' });
-			}
-			return;
-		}
-		next(err);
 	};
+}
+
+function jsonRpcCodeFor(tooLarge: boolean, parseFailed: boolean): number {
+	if (tooLarge) {
+		return PAYLOAD_TOO_LARGE_ERROR_CODE;
+	}
+	return parseFailed ? PARSE_ERROR : INTERNAL_ERROR;
 }
 
 export function mountMetricsEndpoint(app: express.Express): void {
@@ -392,7 +437,6 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 
 	const app = express();
 	app.use(express.json({ limit: maxRequestBody }));
-	app.use(bodyErrorHandler(maxRequestBody));
 
 	const hostValidation = resolveMcpHostValidation(host, allowedHosts);
 	if (hostValidation) {
@@ -483,6 +527,10 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 	// listener count IS the open-stream count (nothing else subscribes).
 	setSubscriptionStreamsProvider(() => bus.listenerCount);
 	setProxyStoreStatsProvider(() => store.stats());
+
+	// Last, so that a throw from any route above reaches it as well as a
+	// body-parser failure from before routing.
+	app.use(errorHandler(maxRequestBody));
 
 	return { app, inFlight, mcpHandler: handler, bus };
 }

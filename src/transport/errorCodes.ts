@@ -7,7 +7,3 @@
 export const AUTHENTICATION_REQUIRED_ERROR_CODE = -31001;
 export const UPSTREAM_UNAVAILABLE_ERROR_CODE = -31002;
 export const PAYLOAD_TOO_LARGE_ERROR_CODE = -31003;
-
-// JSON-RPC 2.0's own Parse error, which the spec defines and MCP requires for a
-// body that is not valid JSON.
-export const PARSE_ERROR_CODE = -32700;
