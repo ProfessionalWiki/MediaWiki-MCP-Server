@@ -5,6 +5,7 @@ import request from 'supertest';
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
 import { createOAuthProtectedResourceHandler } from '../../src/transport/streamableHttp.js';
 import { createMcpRouteHandler, type McpRouteOptions } from '../../src/transport/mcpRoute.js';
+import { AUTHENTICATION_REQUIRED_ERROR_CODE } from '../../src/transport/errorCodes.js';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.js';
@@ -237,7 +238,7 @@ describe('POST /mcp 401 short-circuit when every wiki requires auth', () => {
 
 		expect(res.status).toBe(401);
 		expect(res.body?.jsonrpc).toBe('2.0');
-		expect(res.body?.error?.code).toBe(-32001);
+		expect(res.body?.error?.code).toBe(AUTHENTICATION_REQUIRED_ERROR_CODE);
 		const wwwAuth = res.headers['www-authenticate'];
 		expect(typeof wwwAuth).toBe('string');
 		expect(wwwAuth).toMatch(/^Bearer /);
@@ -452,7 +453,7 @@ describe('POST /mcp 401 short-circuit when every wiki requires auth', () => {
 			.send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
 
 		expect(res.status).toBe(401);
-		expect(res.body?.error?.code).toBe(-32001);
+		expect(res.body?.error?.code).toBe(AUTHENTICATION_REQUIRED_ERROR_CODE);
 		const wwwAuth = res.headers['www-authenticate'];
 		expect(typeof wwwAuth).toBe('string');
 		expect(wwwAuth).toMatch(/^Bearer /);

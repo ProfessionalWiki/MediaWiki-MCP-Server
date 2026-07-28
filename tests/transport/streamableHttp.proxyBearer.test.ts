@@ -7,6 +7,10 @@ import {
 	type McpRouteOptions,
 	type ProxyConfigGetter,
 } from '../../src/transport/mcpRoute.js';
+import {
+	AUTHENTICATION_REQUIRED_ERROR_CODE,
+	UPSTREAM_UNAVAILABLE_ERROR_CODE,
+} from '../../src/transport/errorCodes.js';
 import { resolveUpstreamBearer } from '../../src/auth/upstreamBearer.js';
 import { OAuthFlowError } from '../../src/auth/oauthFlow.js';
 import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.js';
@@ -299,7 +303,8 @@ describe('POST /mcp proxy bearer rewire', () => {
 			.send(body);
 
 		expect(res.status).toBe(401);
-		expect(res.body?.error?.code).toBe(-32001);
+		expect(res.body?.error?.code).toBe(AUTHENTICATION_REQUIRED_ERROR_CODE);
+		expect(res.body?.id).toBe(body.id);
 		const wwwAuth = res.headers['www-authenticate'];
 		expect(typeof wwwAuth).toBe('string');
 		expect(wwwAuth).toMatch(/^Bearer /);
@@ -309,6 +314,44 @@ describe('POST /mcp proxy bearer rewire', () => {
 		expect(wwwAuth).toMatch(/\/.well-known\/oauth-protected-resource"/);
 		// The request must NOT have reached the transport.
 		expect(captured.seen).toBe(false);
+	});
+
+	it('echoes a string request id on the 401', async () => {
+		const store = new InMemoryProxyStore();
+		const captured: { token?: string; seen: boolean } = { seen: false };
+		const app = buildMcpApp(fakeRegistry({ test: oauthWiki }), () => pc, store, captured);
+
+		const res = await request(app)
+			.post('/mcp')
+			.set('Content-Type', 'application/json')
+			.set('Authorization', 'Bearer not-a-real-jwt')
+			.send({ ...body, id: 'req-abc' });
+
+		expect(res.status).toBe(401);
+		expect(res.body?.id).toBe('req-abc');
+	});
+
+	// The 2026-07-28 error shape admits a string or a number, so a request whose id
+	// this layer cannot read gets no id key at all rather than a null one.
+	it.each([
+		['a notification', { jsonrpc: '2.0', method: 'notifications/initialized' }],
+		['a batch', [{ jsonrpc: '2.0', id: 1, method: 'tools/list' }]],
+		['a null id', { jsonrpc: '2.0', id: null, method: 'tools/list' }],
+		['a non-scalar id', { jsonrpc: '2.0', id: { n: 1 }, method: 'tools/list' }],
+		['no method', { jsonrpc: '2.0', id: 1, result: {} }],
+	])('omits the id on the 401 for %s', async (_label, payload) => {
+		const store = new InMemoryProxyStore();
+		const captured: { token?: string; seen: boolean } = { seen: false };
+		const app = buildMcpApp(fakeRegistry({ test: oauthWiki }), () => pc, store, captured);
+
+		const res = await request(app)
+			.post('/mcp')
+			.set('Content-Type', 'application/json')
+			.set('Authorization', 'Bearer not-a-real-jwt')
+			.send(payload);
+
+		expect(res.status).toBe(401);
+		expect('id' in (res.body as object)).toBe(false);
 	});
 
 	it('serves a tokenless proxy request anonymously (no 401, undefined token)', async () => {
@@ -332,7 +375,8 @@ describe('POST /mcp proxy bearer rewire', () => {
 		const res = await request(app).post('/mcp').set('Content-Type', 'application/json').send(body);
 
 		expect(res.status).toBe(401);
-		expect(res.body?.error?.code).toBe(-32001);
+		expect(res.body?.error?.code).toBe(AUTHENTICATION_REQUIRED_ERROR_CODE);
+		expect(res.body?.id).toBe(body.id);
 		expect(captured.seen).toBe(false);
 	});
 
@@ -376,6 +420,8 @@ describe('POST /mcp proxy bearer rewire', () => {
 			.send(body);
 
 		expect(res.status).toBe(503);
+		expect(res.body?.error?.code).toBe(UPSTREAM_UNAVAILABLE_ERROR_CODE);
+		expect(res.body?.id).toBe(body.id);
 		// A 503 must NOT carry an invalid_token challenge, which would tell the client
 		// to throw away its session and re-authenticate for a transient upstream blip.
 		expect(res.headers['www-authenticate']).toBeUndefined();

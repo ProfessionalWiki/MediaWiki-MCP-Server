@@ -2,14 +2,24 @@ import { describe, it, expect, vi } from 'vitest';
 
 import express, { type Express } from 'express';
 import request from 'supertest';
-import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
 import {
+	createMcpHandler,
+	INTERNAL_ERROR,
+	McpServer,
+	PARSE_ERROR,
+} from '@modelcontextprotocol/server';
+import {
+	errorHandler,
 	handleListenError,
-	payloadTooLargeHandler,
 	resolveMcpHostValidation,
 	resolveMcpOriginValidation,
 	toOriginHostnames,
 } from '../../src/transport/streamableHttp.js';
+import {
+	AUTHENTICATION_REQUIRED_ERROR_CODE,
+	PAYLOAD_TOO_LARGE_ERROR_CODE,
+	UPSTREAM_UNAVAILABLE_ERROR_CODE,
+} from '../../src/transport/errorCodes.js';
 import { createMcpRouteHandler } from '../../src/transport/mcpRoute.js';
 import { createInFlightCounter } from '../../src/transport/inFlight.js';
 import { getRuntimeToken, withRequestContext } from '../../src/runtime/requestContext.js';
@@ -248,9 +258,12 @@ describe('request body size cap', () => {
 	function buildApp(limit: string): Express {
 		const app = express();
 		app.use(express.json({ limit }));
-		app.use(payloadTooLargeHandler(limit));
+		app.use(errorHandler(limit));
 		app.post('/mcp', (req, res) => {
 			res.status(200).json({ ok: true, length: JSON.stringify(req.body).length });
+		});
+		app.post('/mcp/register', (_req, res) => {
+			res.status(201).json({ ok: true });
 		});
 		return app;
 	}
@@ -284,49 +297,152 @@ describe('request body size cap', () => {
 		expect(res.status).toBe(413);
 		expect(res.headers['content-type']).toMatch(/application\/json/);
 		expect(res.body?.jsonrpc).toBe('2.0');
-		expect(res.body?.id).toBeNull();
-		expect(typeof res.body?.error?.code).toBe('number');
+		// The id is omitted, never null: this revision admits only a string or a
+		// number, and body-parser aborted before any id could be read.
+		expect('id' in res.body).toBe(false);
+		expect(res.body?.error?.code).toBe(PAYLOAD_TOO_LARGE_ERROR_CODE);
 		expect(res.body?.error?.message).toMatch(/50kb/);
+	});
+
+	it('returns an OAuth 413, not a JSON-RPC one, on an authorization-server route', async () => {
+		const res = await request(buildApp('50kb'))
+			.post('/mcp/register')
+			.set('Content-Type', 'application/json')
+			.send(jsonRpcEnvelope(200 * 1024));
+		expect(res.status).toBe(413);
+		expect(res.body?.jsonrpc).toBeUndefined();
+		expect(res.body?.error).toBe('invalid_request');
+		expect(res.body?.error_description).toMatch(/50kb/);
 	});
 });
 
-describe('payloadTooLargeHandler', () => {
-	it('sends a JSON-RPC 413 when err.type is entity.too.large', () => {
-		const handler = payloadTooLargeHandler('1mb');
-		const next = vi.fn();
-		const tooLargeErr = Object.assign(new Error('too large'), { type: 'entity.too.large' });
-		const json = vi.fn();
-		const status = vi.fn(() => ({ json }));
-		const res = { status };
-		handler(tooLargeErr, {} as never, res as never, next as never);
-		expect(next).not.toHaveBeenCalled();
-		expect(status).toHaveBeenCalledWith(413);
-		expect(json).toHaveBeenCalledWith({
+describe('malformed JSON body', () => {
+	function buildApp(): Express {
+		const app = express();
+		app.use(express.json());
+		app.use(errorHandler('1mb'));
+		app.post('/mcp', (_req, res) => {
+			res.status(200).json({ ok: true });
+		});
+		app.post('/mcp/register', (_req, res) => {
+			res.status(201).json({ ok: true });
+		});
+		return app;
+	}
+
+	function postBroken(path: string): request.Test {
+		return request(buildApp()).post(path).set('Content-Type', 'application/json').send('{"a":');
+	}
+
+	it('returns a JSON-RPC parse error on the MCP endpoint', async () => {
+		const res = await postBroken('/mcp');
+		expect(res.status).toBe(400);
+		expect(res.headers['content-type']).toMatch(/application\/json/);
+		expect(res.body).toEqual({
 			jsonrpc: '2.0',
-			error: {
-				code: -32000,
-				message: 'Request body exceeds the configured maximum size of 1mb',
-			},
-			id: null,
+			error: { code: PARSE_ERROR, message: 'Request body is not valid JSON' },
 		});
 	});
 
-	it('forwards non-413 errors to the next handler', () => {
-		const handler = payloadTooLargeHandler('1mb');
-		const next = vi.fn();
-		const otherErr = new Error('unrelated');
-		const res = { status: vi.fn(), json: vi.fn() };
-		handler(otherErr, {} as never, res as never, next as never);
-		expect(next).toHaveBeenCalledWith(otherErr);
-		expect(res.status).not.toHaveBeenCalled();
-		expect(res.json).not.toHaveBeenCalled();
+	it('returns an OAuth error, not a JSON-RPC one, on an authorization-server route', async () => {
+		const res = await postBroken('/mcp/register');
+		expect(res.status).toBe(400);
+		expect(res.headers['content-type']).toMatch(/application\/json/);
+		expect(res.body?.jsonrpc).toBeUndefined();
+		expect(res.body?.error).toBe('invalid_request');
 	});
 
-	it('forwards a non-error-shaped value (string) to next', () => {
-		const handler = payloadTooLargeHandler('1mb');
+	// Express routes case-insensitively by default, so these spellings reach the
+	// MCP handler and must be answered in its dialect rather than OAuth's.
+	it.each(['/MCP', '/Mcp', '/mcp/'])('answers %s in the JSON-RPC dialect', async (path) => {
+		const res = await postBroken(path);
+		expect(res.status).toBe(400);
+		expect(res.body?.jsonrpc).toBe('2.0');
+		expect(res.body?.error?.code).toBe(PARSE_ERROR);
+	});
+
+	it('never leaks a stack trace', async () => {
+		for (const path of ['/mcp', '/mcp/register']) {
+			const res = await postBroken(path);
+			expect(res.text).not.toMatch(/SyntaxError|at JSON\.parse/);
+		}
+	});
+});
+
+describe('errorHandler', () => {
+	const mcpReq = { path: '/mcp' } as never;
+
+	// Terminal: nothing may reach Express's finalhandler, which answers HTML and
+	// leaks absolute paths in a stack trace outside production.
+	it('answers an unrecognised error as JSON without serialising it', () => {
+		const handler = errorHandler('1mb');
 		const next = vi.fn();
-		handler('oops' as never, {} as never, {} as never, next as never);
-		expect(next).toHaveBeenCalledWith('oops');
+		const json = vi.fn();
+		const status = vi.fn(() => ({ json }));
+		handler(new Error('boom at /home/someone/secret'), mcpReq, { status } as never, next as never);
+		expect(next).not.toHaveBeenCalled();
+		expect(status).toHaveBeenCalledWith(500);
+		const body = JSON.stringify(json.mock.calls[0][0]);
+		expect(body).not.toMatch(/boom|secret/);
+		expect(json).toHaveBeenCalledWith(
+			expect.objectContaining({ error: expect.objectContaining({ code: INTERNAL_ERROR }) }),
+		);
+	});
+
+	it('answers a non-error-shaped value without serialising it', () => {
+		const handler = errorHandler('1mb');
+		const next = vi.fn();
+		const json = vi.fn();
+		const status = vi.fn(() => ({ json }));
+		handler('oops' as never, mcpReq, { status } as never, next as never);
+		expect(next).not.toHaveBeenCalled();
+		expect(status).toHaveBeenCalledWith(500);
+		expect(JSON.stringify(json.mock.calls[0][0])).not.toMatch(/oops/);
+	});
+
+	it('honours an Express-supplied status', () => {
+		const handler = errorHandler('1mb');
+		const json = vi.fn();
+		const status = vi.fn(() => ({ json }));
+		const err = Object.assign(new Error('unsupported charset'), { status: 415 });
+		handler(err, mcpReq, { status } as never, vi.fn() as never);
+		expect(status).toHaveBeenCalledWith(415);
+	});
+
+	// Express matches `/mcp` non-strictly, so the trailing-slash form reaches the
+	// MCP route and must get the MCP envelope with it.
+	it('treats the trailing-slash form of the MCP path as the MCP endpoint', () => {
+		const handler = errorHandler('1mb');
+		const json = vi.fn();
+		const res = { status: vi.fn(() => ({ json })) };
+		const parseErr = Object.assign(new SyntaxError('bad'), { type: 'entity.parse.failed' });
+		handler(parseErr, { path: '/mcp/' } as never, res as never, vi.fn() as never);
+		expect(json).toHaveBeenCalledWith(
+			expect.objectContaining({
+				error: { code: PARSE_ERROR, message: 'Request body is not valid JSON' },
+			}),
+		);
+	});
+});
+
+// MCP forbids new codes in the -32000..-32019 sub-range and directs codes for
+// purposes it does not define outside the JSON-RPC reserved range altogether.
+describe('transport-emitted JSON-RPC error codes', () => {
+	it.each([
+		['authentication required', AUTHENTICATION_REQUIRED_ERROR_CODE],
+		['upstream unavailable', UPSTREAM_UNAVAILABLE_ERROR_CODE],
+		['payload too large', PAYLOAD_TOO_LARGE_ERROR_CODE],
+	])('%s sits outside the reserved range', (_name, code) => {
+		expect(code).toBeGreaterThan(-32000);
+	});
+
+	it('allocates a distinct code per condition', () => {
+		const codes = [
+			AUTHENTICATION_REQUIRED_ERROR_CODE,
+			UPSTREAM_UNAVAILABLE_ERROR_CODE,
+			PAYLOAD_TOO_LARGE_ERROR_CODE,
+		];
+		expect(new Set(codes).size).toBe(codes.length);
 	});
 });
 
