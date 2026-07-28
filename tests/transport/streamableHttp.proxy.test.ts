@@ -3,11 +3,8 @@ import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import type { RequestHandler } from 'express';
 import { McpServer } from '@modelcontextprotocol/server';
-import {
-	buildApp,
-	resolveUpstreamBearer,
-	type BuildAppDeps,
-} from '../../src/transport/streamableHttp.js';
+import { buildApp, type BuildAppDeps } from '../../src/transport/streamableHttp.js';
+import { resolveUpstreamBearer } from '../../src/auth/upstreamBearer.js';
 import type { SessionRegistry } from '../../src/transport/sessionRegistry.js';
 import { createAppState } from '../../src/wikis/state.js';
 import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.js';

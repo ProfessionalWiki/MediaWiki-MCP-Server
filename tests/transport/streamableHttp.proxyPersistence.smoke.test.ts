@@ -8,11 +8,8 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import request from 'supertest';
-import {
-	buildApp,
-	resolveUpstreamBearer,
-	type BuildAppDeps,
-} from '../../src/transport/streamableHttp.js';
+import { buildApp, type BuildAppDeps } from '../../src/transport/streamableHttp.js';
+import { resolveUpstreamBearer } from '../../src/auth/upstreamBearer.js';
 import { createAppState } from '../../src/wikis/state.js';
 import {
 	InMemoryProxyStore,

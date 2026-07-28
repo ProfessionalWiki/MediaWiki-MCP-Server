@@ -4,11 +4,11 @@ import express, { type Express } from 'express';
 import request from 'supertest';
 import { McpServer } from '@modelcontextprotocol/server';
 import {
-	resolveUpstreamBearer,
 	createMcpPostHandler,
 	type ProxyConfigGetter,
 	type McpPostHandlerOptions,
 } from '../../src/transport/streamableHttp.js';
+import { resolveUpstreamBearer } from '../../src/auth/upstreamBearer.js';
 import type { SessionRegistry } from '../../src/transport/sessionRegistry.js';
 import { OAuthFlowError } from '../../src/auth/oauthFlow.js';
 import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.js';
