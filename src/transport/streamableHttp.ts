@@ -588,11 +588,24 @@ interface ReadyCacheEntry {
 }
 
 const READY_CACHE_TTL_MS = 5_000;
-const READY_PROBE_TIMEOUT_MS = 3_000;
+// Exported so the probe tests can size their fixtures against the real budget.
+export const READY_PROBE_TIMEOUT_MS = 3_000;
 let readyCache: ReadyCacheEntry | null = null;
 
 export function __resetReadyCacheForTesting(): void {
 	readyCache = null;
+}
+
+// Both halves of the check as one promise, so the race spans the whole of it:
+// resolving the provider can log in, which alone can outlast the budget.
+async function probeSiteInfo(mwnProvider: MwnProvider): Promise<void> {
+	const mwn = await mwnProvider.get();
+	await mwn.request({
+		action: 'query',
+		meta: 'siteinfo',
+		format: 'json',
+		siprop: 'general',
+	});
 }
 
 async function probeDefaultWiki(
@@ -601,25 +614,19 @@ async function probeDefaultWiki(
 ): Promise<ReadyCacheEntry> {
 	const wiki = activeWiki.getDefaultKey();
 	const checkedAt = new Date().toISOString();
+	// Resolves rather than rejects, so arming it before the race cannot orphan a
+	// rejection.
+	const timedOut = Symbol('probe timed out');
 	let timer: ReturnType<typeof setTimeout> | undefined;
-	const timeout = new Promise<never>((_, reject) => {
-		timer = setTimeout(
-			() => reject(new Error('probe timeout after 3000ms')),
-			READY_PROBE_TIMEOUT_MS,
-		);
+	const deadline = new Promise<typeof timedOut>((resolve) => {
+		timer = setTimeout(() => resolve(timedOut), READY_PROBE_TIMEOUT_MS);
 	});
 
 	try {
-		const mwn = await mwnProvider.get();
-		await Promise.race([
-			mwn.request({
-				action: 'query',
-				meta: 'siteinfo',
-				format: 'json',
-				siprop: 'general',
-			}),
-			timeout,
-		]);
+		const outcome = await Promise.race([probeSiteInfo(mwnProvider), deadline]);
+		if (outcome === timedOut) {
+			throw new Error(`probe timeout after ${READY_PROBE_TIMEOUT_MS}ms`);
+		}
 		return {
 			expiresAt: Date.now() + READY_CACHE_TTL_MS,
 			payload: { status: 'ready', wiki, checked_at: checkedAt },
