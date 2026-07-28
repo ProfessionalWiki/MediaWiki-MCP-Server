@@ -142,6 +142,39 @@ describe('remove-wiki', () => {
 		expect(remove).not.toHaveBeenCalled();
 	});
 
+	it('percent-decodes the key in the URI it is given', async () => {
+		const remove = vi.fn();
+		const ctx = fakeManagementContext({
+			reconcile: vi.fn(),
+			wikiCache: { invalidate: vi.fn() },
+			wikis: {
+				getAll: () => ({}),
+				get: () => wikiConfig(),
+				add: () => {},
+				remove,
+				isManagementAllowed: () => true,
+			},
+			activeWiki: {
+				get: () => ({ key: 'other.example.org', config: wikiConfig() }),
+				getDefaultKey: () => 'other.example.org',
+			},
+		});
+		const result = await dispatch(removeWiki, ctx)({ uri: 'mcp://wikis/my%20wiki%20spaced' });
+
+		assertStructuredSuccess(result);
+		expect(remove).toHaveBeenCalledWith('my wiki spaced');
+	});
+
+	it('returns invalid_input when the URI key is not valid percent-encoding', async () => {
+		const reconcile = vi.fn();
+		const ctx = fakeManagementContext({ reconcile });
+		const result = await dispatch(removeWiki, ctx)({ uri: 'mcp://wikis/100%' });
+
+		const envelope = assertStructuredError(result, 'invalid_input');
+		expect(envelope.message).toMatch(/percent-encoding/);
+		expect(reconcile).not.toHaveBeenCalled();
+	});
+
 	it('does not call reconcile on InvalidWikiResourceUriError', async () => {
 		const reconcile = vi.fn();
 		const ctx = fakeManagementContext({ reconcile });

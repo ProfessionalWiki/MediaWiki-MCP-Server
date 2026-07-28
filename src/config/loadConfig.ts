@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from '../runtime/logger.js';
 import { errorMessage } from '../errors/isErrnoException.js';
+import { hasUnsafeWikiKeyChars } from '../wikis/wikiResource.js';
 
 export interface WikiConfig {
 	/**
@@ -353,6 +354,11 @@ function resolveConfig(parsed: unknown): Config {
 	}
 	const wikis: Record<string, WikiConfig> = {};
 	for (const [key, rawWiki] of Object.entries(rawWikis)) {
+		if (hasUnsafeWikiKeyChars(key)) {
+			throw new Error(
+				`Config error: wiki key "${key}" cannot contain "/", "?", "#", or whitespace`,
+			);
+		}
 		wikis[key] = resolveWiki(rawWiki, key);
 	}
 	applyOAuth2ClientIdOverride(wikis, defaultWiki);

@@ -4,6 +4,7 @@ import type { ToolContext } from '../runtime/context.js';
 import type { WikiConfig, PublicWikiConfig } from '../config/loadConfig.js';
 import { WIKI_RESOURCE_URI_PREFIX } from '../runtime/constants.js';
 import { resolveSiteInfo } from '../wikis/siteInfo.js';
+import { decodeWikiKey, encodeWikiKey } from '../wikis/wikiResource.js';
 
 // Builds the published view of a wiki by naming the public fields, so a new
 // WikiConfig field is private until someone adds it here. Credentials
@@ -30,7 +31,7 @@ export function registerAllResources(server: McpServer, ctx: ToolContext): void 
 			for (const wikiKey in allWikis) {
 				const wikiConfig = allWikis[wikiKey];
 				resources.push({
-					uri: `${WIKI_RESOURCE_URI_PREFIX}${wikiKey}`,
+					uri: `${WIKI_RESOURCE_URI_PREFIX}${encodeWikiKey(wikiKey)}`,
 					name: `wikis/${wikiKey}`,
 					// Cache read only — listing must not fan out a siteinfo fetch per
 					// wiki, so the description shows the configured server until a
@@ -45,7 +46,14 @@ export function registerAllResources(server: McpServer, ctx: ToolContext): void 
 
 	server.registerResource('wikis', resourceTemplate, {}, async (uri, variables) => {
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP ResourceTemplate variables typed as string|string[]; URI template guarantees a single string
-		const wikiKey = variables.wikiKey as string;
+		const matched = variables.wikiKey as string;
+		// The SDK matches the template against the URI without percent-decoding.
+		const wikiKey = decodeWikiKey(matched);
+
+		if (wikiKey === undefined) {
+			throw new ResourceNotFoundError(uri.toString());
+		}
+
 		const wikiConfig = ctx.wikis.get(wikiKey);
 
 		if (!wikiConfig) {

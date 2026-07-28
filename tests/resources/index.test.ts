@@ -6,6 +6,7 @@ import {
 	McpServer,
 	ResourceNotFoundError,
 } from '@modelcontextprotocol/server';
+import type { ResourceTemplate } from '@modelcontextprotocol/server';
 import { registerAllResources } from '../../src/resources/index.js';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 import { fakeContext } from '../helpers/fakeContext.js';
@@ -25,21 +26,37 @@ function emptyCache() {
 	};
 }
 
-function captureHandler(ctx: ReturnType<typeof fakeContext>) {
-	let handler!: (
-		uri: { toString: () => string },
-		vars: { wikiKey: string },
-	) => Promise<{
-		contents: Array<{ text: string }>;
-	}>;
+type ReadHandler = (
+	uri: { toString: () => string },
+	vars: { wikiKey: string },
+) => Promise<{
+	contents: Array<{ text: string }>;
+}>;
+
+function captureResource(ctx: ReturnType<typeof fakeContext>) {
+	let handler!: ReadHandler;
+	let template!: ResourceTemplate;
 	const fakeServer = {
-		registerResource: (_name: string, _template: unknown, _config: unknown, h: typeof handler) => {
+		registerResource: (_name: string, t: ResourceTemplate, _config: unknown, h: ReadHandler) => {
+			template = t;
 			handler = h;
 		},
 	};
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- minimal McpServer double for resource registration
 	registerAllResources(fakeServer as never, ctx);
-	return handler;
+	return { handler, template };
+}
+
+function captureHandler(ctx: ReturnType<typeof fakeContext>): ReadHandler {
+	return captureResource(ctx).handler;
+}
+
+// registerAllResources always supplies a list callback, and that callback
+// ignores the server context it is handed.
+async function listedUris(template: ResourceTemplate): Promise<string[]> {
+	// oxlint-disable-next-line typescript/no-non-null-assertion -- see above
+	const listed = await template.listCallback!({} as never);
+	return listed.resources.map((resource) => resource.uri);
 }
 
 // A context whose registry holds exactly the given keys, so a test can name a
@@ -226,5 +243,52 @@ describe('wikis resource', () => {
 			await client.close();
 			await handler.close();
 		}
+	});
+
+	it('round-trips a wiki key that needs percent-encoding from the listing to a read', async () => {
+		const { handler, template } = captureResource(ctxWithWikis(['my wiki spaced']));
+
+		const [uri] = await listedUris(template);
+		expect(uri).toBe('mcp://wikis/my%20wiki%20spaced');
+
+		// The server's own template decides what the read handler sees, so the
+		// listed URI is fed back through it rather than hand-split.
+		const matched = template.uriTemplate.match(uri);
+		expect(matched).toEqual({ wikiKey: 'my%20wiki%20spaced' });
+
+		const result = await handler({ toString: () => uri }, { wikiKey: 'my%20wiki%20spaced' });
+		expect(JSON.parse(result.contents[0].text)).toMatchObject({ sitename: 'Test' });
+	});
+
+	it('leaves a host:port key unencoded, as RFC 3986 permits ":" in a path segment', async () => {
+		const { template } = captureResource(ctxWithWikis(['localhost:8080']));
+
+		expect(await listedUris(template)).toEqual(['mcp://wikis/localhost:8080']);
+	});
+
+	it('rejects a URI whose key is not valid percent-encoding', async () => {
+		// A client that sends the "100%" key unescaped: decodeURIComponent throws
+		// URIError on the stray "%", which must not surface as an internal error.
+		const handler = captureHandler(ctxWithWikis(['100%']));
+
+		const error: unknown = await handler(
+			{ toString: () => 'mcp://wikis/100%' },
+			{ wikiKey: '100%' },
+		).then(
+			() => undefined,
+			(err: unknown) => err,
+		);
+
+		expect(ResourceNotFoundError.isInstance(error)).toBe(true);
+		expect((error as ResourceNotFoundError).data).toEqual({ uri: 'mcp://wikis/100%' });
+	});
+
+	it('reads the "100%" wiki through its encoded URI', async () => {
+		const { handler, template } = captureResource(ctxWithWikis(['100%']));
+
+		expect(await listedUris(template)).toEqual(['mcp://wikis/100%25']);
+
+		const result = await handler({ toString: () => 'mcp://wikis/100%25' }, { wikiKey: '100%25' });
+		expect(JSON.parse(result.contents[0].text)).toMatchObject({ sitename: 'Test' });
 	});
 });

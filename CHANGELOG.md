@@ -6,9 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Breaking changes
+
+- Wiki keys containing `/`, `?`, `#` or whitespace are now rejected, by both the configuration file and `add-wiki`. If a configured key contains one of these, rename it before upgrading; the server otherwise exits at startup.
+
 ### Fixed
 
 - Reading an `mcp://wikis/{wikiKey}` resource for a wiki that is not configured now fails with a JSON-RPC `-32602` error naming the URI, as the protocol requires. It previously returned an empty document, which a client could not tell from a wiki with nothing to report.
+- Wiki keys are now percent-encoded in the `mcp://wikis/` URIs the server publishes, and decoded when a resource is read, so a key containing a space or another character needing escaping is now reachable. A key that is already a plain hostname, with or without a port, keeps the URI it had.
 
 ## [0.15.0] - 2026-07-28
 

@@ -1,4 +1,5 @@
 import type { WikiConfig } from '../config/loadConfig.js';
+import { hasUnsafeWikiKeyChars } from './wikiResource.js';
 
 export interface WikiRegistry {
 	getAll(): Readonly<Record<string, WikiConfig>>;
@@ -40,6 +41,11 @@ export class WikiRegistryImpl implements WikiRegistry {
 		// bracket notation, or otherwise alias an inherited member.
 		if (key === '__proto__' || key === 'prototype' || key === 'constructor') {
 			throw new Error(`Wiki key "${key}" is not allowed`);
+		}
+		if (hasUnsafeWikiKeyChars(key)) {
+			throw new Error(
+				`Wiki key "${key}" is not allowed: it cannot contain "/", "?", "#", or whitespace`,
+			);
 		}
 		if (Object.hasOwn(this.wikis, key)) {
 			throw new DuplicateWikiKeyError(key);

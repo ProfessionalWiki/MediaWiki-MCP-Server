@@ -162,6 +162,22 @@ describe('loadConfigFromFile', () => {
 		});
 	});
 
+	describe('wiki keys', () => {
+		it.each(['a/b', 'a?b', 'a#b', 'my wiki'])('throws when a wiki key contains %j', async (key) => {
+			setConfigFile({ defaultWiki: key, wikis: { [key]: baseWiki } });
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(() => loadConfigFromFile()).toThrow(
+				`Config error: wiki key "${key}" cannot contain "/", "?", "#", or whitespace`,
+			);
+		});
+
+		it('accepts a host:port key', async () => {
+			setConfigFile({ defaultWiki: 'localhost:8080', wikis: { 'localhost:8080': baseWiki } });
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(Object.keys(loadConfigFromFile().wikis)).toEqual(['localhost:8080']);
+		});
+	});
+
 	describe('MCP_OAUTH2_CLIENT_ID override', () => {
 		it('overrides the default wiki oauth2ClientId from the environment', async () => {
 			vi.stubEnv('MCP_OAUTH2_CLIENT_ID', 'env-client-id');

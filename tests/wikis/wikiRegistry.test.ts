@@ -46,6 +46,21 @@ describe('WikiRegistryImpl', () => {
 		expect(() => reg.add('   ', sample('x'))).toThrow(/empty/i);
 	});
 
+	it.each(['a/b', 'a?b', 'a#b', 'my wiki', 'a\tb'])(
+		'add rejects the key %j because it cannot name a resource URI',
+		(key) => {
+			const reg = new WikiRegistryImpl({}, true);
+			expect(() => reg.add(key, sample('x'))).toThrow(/not allowed/);
+			expect(reg.get(key)).toBeUndefined();
+		},
+	);
+
+	it('add accepts a host:port key', () => {
+		const reg = new WikiRegistryImpl({}, true);
+		reg.add('localhost:8080', sample('local'));
+		expect(reg.get('localhost:8080')?.sitename).toBe('local');
+	});
+
 	it('remove drops the key', () => {
 		const reg = new WikiRegistryImpl({ a: sample('a') }, true);
 		reg.remove('a');
