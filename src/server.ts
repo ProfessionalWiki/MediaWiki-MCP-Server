@@ -1,5 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/server';
-import type { RegisteredTool } from '@modelcontextprotocol/server';
+import type { McpRequestContext, RegisteredTool } from '@modelcontextprotocol/server';
 import { createRequire } from 'node:module';
 import { registerServer, unregisterServer } from './runtime/logger.js';
 import { registerAllTools } from './tools/index.js';
@@ -24,7 +24,26 @@ Writes, deletes, and uploads use the caller's \`Authorization: Bearer\` token wh
 
 Tool errors fall into seven categories: \`not_found\`, \`permission_denied\`, \`invalid_input\`, \`conflict\`, \`authentication\`, \`rate_limited\`, and \`upstream_failure\`. Reads that exceed a per-call cap return a truncation marker describing what was returned and how to fetch the rest.`;
 
-export const createServer = async (ctx: ToolContext): Promise<McpServer> => {
+// How a transport hands change events to clients that cannot receive them as
+// unsolicited pushes. The stdio entry rewrites a live connection's outbound
+// change notifications onto its subscriptions/listen streams, so the default
+// publisher below covers both stdio eras; the HTTP transport supplies one
+// backed by its handler's notify facade instead, because a per-request
+// instance has no client left to push to by the time anything changes.
+export interface ChangePublisher {
+	toolsChanged(): void;
+	resourcesChanged(): void;
+}
+
+export interface CreateServerOptions {
+	publisher?: ChangePublisher;
+}
+
+export const createServer = async (
+	ctx: ToolContext,
+	reqCtx?: Pick<McpRequestContext, 'era'>,
+	options: CreateServerOptions = {},
+): Promise<McpServer> => {
 	const server = new McpServer(
 		{
 			name: SERVER_NAME,
@@ -46,31 +65,30 @@ export const createServer = async (ctx: ToolContext): Promise<McpServer> => {
 		},
 	);
 
-	registerServer(server);
-	// The SDK transport only fires onclose on DELETE / explicit transport.close()
-	// / process termination — not on a raw HTTP disconnect. So this registry
-	// drains on the same lifecycle as the existing sessions map in
-	// streamableHttp.ts; long-lived stale sessions persist until DELETE arrives
-	// or the process ends. Acceptable because sendLoggingMessage to a closed
-	// transport rejects, and swallowNotificationError absorbs that quietly.
-	const previousOnClose = server.server.onclose;
-	server.server.onclose = (): void => {
-		unregisterServer(server);
-		previousOnClose?.();
+	const publisher: ChangePublisher = options.publisher ?? {
+		// A live connection's RegisteredTool toggles already emit their own
+		// listChanged; only the resource list needs an explicit push.
+		toolsChanged: (): void => {},
+		resourcesChanged: (): void => {
+			server.sendResourceListChanged();
+		},
 	};
 
 	const tools = new Map<string, RegisteredTool>();
-	const reconcile = async (): Promise<void> => {
-		await reconcileTools(tools, {
+	const applyGates = (): Promise<void> =>
+		reconcileTools(tools, {
 			wikiRegistry: ctx.wikis,
 			transport: ctx.transport,
 			wikiProbe: ctx.wikiProbe,
 			extensionPacks,
 		});
-		// Notify clients that the wiki resource list may have changed (e.g. after
-		// add-wiki / remove-wiki). Also covers tool-list changes since toggling a
-		// RegisteredTool's enabled state already emits its own listChanged event.
-		server.sendResourceListChanged();
+	// The reconcile callback add-wiki / remove-wiki invoke: re-gate, then tell
+	// clients the wiki resource list (and with it the tool list) may have
+	// changed.
+	const reconcile = async (): Promise<void> => {
+		await applyGates();
+		publisher.resourcesChanged();
+		publisher.toolsChanged();
 	};
 
 	const registered = registerAllTools(server, reconcile, ctx);
@@ -79,7 +97,29 @@ export const createServer = async (ctx: ToolContext): Promise<McpServer> => {
 	}
 	registerAllResources(server, ctx);
 
-	await reconcile();
+	// Construction gates without publishing: a fresh instance has no
+	// subscribers yet, and under a per-request factory a construction-time
+	// publish would fan change events out to unrelated clients on every
+	// request.
+	await applyGates();
+
+	// Only legacy-era instances join the sendLoggingMessage broadcast: the
+	// 2026-07-28 revision has no unsolicited notifications/message channel
+	// (SEP-2577 deprecates the API), and a modern instance would churn the
+	// registry without ever delivering anything. A per-request legacy instance
+	// registers for its request's lifetime, so mid-call log lines still reach
+	// the caller on the response stream. Registration comes last on purpose:
+	// the only unregister path is onclose, which never fires for an instance
+	// that failed mid-construction and was never connected, so registering any
+	// earlier would leak a dead entry per construction throw.
+	if (reqCtx === undefined || reqCtx.era === 'legacy') {
+		registerServer(server);
+		const previousOnClose = server.server.onclose;
+		server.server.onclose = (): void => {
+			unregisterServer(server);
+			previousOnClose?.();
+		};
+	}
 
 	return server;
 };
