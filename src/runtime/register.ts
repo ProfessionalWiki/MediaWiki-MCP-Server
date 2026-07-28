@@ -8,6 +8,7 @@ import type { ZodRawShape, z } from 'zod';
 import type { Tool } from './tool.js';
 import type { ToolContext } from './context.js';
 import { buildToolInputSchema } from './wikiArg.js';
+import { withRequestFields } from './requestContext.js';
 
 export function register<TSchema extends ZodRawShape, TCtx extends ToolContext>(
 	server: McpServer,
@@ -26,11 +27,16 @@ export function register<TSchema extends ZodRawShape, TCtx extends ToolContext>(
 			inputSchema: buildToolInputSchema(tool) as z.ZodObject<TSchema>,
 			annotations: tool.annotations,
 		},
-		// The SDK callback signature is `(args, ctx) => ...`. Our descriptor
-		// handlers ignore the `ctx` parameter, so we widen the type here:
-		// TypeScript can't unify our concrete handler with the SDK's generic
-		// `ToolCallback` through the generic boundary.
+		// The SDK callback signature is `(args, ctx) => ...`. Descriptor handlers
+		// take only `args`, so the `ctx` the SDK supplies is consumed here: its
+		// cancellation signal goes into the request scope, where `ctx.mwn()`
+		// picks it up and applies it to that request's MediaWiki calls. We widen
+		// the type because TypeScript can't unify our concrete handler with the
+		// SDK's generic `ToolCallback` through the generic boundary.
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- generic boundary; MCP SDK's ToolCallback can't be unified with our typed handler
-		handler as unknown as ToolCallback<z.ZodObject<TSchema>>,
+		((args: z.infer<z.ZodObject<TSchema>>, extra: { signal?: AbortSignal }) =>
+			withRequestFields({ signal: extra?.signal }, () => handler(args))) as unknown as ToolCallback<
+			z.ZodObject<TSchema>
+		>,
 	);
 }

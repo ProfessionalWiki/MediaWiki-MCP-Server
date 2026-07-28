@@ -3,12 +3,19 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 interface RequestContext {
 	runtimeToken?: string;
 	wikiKey?: string;
+	signal?: AbortSignal;
 }
 
 export const runtimeTokenStore = new AsyncLocalStorage<RequestContext>();
 
 export function getRuntimeToken(): string | undefined {
 	return runtimeTokenStore.getStore()?.runtimeToken;
+}
+
+// The MCP request's cancellation signal, aborted when the client cancels the
+// request or the connection drops. Undefined outside a request scope.
+export function getRequestSignal(): AbortSignal | undefined {
+	return runtimeTokenStore.getStore()?.signal;
 }
 
 export function getRequestWiki(): string | undefined {
