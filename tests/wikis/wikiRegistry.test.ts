@@ -46,20 +46,27 @@ describe('WikiRegistryImpl', () => {
 		expect(() => reg.add('   ', sample('x'))).toThrow(/empty/i);
 	});
 
-	it.each(['a/b', 'a?b', 'a#b', 'my wiki', 'a\tb'])(
-		'add rejects the key %j because it cannot name a resource URI',
-		(key) => {
-			const reg = new WikiRegistryImpl({}, true);
-			expect(() => reg.add(key, sample('x'))).toThrow(/not allowed/);
-			expect(reg.get(key)).toBeUndefined();
-		},
-	);
+	// Percent-encoding carries these through, so they are accepted where they
+	// previously were not.
+	it.each(['a/b', 'a?b', 'a#b', 'my wiki', 'a,b'])('add accepts the key %j', (key) => {
+		const reg = new WikiRegistryImpl({}, true);
+		reg.add(key, sample('x'));
+		expect(reg.get(key)).toBeDefined();
+	});
+
+	// The `wiki` tool argument tells a bare key from a resource URI by prefix, so
+	// such a key would be stripped to the wrong segment.
+	it('add rejects a key that begins with the resource URI prefix', () => {
+		const reg = new WikiRegistryImpl({}, true);
+		expect(() => reg.add('mcp://wikis/x', sample('x'))).toThrow(/cannot start with/);
+		expect(reg.get('mcp://wikis/x')).toBeUndefined();
+	});
 
 	// An unpaired surrogate makes encodeURIComponent throw, which would fail the
 	// whole resource listing rather than this one key.
 	it('add rejects a key containing an unpaired surrogate', () => {
 		const reg = new WikiRegistryImpl({}, true);
-		expect(() => reg.add('a\ud800b', sample('x'))).toThrow(/not allowed/);
+		expect(() => reg.add('a\ud800b', sample('x'))).toThrow(/not valid Unicode/);
 	});
 
 	it('add accepts a host:port key', () => {

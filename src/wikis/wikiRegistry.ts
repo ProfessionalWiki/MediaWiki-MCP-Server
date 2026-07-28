@@ -1,5 +1,5 @@
 import type { WikiConfig } from '../config/loadConfig.js';
-import { hasUnsafeWikiKeyChars } from '../runtime/wikiKey.js';
+import { wikiKeyProblem, wikiKeyProblemMessage } from '../runtime/wikiKey.js';
 
 export interface WikiRegistry {
 	getAll(): Readonly<Record<string, WikiConfig>>;
@@ -42,10 +42,9 @@ export class WikiRegistryImpl implements WikiRegistry {
 		if (key === '__proto__' || key === 'prototype' || key === 'constructor') {
 			throw new Error(`Wiki key "${key}" is not allowed`);
 		}
-		if (hasUnsafeWikiKeyChars(key)) {
-			throw new Error(
-				`Wiki key "${key}" is not allowed: it cannot contain "/", "?", "#", or whitespace`,
-			);
+		const problem = wikiKeyProblem(key);
+		if (problem !== undefined) {
+			throw new Error(`Wiki key "${key}" is not allowed: it ${wikiKeyProblemMessage(problem)}`);
 		}
 		if (Object.hasOwn(this.wikis, key)) {
 			throw new DuplicateWikiKeyError(key);

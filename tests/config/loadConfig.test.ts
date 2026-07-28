@@ -163,12 +163,31 @@ describe('loadConfigFromFile', () => {
 	});
 
 	describe('wiki keys', () => {
-		it.each(['a/b', 'a?b', 'a#b', 'my wiki'])('throws when a wiki key contains %j', async (key) => {
+		// Percent-encoding carries these through to a reachable resource URI.
+		it.each(['a/b', 'a?b', 'a#b', 'my wiki'])('accepts a wiki key containing %j', async (key) => {
 			setConfigFile({ defaultWiki: key, wikis: { [key]: baseWiki } });
 			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
-			expect(() => loadConfigFromFile()).toThrow(
-				`Config error: wiki key "${key}" cannot contain "/", "?", "#", or whitespace`,
-			);
+			expect(Object.keys(loadConfigFromFile().wikis)).toEqual([key]);
+		});
+
+		it('throws when a wiki key begins with the resource URI prefix', async () => {
+			const key = 'mcp://wikis/x';
+			setConfigFile({ defaultWiki: key, wikis: { [key]: baseWiki } });
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(() => loadConfigFromFile()).toThrow(/cannot start with/);
+		});
+
+		it('throws when a wiki key is empty', async () => {
+			setConfigFile({ defaultWiki: '', wikis: { '': baseWiki } });
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(() => loadConfigFromFile()).toThrow(/cannot be empty/);
+		});
+
+		it('throws when a wiki key is not valid Unicode', async () => {
+			const key = 'a\ud800b';
+			setConfigFile({ defaultWiki: key, wikis: { [key]: baseWiki } });
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			expect(() => loadConfigFromFile()).toThrow(/not valid Unicode/);
 		});
 
 		it('accepts a host:port key', async () => {

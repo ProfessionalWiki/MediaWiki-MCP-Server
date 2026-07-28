@@ -259,6 +259,47 @@ describe('wikis resource', () => {
 		expect(JSON.parse(result.contents[0].text)).toMatchObject({ sitename: 'Test' });
 	});
 
+	// The ":" exception exists so the shipped default configuration's host:port
+	// keys keep their URIs. That is worth something only if those URIs still read,
+	// which rests on the SDK's template capture and on WHATWG URL normalisation —
+	// neither of them ours. Read every published URI back through a real client.
+	it('reads back every URI it publishes, whatever the key needs', async () => {
+		const keys = ['localhost:8080', 'wiki-\u00fc', '100%', 'a,b'];
+		const bus = new InMemoryServerEventBus();
+		const handler = createMcpHandler(
+			() => {
+				const server = new McpServer(
+					{ name: 'resource-roundtrip-test', version: '0.0.0' },
+					{ capabilities: { resources: { listChanged: true } } },
+				);
+				registerAllResources(server, ctxWithWikis(keys));
+				return Promise.resolve(server);
+			},
+			{ legacy: 'stateless', bus },
+		);
+		const client = new Client({ name: 'resource-roundtrip-test', version: '0.0.0' });
+		await client.connect(
+			new StreamableHTTPClientTransport(new URL('http://in-memory.test/mcp'), {
+				fetch: (url, init) => handler.fetch(new Request(url, init)),
+			}),
+		);
+
+		try {
+			const listed = await client.listResources();
+			expect(listed.resources).toHaveLength(keys.length);
+			expect(listed.resources.map((r) => r.uri)).toContain('mcp://wikis/localhost:8080');
+
+			for (const resource of listed.resources) {
+				const read = await client.readResource({ uri: resource.uri });
+				expect(read.contents).toHaveLength(1);
+				expect(read.contents[0].uri).toBe(resource.uri);
+			}
+		} finally {
+			await client.close();
+			await handler.close();
+		}
+	});
+
 	it('leaves a host:port key unencoded, as RFC 3986 permits ":" in a path segment', async () => {
 		const { template } = captureResource(ctxWithWikis(['localhost:8080']));
 

@@ -39,7 +39,7 @@ export const removeWiki: Tool<typeof inputSchema, ManagementContext> = {
 
 		const wikiToRemove = ctx.wikis.get(wikiKey);
 		if (!wikiToRemove) {
-			return ctx.format.invalidInput(`mcp://wikis/${wikiKey} not found in MCP resources`);
+			return ctx.format.invalidInput(`${uri} not found in MCP resources`);
 		}
 
 		if (ctx.activeWiki.getDefaultKey() === wikiKey) {
