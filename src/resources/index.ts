@@ -5,9 +5,21 @@ import type { WikiConfig, PublicWikiConfig } from '../config/loadConfig.js';
 import { WIKI_RESOURCE_URI_PREFIX } from '../runtime/constants.js';
 import { resolveSiteInfo } from '../wikis/siteInfo.js';
 
-function sanitize(wikiConfig: Readonly<WikiConfig>): PublicWikiConfig {
-	const { token: _token, username: _username, password: _password, ...publicConfig } = wikiConfig;
-	return publicConfig;
+// Builds the published view of a wiki by naming the public fields, so a new
+// WikiConfig field is private until someone adds it here. Credentials
+// (`token`, `username`, `password`, `oauth2ClientSecret`) and server-side
+// operational settings (`publicServer`, `oauth2CallbackPort`, `tags`,
+// `attributeEdits`, `oauth2ClientId`) are all absent by construction.
+// Undefined optional fields drop out of the JSON body, as before.
+function toPublicConfig(wikiConfig: Readonly<WikiConfig>): PublicWikiConfig {
+	return {
+		sitename: wikiConfig.sitename,
+		server: wikiConfig.server,
+		articlepath: wikiConfig.articlepath,
+		scriptpath: wikiConfig.scriptpath,
+		private: wikiConfig.private,
+		readOnly: wikiConfig.readOnly,
+	};
 }
 
 export function registerAllResources(server: McpServer, ctx: ToolContext): void {
@@ -40,8 +52,7 @@ export function registerAllResources(server: McpServer, ctx: ToolContext): void 
 			return { contents: [] };
 		}
 
-		const sanitized = sanitize(wikiConfig);
-		const result: Record<string, unknown> = { ...sanitized };
+		const result: Record<string, unknown> = { ...toPublicConfig(wikiConfig) };
 
 		const siteInfo = await resolveSiteInfo(ctx, wikiKey);
 		result.server = siteInfo.server;

@@ -101,9 +101,9 @@ Each pack's tools register only on wikis where its extension is installed.
 
 ### Resources
 
-**`mcp://wikis/{wikiKey}`** — per-wiki resource exposing `sitename`, `server` (the wiki's public address), `articlepath`, `scriptpath`, and a `private` flag.
+**`mcp://wikis/{wikiKey}`** — per-wiki resource exposing `sitename`, `server` (the wiki's public address), `articlepath`, `scriptpath`, and the `private` and `readOnly` flags.
 
-- Credentials (`token`, `username`, `password`) are never exposed in resource content.
+- Those fields are the whole of it: the resource publishes a fixed list, so credentials and server-side settings in your configuration file are never exposed in resource content.
 - After `add-wiki` or `remove-wiki`, the server sends `notifications/resources/list_changed` so clients refresh.
 
 <details><summary>Example read result</summary>

@@ -81,4 +81,65 @@ describe('wikis resource', () => {
 		expect(payload.server).toBe('https://test.wiki');
 		expect(payload.license).toBeUndefined();
 	});
+
+	// Every credential and server-side setting at once: the published body is an
+	// allowlist, so a field added to WikiConfig later cannot leak by default.
+	it('publishes only the public fields, never credentials or operational settings', async () => {
+		const mock = createMockMwn({ request: vi.fn().mockRejectedValue(new Error('down')) });
+		const loaded = {
+			sitename: 'Secretive',
+			server: 'https://internal.svc',
+			articlepath: '/wiki',
+			scriptpath: '/w',
+			token: 'SECRET-OAUTH1-TOKEN',
+			username: 'SECRET-BOT-USER',
+			password: 'SECRET-BOT-PASSWORD',
+			oauth2ClientId: 'SECRET-CLIENT-ID',
+			oauth2ClientSecret: 'SECRET-CLIENT-SECRET',
+			publicServer: 'https://public.example',
+			oauth2CallbackPort: 33418,
+			private: true,
+			readOnly: true,
+			tags: 'mcp-edit',
+			attributeEdits: false,
+		};
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			siteInfoCache: emptyCache() as never,
+			wikis: {
+				getAll: () => ({ 'test-wiki': loaded }) as never,
+				get: ((key: string) => (key === 'test-wiki' ? loaded : undefined)) as never,
+				add: vi.fn() as never,
+				remove: vi.fn() as never,
+				isManagementAllowed: () => false,
+			},
+		});
+		const handler = captureHandler(ctx);
+
+		const result = await handler(
+			{ toString: () => 'mcp://wikis/test-wiki' },
+			{ wikiKey: 'test-wiki' },
+		);
+		const text = result.contents[0].text;
+		const payload = JSON.parse(text) as Record<string, unknown>;
+
+		// No secret value appears anywhere in the serialized body.
+		for (const secret of [
+			'SECRET-OAUTH1-TOKEN',
+			'SECRET-BOT-USER',
+			'SECRET-BOT-PASSWORD',
+			'SECRET-CLIENT-ID',
+			'SECRET-CLIENT-SECRET',
+		]) {
+			expect(text).not.toContain(secret);
+		}
+
+		// The published key set is exactly the documented contract.
+		expect(Object.keys(payload).sort()).toEqual(
+			['articlepath', 'private', 'readOnly', 'scriptpath', 'server', 'sitename'].sort(),
+		);
+		expect(payload.sitename).toBe('Secretive');
+		expect(payload.private).toBe(true);
+		expect(payload.readOnly).toBe(true);
+	});
 });
