@@ -1,5 +1,4 @@
-import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
-
+import type { McpServer, RegisteredTool } from '@modelcontextprotocol/server';
 import { errorMessage } from '../errors/isErrnoException.js';
 import { logger } from '../runtime/logger.js';
 import type { Tool } from '../runtime/tool.js';

@@ -1,4 +1,4 @@
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ToolContext } from './context.js';
 import type { ExtensionPack } from '../tools/extensions/types.js';
 import { extensionPacks } from '../tools/extensions/index.js';

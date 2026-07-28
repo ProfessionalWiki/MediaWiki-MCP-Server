@@ -3,11 +3,11 @@
 // through the REAL buildApp routes + a real encrypted on-disk store.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
+import { McpServer } from '@modelcontextprotocol/server';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
 import request from 'supertest';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
 	buildApp,
 	resolveUpstreamBearer,

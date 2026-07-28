@@ -1,4 +1,4 @@
-import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { RegisteredTool } from '@modelcontextprotocol/server';
 import type { WikiConfig } from '../config/loadConfig.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
 import type { WikiProbe } from '../wikis/wikiProbe.js';

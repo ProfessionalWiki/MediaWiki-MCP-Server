@@ -4,7 +4,7 @@ import type {
 	ToolAnnotations,
 	ImageContent,
 	TextContent,
-} from '@modelcontextprotocol/sdk/types.js';
+} from '@modelcontextprotocol/server';
 import type { ApiPage, ImageInfo } from 'mwn';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';

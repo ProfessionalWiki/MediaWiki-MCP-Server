@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.js';
 import type { ToolContext } from '../runtime/context.js';
 

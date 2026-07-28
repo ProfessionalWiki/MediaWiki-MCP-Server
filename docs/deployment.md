@@ -207,7 +207,7 @@ Defaults are safe for a localhost bind. Before exposing the HTTP transport to ot
 - **Terminate TLS at a reverse proxy; never expose the port directly.** The server trusts any `Authorization: Bearer` header it receives without origin checks, so authentication is the proxy's job. Run it behind Caddy, nginx, or Traefik, or bind it to `127.0.0.1`; never put the raw HTTP port on an untrusted network.
 - **Forward the `Authorization` header intact.** Proxy configs that strip or consume it (`header_up -Authorization`, `proxy_set_header Authorization ""`, a proxy-level basic-auth handler on the MCP route) leave the server with no token, falling back to config or anonymous. On any untrusted inbound path, strip the client-supplied `Authorization` instead, so a caller cannot inject a bearer the server would trust.
 - **Set `MCP_ALLOWED_HOSTS`** to the hostnames your proxy forwards (e.g. `wiki.example.org`). This engages the SDK's DNS-rebinding check; requests to `/mcp` with a non-matching `Host` get a 403. Unset on a public bind turns the check off (with a startup warning); unset on a localhost bind is safe.
-- **Set `MCP_ALLOWED_ORIGINS`** to the browser origins allowed to call `/mcp` (e.g. `https://wiki.example.org`). A present-but-unlisted `Origin` gets a 403. The match is exact; see [Host and Origin matching](#host-and-origin-matching) for the five ways a value silently rejects every request. Unset on a public bind turns Origin validation off (with a startup warning).
+- **Set `MCP_ALLOWED_ORIGINS`** to the browser origins allowed to call `/mcp` (e.g. `https://wiki.example.org`). A present-but-unlisted `Origin` gets a 403. The match is on hostname; see [Host and Origin matching](#host-and-origin-matching). Unset on a public bind turns Origin validation off (with a startup warning).
 - **List internal destinations in `MCP_TRUSTED_HOSTS`.** Outbound fetches are SSRF-guarded, so a wiki `server` on a private or Docker-internal address (e.g. `mediawiki.svc`) is refused until you exempt it; otherwise extension tools silently disappear. See [outbound SSRF guard](#outbound-ssrf-guard).
 - **Keep static credentials out of `config.json`.** The HTTP transport refuses to start when any wiki sets `token`, or both `username` and `password`. Those would become a shared fallback identity for unauthenticated callers, defeating per-user attribution. Set `MCP_ALLOW_STATIC_FALLBACK=true` to opt into a shared-identity deployment; the server then starts with a warning naming the affected wikis.
 - **Treat the server as a secret-handling component.** It sees every caller's token in flight. Avoid verbose error logging, and do not pipe raw error objects into error-tracking services that capture arbitrary fields.
@@ -287,21 +287,23 @@ The exemption skips **only** the public-IP check; the host is still DNS-resolved
 
 ### Host and Origin matching
 
-The `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS` allowlists from the [Security checklist](#security-checklist) are matched precisely, and the edge cases bite quietly.
+Both `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS` from the [Security checklist](#security-checklist) compare hostnames, ignoring any port. They differ in what they accept as a value, so the two paragraphs below are not interchangeable.
 
-**Host header.** On a localhost bind, leaving `MCP_ALLOWED_HOSTS` unset is safe: the SDK auto-allows `localhost`, `127.0.0.1`, and `[::1]`. On a public bind, leaving it unset turns the DNS-rebinding check off and the SDK logs a warning at startup.
+**Host header.** Entries are used exactly as written, so give bare lowercase hostnames: `wiki.example.org`, not `https://wiki.example.org` and not `wiki.example.org:8443`. A value carrying a scheme or a port matches nothing and silently 403s every request. On a localhost bind, leaving `MCP_ALLOWED_HOSTS` unset is safe: `localhost`, `127.0.0.1`, and `[::1]` are allowed automatically. On a public bind, leaving it unset turns the DNS-rebinding check off and the server logs a warning at startup.
 
-**Origin header.** An origin is the scheme, host, and (only if non-default) port, for example `https://wiki.example.org`. On a localhost bind, the default allowlist is the three loopback origins on the bound port (`http://localhost:<port>`, `http://127.0.0.1:<port>`, `http://[::1]:<port>`) so browser clients running alongside the server keep working. A non-localhost bind with no allowlist turns Origin validation off, and the server logs a startup warning.
+**Origin header.** Set this to the origins your browser clients are served from, for example `https://wiki.example.org`. You do not need to list the server's own origin; the sign-in pages under `/mcp` are not subject to this check. On a localhost bind, Origin validation is on by default and admits `localhost`, `127.0.0.1`, and `[::1]` on any port, so browser clients running alongside the server keep working. A non-localhost bind with no allowlist turns Origin validation off, and the server logs a startup warning. An allowlist that is set but unreadable also turns it off, and says so at startup.
 
-Matching is exact string equality against what the browser sends. These values all silently 403 every browser request:
+Only the hostname is compared, so port and scheme are ignored: `https://wiki.example.org` also admits `http://wiki.example.org` and `https://wiki.example.org:8443`. That is the boundary the check is meant to enforce, since anyone able to serve content on another port of your host already controls it. If you need a given port or scheme to be the only one accepted, enforce that at your reverse proxy.
 
-- bare hostname (`wiki.example.org`): missing scheme
-- trailing slash (`https://wiki.example.org/`): browsers do not include it
-- path (`https://wiki.example.org/mcp`): browsers do not include it
-- explicit default port (`https://wiki.example.org:443`): browsers drop default ports when serializing
-- uppercase scheme (`HTTPS://...`): browsers lowercase it
+Because the hostname is what counts, the value is forgiving about how you write it. A trailing slash, a path, an explicit port, an uppercase scheme, a bare hostname, and a bare `host:port` pair are each accepted and reduced to the same host:
 
-When in doubt, open your deployed site in a browser and log `window.location.origin`, then copy that value verbatim.
+```
+https://wiki.example.org      https://wiki.example.org/mcp    HTTPS://WIKI.EXAMPLE.ORG
+https://wiki.example.org/     https://wiki.example.org:443    wiki.example.org
+wiki.example.org:8443         [::1]:3000                      localhost:3000
+```
+
+A request carrying an `Origin` the server cannot parse at all is rejected with a 403. Requests with no `Origin` header pass, because non-browser MCP clients do not send one.
 
 ### v1 limitations
 

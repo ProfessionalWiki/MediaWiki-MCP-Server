@@ -17,9 +17,9 @@ describe('normalizeWikiArg', () => {
 
 describe('buildToolInputSchema', () => {
 	it('adds a wiki field to a wiki-scoped tool', () => {
-		expect(buildToolInputSchema(getPage)).toHaveProperty('wiki');
+		expect(buildToolInputSchema(getPage).shape).toHaveProperty('wiki');
 	});
 	it('leaves a non-wiki-scoped tool schema untouched', () => {
-		expect(buildToolInputSchema(addWiki)).not.toHaveProperty('wiki');
+		expect(buildToolInputSchema(addWiki).shape).not.toHaveProperty('wiki');
 	});
 });

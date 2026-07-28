@@ -1,5 +1,4 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { LoggingLevel } from '@modelcontextprotocol/sdk/types.js';
+import type { McpServer, LoggingLevel } from '@modelcontextprotocol/server';
 
 // Eight RFC 5424 severity levels, in the order LoggingLevelSchema declares them.
 // Used both for the level field in the JSON stderr line and the

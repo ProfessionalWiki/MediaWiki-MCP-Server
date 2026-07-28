@@ -1,9 +1,9 @@
 import type { RequestHandler } from 'express';
-import type { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import type { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
 import { logger } from '../runtime/logger.js';
 
 export type SessionEntry = {
-	readonly transport: StreamableHTTPServerTransport;
+	readonly transport: NodeStreamableHTTPServerTransport;
 	idleTimer?: ReturnType<typeof setTimeout>;
 	activeRequests: number;
 };

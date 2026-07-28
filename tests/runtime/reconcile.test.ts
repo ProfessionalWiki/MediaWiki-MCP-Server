@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { RegisteredTool } from '@modelcontextprotocol/server';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
 import type { ActiveWiki } from '../../src/wikis/activeWiki.js';

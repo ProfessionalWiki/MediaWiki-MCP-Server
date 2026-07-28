@@ -1,5 +1,5 @@
 import type { Mwn } from 'mwn';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ErrorCategory } from '../../../errors/classifyError.js';
 import type { ToolContext } from '../../../runtime/context.js';
 

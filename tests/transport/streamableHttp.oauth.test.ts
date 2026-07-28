@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 
 import express, { type Express } from 'express';
 import request from 'supertest';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import {
 	createOAuthProtectedResourceHandler,
 	createMcpPostHandler,

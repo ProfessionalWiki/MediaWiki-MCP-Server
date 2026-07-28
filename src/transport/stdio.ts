@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import { logger } from '../runtime/logger.js';
 import { createServer } from '../server.js';
 import { emitStartupBanner } from '../runtime/banner.js';

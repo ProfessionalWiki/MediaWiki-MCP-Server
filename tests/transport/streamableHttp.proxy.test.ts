@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 
 import request from 'supertest';
 import type { RequestHandler } from 'express';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/server';
 import {
 	buildApp,
 	resolveUpstreamBearer,
@@ -95,6 +95,52 @@ function makeDeps(
 		sessionIdleTimeoutMs: 0,
 	};
 }
+
+// Origin validation must guard the MCP endpoint itself without reaching the
+// authorization-server routes that sit beneath the same /mcp prefix. Those are
+// browser-facing: the consent form POSTs from the server's OWN origin, which an
+// operator who allowlists only their client origins would never have listed, so
+// a prefix-mounted guard would 403 the Approve click and kill every sign-in.
+describe('hosted OAuth proxy — Origin validation scope', () => {
+	const AS_URL = 'https://as.example';
+
+	function appWithOrigins(allowedOrigins: string[]) {
+		const pc = proxyConfig(AS_URL);
+		return buildApp({ ...makeDeps(AS_URL, new InMemoryProxyStore(), pc), allowedOrigins }).app;
+	}
+
+	it('rejects a non-allowlisted Origin on the MCP endpoint', async () => {
+		const res = await request(appWithOrigins(['https://client.example']))
+			.post('/mcp')
+			.set('Accept', 'application/json, text/event-stream')
+			.set('Origin', 'https://mcp.example')
+			.send({
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'initialize',
+				params: {
+					protocolVersion: '2025-11-25',
+					capabilities: {},
+					clientInfo: { name: 'c', version: '0.0.0' },
+				},
+			});
+		expect(res.status).toBe(403);
+		expect(res.body?.error?.message).toMatch(/Invalid Origin/);
+	});
+
+	it.each([
+		['/mcp/consent', 'post'],
+		['/mcp/token', 'post'],
+		['/mcp/register', 'post'],
+	] as const)('does not apply Origin validation to %s', async (path, method) => {
+		const agent = request(appWithOrigins(['https://client.example']));
+		const res = await agent[method](path).set('Origin', 'https://mcp.example').send({});
+		// These endpoints may still refuse the request on their own terms (missing
+		// consent cookie, bad grant, unregistered client). What must never happen is
+		// a rejection by the Origin guard.
+		expect(JSON.stringify(res.body ?? '')).not.toMatch(/Invalid Origin/);
+	});
+});
 
 describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 	let fakeAs: FakeAsHandle | undefined;

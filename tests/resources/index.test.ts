@@ -25,7 +25,7 @@ function captureHandler(ctx: ReturnType<typeof fakeContext>) {
 		contents: Array<{ text: string }>;
 	}>;
 	const fakeServer = {
-		resource: (_name: string, _template: unknown, h: typeof handler) => {
+		registerResource: (_name: string, _template: unknown, _config: unknown, h: typeof handler) => {
 			handler = h;
 		},
 	};

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { InMemoryTransport, McpServer } from '@modelcontextprotocol/server';
+import type { RegisteredTool } from '@modelcontextprotocol/server';
+import { Client } from '@modelcontextprotocol/client';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 import type { WikiProbe } from '../../src/wikis/wikiProbe.js';
 import { reconcileTools } from '../../src/runtime/reconcile.js';
@@ -140,18 +140,19 @@ describe('registerAllTools — wiki management gating', () => {
 		}
 	});
 
+	// A disabled tool is absent from tools/list, so this path is only reached by a
+	// client calling from a stale list. The SDK rejects such a call at the protocol
+	// layer rather than resolving an isError result.
 	it('rejects calls to add-wiki with a disabled error when wiki management is disallowed', async () => {
 		isManagementAllowedRef.current = false;
 		const { client } = await connectClientAndServer();
 
-		const result = await client.callTool({
-			name: 'add-wiki',
-			arguments: { wikiUrl: 'https://en.wikipedia.org' },
-		});
-
-		expect(result.isError).toBe(true);
-		const content = result.content as Array<{ type: string; text: string }>;
-		expect(content[0].text).toMatch(/Tool add-wiki disabled/);
+		await expect(
+			client.callTool({
+				name: 'add-wiki',
+				arguments: { wikiUrl: 'https://en.wikipedia.org' },
+			}),
+		).rejects.toThrow(/Tool add-wiki disabled/);
 	});
 
 	it('shows remove-wiki when 2 wikis are configured and management is allowed', async () => {
@@ -238,14 +239,12 @@ describe('registerAllTools — per-wiki readOnly', () => {
 		try {
 			const { client } = await connectClientAndServer();
 
-			const result = await client.callTool({
-				name: 'create-page',
-				arguments: { title: 'Test', source: 'test' },
-			});
-
-			expect(result.isError).toBe(true);
-			const content = result.content as Array<{ type: string; text: string }>;
-			expect(content[0].text).toMatch(/Tool create-page disabled/);
+			await expect(
+				client.callTool({
+					name: 'create-page',
+					arguments: { title: 'Test', source: 'test' },
+				}),
+			).rejects.toThrow(/Tool create-page disabled/);
 		} finally {
 			wikiStore.byKey = originalByKey;
 		}

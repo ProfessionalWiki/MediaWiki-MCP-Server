@@ -15,6 +15,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - Plugin installs can now be pointed at your own wiki. Claude Code prompts for a configuration file when the plugin is enabled, and the Codex plugin forwards the `CONFIG` environment variable from the shell Codex is launched from. Previously neither plugin offered a way to set `CONFIG`, leaving the server on English Wikipedia.
 - The server now warns at startup when `CONFIG` points at a file that does not exist. It previously fell back to the default English Wikipedia configuration with no indication of the misconfiguration, so a typo in the path meant silently talking to the wrong wiki.
 
+### Changed
+
+- The server now runs on version 2 of the MCP TypeScript SDK. An install pulls several smaller packages in place of the single previous one, and the downloadable bundle is slightly smaller as a result. No configuration changes are needed. Tool input schemas are now published as JSON Schema 2020-12 instead of draft-07, which matters only to a client that validates arguments against a draft-07-only validator.
+- Over HTTP, event streams now carry a keep-alive every 15 seconds. A reverse proxy that drops idle connections no longer cuts a client's notification stream while it is simply waiting.
+- Calling a tool the server is not offering now fails the call outright, instead of returning an error message as the tool's result. That covers both a name that does not exist and one withheld because it does not apply to the configured wikis, for example write tools when every wiki is read-only. Clients that call only what the server advertises are unaffected.
+- `MCP_ALLOWED_ORIGINS` is now matched on hostname rather than as a whole origin, so a configured `https://wiki.example.org` also admits `http://wiki.example.org` and other ports on that host. Enforce a particular scheme or port at your reverse proxy if you need one. In exchange the setting is much harder to get silently wrong: a trailing slash, a path, an explicit `:443`, an uppercase scheme, and a bare hostname with no scheme are all accepted now, where each previously rejected every browser request without explanation.
+
 ### Fixed
 
 - The HTTP server no longer exits when a `GET /ready` probe finds the default wiki slow or unreachable. The probe now answers the documented `503 not_ready` when its three-second budget runs out, whichever stage of the check is still outstanding.
