@@ -1,31 +1,23 @@
 import { describe, it, expect, vi } from 'vitest';
 
-import express, { type Express, type Request } from 'express';
+import express, { type Express } from 'express';
 import request from 'supertest';
-import { McpServer } from '@modelcontextprotocol/server';
+import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
 import {
-	createMcpPostHandler,
-	createSessionRequestHandler,
-	extractBearerToken,
 	handleListenError,
 	payloadTooLargeHandler,
 	resolveMcpHostValidation,
 	resolveMcpOriginValidation,
 	toOriginHostnames,
 } from '../../src/transport/streamableHttp.js';
+import { createMcpRouteHandler } from '../../src/transport/mcpRoute.js';
 import { createInFlightCounter } from '../../src/transport/inFlight.js';
-import {
-	markSessionActive,
-	markSessionIdle,
-	type SessionRegistry,
-} from '../../src/transport/sessionRegistry.js';
 import {
 	getRuntimeToken,
 	getSessionId,
 	withRequestContext,
 } from '../../src/runtime/requestContext.js';
 import { logger } from '../../src/runtime/logger.js';
-import { watchUnhandledRejections } from '../helpers/unhandledRejections.js';
 
 describe('handleListenError', () => {
 	function listenErr(code: string): NodeJS.ErrnoException {
@@ -59,41 +51,6 @@ describe('handleListenError', () => {
 		expect(spy.mock.calls[0][0]).toContain('EPIPE boom');
 		expect(onFatal).toHaveBeenCalledWith(1);
 		spy.mockRestore();
-	});
-});
-
-function req(authorization: string | undefined): Request {
-	return { headers: { authorization } } as unknown as Request;
-}
-
-describe('extractBearerToken', () => {
-	it('returns the token for a standard Bearer header', () => {
-		expect(extractBearerToken(req('Bearer abc123'))).toBe('abc123');
-	});
-	it('is case-insensitive on the scheme', () => {
-		expect(extractBearerToken(req('bearer abc123'))).toBe('abc123');
-		expect(extractBearerToken(req('BEARER abc123'))).toBe('abc123');
-	});
-	it('trims whitespace around the token', () => {
-		expect(extractBearerToken(req('Bearer   abc123  '))).toBe('abc123');
-	});
-	it('returns undefined for whitespace-only tokens', () => {
-		expect(extractBearerToken(req('Bearer   \t'))).toBeUndefined();
-		expect(extractBearerToken(req('Bearer '))).toBeUndefined();
-	});
-	it('returns undefined when header is missing', () => {
-		expect(extractBearerToken(req(undefined))).toBeUndefined();
-	});
-	it('returns undefined for non-Bearer schemes', () => {
-		expect(extractBearerToken(req('Basic xyz'))).toBeUndefined();
-		expect(extractBearerToken(req('Digest xyz'))).toBeUndefined();
-	});
-	it('takes the first well-formed value from comma-joined duplicate headers', () => {
-		expect(extractBearerToken(req('Bearer abc, Bearer def'))).toBe('abc');
-	});
-	it('returns undefined if the first comma-joined value is not Bearer', () => {
-		expect(extractBearerToken(req(', Bearer abc'))).toBeUndefined();
-		expect(extractBearerToken(req('Basic xyz, Bearer abc'))).toBeUndefined();
 	});
 });
 
@@ -165,136 +122,6 @@ describe('host validation (scoped to /mcp)', () => {
 	});
 });
 
-describe('session request handler (GET/DELETE)', () => {
-	function buildApp(sessions: SessionRegistry): {
-		app: Express;
-		handleRequest: ReturnType<typeof vi.fn>;
-	} {
-		const app = express();
-		app.use(express.json());
-		const handleRequest = vi.fn(
-			async (_req: unknown, res: { status: (n: number) => { end: () => void } }) => {
-				res.status(204).end();
-			},
-		);
-		for (const key of Object.keys(sessions)) {
-			(
-				sessions[key].transport as unknown as { handleRequest: typeof handleRequest }
-			).handleRequest = handleRequest;
-		}
-		app.get('/mcp', createSessionRequestHandler(sessions));
-		app.delete('/mcp', createSessionRequestHandler(sessions));
-		return { app, handleRequest };
-	}
-
-	function fakeSession(): SessionRegistry {
-		return {
-			'sid-1': {
-				transport: {} as unknown as SessionRegistry[string]['transport'],
-				activeRequests: 0,
-			},
-		};
-	}
-
-	it('returns 400 when mcp-session-id header is missing', async () => {
-		const { app } = buildApp({});
-		const res = await request(app).get('/mcp');
-		expect(res.status).toBe(400);
-	});
-
-	it('returns 400 when the session id is not known', async () => {
-		const { app } = buildApp(fakeSession());
-		const res = await request(app).get('/mcp').set('mcp-session-id', 'sid-unknown');
-		expect(res.status).toBe(400);
-	});
-
-	it('forwards a GET to transport.handleRequest with a valid session id and no bearer', async () => {
-		const { app, handleRequest } = buildApp(fakeSession());
-		const res = await request(app).get('/mcp').set('mcp-session-id', 'sid-1');
-		expect(res.status).toBe(204);
-		expect(handleRequest).toHaveBeenCalledTimes(1);
-	});
-
-	it('forwards a GET regardless of which bearer it carries', async () => {
-		const { app, handleRequest } = buildApp(fakeSession());
-		const res = await request(app)
-			.get('/mcp')
-			.set('mcp-session-id', 'sid-1')
-			.set('Authorization', 'Bearer any-token');
-		expect(res.status).toBe(204);
-		expect(handleRequest).toHaveBeenCalledTimes(1);
-	});
-
-	it('forwards a DELETE with a valid session id and no bearer', async () => {
-		const { app, handleRequest } = buildApp(fakeSession());
-		const res = await request(app).delete('/mcp').set('mcp-session-id', 'sid-1');
-		expect(res.status).toBe(204);
-		expect(handleRequest).toHaveBeenCalledTimes(1);
-	});
-});
-
-describe('POST to an existing session (per-request bearer)', () => {
-	function buildApp(sessions: SessionRegistry): {
-		app: Express;
-		handleRequest: ReturnType<typeof vi.fn>;
-	} {
-		const app = express();
-		app.use(express.json());
-		const handleRequest = vi.fn(
-			async (
-				_req: unknown,
-				res: { status: (n: number) => { end: () => void } },
-				_body: unknown,
-			) => {
-				res.status(202).end();
-			},
-		);
-		for (const key of Object.keys(sessions)) {
-			(
-				sessions[key].transport as unknown as { handleRequest: typeof handleRequest }
-			).handleRequest = handleRequest;
-		}
-		app.post('/mcp', createMcpPostHandler(sessions, stubCreateServer));
-		return { app, handleRequest };
-	}
-
-	function stubCreateServer(): McpServer {
-		return new McpServer({ name: 'post-test-server', version: '0.0.0' }, { capabilities: {} });
-	}
-
-	function fakeSession(): SessionRegistry {
-		return {
-			'sid-1': {
-				transport: {} as unknown as SessionRegistry[string]['transport'],
-				activeRequests: 0,
-			},
-		};
-	}
-
-	it('accepts a POST carrying a bearer that differs from the one that initialized the session', async () => {
-		const { app, handleRequest } = buildApp(fakeSession());
-		const res = await request(app)
-			.post('/mcp')
-			.set('mcp-session-id', 'sid-1')
-			.set('Authorization', 'Bearer a-different-token')
-			.send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
-		expect(res.status).not.toBe(401);
-		expect(res.status).toBe(202);
-		expect(handleRequest).toHaveBeenCalledTimes(1);
-	});
-
-	it('accepts a POST to an existing session with no bearer at all', async () => {
-		const { app, handleRequest } = buildApp(fakeSession());
-		const res = await request(app)
-			.post('/mcp')
-			.set('mcp-session-id', 'sid-1')
-			.send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
-		expect(res.status).not.toBe(401);
-		expect(res.status).toBe(202);
-		expect(handleRequest).toHaveBeenCalledTimes(1);
-	});
-});
-
 describe('toOriginHostnames', () => {
 	it('reduces a configured origin to its hostname', () => {
 		expect(toOriginHostnames(['https://wiki.example.org'])).toEqual(['wiki.example.org']);
@@ -359,10 +186,6 @@ describe('origin validation (middleware)', () => {
 		},
 	};
 
-	function stubCreateServer(): McpServer {
-		return new McpServer({ name: 'origin-test-server', version: '0.0.0' }, { capabilities: {} });
-	}
-
 	// Attaches the guard per route, as the real buildApp does. Mounting it on the
 	// '/mcp' prefix instead would also cover the authorization-server routes; the
 	// proxy suite covers that specifically.
@@ -371,8 +194,11 @@ describe('origin validation (middleware)', () => {
 		app.use(express.json());
 		const originCheck = resolveMcpOriginValidation(allowedOrigins);
 		const guard = originCheck ? [originCheck] : [];
-		const sessions: SessionRegistry = {};
-		app.post('/mcp', ...guard, createMcpPostHandler(sessions, stubCreateServer, {}));
+		const handler = createMcpHandler(
+			() => new McpServer({ name: 'origin-test-server', version: '0.0.0' }, { capabilities: {} }),
+			{ legacy: 'stateless' },
+		);
+		app.post('/mcp', ...guard, createMcpRouteHandler(handler));
 		return app;
 	}
 
@@ -543,257 +369,6 @@ describe('withRequestContext', () => {
 	});
 });
 
-describe('markSessionActive / markSessionIdle (idle expiry)', () => {
-	function sessionWithCloseSpy(): {
-		sessions: SessionRegistry;
-		close: ReturnType<typeof vi.fn>;
-	} {
-		const sessions: SessionRegistry = {};
-		// Mirror the real transport.close() -> onclose -> delete sessions[id] chain
-		// from createMcpPostHandler, so the test exercises registry removal too.
-		const transport = {
-			onclose: undefined as (() => void) | undefined,
-		} as unknown as SessionRegistry[string]['transport'] & { onclose?: () => void };
-		const close = vi.fn(() => {
-			transport.onclose?.();
-			return Promise.resolve();
-		});
-		(transport as { close: unknown }).close = close;
-		transport.onclose = () => {
-			delete sessions['sid-1'];
-		};
-		sessions['sid-1'] = { transport, activeRequests: 0 };
-		return { sessions, close };
-	}
-
-	it('does not close while a request is active (no timer armed)', () => {
-		vi.useFakeTimers();
-		try {
-			const { sessions, close } = sessionWithCloseSpy();
-			markSessionActive(sessions, 'sid-1');
-			expect(sessions['sid-1'].idleTimer).toBeUndefined();
-			vi.advanceTimersByTime(10_000);
-			expect(close).not.toHaveBeenCalled();
-		} finally {
-			vi.useRealTimers();
-		}
-	});
-
-	it('arms the idle timer once the request goes idle, then closes and removes the entry', () => {
-		vi.useFakeTimers();
-		try {
-			const { sessions, close } = sessionWithCloseSpy();
-			markSessionActive(sessions, 'sid-1');
-			markSessionIdle(sessions, 'sid-1', 1000);
-			expect(close).not.toHaveBeenCalled();
-			vi.advanceTimersByTime(1000);
-			expect(close).toHaveBeenCalledTimes(1);
-			expect(sessions['sid-1']).toBeUndefined();
-		} finally {
-			vi.useRealTimers();
-		}
-	});
-
-	it('keeps the session alive while at least one request is still in-flight', () => {
-		vi.useFakeTimers();
-		try {
-			const { sessions, close } = sessionWithCloseSpy();
-			// Two concurrent requests (e.g. a held-open GET SSE stream plus a POST).
-			markSessionActive(sessions, 'sid-1');
-			markSessionActive(sessions, 'sid-1');
-			// First one finishes — still one in-flight, no timer.
-			markSessionIdle(sessions, 'sid-1', 1000);
-			expect(sessions['sid-1'].idleTimer).toBeUndefined();
-			vi.advanceTimersByTime(5000);
-			expect(close).not.toHaveBeenCalled();
-			// Second one finishes — now idle, timer arms and fires.
-			markSessionIdle(sessions, 'sid-1', 1000);
-			vi.advanceTimersByTime(1000);
-			expect(close).toHaveBeenCalledTimes(1);
-		} finally {
-			vi.useRealTimers();
-		}
-	});
-
-	it('never arms a timer when the timeout is 0 (expiry disabled)', () => {
-		vi.useFakeTimers();
-		try {
-			const { sessions, close } = sessionWithCloseSpy();
-			markSessionActive(sessions, 'sid-1');
-			markSessionIdle(sessions, 'sid-1', 0);
-			expect(sessions['sid-1'].idleTimer).toBeUndefined();
-			vi.advanceTimersByTime(10_000_000);
-			expect(close).not.toHaveBeenCalled();
-		} finally {
-			vi.useRealTimers();
-		}
-	});
-
-	it('is a no-op for an unknown session id', () => {
-		vi.useFakeTimers();
-		try {
-			const { sessions } = sessionWithCloseSpy();
-			expect(() => markSessionActive(sessions, 'sid-unknown')).not.toThrow();
-			expect(() => markSessionIdle(sessions, 'sid-unknown', 1000)).not.toThrow();
-		} finally {
-			vi.useRealTimers();
-		}
-	});
-
-	// close is a plain function rather than a vi.fn on purpose: a spy subscribes to
-	// the promise it returns in order to record the settled result, which counts as
-	// handling the rejection and hides the very thing under test. Real timers keep
-	// the test to one 1ms hop, so there is no time to travel.
-	it('survives a transport that fails to close, and still drops the entry', async () => {
-		const rejections = watchUnhandledRejections();
-		const sessions: SessionRegistry = {};
-		let closeCalls = 0;
-		// Mirrors the real transport, which calls onclose only after every stream's
-		// cleanup: a close that fails never reaches the handler that would have
-		// removed the entry, so reaching onclose here would mean the test proved
-		// nothing about the catch.
-		const transport = {
-			close: () => {
-				closeCalls++;
-				return Promise.reject(new Error('socket already destroyed'));
-			},
-			onclose: () => {
-				throw new Error('onclose must not run when close fails');
-			},
-		} as unknown as SessionRegistry[string]['transport'];
-		sessions['sid-1'] = { transport, activeRequests: 0 };
-
-		markSessionActive(sessions, 'sid-1');
-		markSessionIdle(sessions, 'sid-1', 1);
-		await new Promise((resolve) => setTimeout(resolve, 20));
-
-		expect(closeCalls).toBe(1);
-		// Nothing awaits this close, so an unhandled rejection ends the process
-		// rather than failing a request.
-		expect(rejections.map(String)).toEqual([]);
-		expect(sessions['sid-1']).toBeUndefined();
-	});
-});
-
-describe('idle-counter wiring through the HTTP handlers', () => {
-	function stubCreateServer(): McpServer {
-		return new McpServer({ name: 'idle-wiring-server', version: '0.0.0' }, { capabilities: {} });
-	}
-
-	// supertest resolves its promise on the HTTP response, but the handler's
-	// markSessionIdle runs on the response's 'close' event, which can fire a
-	// tick later. Mirror the createInFlightCounter abort test's setImmediate
-	// drain so the post-close registry state is observable.
-	async function afterResponseClosed(): Promise<void> {
-		await new Promise((r) => setImmediate(r));
-	}
-
-	it('balances activeRequests back to 0 after a POST to an existing session', async () => {
-		const app = express();
-		app.use(express.json());
-		const handleRequest = vi.fn(
-			async (_req: unknown, res: { status: (n: number) => { end: () => void } }) => {
-				res.status(202).end();
-			},
-		);
-		// transport.sessionId must be populated: the POST handler's res.on('close')
-		// reads it to route markSessionIdle back to this registry entry.
-		const transport = {
-			sessionId: 'sid-1',
-			handleRequest,
-		} as unknown as SessionRegistry[string]['transport'];
-		const sessions: SessionRegistry = { 'sid-1': { transport, activeRequests: 0 } };
-		app.post('/mcp', createMcpPostHandler(sessions, stubCreateServer, { idleTimeoutMs: 0 }));
-
-		const res = await request(app)
-			.post('/mcp')
-			.set('mcp-session-id', 'sid-1')
-			.send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
-		await afterResponseClosed();
-
-		expect(res.status).toBe(202);
-		// markSessionActive (+1) and the res.on('close') -> markSessionIdle (-1)
-		// balanced out — the request did not leak an in-flight count.
-		expect(sessions['sid-1'].activeRequests).toBe(0);
-	});
-
-	it('balances activeRequests back to 0 after a new-session initialize POST', async () => {
-		const app = express();
-		app.use(express.json());
-		const sessions: SessionRegistry = {};
-		app.post('/mcp', createMcpPostHandler(sessions, stubCreateServer, { idleTimeoutMs: 0 }));
-
-		const res = await request(app)
-			.post('/mcp')
-			.set('Accept', 'application/json, text/event-stream')
-			.send({
-				jsonrpc: '2.0',
-				id: 1,
-				method: 'initialize',
-				params: {
-					protocolVersion: '2025-11-25',
-					capabilities: {},
-					clientInfo: { name: 'idle-wiring-client', version: '0.0.0' },
-				},
-			});
-		await afterResponseClosed();
-
-		expect(res.status).toBe(200);
-		const created = Object.keys(sessions);
-		expect(created).toHaveLength(1);
-		// onsessioninitialized seeds activeRequests: 1; the init request's
-		// res.on('close') -> markSessionIdle must decrement it back to 0
-		// rather than leaving the fresh session stuck at 1.
-		expect(sessions[created[0]].activeRequests).toBe(0);
-	});
-
-	it('balances activeRequests back to 0 after a GET to an existing session', async () => {
-		const app = express();
-		app.use(express.json());
-		const handleRequest = vi.fn(
-			async (_req: unknown, res: { status: (n: number) => { end: () => void } }) => {
-				res.status(204).end();
-			},
-		);
-		const transport = {
-			sessionId: 'sid-1',
-			handleRequest,
-		} as unknown as SessionRegistry[string]['transport'];
-		const sessions: SessionRegistry = { 'sid-1': { transport, activeRequests: 0 } };
-		app.get('/mcp', createSessionRequestHandler(sessions, 0));
-
-		const res = await request(app).get('/mcp').set('mcp-session-id', 'sid-1');
-		await afterResponseClosed();
-
-		expect(res.status).toBe(204);
-		// markSessionActive (+1) and res.on('close') -> markSessionIdle (-1)
-		// balanced out for the GET path too.
-		expect(sessions['sid-1'].activeRequests).toBe(0);
-	});
-
-	it('balances activeRequests back to 0 after a DELETE to an existing session', async () => {
-		const app = express();
-		app.use(express.json());
-		const handleRequest = vi.fn(
-			async (_req: unknown, res: { status: (n: number) => { end: () => void } }) => {
-				res.status(204).end();
-			},
-		);
-		const transport = {
-			sessionId: 'sid-1',
-			handleRequest,
-		} as unknown as SessionRegistry[string]['transport'];
-		const sessions: SessionRegistry = { 'sid-1': { transport, activeRequests: 0 } };
-		app.delete('/mcp', createSessionRequestHandler(sessions, 0));
-
-		const res = await request(app).delete('/mcp').set('mcp-session-id', 'sid-1');
-		await afterResponseClosed();
-
-		expect(res.status).toBe(204);
-		expect(sessions['sid-1'].activeRequests).toBe(0);
-	});
-});
-
 describe('createInFlightCounter', () => {
 	function buildApp(): Express {
 		const app = express();
@@ -835,5 +410,25 @@ describe('createInFlightCounter', () => {
 		const a = createInFlightCounter();
 		const b = createInFlightCounter();
 		expect(a.count).not.toBe(b.count);
+	});
+
+	it('does not count a subscriptions/listen POST (held-open stream must not block drain)', async () => {
+		const app = express();
+		app.use(express.json());
+		const inFlight = createInFlightCounter();
+		app.use('/mcp', inFlight.middleware);
+		app.post('/mcp', (_req, res) => {
+			res.json({ count: inFlight.count() });
+		});
+
+		const listen = await request(app)
+			.post('/mcp')
+			.send({ jsonrpc: '2.0', id: 1, method: 'subscriptions/listen', params: {} });
+		expect(listen.body.count).toBe(0);
+
+		const other = await request(app)
+			.post('/mcp')
+			.send({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
+		expect(other.body.count).toBe(1);
 	});
 });

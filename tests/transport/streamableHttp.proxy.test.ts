@@ -5,7 +5,6 @@ import type { RequestHandler } from 'express';
 import { McpServer } from '@modelcontextprotocol/server';
 import { buildApp, type BuildAppDeps } from '../../src/transport/streamableHttp.js';
 import { resolveUpstreamBearer } from '../../src/auth/upstreamBearer.js';
-import type { SessionRegistry } from '../../src/transport/sessionRegistry.js';
 import { createAppState } from '../../src/wikis/state.js';
 import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.js';
 import { CimdResolver } from '../../src/auth/authorizationServer/cimd.js';
@@ -65,16 +64,18 @@ function proxyConfig(fakeAsUrl: string): ProxyConfig {
 	};
 }
 
-// Stub MCP server; never actually connected because the /mcp tests pre-seed a
-// fake transport into the returned sessions registry.
 function stubCreateServer(): McpServer {
 	return new McpServer({ name: 'proxy-e2e', version: '0.0.0' }, { capabilities: {} });
 }
 
+// The per-request server factory is the capture seam: it runs inside
+// withRequestContext during serving, so an onServe hook observes the resolved
+// runtime token for the request being served.
 function makeDeps(
 	fakeAsUrl: string,
 	store: InMemoryProxyStore,
 	pc: ProxyConfig | null,
+	onServe?: () => void | Promise<void>,
 ): BuildAppDeps {
 	return {
 		state: appState(fakeAsUrl),
@@ -84,12 +85,14 @@ function makeDeps(
 		cimdResolver: null,
 		defaultWikiKey: 'test',
 		defaultWikiSitename: 'Test Wiki',
-		createServerFn: stubCreateServer,
+		createServerFn: async () => {
+			await onServe?.();
+			return stubCreateServer();
+		},
 		host: '127.0.0.1',
 		allowedHosts: undefined,
 		allowedOrigins: undefined,
 		maxRequestBody: '1mb',
-		sessionIdleTimeoutMs: 0,
 	};
 }
 
@@ -164,7 +167,15 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		fakeAs = await startFakeAs({ autoApproveAuthorize: true, captureApi: true });
 		const store = new InMemoryProxyStore();
 		const pc = proxyConfig(fakeAs.url);
-		const { app, sessions } = buildApp(makeDeps(fakeAs.url, store, pc));
+		// The factory seam calls the wiki action API with the request's resolved
+		// runtime token, standing in for what mwn would send to /api.php.
+		const onServe = vi.fn(async () => {
+			const runtimeToken = getRuntimeToken();
+			await fetch(`${fakeAs!.url}/w/api.php?action=query&meta=tokens`, {
+				headers: runtimeToken ? { Authorization: `Bearer ${runtimeToken}` } : {},
+			});
+		});
+		const { app } = buildApp(makeDeps(fakeAs.url, store, pc, onServe));
 
 		const result = await runHostedFlow({ app });
 
@@ -183,34 +194,19 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		// The proxy JWT and the upstream wiki token are distinct values.
 		expect(upstreamToken).not.toBe(result.accessToken);
 
-		// Now drive a REAL /mcp POST: pre-seed a session whose transport, inside
-		// withRequestContext, calls the wiki action API with the resolved runtime
-		// token. This proves the UPSTREAM token — not the proxy JWT — is what mwn
-		// would send to /api.php.
-		const handleRequest = vi.fn(
-			async (_req: unknown, res: { status: (n: number) => { json: (b: unknown) => void } }) => {
-				const runtimeToken = getRuntimeToken();
-				await fetch(`${fakeAs!.url}/w/api.php?action=query&meta=tokens`, {
-					headers: runtimeToken ? { Authorization: `Bearer ${runtimeToken}` } : {},
-				});
-				res.status(200).json({ ok: true });
-			},
-		);
-		const transport = {
-			sessionId: 'sid-1',
-			handleRequest,
-		} as unknown as SessionRegistry[string]['transport'];
-		sessions['sid-1'] = { transport, activeRequests: 0 };
-
+		// Now drive a REAL /mcp POST: the per-request factory (onServe above),
+		// running inside withRequestContext, calls the wiki action API with the
+		// resolved runtime token. This proves the UPSTREAM token — not the proxy
+		// JWT — is what mwn would send to /api.php.
 		const mcpRes = await request(app)
 			.post('/mcp')
 			.set('Content-Type', 'application/json')
-			.set('mcp-session-id', 'sid-1')
+			.set('Accept', 'application/json, text/event-stream')
 			.set('Authorization', `Bearer ${result.accessToken}`)
 			.send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
 
 		expect(mcpRes.status).not.toBe(401);
-		expect(handleRequest).toHaveBeenCalledOnce();
+		expect(onServe).toHaveBeenCalled();
 		// The wiki API saw the UPSTREAM wiki token, never the proxy JWT.
 		expect(fakeAs.capturedApiBearers).toContain(upstreamToken);
 		expect(fakeAs.capturedApiBearers).not.toContain(result.accessToken);
@@ -243,29 +239,19 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		fakeAs = await startFakeAs({ autoApproveAuthorize: true });
 		const store = new InMemoryProxyStore();
 		const pc = proxyConfig(fakeAs.url);
-		const deps = makeDeps(fakeAs.url, store, pc);
-		const { app, sessions } = buildApp(deps);
 
 		// (a) A tokenless /mcp POST is served anonymously (no 401 short-circuit).
+		// The per-request factory seam observes the (absent) runtime token.
 		const captured: { token?: string; seen: boolean } = { seen: false };
-		const handleRequest = vi.fn(
-			async (_req: unknown, res: { status: (n: number) => { json: (b: unknown) => void } }) => {
-				captured.seen = true;
-				captured.token = getRuntimeToken();
-				res.status(200).json({ ok: true });
-			},
-		);
-		sessions['sid-anon'] = {
-			transport: {
-				sessionId: 'sid-anon',
-				handleRequest,
-			} as unknown as SessionRegistry[string]['transport'],
-			activeRequests: 0,
-		};
+		const deps = makeDeps(fakeAs.url, store, pc, () => {
+			captured.seen = true;
+			captured.token = getRuntimeToken();
+		});
+		const { app } = buildApp(deps);
 		const anonRes = await request(app)
 			.post('/mcp')
 			.set('Content-Type', 'application/json')
-			.set('mcp-session-id', 'sid-anon')
+			.set('Accept', 'application/json, text/event-stream')
 			.send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
 		expect(anonRes.status).not.toBe(401);
 		expect(captured.seen).toBe(true);
@@ -664,7 +650,6 @@ describe('private wiki — connection-time auth challenge', () => {
 			allowedHosts: undefined,
 			allowedOrigins: undefined,
 			maxRequestBody: '1mb',
-			sessionIdleTimeoutMs: 0,
 		};
 	}
 
@@ -751,7 +736,6 @@ describe('private wiki — connection-time auth challenge', () => {
 			allowedHosts: undefined,
 			allowedOrigins: undefined,
 			maxRequestBody: '1mb',
-			sessionIdleTimeoutMs: 0,
 		});
 
 		expect(warnSpy).toHaveBeenCalledWith(
@@ -792,7 +776,6 @@ describe('private wiki — connection-time auth challenge', () => {
 			allowedHosts: undefined,
 			allowedOrigins: undefined,
 			maxRequestBody: '1mb',
-			sessionIdleTimeoutMs: 0,
 		});
 
 		expect(warnSpy).not.toHaveBeenCalledWith(
@@ -963,30 +946,16 @@ describe('hosted OAuth proxy — upstream refresh on the /mcp path (e2e)', () =>
 		return u.accessToken;
 	}
 
-	// Pre-seeds a session whose fake transport calls the wiki action API with the
-	// runtime token resolved for the request, so a test can observe which bearer
-	// mwn would send upstream.
-	function seedApiCallingSession(
-		app: ReturnType<typeof buildApp>['app'],
-		sessions: SessionRegistry,
-	) {
-		const handleRequest = vi.fn(
-			async (_req: unknown, res: { status: (n: number) => { json: (b: unknown) => void } }) => {
-				const runtimeToken = getRuntimeToken();
-				await fetch(`${fakeAs!.url}/w/api.php?action=query&meta=tokens`, {
-					headers: runtimeToken ? { Authorization: `Bearer ${runtimeToken}` } : {},
-				});
-				res.status(200).json({ ok: true });
-			},
-		);
-		sessions['sid-1'] = {
-			transport: {
-				sessionId: 'sid-1',
-				handleRequest,
-			} as unknown as SessionRegistry[string]['transport'],
-			activeRequests: 0,
-		};
-		return handleRequest;
+	// Calls the wiki action API with the runtime token resolved for the request,
+	// standing in for what mwn would send upstream. Handed to makeDeps as the
+	// per-request factory seam.
+	function apiCallingOnServe() {
+		return vi.fn(async () => {
+			const runtimeToken = getRuntimeToken();
+			await fetch(`${fakeAs!.url}/w/api.php?action=query&meta=tokens`, {
+				headers: runtimeToken ? { Authorization: `Bearer ${runtimeToken}` } : {},
+			});
+		});
 	}
 
 	const MCP_BODY = { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} };
@@ -1002,7 +971,6 @@ describe('hosted OAuth proxy — upstream refresh on the /mcp path (e2e)', () =>
 		const res = await request(app)
 			.post('/mcp')
 			.set('Content-Type', 'application/json')
-			.set('mcp-session-id', 'sid-1')
 			.set('Authorization', `Bearer ${result.accessToken}`)
 			.send(MCP_BODY);
 
@@ -1019,7 +987,8 @@ describe('hosted OAuth proxy — upstream refresh on the /mcp path (e2e)', () =>
 		});
 		const store = new InMemoryProxyStore();
 		const pc = proxyConfig(fakeAs.url);
-		const { app, sessions } = buildApp(makeDeps(fakeAs.url, store, pc));
+		const onServe = apiCallingOnServe();
+		const { app } = buildApp(makeDeps(fakeAs.url, store, pc, onServe));
 		const result = await runHostedFlow({ app });
 		// Inside the 30s skew but still valid: the refresh runs and blips, and the
 		// current token is still usable.
@@ -1029,18 +998,17 @@ describe('hosted OAuth proxy — upstream refresh on the /mcp path (e2e)', () =>
 			result.accessToken,
 			Date.now() + 10_000,
 		);
-		const handleRequest = seedApiCallingSession(app, sessions);
 
 		const res = await request(app)
 			.post('/mcp')
 			.set('Content-Type', 'application/json')
-			.set('mcp-session-id', 'sid-1')
+			.set('Accept', 'application/json, text/event-stream')
 			.set('Authorization', `Bearer ${result.accessToken}`)
 			.send(MCP_BODY);
 
 		expect(res.status).not.toBe(401);
 		expect(res.status).not.toBe(503);
-		expect(handleRequest).toHaveBeenCalledOnce();
+		expect(onServe).toHaveBeenCalledOnce();
 		// The wiki API saw the still-valid upstream token, not a re-auth.
 		expect(fakeAs.capturedApiBearers).toContain(upstreamAccess);
 	});
@@ -1049,20 +1017,20 @@ describe('hosted OAuth proxy — upstream refresh on the /mcp path (e2e)', () =>
 		fakeAs = await startFakeAs({ autoApproveAuthorize: true, captureApi: true });
 		const store = new InMemoryProxyStore();
 		const pc = proxyConfig(fakeAs.url);
-		const { app, sessions } = buildApp(makeDeps(fakeAs.url, store, pc));
+		const onServe = apiCallingOnServe();
+		const { app } = buildApp(makeDeps(fakeAs.url, store, pc, onServe));
 		const result = await runHostedFlow({ app });
 		await setUpstreamExpiry(store, pc, result.accessToken, Date.now() + 10_000);
-		const handleRequest = seedApiCallingSession(app, sessions);
 
 		const res = await request(app)
 			.post('/mcp')
 			.set('Content-Type', 'application/json')
-			.set('mcp-session-id', 'sid-1')
+			.set('Accept', 'application/json, text/event-stream')
 			.set('Authorization', `Bearer ${result.accessToken}`)
 			.send(MCP_BODY);
 
 		expect(res.status).not.toBe(401);
-		expect(handleRequest).toHaveBeenCalledOnce();
+		expect(onServe).toHaveBeenCalledOnce();
 		// The default fake AS rotates on refresh, so the wiki API sees the refreshed
 		// token and the store now holds the rotated pair.
 		expect(fakeAs.capturedApiBearers).toContain('access-refreshed');

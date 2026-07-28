@@ -2,12 +2,9 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 
 import express, { type Express } from 'express';
 import request from 'supertest';
-import { McpServer } from '@modelcontextprotocol/server';
-import {
-	createOAuthProtectedResourceHandler,
-	createMcpPostHandler,
-} from '../../src/transport/streamableHttp.js';
-import type { SessionRegistry } from '../../src/transport/sessionRegistry.js';
+import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
+import { createOAuthProtectedResourceHandler } from '../../src/transport/streamableHttp.js';
+import { createMcpRouteHandler, type McpRouteOptions } from '../../src/transport/mcpRoute.js';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.js';
@@ -33,15 +30,17 @@ function buildWellKnownApp(registry: WikiRegistry): Express {
 	return app;
 }
 
-function stubCreateServer(): McpServer {
-	return new McpServer({ name: 'oauth-test-server', version: '0.0.0' }, { capabilities: {} });
-}
-
-function buildMcpApp(registry: WikiRegistry): Express {
+function buildMcpApp(
+	registry?: WikiRegistry,
+	options: Omit<McpRouteOptions, 'wikiRegistry'> = {},
+): Express {
 	const app = express();
 	app.use(express.json());
-	const sessions: SessionRegistry = {};
-	app.post('/mcp', createMcpPostHandler(sessions, stubCreateServer, { wikiRegistry: registry }));
+	const handler = createMcpHandler(
+		() => new McpServer({ name: 'oauth-test-server', version: '0.0.0' }, { capabilities: {} }),
+		{ legacy: 'stateless' },
+	);
+	app.post('/mcp', createMcpRouteHandler(handler, { wikiRegistry: registry, ...options }));
 	return app;
 }
 
@@ -267,10 +266,7 @@ describe('POST /mcp 401 short-circuit when every wiki requires auth', () => {
 
 	it('does NOT return 401 when wikiRegistry is not provided to handler', async () => {
 		// If wikiRegistry is omitted entirely, the 401 check is skipped
-		const app = express();
-		app.use(express.json());
-		const sessions: SessionRegistry = {};
-		app.post('/mcp', createMcpPostHandler(sessions, stubCreateServer, {}));
+		const app = buildMcpApp(undefined);
 
 		const res = await request(app)
 			.post('/mcp')

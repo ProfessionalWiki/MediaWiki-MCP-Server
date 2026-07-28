@@ -75,7 +75,6 @@ function makeDeps(fakeAsUrl: string, store: ProxyStore, pc: ProxyConfig): BuildA
 		allowedHosts: undefined,
 		allowedOrigins: undefined,
 		maxRequestBody: '1mb',
-		sessionIdleTimeoutMs: 0,
 	};
 }
 

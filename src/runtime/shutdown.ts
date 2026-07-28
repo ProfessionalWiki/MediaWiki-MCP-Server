@@ -1,5 +1,4 @@
 import type { Server as HttpServer } from 'node:http';
-import type { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
 import { emitTelemetryEvent, logger } from './logger.js';
 
 const DEFAULT_GRACE_MS = 10_000;
@@ -25,20 +24,18 @@ export interface InFlightCounterReader {
 	readonly count: () => number;
 }
 
-export type ShutdownSessionRegistry = Record<
-	string,
-	{
-		readonly transport: Pick<NodeStreamableHTTPServerTransport, 'close'>;
-	}
->;
-
 export type StdioCloseable = { close(): Promise<void> | void };
 
 export interface ShutdownDeps {
 	readonly transport: 'http' | 'stdio';
 	readonly graceMs: number;
 	readonly httpServer?: HttpServer;
-	readonly sessions?: ShutdownSessionRegistry;
+	// The era-routing /mcp handler. Closed AFTER the in-flight drain: close()
+	// aborts in-flight modern exchanges, so calling it first would cut short
+	// the very requests the grace window exists to finish. What it does end —
+	// gracefully — is the held-open subscriptions/listen streams, which the
+	// drain deliberately does not count.
+	readonly mcpHandler?: { close: () => Promise<void> };
 	readonly inFlight?: InFlightCounterReader;
 	readonly stdioTransport?: StdioCloseable;
 	readonly process?: NodeJS.Process;
@@ -83,7 +80,6 @@ async function runDrain(
 ): Promise<void> {
 	const start = Date.now();
 	const inFlightAtSignal = deps.inFlight?.count() ?? 0;
-	const sessionsAtSignal = deps.sessions ? Object.keys(deps.sessions).length : 0;
 
 	emitTelemetryEvent('info', {
 		event: 'shutdown',
@@ -91,10 +87,8 @@ async function runDrain(
 		transport: deps.transport,
 		grace_ms: deps.graceMs,
 		in_flight_at_signal: inFlightAtSignal,
-		sessions_at_signal: sessionsAtSignal,
 	});
 
-	let sessionsClosed = 0;
 	if (deps.transport === 'http') {
 		if (deps.httpServer) {
 			// Stop accepting new connections. The close callback isn't awaited
@@ -107,25 +101,11 @@ async function runDrain(
 				deps.httpServer.closeIdleConnections();
 			}
 		}
-		if (deps.sessions) {
-			// Snapshot the ids before iterating: transport.onclose deletes its
-			// own entry from the registry, which would skip the next entry if
-			// we iterated the live object directly.
-			const sessionIds = Object.keys(deps.sessions);
-			for (const id of sessionIds) {
-				try {
-					await deps.sessions[id].transport.close();
-					sessionsClosed++;
-				} catch {
-					// Ignore: a session that fails to close cleanly should not block drain.
-				}
-			}
-		}
 	} else if (deps.stdioTransport) {
 		try {
 			await deps.stdioTransport.close();
 		} catch {
-			// Same rationale.
+			// Ignore: a transport that fails to close cleanly should not block drain.
 		}
 	}
 
@@ -135,13 +115,24 @@ async function runDrain(
 		deps.pollIntervalMs ?? DEFAULT_POLL_MS,
 	);
 
+	if (deps.mcpHandler) {
+		try {
+			// After the drain on purpose: close() aborts in-flight modern
+			// exchanges, and what remains by now is only the held-open
+			// subscriptions/listen streams, which get the spec's graceful
+			// empty-result close.
+			await deps.mcpHandler.close();
+		} catch {
+			// A handler that fails to close must not block exit.
+		}
+	}
+
 	const drained = inFlightAtSignal - (deps.inFlight?.count() ?? 0);
 	emitTelemetryEvent('info', {
 		event: 'shutdown_complete',
 		signal,
 		transport: deps.transport,
 		in_flight_drained: drained,
-		sessions_closed: sessionsClosed,
 		grace_exceeded: graceExceeded,
 		duration_ms: Date.now() - start,
 	});
