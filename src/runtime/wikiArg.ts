@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { ZodRawShape } from 'zod';
 import { WIKI_RESOURCE_URI_PREFIX } from './constants.js';
+import { decodeWikiKey } from './wikiKey.js';
 
 export const WIKI_ARG_DESCRIPTION =
 	'Wiki to target, as a key from the mcp://wikis/ resources (e.g. en.wikipedia.org), ' +
@@ -8,12 +9,18 @@ export const WIKI_ARG_DESCRIPTION =
 
 export const wikiArgSchema = z.string().optional().describe(WIKI_ARG_DESCRIPTION);
 
-// Accepts a bare registry key or a full mcp://wikis/{key} resource URI.
+// Accepts a bare registry key or a full mcp://wikis/{key} resource URI. The URI
+// form carries the key percent-encoded, so it decodes back to the registry
+// spelling; without that, every published URI whose key needs escaping names a
+// wiki this lookup cannot find. A segment that is not valid percent-encoding
+// passes through unchanged, to miss the registry rather than throw.
 export function normalizeWikiArg(value: string): string {
 	const trimmed = value.trim();
-	return trimmed.startsWith(WIKI_RESOURCE_URI_PREFIX)
-		? trimmed.slice(WIKI_RESOURCE_URI_PREFIX.length).trim()
-		: trimmed;
+	if (!trimmed.startsWith(WIKI_RESOURCE_URI_PREFIX)) {
+		return trimmed;
+	}
+	const segment = trimmed.slice(WIKI_RESOURCE_URI_PREFIX.length).trim();
+	return decodeWikiKey(segment) ?? segment;
 }
 
 export function isWikiScoped(tool: { wikiScoped?: boolean }): boolean {

@@ -4,7 +4,7 @@ import type { ToolContext } from '../runtime/context.js';
 import type { WikiConfig, PublicWikiConfig } from '../config/loadConfig.js';
 import { WIKI_RESOURCE_URI_PREFIX } from '../runtime/constants.js';
 import { resolveSiteInfo } from '../wikis/siteInfo.js';
-import { decodeWikiKey, encodeWikiKey } from '../wikis/wikiResource.js';
+import { decodeWikiKey, encodeWikiKey } from '../runtime/wikiKey.js';
 
 // Builds the published view of a wiki by naming the public fields, so a new
 // WikiConfig field is private until someone adds it here. Credentials

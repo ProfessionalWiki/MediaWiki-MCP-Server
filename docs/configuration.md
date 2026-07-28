@@ -10,7 +10,7 @@ Covers configuration topics beyond the basic `config.json` shape documented in [
 |---|---|
 | `allowWikiManagement` | Enables the `add-wiki` and `remove-wiki` tools. Set to `false` to freeze the list of configured wikis. Default: `true` |
 | `defaultWiki` | The default wiki identifier to use (matches a key in `wikis`) |
-| `wikis` | Object containing wiki configurations, keyed by domain/identifier |
+| `wikis` | Object containing wiki configurations, keyed by domain/identifier. A key may not contain `/`, `?`, `#` or whitespace; the server exits at startup if one does |
 
 ### Per-wiki fields
 

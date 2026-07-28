@@ -1,5 +1,5 @@
 import type { WikiConfig } from '../config/loadConfig.js';
-import { hasUnsafeWikiKeyChars } from './wikiResource.js';
+import { hasUnsafeWikiKeyChars } from '../runtime/wikiKey.js';
 
 export interface WikiRegistry {
 	getAll(): Readonly<Record<string, WikiConfig>>;

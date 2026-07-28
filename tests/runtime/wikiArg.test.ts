@@ -13,6 +13,21 @@ describe('normalizeWikiArg', () => {
 	it('trims surrounding whitespace', () => {
 		expect(normalizeWikiArg('  de.wikipedia.org  ')).toBe('de.wikipedia.org');
 	});
+
+	// The published URI has to name a wiki this lookup can find, or a client
+	// that passes back what resources/list gave it gets "wiki not found".
+	it.each([
+		['mcp://wikis/wiki-%C3%BC', 'wiki-ü'],
+		['mcp://wikis/100%25', '100%'],
+		['mcp://wikis/a%2Bb', 'a+b'],
+		['mcp://wikis/localhost:8080', 'localhost:8080'],
+	])('decodes %s back to the registry key', (uri, key) => {
+		expect(normalizeWikiArg(uri)).toBe(key);
+	});
+
+	it('passes an undecodable segment through, to miss the registry rather than throw', () => {
+		expect(normalizeWikiArg('mcp://wikis/100%')).toBe('100%');
+	});
 });
 
 describe('buildToolInputSchema', () => {

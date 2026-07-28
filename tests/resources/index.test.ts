@@ -245,16 +245,17 @@ describe('wikis resource', () => {
 		}
 	});
 
+	// A key the registry still admits, unlike one containing whitespace.
 	it('round-trips a wiki key that needs percent-encoding from the listing to a read', async () => {
-		const { handler, template } = captureResource(ctxWithWikis(['my wiki spaced']));
+		const { handler, template } = captureResource(ctxWithWikis(['wiki-\u00fc']));
 
 		const [uri] = await listedUris(template);
-		expect(uri).toBe('mcp://wikis/my%20wiki%20spaced');
+		expect(uri).toBe('mcp://wikis/wiki-%C3%BC');
 
 		const matched = template.uriTemplate.match(uri);
-		expect(matched).toEqual({ wikiKey: 'my%20wiki%20spaced' });
+		expect(matched).toEqual({ wikiKey: 'wiki-%C3%BC' });
 
-		const result = await handler({ toString: () => uri }, { wikiKey: 'my%20wiki%20spaced' });
+		const result = await handler({ toString: () => uri }, { wikiKey: 'wiki-%C3%BC' });
 		expect(JSON.parse(result.contents[0].text)).toMatchObject({ sitename: 'Test' });
 	});
 

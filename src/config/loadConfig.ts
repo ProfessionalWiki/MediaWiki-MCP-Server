@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from '../runtime/logger.js';
 import { errorMessage } from '../errors/isErrnoException.js';
-import { hasUnsafeWikiKeyChars } from '../wikis/wikiResource.js';
+import { hasUnsafeWikiKeyChars } from '../runtime/wikiKey.js';
 
 export interface WikiConfig {
 	/**

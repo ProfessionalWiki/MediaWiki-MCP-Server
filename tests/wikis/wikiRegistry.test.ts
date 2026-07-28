@@ -55,6 +55,13 @@ describe('WikiRegistryImpl', () => {
 		},
 	);
 
+	// An unpaired surrogate makes encodeURIComponent throw, which would fail the
+	// whole resource listing rather than this one key.
+	it('add rejects a key containing an unpaired surrogate', () => {
+		const reg = new WikiRegistryImpl({}, true);
+		expect(() => reg.add('a\ud800b', sample('x'))).toThrow(/not allowed/);
+	});
+
 	it('add accepts a host:port key', () => {
 		const reg = new WikiRegistryImpl({}, true);
 		reg.add('localhost:8080', sample('local'));
