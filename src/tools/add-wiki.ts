@@ -47,6 +47,16 @@ export const addWiki: Tool<typeof inputSchema, ManagementContext> = {
 			);
 		}
 
+		// A wiki added at runtime must not be more privileged than the deployment
+		// it joins. `add-wiki` takes only a URL, so the caller cannot express a
+		// read-only intent; inheriting the restrictive posture is the safe
+		// reading of an ambiguous request. Without this, one call on an
+		// all-read-only deployment revealed every write tool, because the
+		// tools/list gate offers writes as soon as ANY configured wiki is
+		// writable and an added wiki carried no `readOnly` field at all.
+		const configured = Object.values(ctx.wikis.getAll());
+		const readOnly = configured.length > 0 && configured.every((w) => w.readOnly === true);
+
 		try {
 			ctx.wikis.add(wikiInfo.servername, {
 				sitename: wikiInfo.sitename,
@@ -55,6 +65,7 @@ export const addWiki: Tool<typeof inputSchema, ManagementContext> = {
 				scriptpath: wikiInfo.scriptpath,
 				token: null,
 				private: false,
+				readOnly,
 			});
 		} catch (error) {
 			if (error instanceof DuplicateWikiKeyError) {

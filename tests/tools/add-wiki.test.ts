@@ -4,9 +4,13 @@ vi.mock('../../src/wikis/wikiDiscovery.js', () => ({
 	discoverWiki: vi.fn(),
 }));
 
+import type { RegisteredTool } from '@modelcontextprotocol/server';
 import { discoverWiki } from '../../src/wikis/wikiDiscovery.js';
 import { SsrfValidationError } from '../../src/transport/ssrfGuard.js';
-import { DuplicateWikiKeyError } from '../../src/wikis/wikiRegistry.js';
+import { DuplicateWikiKeyError, WikiRegistryImpl } from '../../src/wikis/wikiRegistry.js';
+import type { WikiConfig } from '../../src/config/loadConfig.js';
+import { reconcileTools } from '../../src/runtime/reconcile.js';
+import { WRITE_TOOL_NAMES } from '../../src/runtime/wikiCapability.js';
 import { formatPayload } from '../../src/results/format.js';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
 import { fakeManagementContext } from '../helpers/fakeContext.js';
@@ -61,6 +65,92 @@ describe('add-wiki', () => {
 			}),
 		);
 		expect(reconcile).toHaveBeenCalledTimes(1);
+	});
+
+	function discoversExampleOrg(): void {
+		vi.mocked(discoverWiki).mockResolvedValue({
+			servername: 'example.org',
+			sitename: 'Example Wiki',
+			server: 'https://example.org',
+			articlepath: '/wiki',
+			scriptpath: '/w',
+		});
+	}
+
+	function wikiConfig(overrides: Partial<WikiConfig> = {}): WikiConfig {
+		return {
+			sitename: 'Existing',
+			server: 'https://existing.example',
+			articlepath: '/wiki',
+			scriptpath: '/w',
+			...overrides,
+		};
+	}
+
+	it('makes the added wiki read-only when every configured wiki is read-only', async () => {
+		discoversExampleOrg();
+		const registry = new WikiRegistryImpl(
+			{ 'existing.example': wikiConfig({ readOnly: true }) },
+			true,
+		);
+		const ctx = fakeManagementContext({ reconcile: vi.fn(), wikis: registry });
+
+		await dispatch(addWiki, ctx)({ wikiUrl: 'https://example.org/' });
+
+		expect(registry.get('example.org')?.readOnly).toBe(true);
+	});
+
+	it('leaves the added wiki writable when any configured wiki is writable', async () => {
+		discoversExampleOrg();
+		const registry = new WikiRegistryImpl(
+			{
+				'ro.example': wikiConfig({ readOnly: true }),
+				'rw.example': wikiConfig({ readOnly: false }),
+			},
+			true,
+		);
+		const ctx = fakeManagementContext({ reconcile: vi.fn(), wikis: registry });
+
+		await dispatch(addWiki, ctx)({ wikiUrl: 'https://example.org/' });
+
+		expect(registry.get('example.org')?.readOnly).toBe(false);
+	});
+
+	// The behaviour the inheritance exists for, proven through the real registry
+	// and the real gating rules rather than by composing two unit assertions.
+	it('keeps the write tools hidden after adding a wiki to a read-only deployment', async () => {
+		discoversExampleOrg();
+		const registry = new WikiRegistryImpl({ 'ro.example': wikiConfig({ readOnly: true }) }, true);
+		const ctx = fakeManagementContext({ reconcile: vi.fn(), wikis: registry });
+
+		const tools = new Map<string, RegisteredTool>();
+		const states = new Map<string, boolean>();
+		for (const name of [...WRITE_TOOL_NAMES, 'get-page']) {
+			states.set(name, true);
+			tools.set(name, {
+				get enabled() {
+					return states.get(name) === true;
+				},
+				enable: () => states.set(name, true),
+				disable: () => states.set(name, false),
+			} as unknown as RegisteredTool);
+		}
+		const deps = {
+			wikiRegistry: registry,
+			transport: 'http' as const,
+			wikiProbe: { hasAnyExtension: async () => false } as never,
+			extensionPacks: [],
+		};
+
+		await reconcileTools(tools, deps);
+		expect(WRITE_TOOL_NAMES.every((n) => states.get(n) === false)).toBe(true);
+
+		await dispatch(addWiki, ctx)({ wikiUrl: 'https://example.org/' });
+		await reconcileTools(tools, deps);
+
+		// Still hidden: the added wiki inherited the deployment's read-only posture.
+		expect(WRITE_TOOL_NAMES.every((n) => states.get(n) === false)).toBe(true);
+		expect(states.get('get-page')).toBe(true);
 	});
 
 	it('categorises SSRF rejections as invalid_input', async () => {
