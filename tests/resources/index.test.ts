@@ -1,8 +1,16 @@
 import { describe, it, expect, vi } from 'vitest';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
+import {
+	createMcpHandler,
+	InMemoryServerEventBus,
+	McpServer,
+	ResourceNotFoundError,
+} from '@modelcontextprotocol/server';
 import { registerAllResources } from '../../src/resources/index.js';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 import type { SiteInfo } from '../../src/wikis/siteInfoCache.js';
+import type { WikiConfig } from '../../src/config/loadConfig.js';
 
 function emptyCache() {
 	const map = new Map<string, SiteInfo>();
@@ -32,6 +40,33 @@ function captureHandler(ctx: ReturnType<typeof fakeContext>) {
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- minimal McpServer double for resource registration
 	registerAllResources(fakeServer as never, ctx);
 	return handler;
+}
+
+// A context whose registry holds exactly the given keys, so a test can name a
+// key the shared fakeContext registry does not carry.
+function ctxWithWikis(keys: string[]) {
+	const config: WikiConfig = {
+		sitename: 'Test',
+		server: 'https://test.wiki',
+		articlepath: '/wiki',
+		scriptpath: '/w',
+	};
+	const registry: Record<string, WikiConfig> = {};
+	for (const key of keys) {
+		registry[key] = config;
+	}
+	return fakeContext({
+		mwn: async () =>
+			createMockMwn({ request: vi.fn().mockRejectedValue(new Error('down')) }) as never,
+		siteInfoCache: emptyCache() as never,
+		wikis: {
+			getAll: () => registry as never,
+			get: ((key: string) => (Object.hasOwn(registry, key) ? registry[key] : undefined)) as never,
+			add: vi.fn() as never,
+			remove: vi.fn() as never,
+			isManagementAllowed: () => false,
+		},
+	});
 }
 
 describe('wikis resource', () => {
@@ -141,5 +176,55 @@ describe('wikis resource', () => {
 		expect(payload.sitename).toBe('Secretive');
 		expect(payload.private).toBe(true);
 		expect(payload.readOnly).toBe(true);
+	});
+
+	it('rejects an unknown wiki with a resource-not-found error', async () => {
+		const handler = captureHandler(ctxWithWikis(['test-wiki']));
+
+		const error: unknown = await handler(
+			{ toString: () => 'mcp://wikis/typo-wiki' },
+			{ wikiKey: 'typo-wiki' },
+		).then(
+			() => undefined,
+			(err: unknown) => err,
+		);
+
+		expect(ResourceNotFoundError.isInstance(error)).toBe(true);
+		expect((error as ResourceNotFoundError).code).toBe(-32602);
+		expect((error as ResourceNotFoundError).data).toEqual({ uri: 'mcp://wikis/typo-wiki' });
+	});
+
+	it('carries the not-found error to the client as -32602 over the stateless HTTP path', async () => {
+		const bus = new InMemoryServerEventBus();
+		const handler = createMcpHandler(
+			() => {
+				const server = new McpServer(
+					{ name: 'resource-conformance-test', version: '0.0.0' },
+					{ capabilities: { resources: { listChanged: true } } },
+				);
+				registerAllResources(server, ctxWithWikis(['test-wiki']));
+				return Promise.resolve(server);
+			},
+			{ legacy: 'stateless', bus },
+		);
+		const client = new Client({ name: 'resource-conformance-test', version: '0.0.0' });
+		await client.connect(
+			new StreamableHTTPClientTransport(new URL('http://in-memory.test/mcp'), {
+				fetch: (url, init) => handler.fetch(new Request(url, init)),
+			}),
+		);
+
+		try {
+			const error: unknown = await client.readResource({ uri: 'mcp://wikis/typo-wiki' }).then(
+				() => undefined,
+				(err: unknown) => err,
+			);
+
+			expect((error as { code?: number }).code).toBe(-32602);
+			expect((error as { data?: unknown }).data).toEqual({ uri: 'mcp://wikis/typo-wiki' });
+		} finally {
+			await client.close();
+			await handler.close();
+		}
 	});
 });

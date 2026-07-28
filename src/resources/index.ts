@@ -1,4 +1,4 @@
-import { ResourceTemplate } from '@modelcontextprotocol/server';
+import { ResourceNotFoundError, ResourceTemplate } from '@modelcontextprotocol/server';
 import type { McpServer, Resource } from '@modelcontextprotocol/server';
 import type { ToolContext } from '../runtime/context.js';
 import type { WikiConfig, PublicWikiConfig } from '../config/loadConfig.js';
@@ -49,7 +49,7 @@ export function registerAllResources(server: McpServer, ctx: ToolContext): void 
 		const wikiConfig = ctx.wikis.get(wikiKey);
 
 		if (!wikiConfig) {
-			return { contents: [] };
+			throw new ResourceNotFoundError(uri.toString());
 		}
 
 		const result: Record<string, unknown> = { ...toPublicConfig(wikiConfig) };

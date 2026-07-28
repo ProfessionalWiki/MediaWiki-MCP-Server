@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Fixed
+
+- Reading an `mcp://wikis/{wikiKey}` resource for a wiki that is not configured now fails with a JSON-RPC `-32602` error naming the URI, as the protocol requires. It previously returned an empty document, which a client could not tell from a wiki with nothing to report.
+
 ## [0.15.0] - 2026-07-28
 
 ### Security
