@@ -4,6 +4,7 @@ import request from 'supertest';
 import type { RequestHandler } from 'express';
 import { McpServer } from '@modelcontextprotocol/server';
 import { buildApp, type BuildAppDeps } from '../../src/transport/streamableHttp.js';
+import { PARSE_ERROR_CODE } from '../../src/transport/errorCodes.js';
 import { resolveUpstreamBearer } from '../../src/auth/upstreamBearer.js';
 import { createAppState } from '../../src/wikis/state.js';
 import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.js';
@@ -139,6 +140,45 @@ describe('hosted OAuth proxy — Origin validation scope', () => {
 		// consent cookie, bad grant, unregistered client). What must never happen is
 		// a rejection by the Origin guard.
 		expect(JSON.stringify(res.body ?? '')).not.toMatch(/Invalid Origin/);
+	});
+});
+
+// express.json() is mounted app-wide, so its parse failures reach the browser-facing
+// authorization-server routes as well as the JSON-RPC endpoint, and each needs its
+// own dialect. Driven through the real buildApp because the answer depends on where
+// the shaping handler sits in the middleware stack.
+describe('hosted OAuth proxy — malformed JSON body scope', () => {
+	const AS_URL = 'https://as.example';
+
+	function app() {
+		const pc = proxyConfig(AS_URL);
+		return buildApp(makeDeps(AS_URL, new InMemoryProxyStore(), pc)).app;
+	}
+
+	it('answers the MCP endpoint with a JSON-RPC parse error', async () => {
+		const res = await request(app())
+			.post('/mcp')
+			.set('Content-Type', 'application/json')
+			.set('Accept', 'application/json, text/event-stream')
+			.send('{"jsonrpc":"2.0",');
+
+		expect(res.status).toBe(400);
+		expect(res.headers['content-type']).toMatch(/application\/json/);
+		expect(res.body?.error?.code).toBe(PARSE_ERROR_CODE);
+		expect(res.text).not.toMatch(/SyntaxError/);
+	});
+
+	it('answers a registration request with an OAuth error', async () => {
+		const res = await request(app())
+			.post('/mcp/register')
+			.set('Content-Type', 'application/json')
+			.send('{bad');
+
+		expect(res.status).toBe(400);
+		expect(res.headers['content-type']).toMatch(/application\/json/);
+		expect(res.body?.jsonrpc).toBeUndefined();
+		expect(res.body?.error).toBe('invalid_request');
+		expect(res.text).not.toMatch(/SyntaxError/);
 	});
 });
 
@@ -674,6 +714,7 @@ describe('private wiki — connection-time auth challenge', () => {
 			});
 
 		expect(res.status).toBe(401);
+		expect(res.body?.id).toBe(1);
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- supertest header value is string|string[]
 		const wwwAuth = res.headers['www-authenticate'] as string;
 		expect(wwwAuth).toContain('error="invalid_token"');
@@ -689,6 +730,8 @@ describe('private wiki — connection-time auth challenge', () => {
 		const res = await request(app).get('/mcp').set('mcp-session-id', 'irrelevant');
 
 		expect(res.status).toBe(401);
+		// A body-less method carries no id to attribute the error to.
+		expect('id' in (res.body as object)).toBe(false);
 	});
 
 	it('does NOT challenge an anonymous request when the wiki is public', async () => {

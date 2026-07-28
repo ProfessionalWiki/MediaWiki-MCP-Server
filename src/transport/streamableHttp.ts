@@ -30,6 +30,7 @@ import {
 } from '../runtime/metrics.js';
 import { createInFlightCounter, type InFlightCounter } from './inFlight.js';
 import { createMcpRouteHandler, resolveRequestProto, type ProxyConfigGetter } from './mcpRoute.js';
+import { PARSE_ERROR_CODE, PAYLOAD_TOO_LARGE_ERROR_CODE } from './errorCodes.js';
 import { mountReadyEndpoint } from './ready.js';
 import { loadConfigFromFile } from '../config/loadConfig.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
@@ -232,29 +233,61 @@ export function createOAuthProtectedResourceHandler(deps: {
 	};
 }
 
-// body-parser raises a PayloadTooLargeError with `type === 'entity.too.large'`
-// when the request body exceeds the configured limit. Without this handler the
-// default Express error page returns an HTML blob, which an MCP client cannot
-// parse — so we shape it as a JSON-RPC error.
-export function payloadTooLargeHandler(limit: string): ErrorRequestHandler {
-	return (err, _req, res, next) => {
-		const tooLarge =
-			typeof err === 'object' &&
-			err !== null &&
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- predicate body's required cast to inspect body-parser PayloadTooLargeError
-			(err as { type?: unknown }).type === 'entity.too.large';
-		if (!tooLarge) {
-			next(err);
+// express.json() is mounted app-wide, so its failures also reach the browser-facing
+// authorization-server routes under the same /mcp prefix, where an OAuth client
+// expects RFC 6749's error shape rather than a JSON-RPC envelope. Only the JSON-RPC
+// endpoint itself gets the JSON-RPC dialect. Express matches `/mcp` non-strictly, so
+// the trailing-slash form reaches that same route.
+function isMcpEndpoint(req: Request): boolean {
+	return req.path === '/mcp' || req.path === '/mcp/';
+}
+
+// body-parser tags each of its failures with a `type` discriminator; anything
+// else reaching an error handler carries none.
+function bodyErrorType(err: unknown): string | undefined {
+	if (typeof err !== 'object' || err === null || !('type' in err)) {
+		return undefined;
+	}
+	return typeof err.type === 'string' ? err.type : undefined;
+}
+
+// body-parser fails with `entity.too.large` when the body exceeds the configured
+// limit and `entity.parse.failed` when it is not valid JSON. Without this handler
+// both reach Express's finalhandler, which answers HTML — unparseable by an MCP
+// client, and carrying a stack trace outside production. Other body-parser failure
+// types are left to propagate as before.
+export function bodyErrorHandler(limit: string): ErrorRequestHandler {
+	return (err, req, res, next) => {
+		const type = bodyErrorType(err);
+		if (type === 'entity.too.large') {
+			const message = `Request body exceeds the configured maximum size of ${limit}`;
+			if (isMcpEndpoint(req)) {
+				res.status(413).json({
+					jsonrpc: '2.0',
+					error: { code: PAYLOAD_TOO_LARGE_ERROR_CODE, message },
+					// body-parser aborted before parsing, so no request id was ever read.
+					id: null,
+				});
+			} else {
+				res.status(413).json({ error: 'invalid_request', error_description: message });
+			}
 			return;
 		}
-		res.status(413).json({
-			jsonrpc: '2.0',
-			error: {
-				code: -32000,
-				message: `Request body exceeds the configured maximum size of ${limit}`,
-			},
-			id: null,
-		});
+		if (type === 'entity.parse.failed') {
+			if (isMcpEndpoint(req)) {
+				res.status(400).json({
+					jsonrpc: '2.0',
+					error: { code: PARSE_ERROR_CODE, message: 'Parse error' },
+					id: null,
+				});
+			} else {
+				res
+					.status(400)
+					.json({ error: 'invalid_request', error_description: 'Request body is not valid JSON' });
+			}
+			return;
+		}
+		next(err);
 	};
 }
 
@@ -357,7 +390,7 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 
 	const app = express();
 	app.use(express.json({ limit: maxRequestBody }));
-	app.use(payloadTooLargeHandler(maxRequestBody));
+	app.use(bodyErrorHandler(maxRequestBody));
 
 	const hostValidation = resolveMcpHostValidation(host, allowedHosts);
 	if (hostValidation) {

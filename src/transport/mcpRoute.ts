@@ -6,6 +6,10 @@ import { withRequestContext } from '../runtime/requestContext.js';
 import type { WikiConfig } from '../config/loadConfig.js';
 import type { WikiRegistry } from '../wikis/wikiRegistry.js';
 import { resolvePublicBase } from '../auth/protectedResource.js';
+import {
+	AUTHENTICATION_REQUIRED_ERROR_CODE,
+	UPSTREAM_UNAVAILABLE_ERROR_CODE,
+} from './errorCodes.js';
 import type { ProxyConfig } from '../auth/authorizationServer/proxyConfig.js';
 import type { ProxyStore } from '../auth/authorizationServer/proxyStore.js';
 import {
@@ -50,6 +54,32 @@ function wikiNeedsAuth(cfg: WikiConfig, fallbackAllowed: boolean): boolean {
 // implementation.
 export type ProxyConfigGetter = () => ProxyConfig | null;
 
+// The id an error emitted before dispatch may echo, following the same rule as the
+// SDK's own echoableRequestId: only a single JSON-RPC request object with a string
+// method carries an id this layer can attribute the error to. A batch, a
+// notification, a posted response and a body-less method do not, and the 2026-07-28
+// error shape has no admissible value for "unknown", so the field is omitted.
+function echoableRequestId(body: unknown): string | number | undefined {
+	if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+		return undefined;
+	}
+	if (!('method' in body) || typeof body.method !== 'string') {
+		return undefined;
+	}
+	if (!('id' in body)) {
+		return undefined;
+	}
+	const id: unknown = body.id;
+	return typeof id === 'string' || typeof id === 'number' ? id : undefined;
+}
+
+// Spreads into a JSON-RPC error body, contributing the `id` key only when the
+// request carried one this layer could read.
+function echoedId(req: Request): { id?: string | number } {
+	const id = echoableRequestId(req.body);
+	return id === undefined ? {} : { id };
+}
+
 // Emits the shared OAuth 401 challenge: a JSON-RPC error body with the
 // WWW-Authenticate: Bearer ... resource_metadata=... header pointing at this
 // server's protected-resource document. Reused by the legacy OAuth-only
@@ -70,10 +100,10 @@ function emit401Challenge(req: Request, res: Response): void {
 	res.status(401).json({
 		jsonrpc: '2.0',
 		error: {
-			code: -32001,
+			code: AUTHENTICATION_REQUIRED_ERROR_CODE,
 			message: 'Authentication required. See WWW-Authenticate header.',
 		},
-		id: null,
+		...echoedId(req),
 	});
 }
 
@@ -81,14 +111,14 @@ function emit401Challenge(req: Request, res: Response): void {
 // because of a transient upstream failure. Unlike emit401Challenge this carries NO
 // WWW-Authenticate header: the client should retry, not discard its session and
 // re-authenticate.
-function emit503Unavailable(res: Response): void {
+function emit503Unavailable(req: Request, res: Response): void {
 	res.status(503).json({
 		jsonrpc: '2.0',
 		error: {
-			code: -32000,
+			code: UPSTREAM_UNAVAILABLE_ERROR_CODE,
 			message: 'Upstream authorization temporarily unavailable. Please retry.',
 		},
-		id: null,
+		...echoedId(req),
 	});
 }
 
@@ -165,7 +195,7 @@ export function createMcpRouteHandler(
 					// re-auth challenge. Everything else (bad/expired JWT, dead refresh token)
 					// is a genuine auth failure: emit the 401 discovery challenge.
 					if (err instanceof UpstreamBearerError && err.retryable) {
-						emit503Unavailable(res);
+						emit503Unavailable(req, res);
 					} else {
 						emit401Challenge(req, res);
 					}
