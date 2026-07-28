@@ -102,7 +102,16 @@ export interface WikiConfig {
 	attributeEdits?: boolean;
 }
 
-export type PublicWikiConfig = Omit<WikiConfig, 'token' | 'username' | 'password'>;
+/**
+ * The wiki fields safe to publish over MCP. Deliberately a `Pick`, not an
+ * `Omit` of the known secrets: subtracting secrets means every field added to
+ * `WikiConfig` later is published by default, which is how `oauth2ClientSecret`
+ * came to be served to clients. Adding a field here must be a decision.
+ */
+export type PublicWikiConfig = Pick<
+	WikiConfig,
+	'sitename' | 'server' | 'articlepath' | 'scriptpath' | 'private' | 'readOnly'
+>;
 
 export interface Config {
 	wikis: { [key: string]: WikiConfig };

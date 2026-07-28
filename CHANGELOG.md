@@ -6,31 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Security
+
+- Reading an `mcp://wikis/{wikiKey}` resource no longer discloses the wiki's OAuth 2.0 client secret, previously served in plaintext to any client allowed to read resources. **If you run the HTTP transport with a confidential OAuth consumer, rotate that secret.** The resource now publishes only `sitename`, `server`, `articlepath`, `scriptpath`, `private` and `readOnly`.
+
 ### Breaking changes
 
-- The HTTP transport no longer creates sessions, following the per-request model of MCP protocol revision 2026-07-28. No session id is issued, the standalone `GET /mcp` notification stream answers `405 Method Not Allowed`, and clients on earlier protocol revisions no longer receive notifications between requests — most visibly, a tool-list change after `add-wiki` or `remove-wiki` reaches them on their next connection rather than as a push. Tool calls themselves are unaffected: every request is served independently, which is the shape most remote MCP servers already use. Clients that negotiate the 2026-07-28 revision receive change notifications over its subscription streams instead. stdio behaviour is unchanged on both protocol eras.
-- `MCP_SESSION_IDLE_TIMEOUT` is obsolete now that no sessions exist to expire. The server warns at startup while the variable is still set; remove it from the environment.
-- The `mcp_active_sessions` metric is gone. Watch `mcp_inflight_requests` (requests currently being served, the truer load signal) and `mcp_subscription_streams` (open change-notification streams, the closest measure of connected clients) instead.
-- Reading NeoWiki subjects now requires a wiki running NeoWiki from 2026-07-27 or later, when a Statement's property type was renamed to `propertyType` (ProfessionalWiki/NeoWiki#1169). This fixes `neowiki-get-subject` and `neowiki-get-page-subjects` reporting an empty type for every statement against an updated wiki, and requires one: against an earlier NeoWiki the type now reads as empty. Update the wiki before upgrading the server.
+- The HTTP transport no longer creates sessions: no session id is issued and `GET /mcp` answers `405`. Clients on protocol revisions before 2026-07-28 no longer receive notifications between requests, so a tool-list change after `add-wiki` or `remove-wiki` reaches them on their next connection. Tool calls are unaffected, and stdio is unchanged.
+- `MCP_SESSION_IDLE_TIMEOUT` is obsolete; remove it from the environment. The server warns while it is still set.
+- The `mcp_active_sessions` metric is replaced by `mcp_inflight_requests` and `mcp_subscription_streams`.
+- Reading NeoWiki subjects now requires NeoWiki from 2026-07-27 or later, which renamed a Statement's property type to `propertyType` (ProfessionalWiki/NeoWiki#1169). Against an earlier NeoWiki the type now reads as empty, so update the wiki before upgrading the server.
 
 ### Added
 
-- The server now speaks MCP protocol revision 2026-07-28 on both transports. A client that negotiates it gets per-request serving over HTTP, per-connection serving over stdio, and tool and resource list-change notifications over the revision's subscription streams; clients on earlier revisions are served as before on stdio and statelessly over HTTP.
-- Plugin installs can now be pointed at your own wiki. Claude Code prompts for a configuration file when the plugin is enabled, and the Codex plugin forwards the `CONFIG` environment variable from the shell Codex is launched from. Previously neither plugin offered a way to set `CONFIG`, leaving the server on English Wikipedia.
-- The server now warns at startup when `CONFIG` points at a file that does not exist. It previously fell back to the default English Wikipedia configuration with no indication of the misconfiguration, so a typo in the path meant silently talking to the wrong wiki.
+- The server now speaks MCP protocol revision 2026-07-28 on both transports. Clients on earlier revisions are served as before.
+- Plugin installs can now be pointed at your own wiki: Claude Code prompts for a configuration file, and the Codex plugin forwards `CONFIG` from the shell it is launched from. Previously both were stuck on English Wikipedia.
+- The server now warns at startup when `CONFIG` points at a file that does not exist, instead of silently falling back to English Wikipedia.
 
 ### Changed
 
-- The server now runs on version 2 of the MCP TypeScript SDK. An install pulls several smaller packages in place of the single previous one, and the downloadable bundle is slightly smaller as a result. No configuration changes are needed. Tool input schemas are now published as JSON Schema 2020-12 instead of draft-07, which matters only to a client that validates arguments against a draft-07-only validator.
-- Over HTTP, event streams now carry a keep-alive every 15 seconds. A reverse proxy that drops idle connections no longer cuts a client's notification stream while it is simply waiting.
-- Calling a tool the server is not offering now fails the call outright, instead of returning an error message as the tool's result. That covers both a name that does not exist and one withheld because it does not apply to the configured wikis, for example write tools when every wiki is read-only. Clients that call only what the server advertises are unaffected.
-- `MCP_ALLOWED_ORIGINS` is now matched on hostname rather than as a whole origin, so a configured `https://wiki.example.org` also admits `http://wiki.example.org` and other ports on that host. Enforce a particular scheme or port at your reverse proxy if you need one. In exchange the setting is much harder to get silently wrong: a trailing slash, a path, an explicit `:443`, an uppercase scheme, and a bare hostname with no scheme are all accepted now, where each previously rejected every browser request without explanation.
-- `tool_call` telemetry lines no longer carry a `session_id` field, and shutdown events no longer report `sessions_at_signal` / `sessions_closed` — with per-request HTTP serving there is no session to attribute. The hashed `caller` field remains the per-caller signal.
+- The server now runs on version 2 of the MCP TypeScript SDK. No configuration changes are needed. Tool input schemas are now published as JSON Schema 2020-12 instead of draft-07, which matters only to a client that validates against a draft-07-only validator.
+- Over HTTP, event streams now carry a keep-alive every 15 seconds, so a reverse proxy that drops idle connections no longer cuts a waiting client's notification stream.
+- Calling a tool the server is not offering now fails the call outright, instead of returning the error as the tool's result. Clients that call only what the server advertises are unaffected.
+- `MCP_ALLOWED_ORIGINS` is now matched on hostname rather than whole origin, so `https://wiki.example.org` also admits other schemes and ports on that host; enforce those at your reverse proxy if you need to. In exchange, a trailing slash, a path, an explicit `:443` or a bare hostname all work now, where each previously rejected every browser request.
+- `tool_call` telemetry lines no longer carry `session_id`, and shutdown events no longer report `sessions_at_signal` / `sessions_closed`. The hashed `caller` field remains.
 
 ### Fixed
 
-- The HTTP server no longer exits when a `GET /ready` probe finds the default wiki slow or unreachable. The probe now answers the documented `503 not_ready` when its three-second budget runs out, whichever stage of the check is still outstanding.
-- Readiness probes that arrive while an earlier one is still running now share its result instead of each starting another check of the wiki. A slow wiki is asked once rather than once per waiting probe, and `mcp_ready_failures_total` counts one failure per probe rather than one per waiting request.
+- The HTTP server no longer exits when a `GET /ready` probe finds the default wiki slow or unreachable; it answers the documented `503 not_ready` instead.
+- Readiness probes arriving while an earlier one is still running now share its result, so a slow wiki is asked once rather than once per waiting probe.
 
 ## [0.14.0] - 2026-07-23
 
