@@ -189,8 +189,9 @@ export function createMcpRouteHandler(
 
 		await withRequestContext(resolvedBearer, () =>
 			// express.json() has already drained the request stream, so the parsed
-			// body is handed to the adapter. POST only: GET/DELETE must stay
-			// body-less for era classification, and express.json() gives them `{}`.
+			// body is handed to the adapter. POST only: the SDK documents
+			// parsedBody as absent for body-less methods, and express.json()
+			// would hand GET/DELETE a spurious `{}`.
 			nodeHandler(req, res, req.method === 'POST' ? req.body : undefined),
 		);
 	};

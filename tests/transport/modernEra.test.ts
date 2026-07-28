@@ -142,4 +142,69 @@ describe('2026-07-28 era over Streamable HTTP (in-memory)', () => {
 		expect(seen).toContain('tools_list_changed');
 		expect(seen).toContain('resources_list_changed');
 	});
+
+	it('serves a real subscriptions/listen stream: gauge invariant, delivery, graceful close', async () => {
+		const wikis: Record<string, typeof wikiConfig> = {
+			'test-wiki': wikiConfig,
+			'fr.wikipedia.org': wikiConfig,
+			'de.wikipedia.org': wikiConfig,
+		};
+		const ctx = fakeContext({
+			wikis: {
+				getAll: () => wikis as never,
+				get: ((key: string) => (Object.hasOwn(wikis, key) ? wikis[key] : undefined)) as never,
+				add: vi.fn() as never,
+				remove: ((key: string) => {
+					delete wikis[key];
+				}) as never,
+				isManagementAllowed: () => true,
+			},
+			wikiCache: { invalidate: vi.fn() as never },
+		});
+		const { handler, bus } = buildHandler(ctx);
+		cleanups.push(() => handler.close());
+
+		const changed: Array<{ error: unknown; count: number | null }> = [];
+		const client = new Client(
+			{ name: 'listen-stream-test', version: '0.0.0' },
+			{
+				versionNegotiation: { mode: { pin: '2026-07-28' } },
+				listChanged: {
+					tools: {
+						onChanged: (error, tools) => {
+							changed.push({ error, count: tools ? tools.length : null });
+						},
+					},
+				},
+			},
+		);
+		cleanups.push(() => client.close());
+
+		expect(bus.listenerCount).toBe(0);
+		await client.connect(clientTransport(handler));
+		// The listChanged option auto-opens the subscriptions/listen stream on a
+		// modern connection; each open stream registers exactly one bus
+		// listener, which is the invariant the mcp_subscription_streams gauge
+		// reads.
+		const subscription = client.autoOpenedSubscription;
+		expect(subscription).toBeDefined();
+		expect(bus.listenerCount).toBe(1);
+
+		const result = await client.callTool({
+			name: 'remove-wiki',
+			arguments: { uri: 'mcp://wikis/fr.wikipedia.org' },
+		});
+		expect(result.isError ?? false).toBe(false);
+		// The change event must arrive over the held-open stream, not just the bus.
+		await vi.waitFor(() => {
+			expect(changed.length).toBeGreaterThan(0);
+		});
+		expect(changed[0].error).toBeFalsy();
+
+		// A deliberate server close ends the stream with the spec's graceful
+		// empty result, and the gauge returns to zero.
+		await handler.close();
+		await expect(subscription!.closed).resolves.toBe('graceful');
+		expect(bus.listenerCount).toBe(0);
+	});
 });

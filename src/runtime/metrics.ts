@@ -86,7 +86,7 @@ function makeLiveRecorder(): Recorder {
 
 	new Gauge({
 		name: 'mcp_inflight_requests',
-		help: 'Number of /mcp requests currently being served (subscription streams excluded).',
+		help: 'Number of requests under /mcp currently being served (subscription streams excluded).',
 		registers: [registry],
 		collect() {
 			this.set(inFlightProvider ? inFlightProvider() : 0);
