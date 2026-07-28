@@ -1,5 +1,6 @@
 import type { RequestHandler } from 'express';
 import type { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { logger } from '../runtime/logger.js';
 
 export type SessionEntry = {
 	readonly transport: StreamableHTTPServerTransport;
@@ -63,7 +64,17 @@ export function markSessionIdle(
 		clearTimeout(entry.idleTimer);
 	}
 	entry.idleTimer = setTimeout(() => {
-		void sessions[sessionId]?.transport.close();
+		// Nothing awaits this close, and Node ends the process over a rejection
+		// nothing is subscribed to. The transport calls onclose last, after every
+		// stream's cleanup, so a close that fails also skips the entry removal —
+		// drop it here rather than keep a session no later timer will revisit.
+		sessions[sessionId]?.transport.close().catch((error: unknown) => {
+			delete sessions[sessionId];
+			logger.warning('Closing an idle session failed; dropped it from the registry', {
+				session_id: sessionId,
+				error: error instanceof Error ? error.message : String(error),
+			});
+		});
 	}, idleTimeoutMs);
 	entry.idleTimer.unref();
 }

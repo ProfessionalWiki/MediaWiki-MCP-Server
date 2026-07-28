@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach, onTestFinished } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { watchUnhandledRejections } from '../helpers/unhandledRejections.js';
 
 const mockRequest = vi.fn();
 
@@ -41,20 +42,6 @@ function makeApp() {
 	const app = express();
 	mountReadyEndpoint(app, { activeWiki: mockActiveWiki, mwnProvider: mockMwnProvider });
 	return app;
-}
-
-// Vitest reports run-level unhandled errors without attributing them to a test,
-// so a test that cares about one collects it here.
-function watchUnhandledRejections(): unknown[] {
-	const seen: unknown[] = [];
-	const listener = (reason: unknown) => {
-		seen.push(reason);
-	};
-	process.on('unhandledRejection', listener);
-	onTestFinished(() => {
-		process.off('unhandledRejection', listener);
-	});
-	return seen;
 }
 
 // Resolving the wiki logs in and fetches site info, so it can outlast the
@@ -155,6 +142,7 @@ describe('/ready', () => {
 		const entry = await probe;
 
 		expect(rejections.map(String)).toEqual([]);
+		expect(entry.httpStatus).toBe(503);
 		// The deadline answered, so the later login failure had no one waiting on it.
 		expect(entry.payload.reason).toMatch(/timeout/i);
 	});
