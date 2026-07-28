@@ -35,6 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - The HTTP server no longer exits when a `GET /ready` probe finds the default wiki slow or unreachable; it answers the documented `503 not_ready` instead.
 - Readiness probes arriving while an earlier one is still running now share its result, so a slow wiki is asked once rather than once per waiting probe.
+- A wiki added with `add-wiki` to a deployment where every wiki is read-only is now read-only itself. It was previously writable, which revealed all the write tools.
 
 ## [0.14.0] - 2026-07-23
 
