@@ -13,7 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Fixed
 
 - Reading an `mcp://wikis/{wikiKey}` resource for a wiki that is not configured now fails with a JSON-RPC `-32602` error naming the URI, as the protocol requires. It previously returned an empty document, which a client could not tell from a wiki with nothing to report.
-- Wiki keys are now percent-encoded in the `mcp://wikis/` URIs the server publishes, and decoded when a resource is read, so a key containing a space or another character needing escaping is now reachable. A key that is already a plain hostname, with or without a port, keeps the URI it had.
+- Wiki keys are now percent-encoded in the `mcp://wikis/` URIs the server publishes, and decoded when a resource is read, so a key containing a character that needs escaping, such as `%` or a non-ASCII letter, is now reachable. A key that is already a plain hostname, with or without a port, keeps the URI it had.
 
 ## [0.15.0] - 2026-07-28
 

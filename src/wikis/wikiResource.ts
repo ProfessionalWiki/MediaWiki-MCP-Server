@@ -21,8 +21,8 @@ export function hasUnsafeWikiKeyChars(key: string): boolean {
 	return UNSAFE_WIKI_KEY_CHARS.test(key);
 }
 
-// RFC 3986 admits ":" unescaped in a path segment, so a host:port key keeps the
-// URI it has always been published under.
+// RFC 3986 admits ":" unescaped in a path segment. Escaping it would rewrite
+// the URI of the host:port keys that ship in the default configuration.
 export function encodeWikiKey(key: string): string {
 	return encodeURIComponent(key).replaceAll('%3A', ':');
 }

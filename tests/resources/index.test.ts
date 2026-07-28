@@ -251,8 +251,6 @@ describe('wikis resource', () => {
 		const [uri] = await listedUris(template);
 		expect(uri).toBe('mcp://wikis/my%20wiki%20spaced');
 
-		// The server's own template decides what the read handler sees, so the
-		// listed URI is fed back through it rather than hand-split.
 		const matched = template.uriTemplate.match(uri);
 		expect(matched).toEqual({ wikiKey: 'my%20wiki%20spaced' });
 
