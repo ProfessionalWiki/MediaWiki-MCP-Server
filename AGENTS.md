@@ -85,7 +85,7 @@ A client that just pastes the standard configuration gets a row in the client ta
 
 A client earns its own `###` section when its configuration shape differs from the standard `mcpServers` object, as OpenCode's `mcp` key does, or when it needs install-flow prose a table row cannot carry: plugin install commands, a bundle download, install badges, or more than one configuration file location. Antigravity is an example of the latter: its configuration shape is the standard one, but it needs two file locations plus a note about importing an existing Gemini CLI setup.
 
-Never add another copy of the standard configuration block: the point is not chasing a change through one block per client, though the badge payloads and `plugins/mediawiki-mcp-server/.mcp.json` carry their own copies that must be kept in step.
+Never add another copy of the standard configuration block: the point is not chasing a change through one block per client, though the badge payloads and the two plugin server declarations (`plugins/mediawiki-mcp-server/.mcp.json` and `.codex-plugin/mcp.json`) carry their own copies that must be kept in step.
 
 Retiring or adding a committed install channel needs a `## [Unreleased]` entry in CHANGELOG.md; documenting a client that needs no committed file does not.
 

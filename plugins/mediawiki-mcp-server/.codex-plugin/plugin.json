@@ -20,7 +20,7 @@
     "wikibase",
     "smw"
   ],
-  "mcpServers": "./.mcp.json",
+  "mcpServers": "./.codex-plugin/mcp.json",
   "interface": {
     "displayName": "MediaWiki MCP Server",
     "category": "Developer Tools",

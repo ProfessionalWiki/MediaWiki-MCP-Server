@@ -19,7 +19,7 @@ Commit a manifest for a client only when that client installs plugins from a rep
 
 ## Plugin layout
 
-Claude Code and Codex share one plugin directory and one server declaration:
+Claude Code and Codex share one plugin directory but keep separate server declarations:
 
 ```
 .claude-plugin/marketplace.json          Claude Code catalog
@@ -27,14 +27,16 @@ Claude Code and Codex share one plugin directory and one server declaration:
 plugins/mediawiki-mcp-server/
     .claude-plugin/plugin.json           Claude Code manifest
     .codex-plugin/plugin.json            Codex manifest
-    .mcp.json                            the shared server declaration
+    .codex-plugin/mcp.json               Codex server declaration
+    .mcp.json                            Claude Code server declaration
 ```
 
-Four constraints fix this shape:
+Five constraints fix this shape:
 
 - [Claude Code](https://code.claude.com/docs/en/plugin-marketplaces) reads its catalog only from `.claude-plugin/marketplace.json` at the repository root.
 - [Codex](https://developers.openai.com/codex/plugins) rejects a plugin whose source path is the repository root, so the plugin is a subdirectory.
-- Claude Code discovers `.mcp.json` at the plugin root, so its `plugin.json` omits `mcpServers`. Codex has no such discovery and points at the same file with `"mcpServers": "./.mcp.json"`.
+- Claude Code discovers `.mcp.json` at the plugin root, so its `plugin.json` omits `mcpServers` and that file must stay the Claude Code declaration. Codex has no such discovery and points at its own file with `"mcpServers": "./.codex-plugin/mcp.json"` (the path resolves against the plugin root).
+- The declarations differ because the clients pass `CONFIG` differently, and each client's mechanism is unsafe or inert on the other. The Claude Code file substitutes `${user_config.configPath}` from the enable-time prompt declared in its manifest's `userConfig`; Codex performs no substitution and would hand the server that literal string as a path. The Codex file instead forwards `CONFIG` from the parent environment by name with `env_vars`, a key Claude Code ignores. Codex strips the environment to a small whitelist without `env_vars`, while Claude Code passes it through in full.
 - The catalogs take different `source` shapes: a bare string for Claude Code, an object for Codex.
 
 Keep `.mcp.json` inside the plugin directory. Claude Code loads a repository-root `.mcp.json` as a project server, which would start this server for anyone working in this repository.
@@ -84,7 +86,7 @@ codex plugin add mediawiki-mcp-server@professional-wiki
 codex mcp list
 ```
 
-`plugin details` and `mcp list` each report the `mediawiki` server. Remove the test install afterwards:
+`plugin details` and `mcp list` each report the `mediawiki` server. When iterating on the plugin files, the two CLIs pick up edits differently: Claude Code runs a directory-source marketplace live, while Codex runs a cached snapshot, so re-run `codex plugin add` after each edit. Remove the test install afterwards:
 
 ```bash
 claude plugin uninstall mediawiki-mcp-server@professional-wiki

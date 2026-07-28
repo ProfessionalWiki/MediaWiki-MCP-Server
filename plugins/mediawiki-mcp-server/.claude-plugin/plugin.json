@@ -20,5 +20,13 @@
     "knowledge",
     "wikibase",
     "smw"
-  ]
+  ],
+  "userConfig": {
+    "configPath": {
+      "type": "file",
+      "title": "Configuration file",
+      "description": "Path to a config.json pointing the server at your own wiki. Optional: without it the server targets English Wikipedia.",
+      "required": false
+    }
+  }
 }

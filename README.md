@@ -186,6 +186,8 @@ Add this repository as a plugin marketplace, then install the bundled server:
 /plugin install mediawiki-mcp-server@professional-wiki
 ```
 
+The plugin takes an optional configuration file, which points the server at your own wiki. Set it from the prompt when enabling the plugin, or at any time with `/plugin configure mediawiki-mcp-server@professional-wiki`. A command-line install takes the same value via `claude plugin install mediawiki-mcp-server@professional-wiki --config configPath=path/to/config.json`.
+
 When installed as a plugin, the tools are namespaced `mcp__plugin_mediawiki-mcp-server_mediawiki__<tool>`; update any tool allowlists or hooks accordingly.
 
 To configure the server directly instead, see the [Claude Code MCP docs](https://docs.anthropic.com/en/docs/claude-code/mcp). The short version:
@@ -204,6 +206,8 @@ Add this repository as a plugin marketplace, then install the bundled server:
 codex plugin marketplace add ProfessionalWiki/MediaWiki-MCP-Server
 codex plugin add mediawiki-mcp-server@professional-wiki
 ```
+
+To point the plugin at your own wiki, set `CONFIG` in the shell you launch Codex from, for example `export CONFIG=path/to/config.json`. Codex has no per-plugin configuration; if you would rather not set an environment variable, `codex mcp add mediawiki --env CONFIG=path/to/config.json -- npx -y @professional-wiki/mediawiki-mcp-server@latest` registers the server directly and takes precedence over the plugin's copy.
 
 See the [Codex plugins documentation](https://developers.openai.com/codex/plugins) for how to list, update, or remove plugins.
 
