@@ -18,7 +18,8 @@ type ProxyStoreStats = { readonly upstreamTokens: number; readonly clients: numb
 interface Recorder {
 	recordToolCall(input: RecordToolCallInput): void;
 	recordReadyFailure(): void;
-	setSessionsProvider(fn: () => number): void;
+	setInFlightProvider(fn: () => number): void;
+	setSubscriptionStreamsProvider(fn: () => number): void;
 	recordStoreFlush(durationMs: number): void;
 	recordStoreFlushFailure(): void;
 	setProxyStoreStatsProvider(fn: () => ProxyStoreStats): void;
@@ -40,7 +41,8 @@ function makeDisabledRecorder(): Recorder {
 	return {
 		recordToolCall: () => {},
 		recordReadyFailure: () => {},
-		setSessionsProvider: () => {},
+		setInFlightProvider: () => {},
+		setSubscriptionStreamsProvider: () => {},
 		recordStoreFlush: () => {},
 		recordStoreFlushFailure: () => {},
 		setProxyStoreStatsProvider: () => {},
@@ -50,7 +52,8 @@ function makeDisabledRecorder(): Recorder {
 
 function makeLiveRecorder(): Recorder {
 	const registry = new Registry();
-	let sessionsProvider: (() => number) | undefined;
+	let inFlightProvider: (() => number) | undefined;
+	let subscriptionStreamsProvider: (() => number) | undefined;
 	let storeStatsProvider: (() => ProxyStoreStats) | undefined;
 
 	const toolCalls = new Counter({
@@ -82,11 +85,20 @@ function makeLiveRecorder(): Recorder {
 	});
 
 	new Gauge({
-		name: 'mcp_active_sessions',
-		help: 'Number of active StreamableHTTP MCP sessions.',
+		name: 'mcp_inflight_requests',
+		help: 'Number of /mcp requests currently being served (subscription streams excluded).',
 		registers: [registry],
 		collect() {
-			this.set(sessionsProvider ? sessionsProvider() : 0);
+			this.set(inFlightProvider ? inFlightProvider() : 0);
+		},
+	});
+
+	new Gauge({
+		name: 'mcp_subscription_streams',
+		help: 'Number of open subscriptions/listen streams.',
+		registers: [registry],
+		collect() {
+			this.set(subscriptionStreamsProvider ? subscriptionStreamsProvider() : 0);
 		},
 	});
 
@@ -141,8 +153,11 @@ function makeLiveRecorder(): Recorder {
 		recordReadyFailure() {
 			readyFailures.inc();
 		},
-		setSessionsProvider(fn) {
-			sessionsProvider = fn;
+		setInFlightProvider(fn) {
+			inFlightProvider = fn;
+		},
+		setSubscriptionStreamsProvider(fn) {
+			subscriptionStreamsProvider = fn;
 		},
 		recordStoreFlush(durationMs) {
 			storeFlushDuration.observe(durationMs / 1000);
@@ -182,8 +197,12 @@ export function recordReadyFailure(): void {
 	recorder.recordReadyFailure();
 }
 
-export function setSessionsProvider(fn: () => number): void {
-	recorder.setSessionsProvider(fn);
+export function setInFlightProvider(fn: () => number): void {
+	recorder.setInFlightProvider(fn);
+}
+
+export function setSubscriptionStreamsProvider(fn: () => number): void {
+	recorder.setSubscriptionStreamsProvider(fn);
 }
 
 export function recordStoreFlush(durationMs: number): void {

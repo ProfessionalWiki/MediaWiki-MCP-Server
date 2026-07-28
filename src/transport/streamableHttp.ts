@@ -24,6 +24,8 @@ import {
 	getMetricsHandler,
 	initMetrics,
 	isMetricsEnabled,
+	setInFlightProvider,
+	setSubscriptionStreamsProvider,
 	setProxyStoreStatsProvider,
 } from '../runtime/metrics.js';
 import { createInFlightCounter, type InFlightCounter } from './inFlight.js';
@@ -441,6 +443,10 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 
 	mountReadyEndpoint(app, { activeWiki: state.activeWiki, mwnProvider: state.mwnProvider });
 	mountMetricsEndpoint(app);
+	setInFlightProvider(inFlight.count);
+	// Every open subscriptions/listen stream registers one bus listener, so the
+	// listener count IS the open-stream count (nothing else subscribes).
+	setSubscriptionStreamsProvider(() => bus.listenerCount);
 	setProxyStoreStatsProvider(() => store.stats());
 
 	return { app, inFlight, mcpHandler: handler, bus };

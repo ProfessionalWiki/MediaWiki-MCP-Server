@@ -11,7 +11,7 @@ import express from 'express';
 import request from 'supertest';
 import { mountMetricsEndpoint } from '../../src/transport/streamableHttp.js';
 import { mountReadyEndpoint, __resetReadyCacheForTesting } from '../../src/transport/ready.js';
-import { __resetMetricsForTesting, setSessionsProvider } from '../../src/runtime/metrics.js';
+import { __resetMetricsForTesting, setInFlightProvider } from '../../src/runtime/metrics.js';
 import type { ActiveWiki } from '../../src/wikis/activeWiki.js';
 import type { MwnProvider } from '../../src/wikis/mwnProvider.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
@@ -74,7 +74,8 @@ describe('GET /metrics — enabled', () => {
 		expect(res.headers['content-type']).toContain('text/plain');
 		expect(res.text).toContain('# HELP mcp_tool_calls_total');
 		expect(res.text).toContain('# HELP mcp_tool_call_duration_seconds');
-		expect(res.text).toContain('# HELP mcp_active_sessions');
+		expect(res.text).toContain('# HELP mcp_inflight_requests');
+		expect(res.text).toContain('# HELP mcp_subscription_streams');
 		expect(res.text).toContain('# HELP mcp_ready_failures_total');
 	});
 
@@ -125,10 +126,10 @@ describe('GET /metrics — enabled', () => {
 		expect(metrics.text).toMatch(/mcp_ready_failures_total 1/);
 	});
 
-	it('mcp_active_sessions reads the configured provider', async () => {
+	it('mcp_inflight_requests reads the configured provider', async () => {
 		const app = makeApp();
-		setSessionsProvider(() => 4);
+		setInFlightProvider(() => 4);
 		const res = await request(app).get('/metrics');
-		expect(res.text).toMatch(/mcp_active_sessions 4/);
+		expect(res.text).toMatch(/mcp_inflight_requests 4/);
 	});
 });
