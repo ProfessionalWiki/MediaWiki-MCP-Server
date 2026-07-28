@@ -134,27 +134,19 @@ export function toOriginHostnames(allowedOrigins: readonly string[]): string[] {
 }
 
 // Builds the Origin guard. See buildApp for why it is attached per route rather
-// than mounted on the /mcp prefix. An absent allowlist leaves validation off,
-// which is the policy the transport option this replaced also applied.
-export function resolveMcpOriginValidation(
-	allowedOrigins: string[] | undefined,
-): RequestHandler | undefined {
-	if (!allowedOrigins) {
-		return undefined;
-	}
+// than mounted on the /mcp prefix. Always returns a guard: the spec makes Origin
+// validation unconditional, and an allowlist that reduces to nothing must refuse
+// every cross-origin request rather than wave them all through. A request with no
+// Origin header is unaffected either way — that is every non-browser client.
+export function resolveMcpOriginValidation(allowedOrigins: readonly string[]): RequestHandler {
 	const hostnames = toOriginHostnames(allowedOrigins);
-	if (hostnames.length === 0) {
-		// An allowlist was configured but nothing in it survived parsing. Say so:
-		// turning a control off because its configuration was unreadable must not
-		// be silent, and the unset-allowlist warning in buildApp does not fire for
-		// an array that was non-empty to begin with.
+	if (allowedOrigins.length > 0 && hostnames.length === 0) {
 		logger.warning(
 			'MCP_ALLOWED_ORIGINS is set but no usable hostname could be read from it, ' +
-				'so Origin validation is disabled. Correct the values or unset the variable.',
+				'so every browser request will be refused. Correct the values or unset the variable.',
 		);
-		return undefined;
 	}
-	return originValidation(hostnames);
+	return originValidation([...hostnames]);
 }
 
 // Handles a fatal error from app.listen — a failed bind (EADDRINUSE / EACCES) or
@@ -385,7 +377,9 @@ export interface BuildAppDeps {
 	) => McpServer | Promise<McpServer>;
 	host: string;
 	allowedHosts?: string[];
-	allowedOrigins?: string[];
+	// Required, and empty means refuse every cross-origin request. See
+	// resolveMcpOriginValidation.
+	allowedOrigins: readonly string[];
 	maxRequestBody: string;
 }
 
@@ -451,14 +445,16 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 	// would not have allowlisted, and the sign-in would 403 at the Approve click.
 	// Host-header validation above is prefix-mounted on purpose — it matches the
 	// server's own hostname, so it is correct for every route under /mcp.
-	const originCheck = resolveMcpOriginValidation(allowedOrigins);
-	const mcpOriginGuard: RequestHandler[] = originCheck ? [originCheck] : [];
+	const mcpOriginGuard: RequestHandler[] = [resolveMcpOriginValidation(allowedOrigins)];
 
-	if ((host === '0.0.0.0' || host === '::') && !allowedOrigins) {
+	// Every non-loopback bind, not only the two wildcard spellings: a bind to a
+	// specific routable address is just as reachable from another origin.
+	if (!LOCALHOST_HOSTS.includes(host) && allowedOrigins.length === 0) {
 		logger.warning(
-			`Server is binding to ${host} without an Origin allowlist. ` +
-				'Set MCP_ALLOWED_ORIGINS to restrict allowed Origin-header values, ' +
-				'or front the server with a reverse proxy that enforces Origin.',
+			`Server is binding to ${host} with no Origin allowlist, so every browser ` +
+				'request will be refused. Set MCP_ALLOWED_ORIGINS to the origins your ' +
+				'browser-based clients are served from. Clients that send no Origin ' +
+				'header are unaffected.',
 		);
 	}
 
@@ -495,9 +491,16 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		defaultWikiKey,
 		onerror: (error) => logger.error(`MCP adapter error: ${error.message}`),
 	});
+	// OPTIONS is routed explicitly: Express answers it from its own default
+	// handler otherwise, which sits outside the route stack and so outside the
+	// Origin guard. The operational endpoints below are deliberately not guarded
+	// — they are read-only, set no CORS headers, and so cannot be read
+	// cross-origin, while a probe from Kubernetes or Prometheus sends no Origin
+	// and would be unaffected either way.
 	app.post('/mcp', ...mcpOriginGuard, mcpRoute);
 	app.get('/mcp', ...mcpOriginGuard, mcpRoute);
 	app.delete('/mcp', ...mcpOriginGuard, mcpRoute);
+	app.options('/mcp', ...mcpOriginGuard, mcpRoute);
 
 	app.get('/health', (_req: Request, res: Response) => {
 		res.status(200).json({ status: 'ok' });

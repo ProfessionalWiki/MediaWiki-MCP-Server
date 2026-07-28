@@ -195,11 +195,10 @@ describe('origin validation (middleware)', () => {
 	// Attaches the guard per route, as the real buildApp does. Mounting it on the
 	// '/mcp' prefix instead would also cover the authorization-server routes; the
 	// proxy suite covers that specifically.
-	function buildApp(allowedOrigins: string[] | undefined): Express {
+	function buildApp(allowedOrigins: readonly string[]): Express {
 		const app = express();
 		app.use(express.json());
-		const originCheck = resolveMcpOriginValidation(allowedOrigins);
-		const guard = originCheck ? [originCheck] : [];
+		const guard = [resolveMcpOriginValidation(allowedOrigins)];
 		const handler = createMcpHandler(
 			() => new McpServer({ name: 'origin-test-server', version: '0.0.0' }, { capabilities: {} }),
 			{ legacy: 'stateless' },
@@ -243,15 +242,22 @@ describe('origin validation (middleware)', () => {
 		expect(res.body?.error?.message).toMatch(/origin/i);
 	});
 
-	it('does not reject on Origin when the allowlist is undefined', async () => {
-		const res = await post(buildApp(undefined), 'http://anything.example');
-		expect(res.status).not.toBe(403);
+	// An empty allowlist is the non-loopback default. It must refuse the browser
+	// request rather than wave it through, which is what an absent guard did.
+	it('rejects any Origin when the allowlist is empty', async () => {
+		const res = await post(buildApp([]), 'http://anything.example');
+		expect(res.status).toBe(403);
 	});
 
-	it('does not reject on Origin when the header is absent', async () => {
-		const res = await post(buildApp(['http://good.example']));
-		expect(res.status).not.toBe(403);
-	});
+	// The spec conditions the 403 on the header being present, so every
+	// non-browser client is untouched by the allowlist, empty or not.
+	it.each([[['http://good.example']], [[]]])(
+		'does not reject when the Origin header is absent (allowlist %j)',
+		async (origins) => {
+			const res = await post(buildApp(origins));
+			expect(res.status).not.toBe(403);
+		},
+	);
 });
 
 describe('request body size cap', () => {

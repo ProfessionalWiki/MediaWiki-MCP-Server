@@ -91,7 +91,7 @@ function makeDeps(
 		},
 		host: '127.0.0.1',
 		allowedHosts: undefined,
-		allowedOrigins: undefined,
+		allowedOrigins: [],
 		maxRequestBody: '1mb',
 	};
 }
@@ -108,6 +108,34 @@ describe('hosted OAuth proxy — Origin validation scope', () => {
 		const pc = proxyConfig(AS_URL);
 		return buildApp({ ...makeDeps(AS_URL, new InMemoryProxyStore(), pc), allowedOrigins }).app;
 	}
+
+	// Through the real buildApp wiring, not a hand-rolled app: an empty allowlist
+	// is the default on a public bind, and the guard has to be mounted for it.
+	it('rejects every Origin on the MCP endpoint when the allowlist is empty', async () => {
+		const res = await request(appWithOrigins([]))
+			.post('/mcp')
+			.set('Accept', 'application/json, text/event-stream')
+			.set('Origin', 'https://anything.example')
+			.send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+		expect(res.status).toBe(403);
+	});
+
+	it('still serves a request carrying no Origin when the allowlist is empty', async () => {
+		const res = await request(appWithOrigins([]))
+			.post('/mcp')
+			.set('Accept', 'application/json, text/event-stream')
+			.send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+		expect(res.status).toBe(200);
+	});
+
+	// Express answers OPTIONS from its own default handler, which sits outside
+	// the route stack and so outside the guard unless the verb is routed.
+	it('applies the Origin guard to OPTIONS as well', async () => {
+		const res = await request(appWithOrigins(['https://client.example']))
+			.options('/mcp')
+			.set('Origin', 'https://evil.example');
+		expect(res.status).toBe(403);
+	});
 
 	it('rejects a non-allowlisted Origin on the MCP endpoint', async () => {
 		const res = await request(appWithOrigins(['https://client.example']))
@@ -687,7 +715,7 @@ describe('private wiki — connection-time auth challenge', () => {
 			createServerFn: stubCreateServer,
 			host: '127.0.0.1',
 			allowedHosts: undefined,
-			allowedOrigins: undefined,
+			allowedOrigins: [],
 			maxRequestBody: '1mb',
 		};
 	}
@@ -776,7 +804,7 @@ describe('private wiki — connection-time auth challenge', () => {
 			createServerFn: stubCreateServer,
 			host: '127.0.0.1',
 			allowedHosts: undefined,
-			allowedOrigins: undefined,
+			allowedOrigins: [],
 			maxRequestBody: '1mb',
 		});
 
@@ -816,7 +844,7 @@ describe('private wiki — connection-time auth challenge', () => {
 			createServerFn: stubCreateServer,
 			host: '127.0.0.1',
 			allowedHosts: undefined,
-			allowedOrigins: undefined,
+			allowedOrigins: [],
 			maxRequestBody: '1mb',
 		});
 

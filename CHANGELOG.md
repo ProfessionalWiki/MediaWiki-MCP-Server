@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Security
+
+- The HTTP transport did not validate the `Origin` header on any bind other than loopback, leaving it open to DNS rebinding: an attacker who re-points a domain at a server the victim's browser can reach could call tools and read the results, without having to reach that server themselves. The Docker image binds to `0.0.0.0` by default, so this affected container deployments unless `MCP_ALLOWED_ORIGINS` was set.
+
+### Breaking changes
+
+- The `Origin` header is now validated on every bind, and a request carrying an unlisted origin is refused with `403`. If you serve a browser-based client from a public bind, set `MCP_ALLOWED_ORIGINS` before upgrading. Clients that send no `Origin` header, which is most of them, are unaffected.
+
 ### Changed
 
 - The HTTP transport's own `401`, `503` and `413` replies carry new JSON-RPC error codes. Clients read the HTTP status for these conditions, so no change is expected; anything matching on the old codes `-32001` and `-32000` needs updating.
