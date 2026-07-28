@@ -298,6 +298,10 @@ interface TimeoutHandle {
 	cancel: () => void;
 }
 
+// A rejecting deadline, and so safe only while every caller attaches a handler
+// in the same tick it is created, as doBrowserAuth does: Node ends the process
+// over a rejection nobody is subscribed to. A new deadline is better built to
+// resolve instead, as the /ready probe's is, since that needs no guard at all.
 function timeout(ms: number): TimeoutHandle {
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	const promise = new Promise<never>((_, reject) => {

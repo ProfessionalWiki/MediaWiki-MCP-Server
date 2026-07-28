@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { watchUnhandledRejections } from '../helpers/unhandledRejections.js';
 
 const mockRequest = vi.fn();
 
@@ -13,6 +14,7 @@ import {
 	mountReadyEndpoint,
 	__resetReadyCacheForTesting,
 	__probeDefaultWikiForTesting,
+	READY_PROBE_TIMEOUT_MS,
 } from '../../src/transport/streamableHttp.js';
 import type { ActiveWiki } from '../../src/wikis/activeWiki.js';
 import type { MwnProvider } from '../../src/wikis/mwnProvider.js';
@@ -42,6 +44,22 @@ function makeApp() {
 	return app;
 }
 
+// Resolving the wiki logs in and fetches site info, so it can outlast the
+// deadline before mwn.request is reached.
+function providerTaking(
+	ms: number,
+	settle: () => unknown = () => ({ request: mockRequest }),
+): MwnProvider {
+	return {
+		get: async () => {
+			await new Promise((resolve) => setTimeout(resolve, ms));
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Mwn has 100+ methods; tests only use request().
+			return settle() as never;
+		},
+		invalidate: () => {},
+	};
+}
+
 describe('/ready', () => {
 	beforeEach(() => {
 		mockRequest.mockReset();
@@ -69,6 +87,30 @@ describe('/ready', () => {
 		expect(res.body.reason).toContain('connection refused');
 	});
 
+	it('shares one probe between requests that arrive before the first finishes', async () => {
+		// The cache only fills once a probe finishes, so without in-flight sharing
+		// every request arriving during a slow probe starts another one. Slow here
+		// means slower than the requests take to arrive, but well inside the budget.
+		mockRequest.mockImplementation(
+			() =>
+				new Promise((resolve) => {
+					setTimeout(() => resolve({ query: { general: {} } }), 50);
+				}),
+		);
+		const app = makeApp();
+
+		const responses = await Promise.all([
+			request(app).get('/ready'),
+			request(app).get('/ready'),
+			request(app).get('/ready'),
+		]);
+
+		for (const res of responses) {
+			expect(res.status).toBe(200);
+		}
+		expect(mockRequest).toHaveBeenCalledTimes(1);
+	});
+
 	it('caches the result for 5 seconds', async () => {
 		vi.useFakeTimers();
 		mockRequest.mockResolvedValue({ query: { general: {} } });
@@ -93,6 +135,56 @@ describe('/ready', () => {
 
 		expect(entry.httpStatus).toBe(503);
 		expect(entry.payload.status).toBe('not_ready');
+		expect(entry.payload.reason).toMatch(/timeout/i);
+	});
+
+	it('times out while still resolving the wiki, without an orphan rejection', async () => {
+		vi.useFakeTimers();
+		const rejections = watchUnhandledRejections();
+		mockRequest.mockResolvedValue({ query: { general: { sitename: 'X' } } });
+
+		const probe = __probeDefaultWikiForTesting(mockActiveWiki, providerTaking(5_000));
+		await vi.advanceTimersByTimeAsync(5001);
+		const entry = await probe;
+
+		expect(rejections.map(String)).toEqual([]);
+		expect(entry.httpStatus).toBe(503);
+		expect(entry.payload.status).toBe('not_ready');
+		expect(entry.payload.reason).toMatch(/timeout/i);
+	});
+
+	it('stays quiet when resolving the wiki fails after the deadline has passed', async () => {
+		vi.useFakeTimers();
+		const rejections = watchUnhandledRejections();
+		const provider = providerTaking(5_000, () => {
+			throw new Error('login failed');
+		});
+
+		const probe = __probeDefaultWikiForTesting(mockActiveWiki, provider);
+		// Past the deadline, then past the failure that lands after it.
+		await vi.advanceTimersByTimeAsync(5001);
+		const entry = await probe;
+
+		expect(rejections.map(String)).toEqual([]);
+		expect(entry.httpStatus).toBe(503);
+		// The deadline answered, so the later login failure had no one waiting on it.
+		expect(entry.payload.reason).toMatch(/timeout/i);
+	});
+
+	// Guards the shared budget rather than the crash: this is the case that fails
+	// if the two halves are ever given a deadline each. Both delays are derived
+	// from the real budget so that retuning it cannot quietly void the premise.
+	it('spends one budget across resolving the wiki and the site-info request', async () => {
+		vi.useFakeTimers();
+		// Neither half exceeds the budget alone; together they do.
+		const half = READY_PROBE_TIMEOUT_MS * 0.6;
+		mockRequest.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, half)));
+
+		const probe = __probeDefaultWikiForTesting(mockActiveWiki, providerTaking(half));
+		await vi.advanceTimersByTimeAsync(READY_PROBE_TIMEOUT_MS * 2);
+		const entry = await probe;
+
+		expect(entry.httpStatus).toBe(503);
 		expect(entry.payload.reason).toMatch(/timeout/i);
 	});
 });

@@ -23,6 +23,7 @@ import {
 	withRequestContext,
 } from '../../src/runtime/requestContext.js';
 import { logger } from '../../src/runtime/logger.js';
+import { watchUnhandledRejections } from '../helpers/unhandledRejections.js';
 
 describe('handleListenError', () => {
 	function listenErr(code: string): NodeJS.ErrnoException {
@@ -573,6 +574,40 @@ describe('markSessionActive / markSessionIdle (idle expiry)', () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	// close is a plain function rather than a vi.fn on purpose: a spy subscribes to
+	// the promise it returns in order to record the settled result, which counts as
+	// handling the rejection and hides the very thing under test. Real timers keep
+	// the test to one 1ms hop, so there is no time to travel.
+	it('survives a transport that fails to close, and still drops the entry', async () => {
+		const rejections = watchUnhandledRejections();
+		const sessions: SessionRegistry = {};
+		let closeCalls = 0;
+		// Mirrors the real transport, which calls onclose only after every stream's
+		// cleanup: a close that fails never reaches the handler that would have
+		// removed the entry, so reaching onclose here would mean the test proved
+		// nothing about the catch.
+		const transport = {
+			close: () => {
+				closeCalls++;
+				return Promise.reject(new Error('socket already destroyed'));
+			},
+			onclose: () => {
+				throw new Error('onclose must not run when close fails');
+			},
+		} as unknown as SessionRegistry[string]['transport'];
+		sessions['sid-1'] = { transport, activeRequests: 0 };
+
+		markSessionActive(sessions, 'sid-1');
+		markSessionIdle(sessions, 'sid-1', 1);
+		await new Promise((resolve) => setTimeout(resolve, 20));
+
+		expect(closeCalls).toBe(1);
+		// Nothing awaits this close, so an unhandled rejection ends the process
+		// rather than failing a request.
+		expect(rejections.map(String)).toEqual([]);
+		expect(sessions['sid-1']).toBeUndefined();
 	});
 });
 
