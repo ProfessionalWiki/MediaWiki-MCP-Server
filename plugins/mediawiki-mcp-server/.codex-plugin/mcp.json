@@ -6,9 +6,9 @@
         "-y",
         "@professional-wiki/mediawiki-mcp-server@latest"
       ],
-      "env": {
-        "CONFIG": "${user_config.configPath}"
-      }
+      "env_vars": [
+        "CONFIG"
+      ]
     }
   }
 }

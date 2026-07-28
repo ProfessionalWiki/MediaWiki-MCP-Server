@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - Reading NeoWiki subjects now requires a wiki running NeoWiki from 2026-07-27 or later, when a Statement's property type was renamed to `propertyType` (ProfessionalWiki/NeoWiki#1169). This fixes `neowiki-get-subject` and `neowiki-get-page-subjects` reporting an empty type for every statement against an updated wiki, and requires one: against an earlier NeoWiki the type now reads as empty. Update the wiki before upgrading the server.
 
+### Added
+
+- Plugin installs can now be pointed at your own wiki. Claude Code prompts for a configuration file when the plugin is enabled, and the Codex plugin forwards the `CONFIG` environment variable from the shell Codex is launched from. Previously neither plugin offered a way to set `CONFIG`, leaving the server on English Wikipedia.
+
 ## [0.14.0] - 2026-07-23
 
 ### Breaking changes
