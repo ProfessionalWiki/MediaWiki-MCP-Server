@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createHash } from 'node:crypto';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 
 vi.mock('../../src/runtime/metrics.js', () => ({
@@ -177,7 +176,6 @@ describe('emitToolCall', () => {
 			upstreamStatus: undefined,
 			errorMessage: undefined,
 			runtimeToken: undefined,
-			sessionId: undefined,
 			wikiKey: 'a.example',
 		});
 
@@ -202,7 +200,6 @@ describe('emitToolCall', () => {
 			upstreamStatus: undefined,
 			errorMessage: undefined,
 			runtimeToken: undefined,
-			sessionId: undefined,
 			wikiKey: 'a.example',
 		});
 
@@ -220,7 +217,6 @@ describe('emitToolCall', () => {
 			upstreamStatus: undefined,
 			errorMessage: undefined,
 			runtimeToken: undefined,
-			sessionId: undefined,
 			wikiKey: 'a.example',
 		});
 
@@ -238,7 +234,6 @@ describe('emitToolCall', () => {
 			upstreamStatus: undefined,
 			errorMessage: undefined,
 			runtimeToken: undefined,
-			sessionId: undefined,
 			wikiKey: 'a.example',
 		});
 
@@ -258,7 +253,6 @@ describe('emitToolCall', () => {
 			upstreamStatus: undefined,
 			errorMessage: undefined,
 			runtimeToken: undefined,
-			sessionId: undefined,
 			wikiKey: 'a.example',
 		});
 
@@ -284,7 +278,6 @@ describe('emitToolCall', () => {
 			upstreamStatus: undefined,
 			errorMessage: 'msg',
 			runtimeToken: undefined,
-			sessionId: undefined,
 			wikiKey: 'a.example',
 		});
 
@@ -305,7 +298,6 @@ describe('emitToolCall', () => {
 			upstreamStatus: 429,
 			errorMessage: 'too many',
 			runtimeToken: undefined,
-			sessionId: undefined,
 			wikiKey: 'a.example',
 		});
 
@@ -323,7 +315,6 @@ describe('emitToolCall', () => {
 			upstreamStatus: undefined,
 			errorMessage: undefined,
 			runtimeToken: undefined,
-			sessionId: undefined,
 			wikiKey: 'a.example',
 		});
 
@@ -341,7 +332,6 @@ describe('emitToolCall', () => {
 			upstreamStatus: undefined,
 			errorMessage: undefined,
 			runtimeToken: undefined,
-			sessionId: undefined,
 			wikiKey: 'a.example',
 		});
 
@@ -359,7 +349,6 @@ describe('emitToolCall', () => {
 			upstreamStatus: undefined,
 			errorMessage: undefined,
 			runtimeToken: undefined,
-			sessionId: undefined,
 			wikiKey: 'a.example',
 		});
 
@@ -377,49 +366,10 @@ describe('emitToolCall', () => {
 			upstreamStatus: undefined,
 			errorMessage: undefined,
 			runtimeToken: 'secret-token',
-			sessionId: undefined,
 			wikiKey: 'a.example',
 		});
 
 		expect(captureToolCallLine(stderrSpy).caller).toMatch(/^sha256:[0-9a-f]{12}$/);
-	});
-
-	it('hashes session_id to sha256:<12 hex>', () => {
-		const sessionId = 'f4e1d2c3-b4a5-dead-beef-abcdef012345';
-		emitToolCall({
-			toolName: 'get-page',
-			target: undefined,
-			args: {},
-			started: performance.now(),
-			result: okResult(),
-			outcome: 'success',
-			upstreamStatus: undefined,
-			errorMessage: undefined,
-			runtimeToken: undefined,
-			sessionId,
-			wikiKey: 'a.example',
-		});
-
-		const expected = `sha256:${createHash('sha256').update(sessionId).digest('hex').slice(0, 12)}`;
-		expect(captureToolCallLine(stderrSpy).session_id).toBe(expected);
-	});
-
-	it('omits session_id when not provided', () => {
-		emitToolCall({
-			toolName: 'get-page',
-			target: undefined,
-			args: {},
-			started: performance.now(),
-			result: okResult(),
-			outcome: 'success',
-			upstreamStatus: undefined,
-			errorMessage: undefined,
-			runtimeToken: undefined,
-			sessionId: undefined,
-			wikiKey: 'a.example',
-		});
-
-		expect('session_id' in captureToolCallLine(stderrSpy)).toBe(false);
 	});
 
 	it('does not broadcast tool_call events to connected MCP clients', () => {
@@ -439,7 +389,6 @@ describe('emitToolCall', () => {
 			upstreamStatus: undefined,
 			errorMessage: undefined,
 			runtimeToken: undefined,
-			sessionId: undefined,
 			wikiKey: 'a.example',
 		});
 
@@ -463,7 +412,6 @@ describe('emitToolCall — metrics integration', () => {
 			upstreamStatus: 200,
 			errorMessage: undefined,
 			runtimeToken: undefined,
-			sessionId: undefined,
 			wikiKey: 'example.org',
 		});
 		stderrSpy.mockRestore();
@@ -490,7 +438,6 @@ describe('emitToolCall — metrics integration', () => {
 			upstreamStatus: undefined,
 			errorMessage: undefined,
 			runtimeToken: undefined,
-			sessionId: undefined,
 			wikiKey: 'example.org',
 		});
 		stderrSpy.mockRestore();

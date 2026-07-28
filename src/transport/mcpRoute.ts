@@ -187,7 +187,7 @@ export function createMcpRouteHandler(
 			}
 		}
 
-		await withRequestContext(resolvedBearer, undefined, () =>
+		await withRequestContext(resolvedBearer, () =>
 			// express.json() has already drained the request stream, so the parsed
 			// body is handed to the adapter. POST only: GET/DELETE must stay
 			// body-less for era classification, and express.json() gives them `{}`.

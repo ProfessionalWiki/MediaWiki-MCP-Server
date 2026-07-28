@@ -266,7 +266,7 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 			getProxyConfig: deps.getProxyConfig,
 		});
 
-		const writeResult = await withRequestContext(undefined, undefined, () =>
+		const writeResult = await withRequestContext(undefined, () =>
 			checkWikiCapability('update-page', 'test', ctx),
 		);
 		expect(writeResult).toBeDefined();
@@ -277,7 +277,7 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 
 		// A read-only tool (e.g. get-page) is NOT a write tool, so it passes the
 		// capability guard anonymously (returns undefined = proceed).
-		const readResult = await withRequestContext(undefined, undefined, () =>
+		const readResult = await withRequestContext(undefined, () =>
 			checkWikiCapability('get-page', 'test', ctx),
 		);
 		expect(readResult).toBeUndefined();

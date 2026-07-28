@@ -2,7 +2,6 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 interface RequestContext {
 	runtimeToken?: string;
-	sessionId?: string;
 	wikiKey?: string;
 }
 
@@ -12,20 +11,15 @@ export function getRuntimeToken(): string | undefined {
 	return runtimeTokenStore.getStore()?.runtimeToken;
 }
 
-export function getSessionId(): string | undefined {
-	return runtimeTokenStore.getStore()?.sessionId;
-}
-
 export function getRequestWiki(): string | undefined {
 	return runtimeTokenStore.getStore()?.wikiKey;
 }
 
 export function withRequestContext<T>(
 	runtimeToken: string | undefined,
-	sessionId: string | undefined,
 	fn: () => Promise<T>,
 ): Promise<T> {
-	return runtimeTokenStore.run({ runtimeToken, sessionId }, fn);
+	return runtimeTokenStore.run({ runtimeToken }, fn);
 }
 
 // Merges `fields` onto the current context (or an empty one) rather than

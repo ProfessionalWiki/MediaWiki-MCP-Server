@@ -12,11 +12,7 @@ import {
 } from '../../src/transport/streamableHttp.js';
 import { createMcpRouteHandler } from '../../src/transport/mcpRoute.js';
 import { createInFlightCounter } from '../../src/transport/inFlight.js';
-import {
-	getRuntimeToken,
-	getSessionId,
-	withRequestContext,
-} from '../../src/runtime/requestContext.js';
+import { getRuntimeToken, withRequestContext } from '../../src/runtime/requestContext.js';
 import { logger } from '../../src/runtime/logger.js';
 
 describe('handleListenError', () => {
@@ -335,37 +331,20 @@ describe('payloadTooLargeHandler', () => {
 });
 
 describe('withRequestContext', () => {
-	it('propagates bearer token and session id into the async store', async () => {
+	it('propagates the bearer token into the async store', async () => {
 		let observedToken: string | undefined;
-		let observedSession: string | undefined;
-		await withRequestContext('tok123', 'sess123', async () => {
+		await withRequestContext('tok123', async () => {
 			observedToken = getRuntimeToken();
-			observedSession = getSessionId();
 		});
 		expect(observedToken).toBe('tok123');
-		expect(observedSession).toBe('sess123');
 	});
 
-	it('omits both when neither is supplied', async () => {
+	it('leaves the store tokenless when no bearer is supplied', async () => {
 		let observedToken: string | undefined;
-		let observedSession: string | undefined;
-		await withRequestContext(undefined, undefined, async () => {
+		await withRequestContext(undefined, async () => {
 			observedToken = getRuntimeToken();
-			observedSession = getSessionId();
 		});
 		expect(observedToken).toBeUndefined();
-		expect(observedSession).toBeUndefined();
-	});
-
-	it('allows token without session and vice versa', async () => {
-		await withRequestContext('tok-only', undefined, async () => {
-			expect(getRuntimeToken()).toBe('tok-only');
-			expect(getSessionId()).toBeUndefined();
-		});
-		await withRequestContext(undefined, 'sess-only', async () => {
-			expect(getRuntimeToken()).toBeUndefined();
-			expect(getSessionId()).toBe('sess-only');
-		});
 	});
 });
 

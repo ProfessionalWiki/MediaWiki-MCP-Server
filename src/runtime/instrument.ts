@@ -115,7 +115,6 @@ export interface EmitToolCallOptions<TArgs> {
 	readonly upstreamStatus: number | undefined;
 	readonly errorMessage: string | undefined;
 	readonly runtimeToken: string | undefined;
-	readonly sessionId: string | undefined;
 	readonly wikiKey: string;
 }
 
@@ -136,10 +135,6 @@ export function emitToolCall<TArgs>(opts: EmitToolCallOptions<TArgs>): void {
 	};
 	if (targetValue !== '') {
 		data.target = targetValue;
-	}
-	if (opts.sessionId !== undefined) {
-		const hex = createHash('sha256').update(opts.sessionId).digest('hex');
-		data.session_id = `sha256:${hex.slice(0, 12)}`;
 	}
 	if (opts.upstreamStatus !== undefined) {
 		data.upstream_status = opts.upstreamStatus;
