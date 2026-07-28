@@ -9,11 +9,8 @@ const mockRequest = vi.fn();
 
 import express from 'express';
 import request from 'supertest';
-import {
-	mountMetricsEndpoint,
-	mountReadyEndpoint,
-	__resetReadyCacheForTesting,
-} from '../../src/transport/streamableHttp.js';
+import { mountMetricsEndpoint } from '../../src/transport/streamableHttp.js';
+import { mountReadyEndpoint, __resetReadyCacheForTesting } from '../../src/transport/ready.js';
 import { __resetMetricsForTesting, setSessionsProvider } from '../../src/runtime/metrics.js';
 import type { ActiveWiki } from '../../src/wikis/activeWiki.js';
 import type { MwnProvider } from '../../src/wikis/mwnProvider.js';
