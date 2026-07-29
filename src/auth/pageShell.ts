@@ -65,7 +65,6 @@ background:var(--page-bg);padding:24px;color:var(--c-base)}
 .pg-icon--error{color:var(--c-error)}
 .pg-icon--success{color:var(--c-success)}
 .pg-title{font-size:1.25rem;font-weight:700;line-height:1.875rem;margin:0 0 8px}
-.pg-verified{font-size:.8125rem;line-height:1.25rem;color:var(--c-success);margin:0 0 8px}
 .pg-lead{font-size:.875rem;line-height:1.375rem;margin:0}
 .pg-actions{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0 0}
 .pg-btn{flex:1;display:inline-flex;align-items:center;justify-content:center;min-height:32px;padding:0 11px;border:1px solid;border-radius:2px;font-size:.875rem;font-weight:700;font-family:inherit;cursor:pointer;transition:background-color .1s,color .1s,border-color .1s,box-shadow .1s}
@@ -76,13 +75,19 @@ background:var(--page-bg);padding:24px;color:var(--c-base)}
 .pg-neutral{background:var(--btn-normal-bg);border-color:var(--bd-base);color:var(--c-base)}
 .pg-neutral:hover{background:var(--btn-normal-bg-hover)}
 .pg-note{font-size:.8125rem;line-height:1.25rem;color:var(--c-subtle);margin:16px 0 0}
+.pg-note-strong{font-size:.8125rem;line-height:1.25rem;color:var(--c-base);margin:16px 0 0}
 .pg-mono{font-family:ui-monospace,'SFMono-Regular',monospace;font-size:.8125rem;color:var(--c-subtle);background:var(--inset-bg);border:1px solid var(--bd-subtle);border-radius:2px;padding:8px;margin:16px 0 0;word-break:break-word}
 `;
 
 export function renderPage(o: {
 	title: string;
+	// Visible heading, when the page's own words belong there rather than a label.
+	// Kept separate from `title` so the document title stays fixed: it names the
+	// browser tab, and a page carrying a client-supplied string must not let that
+	// string choose what the tab says. Escaped like the title; pass plain text.
+	heading?: string;
 	icon: { name: IconName; accent?: IconAccent };
 	body: string;
 }): string {
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(o.title)}</title><style>${STYLE}</style></head><body><main class="pg-wrap"><div class="pg-card">${renderIcon(o.icon.name, o.icon.accent)}<h1 class="pg-title">${esc(o.title)}</h1>${o.body}</div></main></body></html>`;
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(o.title)}</title><style>${STYLE}</style></head><body><main class="pg-wrap"><div class="pg-card">${renderIcon(o.icon.name, o.icon.accent)}<h1 class="pg-title">${esc(o.heading ?? o.title)}</h1>${o.body}</div></main></body></html>`;
 }

@@ -29,7 +29,7 @@ describe('consent', () => {
 		});
 		expect(html).toContain('Authorize application');
 		expect(html).toContain('Claude Code');
-		expect(html).toContain('act as you on');
+		expect(html).toContain('to use your');
 		expect(html).toContain('Example');
 		expect(html).toContain('action="/mcp/consent?txn=1"');
 		expect(html).toContain('name="csrf"');
@@ -51,6 +51,24 @@ describe('consent', () => {
 		expect(html).toContain('&lt;script&gt;');
 	});
 
+	it('asks in the heading and keeps the document title free of client-supplied text', () => {
+		const html = renderConsentPage({
+			clientName: 'Totally Legit Bank Login',
+			wiki: 'Example Wiki',
+			authorizeQuery: 'a=1',
+			csrfToken: 't',
+			redirectHost: '127.0.0.1',
+		});
+		// The ask is the heading, so the largest text on a decision page is the
+		// decision rather than a label.
+		expect(html).toContain(
+			'<h1 class="pg-title">Allow Totally Legit Bank Login to use your Example Wiki account?</h1>',
+		);
+		// The browser tab stays ours: a client that picked a misleading name must
+		// not get to choose what the window says.
+		expect(html).toContain('<title>Authorize application</title>');
+	});
+
 	it('shows the redirect destination host', () => {
 		const html = renderConsentPage({
 			clientName: 'ChatGPT',
@@ -62,7 +80,7 @@ describe('consent', () => {
 		expect(html).toContain('chatgpt.com');
 	});
 
-	it('renders loopback destinations as on-device', () => {
+	it('shows the loopback host and asks the one check a reader can run', () => {
 		const html = renderConsentPage({
 			clientName: 'Claude Code',
 			wiki: 'Example Wiki',
@@ -70,22 +88,71 @@ describe('consent', () => {
 			csrfToken: 't',
 			redirectHost: '127.0.0.1',
 		});
-		expect(html).toContain('an application on this device');
-		expect(html).not.toContain('127.0.0.1');
+		// The host has to be visible: this is the loopback case the display
+		// requirement exists for.
+		expect(html).toContain('127.0.0.1');
+		expect(html).toContain('on this device');
+		// The timing check is the discriminator for the confused-deputy case, where
+		// the user followed a link and started nothing.
+		expect(html).toContain('Allow only if you started this sign-in a moment ago');
 	});
 
-	it('shows the verified client_id host, leading the self-asserted name', () => {
+	it('drops the address rather than rendering a dangling clause when no host is known', () => {
 		const html = renderConsentPage({
-			clientName: 'VS Code',
-			wiki: 'My Wiki',
-			authorizeQuery: 'client_id=x',
+			clientName: 'Claude Code',
+			wiki: 'Example Wiki',
+			authorizeQuery: 'a=1',
 			csrfToken: 't',
-			redirectHost: 'vscode.dev',
-			clientIdHost: 'code.visualstudio.com',
+			redirectHost: '',
 		});
-		expect(html).toContain('code.visualstudio.com');
-		expect(html).toContain('Verified application');
-		expect(html.indexOf('pg-verified')).toBeLessThan(html.indexOf('pg-lead'));
+		// Unreachable through planAuthorize, which refuses an unregistered
+		// redirect_uri before consent renders; the renderer must still not emit a
+		// dangling comma.
+		expect(html).toContain('an address on this device');
+		expect(html).not.toContain('to  on this device');
+	});
+
+	it('does not caution for a remote destination', () => {
+		const html = renderConsentPage({
+			clientName: 'ChatGPT',
+			wiki: 'Example Wiki',
+			authorizeQuery: 'a=1',
+			csrfToken: 't',
+			redirectHost: 'chatgpt.com',
+		});
+		expect(html).not.toContain('Allow only if you started this sign-in');
+	});
+
+	it('promises no permissions step, which the wiki does not always show', () => {
+		const html = renderConsentPage({
+			clientName: 'Claude Code',
+			wiki: 'Example Wiki',
+			authorizeQuery: 'a=1',
+			csrfToken: 't',
+			redirectHost: '127.0.0.1',
+		});
+		// MediaWiki itemises grants the first time and remembers them after, which
+		// is the same skip the confused-deputy mitigation exists for. Telling the
+		// user a confirmation step follows would be false on every later sign-in.
+		expect(html).not.toContain('next step');
+	});
+
+	it('makes no publisher claim, for any client shape', () => {
+		for (const redirectHost of ['chatgpt.com', 'app.example.com', '127.0.0.1']) {
+			const html = renderConsentPage({
+				clientName: 'Some App',
+				wiki: 'My Wiki',
+				authorizeQuery: 'a=1',
+				csrfToken: 't',
+				redirectHost,
+			});
+			// What a metadata document proves is that a host on our allowlist served
+			// these details — a fact about the allowlist, not one the reader can act
+			// on. The return host is the fact that matters, and it is already shown.
+			expect(html).toContain(redirectHost);
+			expect(html).not.toContain('published');
+			expect(html).not.toContain('Verified');
+		}
 	});
 
 	it('renders cancelled and auth-error pages', () => {

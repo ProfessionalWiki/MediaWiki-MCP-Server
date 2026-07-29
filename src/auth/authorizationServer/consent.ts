@@ -15,33 +15,39 @@ export function renderConsentPage(a: {
 	authorizeQuery: string;
 	csrfToken: string;
 	redirectHost: string;
-	clientIdHost?: string;
 }): string {
-	// No per-permission line: the proxy always requests the consumer's full grants
-	// (see authorize.ts). The user sees the exact grants on MediaWiki's own
-	// authorization screen during the upstream leg.
-	const destination =
-		a.redirectHost && !isLoopbackHost(a.redirectHost)
-			? a.redirectHost
-			: 'an application on this device';
-	// CIMD clients carry a verified client_id host (the client_id URL's host was
-	// checked against the trusted allowlist and confirmed by the document's own
-	// self-reference); the client_name below is self-asserted and unverified, so
-	// the verified host leads. DCR clients pass no host and this line is omitted.
-	const verifiedHost = a.clientIdHost
-		? `<p class="pg-verified">Verified application: <strong>${esc(a.clientIdHost)}</strong></p>`
-		: '';
+	// The proxy always requests the consumer's full grants (see authorize.ts), and
+	// MediaWiki itemises them on the first authorization only — it remembers the
+	// grant afterwards, which is why per-client consent lives here.
+	const onThisDevice = a.redirectHost === '' || isLoopbackHost(a.redirectHost);
+	// An unregistered redirect_uri is refused before consent renders, so an absent
+	// host is unreachable; it degrades rather than printing "to  on this device".
+	const host = a.redirectHost === '' ? '' : `<strong>${esc(a.redirectHost)}</strong>`;
+	const returnTo = onThisDevice
+		? host === ''
+			? `You'll be returned to an address on this device.`
+			: `You'll be returned to ${host} on this device.`
+		: `You'll be returned to ${host}.`;
+	// Any local process can bind a loopback address, so the host cannot say which
+	// program will receive the grant; whether the reader started this sign-in is the
+	// only check available to them.
+	const timing = onThisDevice ? `Allow only if you started this sign-in a moment ago. ` : '';
+	const ask = `<p class="pg-note-strong">${timing}${returnTo}</p>`;
 	const body =
-		verifiedHost +
-		`<p class="pg-lead"><strong>${esc(a.clientName)}</strong> wants to act as you on <strong>${esc(a.wiki)}</strong>.</p>` +
-		`<p class="pg-note">After you approve, you will be sent back to <strong>${esc(destination)}</strong>.</p>` +
+		ask +
 		`<form method="POST" action="/mcp/consent?${esc(a.authorizeQuery)}" class="pg-actions">` +
 		`<input type="hidden" name="csrf" value="${esc(a.csrfToken)}">` +
-		`<button class="pg-btn pg-primary" name="decision" value="approve" type="submit">Approve</button>` +
+		// Deny first in source order so the progressive action lands on the right per
+		// Codex, and so a flex row mirrors it with the writing direction under RTL.
 		`<button class="pg-btn pg-neutral" name="decision" value="deny" type="submit">Deny</button>` +
-		`</form>` +
-		`<p class="pg-note">You'll confirm the exact permissions on ${esc(a.wiki)} in the next step.</p>`;
-	return renderPage({ title: 'Authorize application', icon: { name: 'lock' }, body });
+		`<button class="pg-btn pg-primary" name="decision" value="approve" type="submit">Allow</button>` +
+		`</form>`;
+	return renderPage({
+		title: 'Authorize application',
+		heading: `Allow ${a.clientName} to use your ${a.wiki} account?`,
+		icon: { name: 'lock' },
+		body,
+	});
 }
 
 // Shown when the user denies and there is no trusted client redirect to bounce to.
