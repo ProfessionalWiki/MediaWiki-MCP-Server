@@ -465,6 +465,134 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 			.send({ decision: 'approve', csrf });
 		expect(ok.status).toBe(302);
 	});
+	// OAuth 2.1 §4.1.2.1 splits authorization-endpoint failures: a page only when the
+	// client or redirect_uri could not be established, otherwise the error goes back
+	// to the client's own callback. Driven through the real app because the answer
+	// depends on the router branching on the plan, not just on the planner.
+	describe('authorization errors reach the client rather than a dead page', () => {
+		const REDIRECT = 'http://127.0.0.1:47311/cb';
+
+		async function registeredClient(app: ReturnType<typeof buildApp>['app']) {
+			const reg = await request(app)
+				.post('/mcp/register')
+				.set('Content-Type', 'application/json')
+				.send({ redirect_uris: [REDIRECT], client_name: 'E' });
+			const { randomVerifier, s256 } = await import('../../src/auth/pkce.js');
+			return {
+				client_id: String(reg.body.client_id),
+				redirect_uri: REDIRECT,
+				response_type: 'code',
+				state: 'client-state-e',
+				code_challenge: s256(randomVerifier()),
+				code_challenge_method: 'S256',
+				resource: ISSUER,
+			};
+		}
+
+		it.each([
+			[
+				'a resource this server does not serve',
+				{ resource: 'https://other.example' },
+				'invalid_target',
+			],
+			[
+				'an unsupported code_challenge_method',
+				{ code_challenge_method: 'plain' },
+				'invalid_request',
+			],
+			['a missing code_challenge', { code_challenge: undefined }, 'invalid_request'],
+			[
+				'a response_type this server does not support',
+				{ response_type: 'token' },
+				'unsupported_response_type',
+			],
+		] as const)('redirects %s back as %s', async (_label, override, expected) => {
+			const pc = proxyConfig('https://as.example');
+			const { app } = buildApp(makeDeps('https://as.example', new InMemoryProxyStore(), pc));
+			const params = { ...(await registeredClient(app)), ...override };
+
+			const res = await request(app).get('/mcp/authorize').query(params);
+
+			expect(res.status).toBe(302);
+			const loc = new URL(res.headers.location as string);
+			expect(loc.origin + loc.pathname).toBe(REDIRECT);
+			expect(loc.searchParams.get('error')).toBe(expected);
+			// state round-trips, so the client can match the failure to its request.
+			expect(loc.searchParams.get('state')).toBe('client-state-e');
+			// Mandatory here, not decorative: asMetadata advertises
+			// authorization_response_iss_parameter_supported, which obliges a client to
+			// REJECT a response without iss — swallowing the error exactly as the old
+			// HTML page did.
+			expect(loc.searchParams.get('iss')).toBe(ISSUER);
+			// The only observable difference between this branch and falling through to
+			// the success path is the absence of this cookie: setTxnCookie reads `state`
+			// off the URL it is given, so a fall-through would plant the CLIENT's own
+			// state as the proxy transaction id. Asserted with a predicate because a
+			// negated `toContain` against an asymmetric matcher can never fail.
+			const setCookies = (res.headers['set-cookie'] as string[] | undefined) ?? [];
+			expect(setCookies.some((c) => c.startsWith('mcp_txn='))).toBe(false);
+		});
+
+		it.each([
+			['an unknown client_id', { client_id: 'nope-not-registered' }],
+			['a redirect_uri that is not registered', { redirect_uri: 'https://attacker.example/cb' }],
+		] as const)('renders a page for %s instead of redirecting', async (_label, override) => {
+			const pc = proxyConfig('https://as.example');
+			const { app } = buildApp(makeDeps('https://as.example', new InMemoryProxyStore(), pc));
+			const params = { ...(await registeredClient(app)), ...override };
+
+			const res = await request(app).get('/mcp/authorize').query(params);
+
+			// Redirecting here would make the endpoint an open redirector: the target
+			// has not been established as belonging to this client.
+			expect(res.status).toBe(400);
+			expect(res.headers.location).toBeUndefined();
+			expect(res.headers['content-type']).toMatch(/text\/html/);
+		});
+
+		it('redirects rather than dead-ends when approval itself fails validation', async () => {
+			const pc = proxyConfig('https://as.example');
+			const { app } = buildApp(makeDeps('https://as.example', new InMemoryProxyStore(), pc));
+			const params = await registeredClient(app);
+
+			// Reach consent legitimately, then submit the decision with a request that
+			// fails a post-redirect_uri check. Without its own branch the POST handler
+			// falls through to the "consent could not be applied" page, which is the
+			// same dead end on the client's side.
+			const authz = await request(app).get('/mcp/authorize').query(params);
+			const cookies = (authz.headers['set-cookie'] as string[]) ?? [];
+			const csrf = cookies.find((c) => c.startsWith('mcp_consent_csrf='))!.split(';')[0];
+			const csrfToken = csrf.split('=').slice(1).join('=');
+
+			const res = await request(app)
+				.post('/mcp/consent')
+				.query({ ...params, resource: 'https://other.example' })
+				.set('Cookie', csrf)
+				.type('form')
+				.send({ csrf: csrfToken, decision: 'approve' });
+
+			expect(res.status).toBe(302);
+			const loc = new URL(res.headers.location as string);
+			expect(loc.searchParams.get('error')).toBe('invalid_target');
+			expect(loc.searchParams.get('iss')).toBe(ISSUER);
+			const setCookies = (res.headers['set-cookie'] as string[] | undefined) ?? [];
+			expect(setCookies.some((c) => c.startsWith('mcp_txn='))).toBe(false);
+		});
+
+		it('still accepts a request that omits response_type', async () => {
+			const pc = proxyConfig('https://as.example');
+			const { app } = buildApp(makeDeps('https://as.example', new InMemoryProxyStore(), pc));
+			const { response_type: _dropped, ...params } = await registeredClient(app);
+
+			const res = await request(app).get('/mcp/authorize').query(params);
+
+			// Clients that omit it work today, so refusing them would newly break a
+			// working setup for no security gain.
+			expect(res.status).toBe(200);
+			expect(res.text).toContain('to use your');
+		});
+	});
+
 	it('criterion 6: a grant-screen denial (no state, MediaWiki unauthorized_client) is bounced to the client as access_denied via the txn cookie', async () => {
 		fakeAs = await startFakeAs({ autoApproveAuthorize: true });
 		const store = new InMemoryProxyStore();

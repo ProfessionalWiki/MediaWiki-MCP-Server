@@ -59,6 +59,7 @@ function readAuthorizeQuery(query: Request['query']): AuthorizeQuery {
 	return {
 		client_id: firstScalar(query.client_id),
 		redirect_uri: firstScalar(query.redirect_uri),
+		response_type: firstScalar(query.response_type),
 		state: firstScalar(query.state),
 		code_challenge: firstScalar(query.code_challenge),
 		code_challenge_method: firstScalar(query.code_challenge_method),
@@ -208,6 +209,12 @@ export function mountAuthorizationServer(
 			sendAuthError(res, plan.status, errorReason(plan.body, 'invalid request'));
 			return;
 		}
+		if (plan.kind === 'error-redirect') {
+			// No transaction was minted, so no txn cookie: the `state` on this URL is
+			// the CLIENT's, and planting it would have the callback read it as ours.
+			res.redirect(302, plan.location);
+			return;
+		}
 		if (plan.kind === 'consent') {
 			// Anti-CSRF nonce: set as a SameSite=Strict cookie and embedded in the form
 			// so the decision POST can prove it came from this page (double-submit).
@@ -292,6 +299,10 @@ export function mountAuthorizationServer(
 		const plan = planAuthorize(q, consent, pc, store, defaultWikiSitename, client);
 		if (plan.kind === 'error') {
 			sendAuthError(res, plan.status, errorReason(plan.body, 'invalid request'));
+			return;
+		}
+		if (plan.kind === 'error-redirect') {
+			res.redirect(302, plan.location);
 			return;
 		}
 		if (plan.kind === 'redirect') {
