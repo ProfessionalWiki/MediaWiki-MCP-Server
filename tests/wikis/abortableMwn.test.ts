@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Mwn, RawRequestParams } from 'mwn';
 import { withAbortSignal } from '../../src/wikis/abortableMwn.js';
+import { wrapMwnErrors } from '../../src/wikis/mwnErrorSanitizer.js';
 
 /**
  * A stand-in shaped like the parts of mwn this wrapper leans on: `rawRequest`
@@ -99,6 +100,19 @@ describe('withAbortSignal', () => {
 			);
 
 		expect((err as { disableRetry?: boolean }).disableRetry).toBeUndefined();
+	});
+
+	it('still reaches rawRequest when composed with the error sanitiser', async () => {
+		const controller = new AbortController();
+		const bot = createFakeBot(async () => ({ ok: true }));
+
+		// The composition production actually builds: the provider hands out an
+		// error-sanitised instance, and the abort view goes on the outside. A
+		// wrapper that rebinds `this` to the raw object breaks the outer proxy's
+		// interception of mwn's internal hops, so the signal silently vanishes.
+		await withAbortSignal(wrapMwnErrors(bot), controller.signal).request({ action: 'query' });
+
+		expect(bot.calls[0]?.signal).toBe(controller.signal);
 	});
 
 	it('writes through to the shared instance so cached state is not shadowed', () => {

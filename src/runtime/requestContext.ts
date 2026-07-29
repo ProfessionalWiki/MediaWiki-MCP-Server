@@ -38,3 +38,16 @@ export function withRequestFields<T>(
 	const current = runtimeTokenStore.getStore() ?? {};
 	return runtimeTokenStore.run({ ...current, ...fields }, fn);
 }
+
+/**
+ * Runs `fn` with the cancellation signal detached, keeping the rest of the
+ * scope (notably the runtime token, which the call still needs to authenticate).
+ *
+ * For work that outlives the request that happened to trigger it: a result
+ * shared between concurrent callers must not be torn down because the first
+ * caller to arrive walked away, which would hand every other waiter the
+ * failure path.
+ */
+export function withoutRequestSignal<T>(fn: () => Promise<T>): Promise<T> {
+	return withRequestFields({ signal: undefined }, fn);
+}

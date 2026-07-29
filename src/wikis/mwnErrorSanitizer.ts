@@ -92,9 +92,14 @@ export function wrapMwnErrors<T extends object>(target: T, token?: string): T {
 			}
 			return function (this: unknown, ...args: unknown[]): unknown {
 				try {
+					// Called with the receiver, not rebound to the raw target. Rebinding
+					// would make this wrapper non-composable: mwn reaches its own methods
+					// through `this`, so sending `this` back to the bare object cuts out
+					// any proxy layered outside this one — which is how a per-request
+					// concern such as the cancellation signal silently stops applying.
 					const result =
 						// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Reflect.get returns unknown; the trapped property is the original function
-						(value as (...a: unknown[]) => unknown).apply(this === receiver ? obj : this, args);
+						(value as (...a: unknown[]) => unknown).apply(this ?? obj, args);
 					if (isThenable(result)) {
 						return result.catch((err: unknown) => {
 							redactAuthorizationHeader(err, token);

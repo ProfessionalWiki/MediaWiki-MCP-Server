@@ -14,13 +14,24 @@ interface RetryableError {
  *
  * Every API call mwn makes funnels through `rawRequest` — `request()` calls it
  * directly and `query()` goes through `request()` — so intercepting that one
- * method covers every tool without touching any of them. The interception is a
- * Proxy rather than a subclass or a clone because mwn caches CSRF tokens and
- * login state as plain instance fields: a Proxy forwards those reads and writes
- * to the shared cached instance, where `Object.create` would shadow every write
- * onto a throwaway object and silently re-fetch a token per request. Methods are
- * returned unbound on purpose, so `this` inside them is the Proxy and mwn's own
- * internal `this.rawRequest(...)` calls are intercepted too.
+ * method covers every call that enters through this view, without touching any
+ * tool. The interception is a Proxy rather than a subclass or a clone because
+ * mwn caches CSRF tokens and login state as plain instance fields: a Proxy
+ * forwards those reads and writes to the shared cached instance, where
+ * `Object.create` would shadow every write onto a throwaway object and silently
+ * re-fetch a token per request. Methods are returned unbound on purpose, so
+ * `this` inside them is the Proxy and mwn's own internal `this.rawRequest(...)`
+ * calls are intercepted too.
+ *
+ * That last property is why anything wrapped *inside* this view must preserve
+ * the receiver: a layer that rebinds `this` to the bare instance cuts this
+ * Proxy out of every internal hop and the signal silently stops applying. See
+ * the note in `mwnErrorSanitizer.ts`, which sits inside this one.
+ *
+ * Not covered: the `Page`/`File`/`Category`/`User`/`Wikitext` helper classes mwn
+ * builds in its constructor close over the bare instance, so calls made through
+ * them never re-enter this Proxy. Nothing in `src/` uses them; a tool that
+ * reached for `bot.page(...)` would quietly lose cancellation.
  *
  * The abort also has to be marked `disableRetry`. mwn treats a rejection that
  * carries no HTTP response as transient and retries it, and an aborted request
@@ -39,7 +50,11 @@ export function withAbortSignal(bot: Mwn, signal: AbortSignal): Mwn {
 					return await target.rawRequest({ ...requestOptions, signal });
 				} catch (err: unknown) {
 					if (signal.aborted && typeof err === 'object' && err !== null) {
-						(err as RetryableError).disableRetry = true;
+						// Best-effort: a frozen error would throw on assignment in strict
+						// mode and replace the real failure with a TypeError.
+						if (Object.isExtensible(err)) {
+							(err as RetryableError).disableRetry = true;
+						}
 					}
 					throw err;
 				}

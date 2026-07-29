@@ -3,7 +3,6 @@ import { z } from 'zod';
 import type { ZodRawShape } from 'zod';
 import { register } from '../../src/runtime/register.js';
 import type { Tool } from '../../src/runtime/tool.js';
-import { getRequestSignal } from '../../src/runtime/requestContext.js';
 
 // `register` wraps the descriptor's raw shape in a z.object() before handing it
 // to the SDK, so the registered field names are read back off `.shape`.
@@ -94,39 +93,10 @@ describe('register', () => {
 		expect(result).toBe(registered);
 	});
 
-	it("puts the SDK's cancellation signal into the request scope for the handler", async () => {
-		const registerTool = vi.fn().mockReturnValue({});
-		const server = { registerTool } as never;
-		const tool: Tool<{ a: z.ZodString }> = {
-			name: 'baz',
-			description: 'd',
-			inputSchema: { a: z.string() },
-			annotations: {
-				title: 'B',
-				readOnlyHint: true,
-				destructiveHint: false,
-				idempotentHint: true,
-				openWorldHint: true,
-			},
-			handle: async () => ({ content: [] }),
-		};
-		let seen: AbortSignal | undefined;
-		register(server, tool, async () => {
-			seen = getRequestSignal();
-			return { content: [] };
-		});
-
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- invoking the callback this call registered
-		const registered = registerTool.mock.calls[0][2] as (
-			args: unknown,
-			extra: { signal?: AbortSignal },
-		) => Promise<unknown>;
-		const controller = new AbortController();
-		await registered({ a: 'x' }, { signal: controller.signal });
-
-		expect(seen).toBe(controller.signal);
-	});
-
+	// The signal reaching the handler is covered in tests/runtime/cancellation.test.ts,
+	// against a real McpServer. Asserting it here would mean fabricating the SDK's
+	// context object, which proves only that the implementation reads the shape the
+	// test invented for it.
 	it('still runs the handler when the SDK supplies no signal', async () => {
 		const registerTool = vi.fn().mockReturnValue({});
 		const server = { registerTool } as never;

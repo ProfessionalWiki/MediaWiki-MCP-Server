@@ -1,6 +1,7 @@
 import type { ToolContext } from '../runtime/context.js';
 import type { SiteInfo, LicenseInfo, SiteInfoCache } from './siteInfoCache.js';
 import { normalizeServer } from './normalizeServer.js';
+import { withoutRequestSignal } from '../runtime/requestContext.js';
 
 interface SiteInfoApiResponse {
 	query?: {
@@ -84,7 +85,12 @@ export async function resolveSiteInfo(ctx: ToolContext, wikiKey: string): Promis
 		return existing;
 	}
 
-	const promise = fetchSiteInfo(ctx, wikiKey).finally(() => {
+	// Detached from the calling request's cancellation: this promise is handed
+	// to every concurrent caller, so honouring the first caller's cancellation
+	// would drop all the others onto the fallback and silently degrade their
+	// page URLs. The extra siteinfo request an abandoned caller leaves behind is
+	// one cheap call, and it populates the cache for everyone.
+	const promise = withoutRequestSignal(() => fetchSiteInfo(ctx, wikiKey)).finally(() => {
 		inflight.delete(wikiKey);
 	});
 	inflight.set(wikiKey, promise);
