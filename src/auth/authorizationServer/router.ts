@@ -158,11 +158,10 @@ export function mountAuthorizationServer(
 	});
 
 	// Resolve a client_id to a ClientRecord: CIMD (fetch its metadata document) for a
-	// URL id, else the DCR store. For CIMD, `clientIdHost` is the verified host to show
-	// at consent; `error` is set (with a reason) only when a CIMD resolve fails.
+	// URL id, else the DCR store. `error` is set (with a reason) only when a CIMD
+	// resolve fails.
 	async function resolveClient(clientId: string | undefined): Promise<{
 		client: ClientRecord | undefined;
-		clientIdHost?: string;
 		error?: string;
 	}> {
 		if (clientId && cimdResolver && isCimdClientId(clientId)) {
@@ -170,7 +169,7 @@ export function mountAuthorizationServer(
 			if (!r.ok) {
 				return { client: undefined, error: r.reason };
 			}
-			return { client: r.client, clientIdHost: new URL(clientId).host };
+			return { client: r.client };
 		}
 		return { client: clientId ? store.getClient(clientId) : undefined };
 	}
@@ -221,7 +220,6 @@ export function mountAuthorizationServer(
 					authorizeQuery: serializeAuthorizeQuery(q),
 					csrfToken,
 					redirectHost: redirectHost ?? '',
-					clientIdHost: resolved.clientIdHost,
 				}),
 			);
 			return;

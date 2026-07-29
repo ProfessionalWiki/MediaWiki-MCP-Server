@@ -594,8 +594,8 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 
 		const { app } = buildApp({ ...makeDeps('https://test.example', store, pc), cimdResolver });
 
-		// Success: allowlisted host → document fetched, self-matches → consent page,
-		// which names the VERIFIED client_id host (vscode.dev), not just client_name.
+		// Success: allowlisted host → document fetched, self-matches → consent page
+		// built from that document's own client_name and redirect_uris.
 		const ok = await request(app).get('/mcp/authorize').query({
 			response_type: 'code',
 			client_id: clientId,
@@ -607,9 +607,9 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		});
 		expect(ok.status).toBe(200);
 		expect(ok.text).toContain('vscode.dev');
-		// Uniquely proves the verified-host line rendered: 'vscode.dev' alone also
-		// appears on the redirectHost line, so assert the verified-line literal too.
-		expect(ok.text).toContain('Verified application');
+		// The name came from the fetched document, not from anything the request
+		// supplied — which is what proves the resolve actually happened.
+		expect(ok.text).toContain('Allow VS Code to use your');
 
 		// The allowed-host success above consulted the fetcher once; reset so the
 		// count below reflects ONLY the off-allowlist request.
@@ -952,7 +952,11 @@ describe('operator redirect allowlist — end-to-end (config → route → handl
 			resource: ISSUER,
 		});
 		expect(authz.status).toBe(200);
-		expect(authz.text).toContain('an application on this device');
+		expect(authz.text).toContain('on this device');
+		// Through the real route, not just the renderer: the host the grant will be
+		// sent to has to reach the page the user actually sees.
+		expect(authz.text).toContain(new URL(redirectUri).hostname);
+		expect(authz.text).toContain('Allow only if you started this sign-in a moment ago');
 	});
 });
 
