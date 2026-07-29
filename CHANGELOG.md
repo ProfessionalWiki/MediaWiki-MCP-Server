@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Security
 
+- A refresh token issued by the hosted OAuth sign-in can no longer be redeemed by a different client. A request presenting a `client_id` other than the one the token was issued to is refused with `invalid_grant` and has to sign in again. Requests that send no `client_id`, and tokens issued before this release, keep working.
 - The HTTP transport did not validate the `Origin` header on any bind other than loopback, leaving it open to DNS rebinding: an attacker who re-points a domain at a server the victim's browser can reach could call tools and read the results, without having to reach that server themselves. The Docker image binds to `0.0.0.0` by default, so this affected container deployments unless `MCP_ALLOWED_ORIGINS` was set.
 
 ### Breaking changes

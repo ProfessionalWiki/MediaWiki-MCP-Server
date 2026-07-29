@@ -75,6 +75,21 @@ export async function handleToken(
 		if (!upstream?.refreshToken) {
 			return bad('invalid_grant', 'no upstream refresh token');
 		}
+		// Bind the refresh token to the client it was issued to (OAuth 2.1 §4.3).
+		// Both halves are conditional by necessity: `client_id` is OPTIONAL at the
+		// token endpoint (§3.2.2) and omitting it is a live case, while records
+		// persisted before `clientId` existed carry none. Placed BEFORE the
+		// rotation claim below — returning after it would strand the claim in the
+		// `refreshing` set, and the next legitimate refresh would then read as a
+		// replay and revoke the whole family, turning a wrong `client_id` from an
+		// unauthenticated caller into a remote sign-out of the real user.
+		if (
+			upstream.clientId !== undefined &&
+			body.client_id !== undefined &&
+			body.client_id !== upstream.clientId
+		) {
+			return bad('invalid_grant', 'refresh token was not issued to this client');
+		}
 		// Refresh-token rotation + reuse detection (OAuth 2.1 §4.3.1). Claim the
 		// rotation atomically (synchronously, before the upstream await): the presented
 		// token must be the CURRENT one and no rotation may already be in flight. A

@@ -34,6 +34,12 @@ export interface UpstreamToken {
 	// this upstream token. A presented refresh token whose rid differs is a
 	// superseded/replayed token (OAuth 2.1 §4.3.1 reuse detection).
 	refreshId?: string;
+	// The downstream client this grant was issued to, so the refresh grant can
+	// refuse a token presented by a different one (OAuth 2.1 §4.3). Optional
+	// because records written before this field existed are replayed verbatim
+	// from disk: requiring it would make the type a lie at runtime and sign
+	// those users out on the deploy that added it.
+	clientId?: string;
 }
 
 export interface DurableSnapshot {
