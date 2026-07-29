@@ -8,6 +8,8 @@ import { EditServiceImpl } from '../services/editService.js';
 import { RevisionNormalizerImpl } from '../services/revisionNormalize.js';
 import { ResponseFormatterImpl } from '../results/response.js';
 import { ErrorClassifierImpl } from '../errors/classifyError.js';
+import { withAbortSignal } from '../wikis/abortableMwn.js';
+import { getRequestSignal } from './requestContext.js';
 
 export function createToolContext(deps: {
 	logger: Logger;
@@ -17,7 +19,14 @@ export function createToolContext(deps: {
 }): ToolContext {
 	const { logger, state, transport, getProxyConfig } = deps;
 	return {
-		mwn: (wikiKey?: string) => state.mwnProvider.get(wikiKey),
+		// The cached instance is shared across requests, so the caller's
+		// cancellation signal is applied as a per-request view over it rather
+		// than being set on the instance itself.
+		mwn: async (wikiKey?: string) => {
+			const bot = await state.mwnProvider.get(wikiKey);
+			const signal = getRequestSignal();
+			return signal === undefined ? bot : withAbortSignal(bot, signal);
+		},
 		wikis: state.wikiRegistry,
 		activeWiki: state.activeWiki,
 		uploadDirs: state.uploadDirs,

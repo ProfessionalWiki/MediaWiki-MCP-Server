@@ -37,7 +37,9 @@ describe('register', () => {
 				description: 'd',
 				annotations: tool.annotations,
 			}),
-			handler,
+			// Not `handler` itself: register wraps it so the SDK's per-request
+			// context can be consumed before the descriptor handler runs.
+			expect.any(Function),
 		);
 		// objectContaining above ignores extra keys, so pin the exact set too.
 		expect(Object.keys(registerTool.mock.calls[0][1]).sort()).toEqual([
@@ -89,5 +91,41 @@ describe('register', () => {
 		};
 		const result = register(server, tool, vi.fn());
 		expect(result).toBe(registered);
+	});
+
+	// The signal reaching the handler is covered in tests/runtime/cancellation.test.ts,
+	// against a real McpServer. Asserting it here would mean fabricating the SDK's
+	// context object, which proves only that the implementation reads the shape the
+	// test invented for it.
+	it('still runs the handler when the SDK supplies no signal', async () => {
+		const registerTool = vi.fn().mockReturnValue({});
+		const server = { registerTool } as never;
+		const tool: Tool<{ a: z.ZodString }> = {
+			name: 'qux',
+			description: 'd',
+			inputSchema: { a: z.string() },
+			annotations: {
+				title: 'Q',
+				readOnlyHint: true,
+				destructiveHint: false,
+				idempotentHint: true,
+				openWorldHint: true,
+			},
+			handle: async () => ({ content: [] }),
+		};
+		let ran = false;
+		register(server, tool, async () => {
+			ran = true;
+			return { content: [] };
+		});
+
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- invoking the callback this call registered
+		const registered = registerTool.mock.calls[0][2] as (
+			args: unknown,
+			extra?: { signal?: AbortSignal },
+		) => Promise<unknown>;
+		await registered({ a: 'x' });
+
+		expect(ran).toBe(true);
 	});
 });

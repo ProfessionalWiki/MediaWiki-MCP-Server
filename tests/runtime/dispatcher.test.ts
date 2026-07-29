@@ -6,6 +6,7 @@ import { fakeContext } from '../helpers/fakeContext.js';
 import { createMockMwnError } from '../helpers/mock-mwn-error.js';
 import { clearRegisteredServers } from '../../src/runtime/logger.js';
 import { CredentialResolutionError } from '../../src/errors/credentialResolutionError.js';
+import { withRequestFields } from '../../src/runtime/requestContext.js';
 import { getPage } from '../../src/tools/get-page.js';
 import { ContentFormat } from '../../src/results/contentFormat.js';
 
@@ -167,5 +168,38 @@ describe('dispatcher emits tool_call telemetry', () => {
 		expect(line!.outcome).toBe('permission_denied');
 		expect(line!.level).toBe('warning');
 		expect(typeof line!.error_message).toBe('string');
+	});
+
+	it('reports an aborted call as cancelled rather than an upstream failure', async () => {
+		const ctx = fakeContext();
+		// What a torn-down request actually looks like from the tool's side: mwn
+		// surfaces the abort as a malformed response, not as an abort, so the
+		// classifier would otherwise call this a wiki outage.
+		const tool = noopTool(async () => {
+			throw new TypeError("Cannot read properties of undefined (reading 'pages')");
+		});
+		const controller = new AbortController();
+		controller.abort();
+
+		await withRequestFields({ signal: controller.signal }, () => dispatch(tool, ctx)({ x: 'y' }));
+
+		const line = captureToolCallLine(stderrSpy);
+		expect(line).toBeDefined();
+		expect(line!.outcome).toBe('cancelled');
+		expect(line!.level).toBe('info');
+	});
+
+	it('still reports a genuine failure as an upstream failure when nothing was cancelled', async () => {
+		const ctx = fakeContext();
+		const tool = noopTool(async () => {
+			throw new TypeError("Cannot read properties of undefined (reading 'pages')");
+		});
+		const controller = new AbortController();
+
+		await withRequestFields({ signal: controller.signal }, () => dispatch(tool, ctx)({ x: 'y' }));
+
+		const line = captureToolCallLine(stderrSpy);
+		expect(line!.outcome).toBe('upstream_failure');
+		expect(line!.level).toBe('error');
 	});
 });
