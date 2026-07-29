@@ -59,6 +59,11 @@ describe('handleCallback', () => {
 		expect(consumed.scopes).toEqual(['editpage']);
 		expect(store.getUpstreamToken(consumed.upstreamTokenId)?.accessToken).toBe('WA');
 		expect(store.getUpstreamToken(consumed.upstreamTokenId)?.refreshToken).toBe('WR');
+		// The only production write of the refresh grant's client binding. Losing
+		// it does not fail anything — the guard is conditional on the field being
+		// set, so an unbound record silently accepts any client. Assert it here,
+		// where the record is already in hand.
+		expect(store.getUpstreamToken(consumed.upstreamTokenId)?.clientId).toBe('cid');
 		expect(store.getTransaction('txn-1')).toBeUndefined();
 	});
 

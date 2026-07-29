@@ -103,6 +103,10 @@ export async function handleCallback(
 		accessToken: tokens.access_token,
 		refreshToken: tokens.refresh_token,
 		expiresAt: Date.now() + tokens.expires_in * 1000,
+		// Recorded here, where the issuing client is already in hand, rather than
+		// at redemption: putUpstreamToken is the record's only write on this path,
+		// so binding it costs no extra store flush.
+		clientId: txn.clientId,
 	});
 	const clientCode = randomUUID();
 	store.putCode(clientCode, {

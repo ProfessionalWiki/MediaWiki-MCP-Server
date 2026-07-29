@@ -221,6 +221,131 @@ describe('handleToken refresh_token', () => {
 		expect(claims.upstreamTokenId).toBe(upstreamTokenId);
 	});
 
+	// The binding is checked before the rotation is claimed, and both halves of
+	// the guard are conditional. Nothing in the pre-existing suite exercises any
+	// of that, and tests are not typechecked (see #506), so a green suite is not
+	// evidence here — these four cases are.
+	it('refuses a refresh token presented by a different client', async () => {
+		const store = new InMemoryProxyStore();
+		const { rt } = await stage(store, {
+			accessToken: 'OLD',
+			refreshToken: 'WR',
+			expiresAt: Date.now(),
+			clientId: 'client-A',
+		});
+		const refresh = vi.fn();
+
+		const r = await handleToken(
+			{ grant_type: 'refresh_token', refresh_token: rt, client_id: 'client-B-ATTACKER' },
+			pc,
+			store,
+			refresh,
+		);
+
+		expect(r.status).toBe(400);
+		expect(r.body.error).toBe('invalid_grant');
+		expect(refresh).not.toHaveBeenCalled();
+	});
+
+	it('leaves the family usable after refusing a mismatched client', async () => {
+		const store = new InMemoryProxyStore();
+		const { upstreamTokenId, rt } = await stage(store, {
+			accessToken: 'OLD',
+			refreshToken: 'WR',
+			expiresAt: Date.now(),
+			clientId: 'client-A',
+		});
+		const refresh = vi
+			.fn()
+			.mockResolvedValue({ access_token: 'NEW', refresh_token: 'WR2', expires_in: 3600 });
+
+		await handleToken(
+			{ grant_type: 'refresh_token', refresh_token: rt, client_id: 'client-B-ATTACKER' },
+			pc,
+			store,
+			refresh,
+		);
+		// The legitimate client retries with the same, still-current token.
+		const r = await handleToken(
+			{ grant_type: 'refresh_token', refresh_token: rt, client_id: 'client-A' },
+			pc,
+			store,
+			refresh,
+		);
+
+		// Refusing after claiming the rotation would strand the claim, so this
+		// retry would read as a replay and revoke the family — a stranger with a
+		// wrong client_id could sign the real user out.
+		expect(r.status).toBe(200);
+		expect(store.getUpstreamToken(upstreamTokenId)?.accessToken).toBe('NEW');
+	});
+
+	it('accepts a refresh token presented by the client it was issued to, and keeps the binding', async () => {
+		const store = new InMemoryProxyStore();
+		const { upstreamTokenId, rt } = await stage(store, {
+			accessToken: 'OLD',
+			refreshToken: 'WR',
+			expiresAt: Date.now(),
+			clientId: 'client-A',
+		});
+		const refresh = vi
+			.fn()
+			.mockResolvedValue({ access_token: 'NEW', refresh_token: 'WR2', expires_in: 3600 });
+
+		const r = await handleToken(
+			{ grant_type: 'refresh_token', refresh_token: rt, client_id: 'client-A' },
+			pc,
+			store,
+			refresh,
+		);
+
+		expect(r.status).toBe(200);
+		// The rotation writes a partial record and relies on the store's merge to
+		// preserve this field. A rotation that dropped it would silently unbind the
+		// session on its first refresh.
+		expect(store.getUpstreamToken(upstreamTokenId)?.clientId).toBe('client-A');
+	});
+
+	it('tolerates an omitted client_id, and a record predating the binding', async () => {
+		const store = new InMemoryProxyStore();
+		const bound = await stage(store, {
+			accessToken: 'OLD',
+			refreshToken: 'WR',
+			expiresAt: Date.now(),
+			clientId: 'client-A',
+		});
+		// No clientId: what a record restored from a store written before this
+		// field existed looks like.
+		const legacy = await stage(store, {
+			accessToken: 'OLD',
+			refreshToken: 'WR',
+			expiresAt: Date.now(),
+		});
+		const refresh = vi
+			.fn()
+			.mockResolvedValue({ access_token: 'NEW', refresh_token: 'WR2', expires_in: 3600 });
+
+		// client_id is OPTIONAL at the token endpoint, so a bound record must still
+		// accept a request that omits it.
+		const omitted = await handleToken(
+			{ grant_type: 'refresh_token', refresh_token: bound.rt },
+			pc,
+			store,
+			refresh,
+		);
+		// And an unbound record must accept any client_id, or the deploy that adds
+		// this field signs out everyone holding a live session.
+		const unbound = await handleToken(
+			{ grant_type: 'refresh_token', refresh_token: legacy.rt, client_id: 'anything' },
+			pc,
+			store,
+			refresh,
+		);
+
+		expect(omitted.status).toBe(200);
+		expect(unbound.status).toBe(200);
+	});
+
 	it('rotates the refresh token; replaying the old one is rejected and revokes the family', async () => {
 		const store = new InMemoryProxyStore();
 		const { upstreamTokenId, rt } = await stage(store, {
