@@ -20,7 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Fixed
 
-- Cancelling a tool call, or disconnecting while one is still running, now stops the request the server had in flight to the wiki, instead of letting it run to completion. Cancelling a write is not an undo: an edit already committed by the wiki stays committed.
+- Cancelling a tool call, or disconnecting while one is still running, now stops the request the server had in flight to the wiki, instead of letting it run to completion. Cancelling a write is not an undo: an edit already committed by the wiki stays committed. Cancelled calls are logged as `cancelled` rather than counted as wiki failures.
 - Reading an `mcp://wikis/{wikiKey}` resource for a wiki that is not configured now fails with a JSON-RPC `-32602` error naming the URI, as the protocol requires. It previously returned an empty document, which a client could not tell from a wiki with nothing to report.
 - Wiki keys are now percent-encoded in the `mcp://wikis/` URIs the server publishes, and decoded when one is read or passed as a `wiki` argument, so a key containing a character that needs escaping, such as `%`, a comma or a non-ASCII letter, is now reachable. A key that is already a plain hostname, with or without a port, keeps the URI it had.
 - A wiki key beginning with `mcp://wikis/` is refused at startup instead of being accepted and then resolving to the wrong wiki.

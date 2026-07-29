@@ -4,7 +4,10 @@ import { emitTelemetryEvent } from './logger.js';
 import { recordToolCall } from './metrics.js';
 import type { ErrorCategory } from '../errors/classifyError.js';
 
-export type ToolOutcome = 'success' | ErrorCategory;
+// `cancelled` sits alongside ErrorCategory rather than inside it: the caller
+// walked away, which is not a fault to classify or to shape into a response.
+// It only needs to be distinguishable in the logs and the metric.
+export type ToolOutcome = 'success' | 'cancelled' | ErrorCategory;
 
 const WARNING_OUTCOMES: ReadonlySet<ToolOutcome> = new Set([
 	'not_found',
@@ -16,7 +19,8 @@ const WARNING_OUTCOMES: ReadonlySet<ToolOutcome> = new Set([
 ]);
 
 export function levelFor(outcome: ToolOutcome): 'info' | 'warning' | 'error' {
-	if (outcome === 'success') {
+	// A cancellation is ordinary client behaviour, not a degradation.
+	if (outcome === 'success' || outcome === 'cancelled') {
 		return 'info';
 	}
 	if (outcome === 'upstream_failure') {

@@ -4,7 +4,7 @@ import type { Tool } from './tool.js';
 import type { ToolContext } from './context.js';
 import { applySpecialCase } from '../errors/specialCases.js';
 import { errorMessage } from '../errors/isErrnoException.js';
-import { getRuntimeToken, withRequestFields } from './requestContext.js';
+import { getRequestSignal, getRuntimeToken, withRequestFields } from './requestContext.js';
 import { isWikiScoped, normalizeWikiArg } from './wikiArg.js';
 import {
 	emitToolCall,
@@ -140,12 +140,27 @@ async function runDispatchInner<TSchema extends ZodRawShape, TCtx extends ToolCo
 		const finalMessage = tailored ? overridden.message : `Failed to ${verb}: ${overridden.message}`;
 		errorText = finalMessage;
 
-		ctx.logger.error('Tool failed', {
-			tool: tool.name,
-			category: overridden.category,
-			code: overridden.code,
-		});
+		// A cancelled call fails on the way down — mwn surfaces the torn-down
+		// request as a malformed response rather than as an abort — so the
+		// classification describes the teardown, not the wiki. Reporting it as an
+		// upstream failure would make every cancellation look like an outage.
+		// The result is still built, and still discarded: the caller has gone.
+		if (getRequestSignal()?.aborted === true) {
+			ctx.logger.info('Tool call cancelled', { tool: tool.name });
+		} else {
+			ctx.logger.error('Tool failed', {
+				tool: tool.name,
+				category: overridden.category,
+				code: overridden.code,
+			});
+		}
 		result = ctx.format.error(overridden.category, finalMessage, overridden.code);
+	}
+
+	// Covers both failure routes above: a throw, and a tool that catches the
+	// abort itself and returns an error result.
+	if (outcome !== 'success' && getRequestSignal()?.aborted === true) {
+		outcome = 'cancelled';
 	}
 
 	// Echo the resolved wiki back to the caller. Re-wrap via structuredResult
