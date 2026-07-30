@@ -9,14 +9,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Security
 
 - A refresh token issued by the hosted OAuth sign-in can no longer be redeemed by a different client. A request presenting a `client_id` other than the one the token was issued to is refused with `invalid_grant` and has to sign in again. Requests that send no `client_id`, and tokens issued before this release, keep working.
-- The HTTP transport did not validate the `Origin` header on any bind other than loopback, leaving it open to DNS rebinding: an attacker who re-points a domain at a server the victim's browser can reach could call tools and read the results, without having to reach that server themselves. The Docker image binds to `0.0.0.0` by default, so this affected container deployments unless `MCP_ALLOWED_ORIGINS` was set.
+- The HTTP transport did not validate the `Origin` header on any bind other than loopback, leaving it open to DNS rebinding: an attacker who re-points a domain at a server the victim's browser can reach could call tools and read the results, without having to reach that server themselves. The Docker image binds to `0.0.0.0` by default, so this affected container deployments unless `MCP_ALLOWED_ORIGINS` or `MCP_ALLOWED_HOSTS` was set.
 
 ### Breaking changes
 
-- The HTTP transport now rate limits `tools/call`: each authenticated caller gets its own allowance (default 30 per second, burst 60) and anonymous callers share one (default 100 per second). A request over the limit is refused with `429` and a `Retry-After` header. Raise `MCP_RATE_LIMIT` / `MCP_RATE_LIMIT_BURST` / `MCP_RATE_LIMIT_ANONYMOUS` if you run high-throughput automation, or set `MCP_RATE_LIMIT=0` to disable.
-- The HTTP transport no longer forwards a caller's `Authorization: Bearer` header to MediaWiki. Such a request is refused with `401`, because a token minted by the wiki was not issued for this server. Use [hosted OAuth sign-in](docs/deployment.md#hosted-oauth-sign-in), or set `MCP_ALLOW_BEARER_PASSTHROUGH=true` to keep the old behaviour while you migrate; it is deprecated and will be removed. The server now warns at startup when a wiki requires a signed-in user but neither hosted sign-in nor forwarding is available, since no request could then succeed.
-- The server no longer advertises the wikis' own authorization servers, so a client can no longer discover where to mint a token to send here. Without hosted OAuth sign-in enabled, `/.well-known/oauth-protected-resource` now answers `404`, and `list-wikis` stops reporting each wiki's `authorizationServer`. Deployments running the hosted sign-in are unaffected.
+- The HTTP transport now rate limits `tools/call`: each caller signed in through hosted OAuth gets its own allowance (default 30 per second, burst 60), all callers forwarding their own wiki token share one allowance of that size between them, and anonymous callers share a third (default 100 per second). A request over the limit is refused with `429` and a `Retry-After` header. Raise `MCP_RATE_LIMIT` / `MCP_RATE_LIMIT_BURST` / `MCP_RATE_LIMIT_ANONYMOUS` if you run high-throughput automation, or set `MCP_RATE_LIMIT=0` to disable.
+- The HTTP transport no longer forwards a caller's `Authorization: Bearer` header to MediaWiki; such a request is refused with `401`. Use [hosted OAuth sign-in](docs/deployment.md#hosted-oauth-sign-in), or set `MCP_ALLOW_BEARER_PASSTHROUGH=true` to keep the old behaviour while you migrate. That option is deprecated and will be removed.
+- The server no longer advertises the wikis' own authorization servers, so a client can no longer discover where to mint a token to send here. `list-wikis` now reports a wiki's `authorizationServer` only while `MCP_ALLOW_BEARER_PASSTHROUGH=true`, and `/.well-known/oauth-protected-resource` answers `404` unless hosted OAuth sign-in is enabled. The document a hosted sign-in publishes there is unchanged.
 - The `Origin` header is now validated on every bind, and a request carrying an unlisted origin is refused with `403`. If you serve a browser-based client from a public bind, set `MCP_ALLOWED_ORIGINS` before upgrading. Clients that send no `Origin` header, which is most of them, are unaffected.
+
+### Added
+
+- Metrics: `/metrics` now reports `mcp_rate_limited_total`, a counter of `tools/call` requests refused with `429`, labelled by whether the caller was authenticated.
 
 ### Removed
 
@@ -26,7 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - Cacheable results (tool and resource lists, wiki resource reads, discovery) now carry a 60-second freshness hint instead of `ttlMs: 0`, so clients on the 2026-07-28 revision can cache them between polls. Change notifications are unaffected.
 - The hosted OAuth sign-in's approval page is shorter and now names the address you will be returned to, including for a local application, where it previously said only "an application on this device". It no longer promises a permissions step the wiki does not always show.
-- The HTTP transport's own `401`, `503` and `413` replies carry new JSON-RPC error codes. Clients read the HTTP status for these conditions, so no change is expected; anything matching on the old codes `-32001` and `-32000` needs updating.
+- The HTTP transport's own `401`, `503` and `413` replies carry new JSON-RPC error codes: `-31001`, `-31002` and `-31003`. Clients read the HTTP status for these conditions, so no change is expected; anything matching on the old codes `-32001` and `-32000` needs updating.
 
 ### Fixed
 
@@ -37,7 +41,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - Reading an `mcp://wikis/{wikiKey}` resource for a wiki that is not configured now fails with a JSON-RPC `-32602` error naming the URI, as the protocol requires. It previously returned an empty document, which a client could not tell from a wiki with nothing to report.
 - Wiki keys are now percent-encoded in the `mcp://wikis/` URIs the server publishes, and decoded when one is read or passed as a `wiki` argument, so a key containing a character that needs escaping, such as `%`, a comma or a non-ASCII letter, is now reachable. A key that is already a plain hostname, with or without a port, keeps the URI it had.
 - A wiki key beginning with `mcp://wikis/` is refused at startup instead of being accepted and then resolving to the wrong wiki.
-- Every HTTP transport error now answers JSON, in the JSON-RPC or OAuth dialect the path calls for, instead of an HTML page that could carry a stack trace when `NODE_ENV` is not `production`. This covers a body that is not valid JSON, an unsupported charset or content encoding, and any error raised while serving a request.
+- The HTTP transport now answers errors with JSON, in the JSON-RPC or OAuth dialect the path calls for, instead of an HTML page that could carry a stack trace when `NODE_ENV` is not `production`. This covers a body that is not valid JSON, an unsupported charset or content encoding, and any error raised while serving a request.
 - The HTTP transport's `401` and `503` replies now echo the id of the request they answer. Replies to a request whose id could not be read omit the field rather than sending `null`, which this protocol revision does not admit.
 
 ## [0.15.0] - 2026-07-28
