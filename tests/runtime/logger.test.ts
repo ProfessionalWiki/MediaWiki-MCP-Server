@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { InMemoryTransport, McpServer } from '@modelcontextprotocol/server';
 import { Client } from '@modelcontextprotocol/client';
 import {
@@ -13,7 +13,7 @@ import {
 } from '../../src/runtime/logger.js';
 
 interface FakeServer {
-	sendLoggingMessage: ReturnType<typeof vi.fn>;
+	sendLoggingMessage: Mock;
 }
 
 function fakeServer(): FakeServer {

@@ -2,41 +2,42 @@ import { describe, it, expect } from 'vitest';
 import { checkWikiCapability, WRITE_TOOL_NAMES } from '../../src/runtime/wikiCapability.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 import { withRequestFields } from '../../src/runtime/requestContext.js';
+import type { WikiConfig } from '../../src/config/loadConfig.js';
 
-const rwWiki = {
+const rwWiki: WikiConfig = {
 	sitename: 'X',
 	server: 'https://x',
 	articlepath: '/wiki',
 	scriptpath: '/w',
-} as never;
-const roWiki = { ...rwWiki, readOnly: true } as never;
-const oauthWiki = { ...rwWiki, oauth2ClientId: 'client-id' } as never;
-const oauthWithTokenWiki = {
+};
+const roWiki: WikiConfig = { ...rwWiki, readOnly: true };
+const oauthWiki: WikiConfig = { ...rwWiki, oauth2ClientId: 'client-id' };
+const oauthWithTokenWiki: WikiConfig = {
 	...rwWiki,
 	oauth2ClientId: 'client-id',
 	token: 'static-token',
-} as never;
+};
 
 function ctx(
 	hasExt: boolean,
-	wikiConfig: unknown,
+	wikiConfig: WikiConfig,
 	reachable = true,
 	transport: 'http' | 'stdio' = 'stdio',
 ) {
 	return fakeContext({
 		transport,
 		wikis: {
-			getAll: () => ({ w: wikiConfig }) as never,
-			get: (() => wikiConfig) as never,
-			add: (() => {}) as never,
-			remove: (() => {}) as never,
+			getAll: () => ({ w: wikiConfig }),
+			get: () => wikiConfig,
+			add: () => {},
+			remove: () => {},
 			isManagementAllowed: () => true,
 		},
 		wikiProbe: {
-			hasExtension: (async () => hasExt) as never,
-			hasAnyExtension: (async () => hasExt) as never,
-			invalidate: (() => {}) as never,
-			inspect: (async () => ({ reachable, extensions: new Set<string>() })) as never,
+			hasExtension: async () => hasExt,
+			hasAnyExtension: async () => hasExt,
+			invalidate: () => {},
+			inspect: async () => ({ reachable, extensions: new Set<string>() }),
 		},
 	});
 }

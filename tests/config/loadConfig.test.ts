@@ -1,3 +1,4 @@
+import { type StderrWriteSpy } from '../helpers/stderrSpy.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'fs';
 import { execFileSync } from 'child_process';
@@ -19,7 +20,7 @@ const baseWiki = {
 };
 
 describe('loadConfigFromFile', () => {
-	let stderrSpy: ReturnType<typeof vi.spyOn>;
+	let stderrSpy: StderrWriteSpy;
 
 	beforeEach(() => {
 		vi.resetModules();

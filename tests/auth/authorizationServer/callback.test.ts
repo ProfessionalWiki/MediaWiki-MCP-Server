@@ -1,20 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { handleCallback } from '../../../src/auth/authorizationServer/callback.js';
 import { InMemoryProxyStore } from '../../../src/auth/authorizationServer/proxyStore.js';
-import type { ProxyConfig } from '../../../src/auth/authorizationServer/proxyConfig.js';
+import { fakeProxyConfig } from '../../helpers/fakeProxyConfig.js';
 
-const pc: ProxyConfig = {
-	issuer: 'https://wiki.example/mcp',
-	authorizeBase: 'https://wiki.example',
-	tokenExchangeBase: 'http://mediawiki.svc:80',
-	scriptpath: '/w',
-	callbackUrl: 'https://wiki.example/mcp/oauth/callback',
-	upstreamClientId: 'UP',
-	signingKey: 'x'.repeat(32),
-	consentTtlMs: 1000,
-	tokenTtlMs: 1000,
-	redirectAllowlist: [],
-};
+// The exchange asserts the token endpoint is built from tokenExchangeBase, so
+// that one field is pinned to a value distinct from authorizeBase.
+const pc = fakeProxyConfig({ tokenExchangeBase: 'http://mediawiki.svc:80' });
 
 describe('handleCallback', () => {
 	it('exchanges, stores the upstream token, and redirects with a one-time code', async () => {

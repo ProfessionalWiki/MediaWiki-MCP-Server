@@ -51,6 +51,10 @@ import { emitStartupBanner } from '../runtime/banner.js';
 import { createToolContext } from '../runtime/createContext.js';
 import { registerShutdownHandlers, resolveShutdownGrace } from '../runtime/shutdown.js';
 
+// The exported surface here (BuildAppDeps, and the protected-resource handler's
+// deps) names this type, so a caller has to be able to name it too.
+export type { ProxyConfigGetter };
+
 export function resolveMcpHostValidation(
 	host: string,
 	allowedHosts: string[] | undefined,

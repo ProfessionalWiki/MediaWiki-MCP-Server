@@ -7,6 +7,10 @@ import { dispatch } from '../../src/runtime/dispatcher.js';
 import { formatPayload } from '../../src/results/format.js';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
 
+// The default fake EditService; each test spreads it and replaces only the
+// slice it exercises, so an unexpected call to another member still throws.
+const baseEdit = fakeContext().edit;
+
 describe('undelete-page', () => {
 	it('returns a structured payload on success', async () => {
 		const mock = createMockMwn({
@@ -77,9 +81,8 @@ describe('undelete-page', () => {
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
 			edit: {
-				submit: vi.fn() as never,
-				submitUpload: vi.fn() as never,
-				applyTags: (o: object) => ({ ...o, tags: 'mcp-edit' }),
+				...baseEdit,
+				applyTags: <T extends Record<string, unknown>>(o: T) => ({ ...o, tags: 'mcp-edit' }),
 			},
 		});
 

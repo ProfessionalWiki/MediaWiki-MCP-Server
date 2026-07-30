@@ -6,6 +6,9 @@ import { movePage } from '../../src/tools/move-page.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
 import { formatPayload } from '../../src/results/format.js';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
+import { toolArgs } from '../helpers/toolArgs.js';
+
+const baseEdit = fakeContext().edit;
 
 describe('move-page', () => {
 	it('returns a structured payload and passes default options on success', async () => {
@@ -20,7 +23,7 @@ describe('move-page', () => {
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
 		const result = await movePage.handle(
-			{ fromTitle: 'Old Title', toTitle: 'New Title', comment: 'tidy' },
+			toolArgs(movePage, { fromTitle: 'Old Title', toTitle: 'New Title', comment: 'tidy' }),
 			ctx,
 		);
 
@@ -53,7 +56,7 @@ describe('move-page', () => {
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
 		const result = await movePage.handle(
-			{ fromTitle: 'A', toTitle: 'B', leaveRedirect: false },
+			toolArgs(movePage, { fromTitle: 'A', toTitle: 'B', leaveRedirect: false }),
 			ctx,
 		);
 
@@ -78,7 +81,10 @@ describe('move-page', () => {
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		const result = await movePage.handle({ fromTitle: 'A', toTitle: 'B', moveTalk: false }, ctx);
+		const result = await movePage.handle(
+			toolArgs(movePage, { fromTitle: 'A', toTitle: 'B', moveTalk: false }),
+			ctx,
+		);
 
 		const text = assertStructuredSuccess(result);
 		expect(text).toContain('Talk from: Talk:A');
@@ -104,7 +110,10 @@ describe('move-page', () => {
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		const result = await movePage.handle({ fromTitle: 'A', toTitle: 'B', moveSubpages: true }, ctx);
+		const result = await movePage.handle(
+			toolArgs(movePage, { fromTitle: 'A', toTitle: 'B', moveSubpages: true }),
+			ctx,
+		);
 
 		const text = assertStructuredSuccess(result);
 		expect(text).toContain('Subpages moved: 2');
@@ -122,7 +131,10 @@ describe('move-page', () => {
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		const result = await dispatch(movePage, ctx)({ fromTitle: 'Ghost', toTitle: 'B' });
+		const result = await dispatch(
+			movePage,
+			ctx,
+		)(toolArgs(movePage, { fromTitle: 'Ghost', toTitle: 'B' }));
 
 		assertStructuredError(result, 'not_found', 'missingtitle');
 	});
@@ -133,7 +145,10 @@ describe('move-page', () => {
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		const result = await dispatch(movePage, ctx)({ fromTitle: 'A', toTitle: 'Taken' });
+		const result = await dispatch(
+			movePage,
+			ctx,
+		)(toolArgs(movePage, { fromTitle: 'A', toTitle: 'Taken' }));
 
 		assertStructuredError(result, 'conflict', 'articleexists');
 	});
@@ -144,7 +159,10 @@ describe('move-page', () => {
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		const result = await dispatch(movePage, ctx)({ fromTitle: 'A', toTitle: 'A' });
+		const result = await dispatch(
+			movePage,
+			ctx,
+		)(toolArgs(movePage, { fromTitle: 'A', toTitle: 'A' }));
 
 		assertStructuredError(result, 'invalid_input', 'selfmove');
 	});
@@ -155,7 +173,10 @@ describe('move-page', () => {
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		const result = await dispatch(movePage, ctx)({ fromTitle: 'A', toTitle: 'B' });
+		const result = await dispatch(
+			movePage,
+			ctx,
+		)(toolArgs(movePage, { fromTitle: 'A', toTitle: 'B' }));
 
 		assertStructuredError(result, 'permission_denied', 'cantmove');
 	});
@@ -167,13 +188,12 @@ describe('move-page', () => {
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
 			edit: {
-				submit: vi.fn() as never,
-				submitUpload: vi.fn() as never,
-				applyTags: (o: object) => ({ ...o, tags: 'mcp-edit' }),
+				...baseEdit,
+				applyTags: <T extends Record<string, unknown>>(o: T) => ({ ...o, tags: 'mcp-edit' }),
 			},
 		});
 
-		await movePage.handle({ fromTitle: 'A', toTitle: 'B' }, ctx);
+		await movePage.handle(toolArgs(movePage, { fromTitle: 'A', toTitle: 'B' }), ctx);
 
 		expect(mock.move).toHaveBeenCalledWith(
 			'A',

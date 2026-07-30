@@ -149,7 +149,7 @@ describe('utils.fetchCore (via makeApiRequest / fetchPageHtml)', () => {
 			}),
 		);
 		vi.mocked(assertPublicDestination)
-			.mockResolvedValueOnce(undefined)
+			.mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }])
 			.mockRejectedValueOnce(
 				new Error(
 					'Refusing to fetch URL resolving to non-public address 169.254.169.254 (linkLocal): http://169.254.169.254/latest/meta-data/',
@@ -197,9 +197,7 @@ describe('utils.fetchCore (via makeApiRequest / fetchPageHtml)', () => {
 		}
 
 		await expect(makeApiRequest('https://start.example/api.php')).rejects.toThrow(/redirect/i);
-		expect(
-			fetch.mock ? fetch.mock.calls.length : vi.mocked(fetch).mock.calls.length,
-		).toBeLessThanOrEqual(6);
+		expect(vi.mocked(fetch).mock.calls.length).toBeLessThanOrEqual(6);
 	});
 });
 

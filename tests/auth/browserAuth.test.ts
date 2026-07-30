@@ -1,4 +1,5 @@
 // tests/auth/browserAuth.test.ts
+import { ChildProcess } from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	browserAuth,
@@ -85,8 +86,10 @@ describe('browserAuth', () => {
 
 	it('timeout: rejects with BrowserAuthError reason=timeout when no callback arrives', async () => {
 		fakeAs = await startFakeAs();
-		// open mock does nothing — no callback will arrive
-		vi.mocked(openMod).mockResolvedValue(undefined);
+		// open mock does nothing — no callback will arrive. `open` resolves with the
+		// browser's ChildProcess, which browserAuth discards, so an unspawned one
+		// stands in for it.
+		vi.mocked(openMod).mockResolvedValue(new ChildProcess());
 
 		await expect(
 			browserAuth('test-wiki', {

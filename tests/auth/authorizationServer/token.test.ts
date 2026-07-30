@@ -1,27 +1,25 @@
 import { describe, it, expect, vi } from 'vitest';
 import { handleToken } from '../../../src/auth/authorizationServer/token.js';
-import { InMemoryProxyStore } from '../../../src/auth/authorizationServer/proxyStore.js';
+import {
+	InMemoryProxyStore,
+	type UpstreamToken,
+} from '../../../src/auth/authorizationServer/proxyStore.js';
 import { randomVerifier, s256 } from '../../../src/auth/pkce.js';
 import {
 	verifyAccessToken,
 	mintRefreshToken,
 	mintAccessToken,
 } from '../../../src/auth/authorizationServer/jwt.js';
-import type { ProxyConfig } from '../../../src/auth/authorizationServer/proxyConfig.js';
 import { OAuthFlowError } from '../../../src/auth/oauthFlow.js';
+import { fakeProxyConfig } from '../../helpers/fakeProxyConfig.js';
 
-const pc: ProxyConfig = {
-	issuer: 'https://wiki.example/mcp',
-	authorizeBase: 'https://wiki.example',
+// The refresh grant asserts the token endpoint is built from tokenExchangeBase,
+// so that field is pinned to a value distinct from authorizeBase. tokenTtlMs
+// backs the `expires_in: 60` assertion.
+const pc = fakeProxyConfig({
 	tokenExchangeBase: 'http://mediawiki.svc:80',
-	scriptpath: '/w',
-	callbackUrl: 'https://wiki.example/mcp/oauth/callback',
-	upstreamClientId: 'UP',
-	signingKey: 'k'.repeat(32),
-	consentTtlMs: 1000,
 	tokenTtlMs: 60_000,
-	redirectAllowlist: [],
-};
+});
 
 const REDIRECT = 'http://127.0.0.1:9000/cb';
 
@@ -177,7 +175,7 @@ describe('handleToken refresh_token', () => {
 	// Helper: stage an upstream token plus a matching, current refresh JWT.
 	async function stage(
 		store: InMemoryProxyStore,
-		upstream: { accessToken: string; refreshToken?: string; expiresAt: number },
+		upstream: UpstreamToken,
 	): Promise<{ upstreamTokenId: string; rt: string }> {
 		const upstreamTokenId = store.putUpstreamToken(upstream);
 		store.setRefreshId(upstreamTokenId, 'RID0');
@@ -222,9 +220,8 @@ describe('handleToken refresh_token', () => {
 	});
 
 	// The binding is checked before the rotation is claimed, and both halves of
-	// the guard are conditional. Nothing in the pre-existing suite exercises any
-	// of that, and tests are not typechecked (see #506), so a green suite is not
-	// evidence here — these four cases are.
+	// the guard are conditional, so a mismatch must be refused without stranding
+	// the rotation claim. These four cases are what covers that.
 	it('refuses a refresh token presented by a different client', async () => {
 		const store = new InMemoryProxyStore();
 		const { rt } = await stage(store, {

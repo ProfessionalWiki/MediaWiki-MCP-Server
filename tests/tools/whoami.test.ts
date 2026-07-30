@@ -1,11 +1,11 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, type Mock } from 'vitest';
 import { whoami } from '../../src/tools/whoami.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
 import { assertStructuredData, assertStructuredError } from '../helpers/structuredResult.js';
 
-function ctxWith(request: ReturnType<typeof vi.fn>) {
+function ctxWith(request: Mock) {
 	const mwn = createMockMwn({ request });
 	return fakeContext({ mwn: () => Promise.resolve(mwn as never) });
 }

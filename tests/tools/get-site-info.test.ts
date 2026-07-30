@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, type Mock } from 'vitest';
 import { getSiteInfo } from '../../src/tools/get-site-info.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 import { createMockMwn } from '../helpers/mock-mwn.js';
@@ -28,7 +28,7 @@ function siteinfoResponse(generalOverrides: Record<string, unknown> = {}) {
 }
 
 function ctxWith(
-	request: ReturnType<typeof vi.fn>,
+	request: Mock,
 	opts: { extensions?: Set<string>; license?: LicenseInfo; reachable?: boolean } = {},
 ) {
 	const mwn = createMockMwn({ request });

@@ -1,9 +1,14 @@
 import { describe, it, expect, vi } from 'vitest';
+import type { Mwn } from 'mwn';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 import { fakeContext } from '../helpers/fakeContext.js';
 import { updatePage } from '../../src/tools/update-page.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
+
+// The default fake EditService; each test spreads it and replaces only the
+// slice it exercises, so an unexpected call to another member still throws.
+const baseEdit = fakeContext().edit;
 
 function successResponse(overrides: Record<string, unknown> = {}) {
 	return {
@@ -28,17 +33,17 @@ function fakeEdit(response: unknown = successResponse()) {
 	});
 	const submit = vi
 		.fn()
-		.mockImplementation(async (_m: never, params: Record<string, unknown>) =>
-			mock.request({ ...params, token: 'csrf-token', formatversion: '2' }),
+		.mockImplementation(async (_m: Mwn, params: Record<string, unknown>) =>
+			request({ ...params, token: 'csrf-token', formatversion: '2' }),
 		);
 	const botRight = vi.fn().mockResolvedValue(true);
 	const ctx = fakeContext({
 		mwn: async () => mock as never,
 		edit: {
-			submit: submit as never,
-			submitUpload: vi.fn() as never,
-			applyTags: (o: object) => ({ ...o }),
-			botRight: botRight as never,
+			...baseEdit,
+			submit,
+			applyTags: <T extends Record<string, unknown>>(o: T) => ({ ...o }),
+			botRight,
 		},
 	});
 	return { mock, request, submit, botRight, ctx };
@@ -127,9 +132,9 @@ describe('update-page', () => {
 			const ctx = fakeContext({
 				mwn: async () => mock as never,
 				edit: {
-					submit: vi.fn().mockRejectedValue(new Error('Edit conflict')) as never,
-					submitUpload: vi.fn() as never,
-					applyTags: (o: object) => ({ ...o }),
+					...baseEdit,
+					submit: vi.fn().mockRejectedValue(new Error('Edit conflict')),
+					applyTags: <T extends Record<string, unknown>>(o: T) => ({ ...o }),
 				},
 			});
 
@@ -150,11 +155,9 @@ describe('update-page', () => {
 			const ctx = fakeContext({
 				mwn: async () => createMockMwn() as never,
 				edit: {
-					submit: vi
-						.fn()
-						.mockRejectedValue(new Error("The page you specified doesn't exist.")) as never,
-					submitUpload: vi.fn() as never,
-					applyTags: (o: object) => ({ ...o }),
+					...baseEdit,
+					submit: vi.fn().mockRejectedValue(new Error("The page you specified doesn't exist.")),
+					applyTags: <T extends Record<string, unknown>>(o: T) => ({ ...o }),
 				},
 			});
 
@@ -226,11 +229,9 @@ describe('update-page', () => {
 			const ctx = fakeContext({
 				mwn: async () => createMockMwn() as never,
 				edit: {
-					submit: vi
-						.fn()
-						.mockRejectedValue(new Error('nosuchsection: There is no section 99.')) as never,
-					submitUpload: vi.fn() as never,
-					applyTags: (o: object) => ({ ...o }),
+					...baseEdit,
+					submit: vi.fn().mockRejectedValue(new Error('nosuchsection: There is no section 99.')),
+					applyTags: <T extends Record<string, unknown>>(o: T) => ({ ...o }),
 				},
 			});
 

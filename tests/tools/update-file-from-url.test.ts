@@ -3,6 +3,7 @@ import { FetchError } from 'node-fetch';
 import { createMockMwn } from '../helpers/mock-mwn.js';
 import { createMockMwnError } from '../helpers/mock-mwn-error.js';
 import { fakeContext } from '../helpers/fakeContext.js';
+import type { EditService } from '../../src/services/editService.js';
 
 vi.mock('../../src/transport/fileExistence.js', async () => {
 	const actual = await vi.importActual<typeof import('../../src/transport/fileExistence.js')>(
@@ -33,19 +34,17 @@ const UPLOAD_OK = {
 	},
 };
 
+// fakeContext's edit slice throws on any method a test leaves unstubbed.
+const baseEdit = fakeContext().edit;
+
 function ctxWithServerUpload(
 	mock: ReturnType<typeof createMockMwn>,
 	submitUploadFromBytes = vi.fn().mockResolvedValue(UPLOAD_OK),
-	applyTags: (o: object) => object = (o) => ({ ...o }),
+	applyTags: EditService['applyTags'] = (o) => ({ ...o }),
 ) {
 	return fakeContext({
 		mwn: async () => mock as never,
-		edit: {
-			submit: vi.fn() as never,
-			submitUpload: vi.fn() as never,
-			submitUploadFromBytes: submitUploadFromBytes as never,
-			applyTags: applyTags as never,
-		},
+		edit: { ...baseEdit, submitUploadFromBytes, applyTags },
 	});
 }
 
