@@ -1,4 +1,4 @@
-import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { extensionPacks } from './extensions/index.ts';
@@ -28,7 +28,7 @@ export const listWikis: Tool<Record<string, never>> = {
 		destructiveHint: false,
 		idempotentHint: true,
 		openWorldHint: true,
-	} as ToolAnnotations,
+	},
 	wikiScoped: false,
 	failureVerb: 'list wikis',
 

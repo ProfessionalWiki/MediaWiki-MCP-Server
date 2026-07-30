@@ -143,8 +143,7 @@ function assertAddressIsUnicast(address: string, urlString: string): void {
 	}
 
 	if (parsed.kind() === 'ipv6') {
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by parsed.kind() === 'ipv6'; ipaddr.js doesn't expose a type predicate
-		const extraMatch = ipaddr.subnetMatch(parsed as ipaddr.IPv6, EXTRA_BLOCKED_V6, 'unicast');
+		const extraMatch = ipaddr.subnetMatch(parsed, EXTRA_BLOCKED_V6, 'unicast');
 		if (extraMatch !== 'unicast') {
 			throw new SsrfValidationError(
 				`Refusing to fetch URL resolving to non-public address ${address} (${extraMatch}): ${urlString}`,

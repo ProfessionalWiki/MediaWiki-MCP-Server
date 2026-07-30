@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import type { TruncationInfo } from '../results/truncation.ts';
@@ -112,7 +112,7 @@ export const getRecentChanges: Tool<typeof inputSchema> = {
 		destructiveHint: false,
 		idempotentHint: true,
 		openWorldHint: true,
-	} as ToolAnnotations,
+	},
 	failureVerb: 'retrieve recent changes',
 
 	async handle(args, ctx: ToolContext): Promise<CallToolResult> {

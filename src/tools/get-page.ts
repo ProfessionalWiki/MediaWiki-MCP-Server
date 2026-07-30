@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { buildPageUrl } from '../wikis/utils.ts';
@@ -41,7 +41,7 @@ export const getPage: Tool<typeof inputSchema> = {
 		destructiveHint: false,
 		idempotentHint: true,
 		openWorldHint: true,
-	} as ToolAnnotations,
+	},
 	failureVerb: 'retrieve page data',
 	target: (a) => a.title,
 

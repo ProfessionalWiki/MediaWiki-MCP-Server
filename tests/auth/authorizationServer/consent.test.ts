@@ -11,12 +11,13 @@ import {
 	readTxnCookie,
 } from '../../../src/auth/authorizationServer/consent.ts';
 import { signConsent } from '../../../src/auth/authorizationServer/jwt.ts';
+import { fakeProxyConfig } from '../../helpers/fakeProxyConfig.ts';
 
-const pc = {
+const pc = fakeProxyConfig({
 	issuer: 'https://wiki.example/mcp',
 	consentTtlMs: 60_000,
 	signingKey: 'k'.repeat(32),
-} as any;
+});
 
 describe('consent', () => {
 	it('renders the consent page with client, wiki, the form and CSRF field', () => {

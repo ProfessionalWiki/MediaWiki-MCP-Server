@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ApiSearchResult } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
@@ -28,7 +28,7 @@ export const searchPage: Tool<typeof inputSchema> = {
 		destructiveHint: false,
 		idempotentHint: true,
 		openWorldHint: true,
-	} as ToolAnnotations,
+	},
 	failureVerb: 'retrieve search data',
 	target: (a) => a.query,
 

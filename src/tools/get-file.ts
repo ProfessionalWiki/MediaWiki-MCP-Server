@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ApiPage, ImageInfo } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
@@ -19,7 +19,7 @@ export const getFile: Tool<typeof inputSchema> = {
 		destructiveHint: false,
 		idempotentHint: true,
 		openWorldHint: true,
-	} as ToolAnnotations,
+	},
 	failureVerb: 'retrieve file data',
 	target: (a) => a.title,
 

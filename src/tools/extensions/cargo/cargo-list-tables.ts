@@ -1,4 +1,4 @@
-import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 
@@ -19,7 +19,7 @@ export const cargoListTables: Tool<typeof inputSchema> = {
 		destructiveHint: false,
 		idempotentHint: true,
 		openWorldHint: true,
-	} as ToolAnnotations,
+	},
 	failureVerb: 'list Cargo tables',
 
 	async handle(_args, ctx: ToolContext): Promise<CallToolResult> {

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { resolveSiteInfo } from '../wikis/siteInfo.ts';
@@ -147,7 +147,7 @@ export const getSiteInfo: Tool<typeof inputSchema> = {
 		destructiveHint: false,
 		idempotentHint: true,
 		openWorldHint: true,
-	} as ToolAnnotations,
+	},
 	failureVerb: 'fetch site info',
 
 	async handle(args: GetSiteInfoArgs, ctx: ToolContext): Promise<CallToolResult> {
