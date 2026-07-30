@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Fixed
 
+- A tool result that renders a long or multi-line value, such as a page's wikitext, now closes it with a blank line before the next field. Previously the next field's label was the only cue the value had ended, so content containing a line like `Summary: …` read as a field of the result.
 - An error during hosted OAuth sign-in is now reported back to the application that started it, instead of only shown on a page the application never sees, so a client no longer waits indefinitely for a callback that never arrives. This covers a missing or non-S256 PKCE challenge and a `resource` naming another server.
 - A sign-in request asking for a response type this server does not support is now refused, instead of being answered with an authorization code it did not ask for.
 - Cancelling a tool call, or disconnecting while one is still running, now stops the request the server had in flight to the wiki, instead of letting it run to completion. Cancelling a write is not an undo: an edit already committed by the wiki stays committed. Cancelled calls are logged as `cancelled` rather than counted as wiki failures.

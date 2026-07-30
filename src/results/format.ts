@@ -98,7 +98,10 @@ function renderField(label: string, value: unknown, indent: string): string {
 		if (value.length <= INLINE_STRING_LIMIT && !value.includes('\n')) {
 			return `${prefix} ${value}`;
 		}
-		return `${prefix}\n\n${value}`;
+		// Closed with a blank line. Without one the next field's label is the only
+		// signal the value ended, and a value whose own text contains a line like
+		// "Summary: …" is then indistinguishable from a field of this payload.
+		return `${prefix}\n\n${value}\n`;
 	}
 	if (typeof value === 'number' || typeof value === 'boolean') {
 		return `${prefix} ${value}`;

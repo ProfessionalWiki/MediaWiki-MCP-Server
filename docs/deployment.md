@@ -142,6 +142,8 @@ Only add callbacks you recognise as the client's official ones — a redirect yo
 
 Some clients identify themselves by a vendor-hosted URL instead of a callback; verified first-party ones are trusted out of the box. To admit another client that works this way, add its host to `MCP_OAUTH_CIMD_ALLOWED_HOSTS` (comma-separated bare hosts or `host:port`) rather than `MCP_OAUTH_ALLOWED_REDIRECTS`.
 
+The defaults include one callback that is not a web address, `cursor://anysphere.cursor-mcp/oauth/callback`, which any program on the user's own machine could claim.
+
 ## Running it with Docker
 
 The image is published at `ghcr.io/professionalwiki/mediawiki-mcp-server`. Pull and run it:
