@@ -162,7 +162,7 @@ describe('dispatch OAuth integration', () => {
 		// up front by the capability guard with an authentication error; the
 		// dispatcher never reaches the OAuth gate, so open() is never called.
 		expect(result.isError).toBe(true);
-		expect(JSON.stringify(result.content)).toContain('requires OAuth');
+		expect(JSON.stringify(result.content)).toContain('requires an authenticated user');
 		expect(vi.mocked(openMod)).not.toHaveBeenCalled();
 	});
 

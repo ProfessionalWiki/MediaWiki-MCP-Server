@@ -3,7 +3,7 @@ import type { ToolContext } from './context.ts';
 import type { ExtensionPack } from '../tools/extensions/types.ts';
 import { extensionPacks } from '../tools/extensions/index.ts';
 import { getRuntimeToken } from './requestContext.ts';
-import { hasStaticCredentials } from './authShape.ts';
+import { bearerPassthroughEnabled, hasStaticCredentials } from './authShape.ts';
 
 const CORE_WRITE_TOOL_NAMES: readonly string[] = [
 	'create-page',
@@ -55,8 +55,8 @@ export async function checkWikiCapability(
 	ctx: ToolContext,
 ): Promise<CallToolResult | undefined> {
 	// HTTP transport: a call to an OAuth-only wiki with no usable token can only
-	// fail downstream with an opaque error. Reject it up front with discovery
-	// guidance. (On stdio the dispatcher's acquireToken gate drives OAuth, so
+	// fail downstream with an opaque error, so it is rejected up front with guidance
+	// naming whichever action can actually resolve it. (On stdio the dispatcher's acquireToken gate drives OAuth, so
 	// this never fires there.) On HTTP a wiki with static credentials only
 	// coexists with a running server when MCP_ALLOW_STATIC_FALLBACK is set —
 	// the startup bearer guard (evaluateBearerGuard) blocks startup otherwise —
@@ -82,12 +82,19 @@ export async function checkWikiCapability(
 					);
 				}
 			} else if (oauthOnly && !hasStatic && anonymous) {
+				// Two different situations, and the caller can only act on one. With
+				// forwarding opted into, supplying a token works and there is no
+				// discovery document to point at. Without it, nothing the caller sends
+				// is accepted, so the message names the operator's action instead of
+				// asking for a token the transport would refuse.
 				return ctx.format.error(
 					'authentication',
-					`Wiki "${wikiKey}" requires OAuth authentication. ` +
-						"Send an Authorization: Bearer token for this wiki; see the server's " +
-						"/.well-known/oauth-protected-resource document for the wiki's " +
-						'authorization server.',
+					bearerPassthroughEnabled()
+						? `Wiki "${wikiKey}" requires an authenticated user. Send an Authorization: Bearer ` +
+								'token obtained from that wiki for this caller.'
+						: `Wiki "${wikiKey}" requires an authenticated user, and this server has no way ` +
+								'to obtain one: hosted OAuth sign-in is not configured. The operator needs to ' +
+								'enable it (MCP_PUBLIC_URL and MCP_OAUTH_JWT_SIGNING_KEY).',
 				);
 			}
 		}

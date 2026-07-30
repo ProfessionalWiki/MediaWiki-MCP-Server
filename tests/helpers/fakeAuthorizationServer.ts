@@ -32,6 +32,9 @@ export interface FakeAsHandle {
 	// Bearers seen on the captured action-API endpoint, in arrival order. Only
 	// populated when captureApi is set.
 	readonly capturedApiBearers: string[];
+	// How many times this server's authorization-server metadata was fetched, so a
+	// test can assert a code path did NOT reach out.
+	readonly metadataRequests: { count: number };
 	close(): Promise<void>;
 }
 
@@ -67,6 +70,7 @@ export async function startFakeAs(opts: FakeAsOptions = {}): Promise<FakeAsHandl
 		url: '',
 		app,
 		capturedApiBearers,
+		metadataRequests: { count: 0 },
 		async close() {
 			await new Promise<void>((resolve) => server?.close(() => resolve()));
 		},
@@ -74,10 +78,12 @@ export async function startFakeAs(opts: FakeAsOptions = {}): Promise<FakeAsHandl
 
 	if (opts.wellKnown === 'origin' || opts.wellKnown === undefined) {
 		app.get('/.well-known/oauth-authorization-server', (_req, res) => {
+			handle.metadataRequests.count += 1;
 			res.json(body(handle));
 		});
 	} else if (opts.wellKnown === 'pathed') {
 		app.get('/.well-known/oauth-authorization-server/w/rest.php/oauth2', (_req, res) => {
+			handle.metadataRequests.count += 1;
 			res.json(body(handle));
 		});
 	}

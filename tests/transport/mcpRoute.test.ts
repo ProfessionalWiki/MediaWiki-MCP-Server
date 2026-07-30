@@ -1,10 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 
 import express, { type Express, type Request } from 'express';
 import request from 'supertest';
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
 import { createMcpRouteHandler, extractBearerToken } from '../../src/transport/mcpRoute.ts';
 import { getRuntimeToken } from '../../src/runtime/requestContext.ts';
+import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
+
+afterEach(() => {
+	vi.unstubAllEnvs();
+});
 
 function req(authorization: string | undefined): Request {
 	return { headers: { authorization } } as unknown as Request;
@@ -103,6 +108,13 @@ describe('era routing on /mcp', () => {
 });
 
 describe('bearer threading through the route', () => {
+	function oauthRegistry(): WikiRegistry {
+		return {
+			getAll: () => ({ ex: { oauth2ClientId: 'CID' } }),
+			get: () => ({ oauth2ClientId: 'CID' }),
+		} as unknown as WikiRegistry;
+	}
+
 	function buildCaptureApp(captured: { token?: string; seen: boolean }): Express {
 		const app = express();
 		app.use(express.json());
@@ -116,11 +128,60 @@ describe('bearer threading through the route', () => {
 				});
 			},
 		};
-		app.post('/mcp', createMcpRouteHandler(fakeHandler));
+		app.post('/mcp', createMcpRouteHandler(fakeHandler, { wikiRegistry: oauthRegistry() }));
 		return app;
 	}
 
-	it('threads the raw bearer into the request context (proxy disabled)', async () => {
+	it('refuses a caller-supplied bearer when forwarding is not opted into', async () => {
+		const captured: { token?: string; seen: boolean } = { seen: false };
+		const res = await request(buildCaptureApp(captured))
+			.post('/mcp')
+			.set('Authorization', 'Bearer raw-wiki-token')
+			.send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+		// The token was issued by the wiki's authorization server, not for this
+		// server. Refused rather than forwarded, and rather than ignored — ignoring
+		// it would run the request anonymously while the caller believed otherwise.
+		expect(res.status).toBe(401);
+		expect(captured.seen).toBe(false);
+	});
+
+	it('refuses a bearer even when no wiki configures OAuth sign-in', async () => {
+		const captured: { token?: string; seen: boolean } = { seen: false };
+		const app = express();
+		app.use(express.json());
+		const fakeHandler = {
+			fetch: async (): Promise<Response> => {
+				captured.seen = true;
+				captured.token = getRuntimeToken();
+				return new Response(JSON.stringify({ ok: true }), {
+					status: 200,
+					headers: { 'content-type': 'application/json' },
+				});
+			},
+		};
+		// No oauth2ClientId anywhere — the shape of the documented public read-only
+		// and manual-token deployments.
+		const registry = {
+			getAll: () => ({ ex: { sitename: 'Ex' } }),
+			get: () => ({ sitename: 'Ex' }),
+		} as unknown as WikiRegistry;
+		app.post('/mcp', createMcpRouteHandler(fakeHandler, { wikiRegistry: registry }));
+
+		const res = await request(app)
+			.post('/mcp')
+			.set('Authorization', 'Bearer raw-wiki-token')
+			.send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+
+		// `oauth2ClientId` describes how THIS server runs browser sign-in, not whether
+		// the wiki accepts bearers — any wiki with Extension:OAuth does. Keying the
+		// refusal on it would forward the token on exactly these deployments.
+		expect(res.status).toBe(401);
+		expect(captured.seen).toBe(false);
+		expect(captured.token).toBeUndefined();
+	});
+
+	it('threads the raw bearer into the request context once forwarding is opted into', async () => {
+		vi.stubEnv('MCP_ALLOW_BEARER_PASSTHROUGH', 'true');
 		const captured: { token?: string; seen: boolean } = { seen: false };
 		const res = await request(buildCaptureApp(captured))
 			.post('/mcp')

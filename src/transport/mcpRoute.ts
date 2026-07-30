@@ -1,7 +1,7 @@
 import type { Request, RequestHandler, Response } from 'express';
 import type { McpHttpHandler } from '@modelcontextprotocol/server';
 import { toNodeHandler } from '@modelcontextprotocol/node';
-import { hasStaticCredentials } from '../runtime/authShape.ts';
+import { bearerPassthroughEnabled, hasStaticCredentials } from '../runtime/authShape.ts';
 import { withRequestContext } from '../runtime/requestContext.ts';
 import type { WikiConfig } from '../config/loadConfig.ts';
 import type { WikiRegistry } from '../wikis/wikiRegistry.ts';
@@ -82,7 +82,11 @@ function echoedId(req: Request): { id?: string | number } {
 // WWW-Authenticate: Bearer ... resource_metadata=... header pointing at this
 // server's protected-resource document. Reused by the legacy OAuth-only
 // short-circuit and the proxy invalid-JWT path so both speak the same dialect.
-function emit401Challenge(req: Request, res: Response): void {
+// `hasMetadata` says whether this server publishes a protected-resource document,
+// which is true only while the hosted proxy is enabled. Pointing a client at that
+// URL when it 404s sends it to a dead end, so the parameter is omitted instead;
+// RFC 6750 admits a challenge without it.
+function emit401Challenge(req: Request, res: Response, hasMetadata: boolean): void {
 	const requestProto = resolveRequestProto(req);
 	const base = resolvePublicBase(req.headers.host ?? undefined, requestProto);
 	// The protected-resource document is served at the ORIGIN root (RFC 9728), not
@@ -93,7 +97,9 @@ function emit401Challenge(req: Request, res: Response): void {
 	const metadataUrl = `${origin}/.well-known/oauth-protected-resource`;
 	res.set(
 		'WWW-Authenticate',
-		`Bearer error="invalid_token", realm="MediaWiki MCP Server", resource_metadata="${metadataUrl}"`,
+		hasMetadata
+			? `Bearer error="invalid_token", realm="MediaWiki MCP Server", resource_metadata="${metadataUrl}"`
+			: `Bearer error="invalid_token", realm="MediaWiki MCP Server"`,
 	);
 	res.status(401).json({
 		jsonrpc: '2.0',
@@ -157,6 +163,7 @@ export function createMcpRouteHandler(
 	const nodeHandler = toNodeHandler(handler, { onerror: options.onerror });
 	return async (req, res) => {
 		const bearer = extractBearerToken(req);
+		const pc = getProxyConfig?.() ?? null;
 
 		// A `private` wiki disallows anonymous reads, so the deployment requires
 		// auth for everything: challenge any tokenless request up front — including
@@ -167,11 +174,9 @@ export function createMcpRouteHandler(
 			defaultWikiKey !== undefined &&
 			wikiRegistry?.get(defaultWikiKey)?.private === true
 		) {
-			emit401Challenge(req, res);
+			emit401Challenge(req, res, pc !== null);
 			return;
 		}
-
-		const pc = getProxyConfig?.() ?? null;
 
 		// The token threaded into withRequestContext (and thus into mwn). For the
 		// legacy path it is the raw request bearer. For the proxy path it is the
@@ -195,22 +200,39 @@ export function createMcpRouteHandler(
 					if (err instanceof UpstreamBearerError && err.retryable) {
 						emit503Unavailable(req, res);
 					} else {
-						emit401Challenge(req, res);
+						emit401Challenge(req, res, pc !== null);
 					}
 					return;
 				}
 			} else {
 				resolvedBearer = undefined;
 			}
-		} else if (!bearer && wikiRegistry) {
-			// Legacy (proxy disabled): a tokenless request to a set of wikis that all
-			// require OAuth is rejected up front with the discovery challenge. This
-			// path is intentionally left UNCHANGED.
+		} else if (bearer && !bearerPassthroughEnabled()) {
+			// Proxy disabled and forwarding not opted into. The bearer was issued by
+			// the wiki's authorization server, not for this server, so it is refused
+			// rather than forwarded: accepting a token minted for another audience is
+			// what the passthrough prohibition is about, and silently ignoring it
+			// would be worse — the caller would believe it is acting as itself while
+			// the request ran anonymously or as a configured identity.
+			//
+			// Not conditioned on whether a wiki sets `oauth2ClientId`: that describes
+			// how THIS server runs browser sign-in, not whether the wiki accepts
+			// bearers. Any wiki with Extension:OAuth does, so a forwarded token would
+			// authenticate as the caller there regardless of our own configuration.
+			// A caller whose bearer is meant for something else is what the opt-in is
+			// for; the server cannot tell the two apart and must not guess.
+			emit401Challenge(req, res, pc !== null);
+			return;
+		} else if (!bearer && wikiRegistry && bearerPassthroughEnabled()) {
+			// Only meaningful while forwarding is available: a tokenless request to a
+			// set of wikis that all require OAuth can be answered by the caller
+			// supplying one. Without passthrough there is nothing a client can do, so
+			// the condition is an operator misconfiguration rather than a 401.
 			const all = Object.values(wikiRegistry.getAll());
 			const fallbackAllowed = process.env.MCP_ALLOW_STATIC_FALLBACK === 'true';
 			const allNeedAuth = all.length > 0 && all.every((cfg) => wikiNeedsAuth(cfg, fallbackAllowed));
 			if (allNeedAuth) {
-				emit401Challenge(req, res);
+				emit401Challenge(req, res, pc !== null);
 				return;
 			}
 		}

@@ -117,7 +117,7 @@ describe('protected-resource authorization_servers self-advertise', () => {
 		expect(res.body.authorization_servers).toEqual(['https://mcp.example/mcp']);
 	});
 
-	it('falls back to the upstream wiki issuer when the proxy is disabled', async () => {
+	it('advertises nothing when the proxy is disabled', async () => {
 		fakeAs = await startFakeAs();
 		const wikiCfg: Partial<WikiConfig> = {
 			sitename: 'OAuthWiki',
@@ -129,7 +129,13 @@ describe('protected-resource authorization_servers self-advertise', () => {
 		const app = buildApp(fakeRegistry({ mywiki: wikiCfg }), () => null);
 
 		const res = await request(app).get('/.well-known/oauth-protected-resource');
-		expect(res.status).toBe(200);
-		expect(res.body.authorization_servers).toEqual([fakeAs.url]);
+
+		// Only the hosted proxy makes this server an authorization server. Naming the
+		// wiki's own issuer here is what steered clients into minting tokens at the
+		// wiki and presenting them to us, which is the shape the spec forbids.
+		expect(res.status).toBe(404);
+		// Answered before any upstream discovery, so an unauthenticated request no
+		// longer costs one outbound metadata fetch per OAuth wiki.
+		expect(fakeAs.metadataRequests.count).toBe(0);
 	});
 });
