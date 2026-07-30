@@ -103,7 +103,7 @@ describe('#451 smoke: proxy sign-in survives a restart (real routes + encrypted 
 		expect(result.refreshToken).toBeTruthy();
 
 		const upstream1 = await resolveUpstreamBearer(result.accessToken, pc, store1);
-		expect(upstream1).toMatch(/^access-auth-/);
+		expect(upstream1.accessToken).toMatch(/^access-auth-/);
 
 		// the file was written and holds NO plaintext secret (encrypted at rest)
 		expect(fs.existsSync(file)).toBe(true);
@@ -119,7 +119,7 @@ describe('#451 smoke: proxy sign-in survives a restart (real routes + encrypted 
 
 		// #1a: the proxy access token still resolves its upstream token post-restart
 		const upstream2 = await resolveUpstreamBearer(result.accessToken, pc, store2);
-		expect(upstream2).toBe(upstream1);
+		expect(upstream2).toStrictEqual(upstream1);
 
 		// #2: the registered client survived — /authorize reaches the consent page
 		const prDoc = await request(app2).get('/.well-known/oauth-protected-resource');

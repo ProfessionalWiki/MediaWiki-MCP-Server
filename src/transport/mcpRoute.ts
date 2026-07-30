@@ -1,15 +1,19 @@
+import { createHash } from 'node:crypto';
 import type { Request, RequestHandler, Response } from 'express';
 import type { McpHttpHandler } from '@modelcontextprotocol/server';
 import { toNodeHandler } from '@modelcontextprotocol/node';
 import { bearerPassthroughEnabled, hasStaticCredentials } from '../runtime/authShape.ts';
+import { recordRateLimited } from '../runtime/metrics.ts';
 import { withRequestContext } from '../runtime/requestContext.ts';
 import type { WikiConfig } from '../config/loadConfig.ts';
 import type { WikiRegistry } from '../wikis/wikiRegistry.ts';
 import { resolvePublicBase } from '../auth/protectedResource.ts';
 import {
 	AUTHENTICATION_REQUIRED_ERROR_CODE,
+	RATE_LIMITED_ERROR_CODE,
 	UPSTREAM_UNAVAILABLE_ERROR_CODE,
 } from './errorCodes.ts';
+import type { RateLimiter } from './rateLimit.ts';
 import type { ProxyConfig } from '../auth/authorizationServer/proxyConfig.ts';
 import type { ProxyStore } from '../auth/authorizationServer/proxyStore.ts';
 import {
@@ -126,6 +130,31 @@ function emit503Unavailable(req: Request, res: Response): void {
 	});
 }
 
+function emit429RateLimited(req: Request, res: Response, retryAfterSeconds: number): void {
+	res.set('Retry-After', String(retryAfterSeconds));
+	res.status(429).json({
+		jsonrpc: '2.0',
+		error: {
+			code: RATE_LIMITED_ERROR_CODE,
+			message: `Rate limit exceeded. Retry after ${retryAfterSeconds}s.`,
+		},
+		...echoedId(req),
+	});
+}
+
+// Only tools/call is limited: that is the request the spec's rate-limit
+// requirement names, and it is the one that reaches the wiki. Discovery,
+// initialize, cancellations and the held-open subscriptions/listen stream all
+// pass untouched — a stream that consumed a token would hold it forever.
+function isToolsCallRequest(body: unknown): boolean {
+	return (
+		typeof body === 'object' &&
+		body !== null &&
+		!Array.isArray(body) &&
+		(body as { method?: unknown }).method === 'tools/call'
+	);
+}
+
 export interface McpRouteOptions {
 	wikiRegistry?: WikiRegistry;
 	// When the hosted OAuth proxy is enabled, the /mcp bearer is a proxy-minted
@@ -146,6 +175,9 @@ export interface McpRouteOptions {
 	// handler.fetch itself threw. Handler-internal errors surface through the
 	// handler's own onerror instead.
 	onerror?: (error: Error) => void;
+	// Limits tools/call per authenticated caller (shared bucket for anonymous
+	// traffic). Omitted when rate limiting is disabled (MCP_RATE_LIMIT=0).
+	rateLimiter?: RateLimiter;
 }
 
 // Builds the /mcp route: per-request bearer resolution in front of the SDK's
@@ -159,7 +191,8 @@ export function createMcpRouteHandler(
 	handler: Pick<McpHttpHandler, 'fetch'>,
 	options: McpRouteOptions = {},
 ): RequestHandler {
-	const { wikiRegistry, getProxyConfig, proxyStore, refresh, defaultWikiKey } = options;
+	const { wikiRegistry, getProxyConfig, proxyStore, refresh, defaultWikiKey, rateLimiter } =
+		options;
 	const nodeHandler = toNodeHandler(handler, { onerror: options.onerror });
 	return async (req, res) => {
 		const bearer = extractBearerToken(req);
@@ -183,6 +216,10 @@ export function createMcpRouteHandler(
 		// UPSTREAM wiki token resolved from the proxy JWT (or undefined for an
 		// anonymous, tokenless request).
 		let resolvedBearer = bearer;
+		// Rate-limit key for the VERIFIED caller. Assigned only after the bearer
+		// has been resolved, so an invalid bearer is 401'd and never mints a
+		// bucket; anonymous traffic stays undefined and shares one bucket.
+		let rateLimitKey: string | undefined;
 
 		if (pc && proxyStore) {
 			// Proxy enabled. A bearer is a proxy JWT: verify + resolve it to the
@@ -192,7 +229,9 @@ export function createMcpRouteHandler(
 			// happens later in checkWikiCapability, not as a transport 401).
 			if (bearer) {
 				try {
-					resolvedBearer = await resolveUpstreamBearer(bearer, pc, proxyStore, refresh);
+					const resolved = await resolveUpstreamBearer(bearer, pc, proxyStore, refresh);
+					resolvedBearer = resolved.accessToken;
+					rateLimitKey = `user:${resolved.upstreamTokenId}`;
 				} catch (err) {
 					// A transient upstream refresh failure is retryable: answer 503 without a
 					// re-auth challenge. Everything else (bad/expired JWT, dead refresh token)
@@ -233,6 +272,25 @@ export function createMcpRouteHandler(
 			const allNeedAuth = all.length > 0 && all.every((cfg) => wikiNeedsAuth(cfg, fallbackAllowed));
 			if (allNeedAuth) {
 				emit401Challenge(req, res, pc !== null);
+				return;
+			}
+		}
+
+		// A bearer that survived to here outside the proxy path is being forwarded
+		// under the deprecated opt-in. Its bucket is keyed on a digest of the token
+		// itself — the only identity available; a caller that rotates tokens
+		// rotates buckets, which is one more way the passthrough shape falls short
+		// of the hosted sign-in.
+		if (rateLimitKey === undefined && resolvedBearer !== undefined && !(pc && proxyStore)) {
+			const digest = createHash('sha256').update(resolvedBearer).digest('hex').slice(0, 32);
+			rateLimitKey = `bearer:${digest}`;
+		}
+
+		if (rateLimiter && req.method === 'POST' && isToolsCallRequest(req.body)) {
+			const decision = rateLimiter.take(rateLimitKey);
+			if (!decision.allowed) {
+				recordRateLimited(rateLimitKey === undefined ? 'anonymous' : 'caller');
+				emit429RateLimited(req, res, decision.retryAfterSeconds);
 				return;
 			}
 		}

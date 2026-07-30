@@ -33,6 +33,7 @@ import {
 } from '../runtime/metrics.ts';
 import { createInFlightCounter, type InFlightCounter } from './inFlight.ts';
 import { createMcpRouteHandler, resolveRequestProto, type ProxyConfigGetter } from './mcpRoute.ts';
+import { createRateLimiter, type RateLimiter } from './rateLimit.ts';
 import { PAYLOAD_TOO_LARGE_ERROR_CODE } from './errorCodes.ts';
 import { mountReadyEndpoint } from './ready.ts';
 import { loadConfigFromFile } from '../config/loadConfig.ts';
@@ -395,6 +396,8 @@ export interface BuildAppDeps {
 	// resolveMcpOriginValidation.
 	allowedOrigins: readonly string[];
 	maxRequestBody: string;
+	// Limits tools/call per caller; omitted when disabled (MCP_RATE_LIMIT=0).
+	rateLimiter?: RateLimiter;
 }
 
 export interface BuiltApp {
@@ -427,6 +430,7 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		allowedHosts,
 		allowedOrigins,
 		maxRequestBody,
+		rateLimiter,
 	} = deps;
 
 	// A `private` wiki challenges anonymous callers with a 401 whose discovery
@@ -504,6 +508,7 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		proxyStore: store,
 		defaultWikiKey,
 		onerror: (error) => logger.error(`MCP adapter error: ${error.message}`),
+		rateLimiter,
 	});
 	// OPTIONS is routed explicitly: Express answers it from its own default
 	// handler otherwise, which sits outside the route stack and so outside the
@@ -594,7 +599,7 @@ export function startHttpServer(): void {
 	const defaultWikiKey = state.activeWiki.getDefaultKey();
 	const defaultWikiSitename = state.wikiRegistry.get(defaultWikiKey)?.sitename ?? defaultWikiKey;
 
-	const { host, port, allowedHosts, allowedOrigins, maxRequestBody, warnings } =
+	const { host, port, allowedHosts, allowedOrigins, maxRequestBody, rateLimit, warnings } =
 		resolveHttpConfig();
 	const guard = evaluateBearerGuard(state.wikiRegistry.getAll(), process.env);
 	if (guard.kind === 'block') {
@@ -705,6 +710,18 @@ export function startHttpServer(): void {
 		getProxyConfig: getDefaultProxyConfig,
 	});
 
+	if (rateLimit) {
+		logger.info(
+			`Rate limiting tools/call: ${rateLimit.ratePerSecond}/s per signed-in caller ` +
+				`(burst ${rateLimit.burst}), anonymous callers ` +
+				(rateLimit.anonymousRatePerSecond > 0
+					? `${rateLimit.anonymousRatePerSecond}/s shared`
+					: 'unlimited') +
+				'. Tune with MCP_RATE_LIMIT, MCP_RATE_LIMIT_BURST, MCP_RATE_LIMIT_ANONYMOUS.',
+		);
+	} else {
+		logger.warning('Rate limiting is disabled (MCP_RATE_LIMIT=0).');
+	}
 	const { app, inFlight, mcpHandler } = buildApp({
 		state,
 		getProxyConfig: getDefaultProxyConfig,
@@ -718,6 +735,7 @@ export function startHttpServer(): void {
 		allowedHosts,
 		allowedOrigins,
 		maxRequestBody,
+		rateLimiter: rateLimit ? createRateLimiter(rateLimit) : undefined,
 	});
 
 	const httpServer = app.listen(port, host, () => {
