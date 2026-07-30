@@ -1,5 +1,5 @@
-import { parseRedirectAllowlist, type RedirectAllowlist } from './redirectPolicy.js';
-import { parseCimdAllowedHosts } from './cimd.js';
+import { parseRedirectAllowlist, type RedirectAllowlist } from './redirectPolicy.ts';
+import { parseCimdAllowedHosts } from './cimd.ts';
 
 export class ProxyConfigError extends Error {
 	public constructor(message: string) {

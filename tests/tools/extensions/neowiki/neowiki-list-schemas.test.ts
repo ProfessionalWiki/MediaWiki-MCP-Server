@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../../../helpers/mock-mwn.js';
-import { fakeContext } from '../../../helpers/fakeContext.js';
-import { neowikiListSchemas } from '../../../../src/tools/extensions/neowiki/neowiki-list-schemas.js';
-import { assertStructuredSuccess } from '../../../helpers/structuredResult.js';
+import { createMockMwn } from '../../../helpers/mock-mwn.ts';
+import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { neowikiListSchemas } from '../../../../src/tools/extensions/neowiki/neowiki-list-schemas.ts';
+import { assertStructuredSuccess } from '../../../helpers/structuredResult.ts';
 
 describe('neowiki-list-schemas', () => {
 	it('requests /schemas and returns the schema summaries', async () => {

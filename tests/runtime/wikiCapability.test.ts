@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { checkWikiCapability, WRITE_TOOL_NAMES } from '../../src/runtime/wikiCapability.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { withRequestFields } from '../../src/runtime/requestContext.js';
-import type { WikiConfig } from '../../src/config/loadConfig.js';
+import { checkWikiCapability, WRITE_TOOL_NAMES } from '../../src/runtime/wikiCapability.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import { withRequestFields } from '../../src/runtime/requestContext.ts';
+import type { WikiConfig } from '../../src/config/loadConfig.ts';
 
 const rwWiki: WikiConfig = {
 	sitename: 'X',

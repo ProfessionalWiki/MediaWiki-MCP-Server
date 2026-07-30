@@ -5,13 +5,13 @@ import request from 'supertest';
 import {
 	createOAuthProtectedResourceHandler,
 	type ProxyConfigGetter,
-} from '../../src/transport/streamableHttp.js';
-import { buildAsMetadata } from '../../src/auth/authorizationServer/asMetadata.js';
-import { fakeProxyConfig } from '../helpers/fakeProxyConfig.js';
-import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
-import type { WikiConfig } from '../../src/config/loadConfig.js';
-import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.js';
-import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.js';
+} from '../../src/transport/streamableHttp.ts';
+import { buildAsMetadata } from '../../src/auth/authorizationServer/asMetadata.ts';
+import { fakeProxyConfig } from '../helpers/fakeProxyConfig.ts';
+import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
+import type { WikiConfig } from '../../src/config/loadConfig.ts';
+import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.ts';
+import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 
 function fakeRegistry(wikis: Record<string, Partial<WikiConfig>>): WikiRegistry {
 	return {

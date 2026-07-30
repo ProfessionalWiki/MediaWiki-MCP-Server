@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
 import type { ApiPage, ApiRevision } from 'mwn';
-import type { Tool } from '../runtime/tool.js';
-import type { ToolContext } from '../runtime/context.js';
-import type { TruncationInfo } from '../results/truncation.js';
+import type { Tool } from '../runtime/tool.ts';
+import type { ToolContext } from '../runtime/context.ts';
+import type { TruncationInfo } from '../results/truncation.ts';
 
 const PAGE_HISTORY_LIMIT = 20;
 

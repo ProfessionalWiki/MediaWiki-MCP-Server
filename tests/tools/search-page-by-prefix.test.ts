@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { searchPageByPrefix } from '../../src/tools/search-page-by-prefix.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import { searchPageByPrefix } from '../../src/tools/search-page-by-prefix.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
 
 describe('search-page-by-prefix', () => {
 	it('calls action=query&list=allpages with apprefix and aplimit', async () => {

@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
 import type { ApiEditPageParams } from 'types-mediawiki-api';
-import type { Tool } from '../runtime/tool.js';
-import type { ToolContext } from '../runtime/context.js';
-import { buildPageUrl, formatEditComment } from '../wikis/utils.js';
+import type { Tool } from '../runtime/tool.ts';
+import type { ToolContext } from '../runtime/context.ts';
+import { buildPageUrl, formatEditComment } from '../wikis/utils.ts';
 
 const inputSchema = {
 	source: z.string().describe('Page content in the format specified by the contentModel parameter'),

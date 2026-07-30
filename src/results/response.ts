@@ -1,8 +1,8 @@
 import type { CallToolResult, TextContent } from '@modelcontextprotocol/server';
-import type { ErrorEnvelope } from '../results/schemas.js';
-import type { ErrorCategory } from '../errors/classifyError.js';
-import { formatPayload } from './format.js';
-import type { TruncationInfo } from './truncation.js';
+import type { ErrorEnvelope } from '../results/schemas.ts';
+import type { ErrorCategory } from '../errors/classifyError.ts';
+import { formatPayload } from './format.ts';
+import type { TruncationInfo } from './truncation.ts';
 
 export interface ResponseFormatter {
 	ok(payload: unknown): CallToolResult;

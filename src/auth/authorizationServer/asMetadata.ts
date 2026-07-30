@@ -1,4 +1,4 @@
-import type { ProxyConfig } from './proxyConfig.js';
+import type { ProxyConfig } from './proxyConfig.ts';
 
 export interface AsMetadataDoc {
 	issuer: string;

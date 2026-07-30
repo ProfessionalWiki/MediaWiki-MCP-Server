@@ -1,7 +1,7 @@
 // tests/helpers/fakeMcpClient.ts
 import type { Express } from 'express';
 import request from 'supertest';
-import { randomVerifier, s256 } from '../../src/auth/pkce.js';
+import { randomVerifier, s256 } from '../../src/auth/pkce.ts';
 
 /**
  * Drives the full hosted-OAuth-proxy authorization-code flow against a REAL

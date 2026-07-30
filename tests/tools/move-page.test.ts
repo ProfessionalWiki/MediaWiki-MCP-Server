@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { createMockMwnError } from '../helpers/mock-mwn-error.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { movePage } from '../../src/tools/move-page.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { formatPayload } from '../../src/results/format.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
-import { toolArgs } from '../helpers/toolArgs.js';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { createMockMwnError } from '../helpers/mock-mwn-error.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import { movePage } from '../../src/tools/move-page.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import { formatPayload } from '../../src/results/format.ts';
+import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
+import { toolArgs } from '../helpers/toolArgs.ts';
 
 const baseEdit = fakeContext().edit;
 

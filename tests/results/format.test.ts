@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatPayload } from '../../src/results/format.js';
+import { formatPayload } from '../../src/results/format.ts';
 
 describe('formatPayload unknown values', () => {
 	it('does not emit bare [object Object] for class instances', () => {

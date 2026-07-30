@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { createTokenStore, type StoredToken } from '../../src/auth/tokenStore.js';
+import { createTokenStore, type StoredToken } from '../../src/auth/tokenStore.ts';
 
 let dir: string;
 let file: string;

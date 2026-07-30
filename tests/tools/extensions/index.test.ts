@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extensionPacks } from '../../../src/tools/extensions/index.js';
+import { extensionPacks } from '../../../src/tools/extensions/index.ts';
 
 describe('extensionPacks', () => {
 	it('contains smw, bucket, cargo, and neowiki in registration order', () => {

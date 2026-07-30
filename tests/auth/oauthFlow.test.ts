@@ -6,8 +6,8 @@ import {
 	exchangeCode,
 	OAuthFlowError,
 	refreshTokens,
-} from '../../src/auth/oauthFlow.js';
-import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.js';
+} from '../../src/auth/oauthFlow.ts';
+import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 
 let fakeAs: FakeAsHandle;
 

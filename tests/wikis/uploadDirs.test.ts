@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { UploadDirsImpl } from '../../src/wikis/uploadDirs.js';
+import { UploadDirsImpl } from '../../src/wikis/uploadDirs.ts';
 
 describe('UploadDirsImpl', () => {
 	it('returns the configured list', () => {

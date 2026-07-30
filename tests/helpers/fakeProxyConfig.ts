@@ -1,4 +1,4 @@
-import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.js';
+import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.ts';
 
 // One source for the proxy-config literal the auth suites need. Built as a
 // complete ProxyConfig so a field added to the interface breaks here once,

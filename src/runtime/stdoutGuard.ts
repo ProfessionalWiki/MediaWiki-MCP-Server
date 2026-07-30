@@ -1,7 +1,7 @@
 import { Console } from 'node:console';
 import { Writable } from 'node:stream';
 import { Mwn } from 'mwn';
-import { emitTelemetryEvent } from './logger.js';
+import { emitTelemetryEvent } from './logger.ts';
 
 /**
  * Under the stdio transport, stdout carries the JSON-RPC frames and nothing

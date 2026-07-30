@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { evaluateBearerGuard } from '../../src/transport/bearerGuard.js';
-import type { WikiConfig } from '../../src/config/loadConfig.js';
+import { evaluateBearerGuard } from '../../src/transport/bearerGuard.ts';
+import type { WikiConfig } from '../../src/config/loadConfig.ts';
 
 function wiki(overrides: Partial<WikiConfig> = {}): WikiConfig {
 	return {

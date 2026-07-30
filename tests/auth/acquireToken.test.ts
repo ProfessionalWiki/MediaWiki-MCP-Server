@@ -1,13 +1,13 @@
 // tests/auth/acquireToken.test.ts
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { acquireToken } from '../../src/auth/acquireToken.js';
-import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.js';
-import { useTempTokenStore } from '../helpers/tempTokenStore.js';
-import { createTokenStore } from '../../src/auth/tokenStore.js';
-import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.js';
-import { _resetBrowserAuthDedupForTesting } from '../../src/auth/browserAuth.js';
-import { _resetRefreshDedupForTesting } from '../../src/auth/tokenRefresh.js';
-import { fakeBrowserDriver } from '../helpers/fakeBrowserDriver.js';
+import { acquireToken } from '../../src/auth/acquireToken.ts';
+import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
+import { useTempTokenStore } from '../helpers/tempTokenStore.ts';
+import { createTokenStore } from '../../src/auth/tokenStore.ts';
+import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.ts';
+import { _resetBrowserAuthDedupForTesting } from '../../src/auth/browserAuth.ts';
+import { _resetRefreshDedupForTesting } from '../../src/auth/tokenRefresh.ts';
+import { fakeBrowserDriver } from '../helpers/fakeBrowserDriver.ts';
 
 vi.mock('open', () => ({ default: vi.fn() }));
 import openMod from 'open';

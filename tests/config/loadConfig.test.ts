@@ -1,4 +1,4 @@
-import { type StderrWriteSpy } from '../helpers/stderrSpy.js';
+import { type StderrWriteSpy } from '../helpers/stderrSpy.ts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'fs';
 import { execFileSync } from 'child_process';
@@ -36,14 +36,14 @@ describe('loadConfigFromFile', () => {
 	describe('no config file', () => {
 		it('returns defaultConfig when config.json does not exist', async () => {
 			vi.mocked(fs.existsSync).mockReturnValue(false);
-			const { loadConfigFromFile, defaultConfig } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile, defaultConfig } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile()).toEqual(defaultConfig);
 		});
 
 		it('warns when CONFIG points at a missing file', async () => {
 			vi.stubEnv('CONFIG', '/etc/mediawiki-mcp/absent.json');
 			vi.mocked(fs.existsSync).mockReturnValue(false);
-			const { loadConfigFromFile, defaultConfig } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile, defaultConfig } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile()).toEqual(defaultConfig);
 
 			const output = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
@@ -54,7 +54,7 @@ describe('loadConfigFromFile', () => {
 		it('does not warn when CONFIG is empty and config.json does not exist', async () => {
 			vi.stubEnv('CONFIG', '');
 			vi.mocked(fs.existsSync).mockReturnValue(false);
-			const { loadConfigFromFile, defaultConfig } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile, defaultConfig } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile()).toEqual(defaultConfig);
 
 			const output = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
@@ -69,7 +69,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, token: '${MY_TOKEN}' } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().wikis.w.token).toBe('resolved-token');
 		});
 
@@ -78,7 +78,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, token: '${MISSING_VAR}' } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(() => loadConfigFromFile()).toThrow(
 				'Config error: environment variable "MISSING_VAR" referenced by wikis.w.token is not set',
 			);
@@ -89,7 +89,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, username: '${NOPE_U}' } },
 			});
-			const { loadConfigFromFile: loadU } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile: loadU } = await import('../../src/config/loadConfig.ts');
 			expect(() => loadU()).toThrow('referenced by wikis.w.username');
 
 			vi.resetModules();
@@ -97,7 +97,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, password: '${NOPE_P}' } },
 			});
-			const { loadConfigFromFile: loadP } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile: loadP } = await import('../../src/config/loadConfig.ts');
 			expect(() => loadP()).toThrow('referenced by wikis.w.password');
 		});
 
@@ -106,7 +106,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, sitename: '${NOT_SET}', token: null } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().wikis.w.sitename).toBe('${NOT_SET}');
 		});
 	});
@@ -118,7 +118,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, token: null } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().allowWikiManagement).toBe(false);
 		});
 	});
@@ -129,7 +129,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, token: null, readOnly: true } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().wikis.w.readOnly).toBe(true);
 		});
 
@@ -138,7 +138,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, token: null, readOnly: false } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().wikis.w.readOnly).toBe(false);
 		});
 
@@ -147,7 +147,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, token: null } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().wikis.w.readOnly).toBeUndefined();
 		});
 
@@ -156,7 +156,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, token: null, readOnly: 'yes' } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(() => loadConfigFromFile()).toThrow(
 				'Config error: wikis.w.readOnly must be a boolean',
 			);
@@ -167,33 +167,33 @@ describe('loadConfigFromFile', () => {
 		// Percent-encoding carries these through to a reachable resource URI.
 		it.each(['a/b', 'a?b', 'a#b', 'my wiki'])('accepts a wiki key containing %j', async (key) => {
 			setConfigFile({ defaultWiki: key, wikis: { [key]: baseWiki } });
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(Object.keys(loadConfigFromFile().wikis)).toEqual([key]);
 		});
 
 		it('throws when a wiki key begins with the resource URI prefix', async () => {
 			const key = 'mcp://wikis/x';
 			setConfigFile({ defaultWiki: key, wikis: { [key]: baseWiki } });
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(() => loadConfigFromFile()).toThrow(/cannot start with/);
 		});
 
 		it('throws when a wiki key is empty', async () => {
 			setConfigFile({ defaultWiki: '', wikis: { '': baseWiki } });
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(() => loadConfigFromFile()).toThrow(/cannot be empty/);
 		});
 
 		it('throws when a wiki key is not valid Unicode', async () => {
 			const key = 'a\ud800b';
 			setConfigFile({ defaultWiki: key, wikis: { [key]: baseWiki } });
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(() => loadConfigFromFile()).toThrow(/not valid Unicode/);
 		});
 
 		it('accepts a host:port key', async () => {
 			setConfigFile({ defaultWiki: 'localhost:8080', wikis: { 'localhost:8080': baseWiki } });
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(Object.keys(loadConfigFromFile().wikis)).toEqual(['localhost:8080']);
 		});
 	});
@@ -205,14 +205,14 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, oauth2ClientId: 'config-id' } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().wikis.w.oauth2ClientId).toBe('env-client-id');
 		});
 
 		it('sets oauth2ClientId on the default wiki when config has none', async () => {
 			vi.stubEnv('MCP_OAUTH2_CLIENT_ID', 'env-client-id');
 			setConfigFile({ defaultWiki: 'w', wikis: { w: { ...baseWiki } } });
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().wikis.w.oauth2ClientId).toBe('env-client-id');
 		});
 
@@ -221,7 +221,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, oauth2ClientId: 'config-id' } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().wikis.w.oauth2ClientId).toBe('config-id');
 		});
 
@@ -231,7 +231,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, oauth2ClientId: 'config-id' } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().wikis.w.oauth2ClientId).toBe('config-id');
 		});
 
@@ -241,7 +241,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki }, other: { ...baseWiki, oauth2ClientId: 'other-id' } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			const cfg = loadConfigFromFile();
 			expect(cfg.wikis.w.oauth2ClientId).toBe('env-client-id');
 			expect(cfg.wikis.other.oauth2ClientId).toBe('other-id');
@@ -255,14 +255,14 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, oauth2ClientSecret: 'config-secret' } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().wikis.w.oauth2ClientSecret).toBe('env-secret');
 		});
 
 		it('sets oauth2ClientSecret on the default wiki when config has none', async () => {
 			vi.stubEnv('MCP_OAUTH2_CLIENT_SECRET', 'env-secret');
 			setConfigFile({ defaultWiki: 'w', wikis: { w: { ...baseWiki } } });
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().wikis.w.oauth2ClientSecret).toBe('env-secret');
 		});
 
@@ -272,13 +272,13 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, oauth2ClientSecret: 'config-secret' } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().wikis.w.oauth2ClientSecret).toBe('config-secret');
 		});
 
 		it('leaves an absent secret undefined (public consumer)', async () => {
 			setConfigFile({ defaultWiki: 'w', wikis: { w: { ...baseWiki } } });
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().wikis.w.oauth2ClientSecret).toBeUndefined();
 		});
 	});
@@ -289,7 +289,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, token: null } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().wikis.w.token).toBeNull();
 		});
 
@@ -298,7 +298,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, token: 'plain-secret' } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().wikis.w.token).toBe('plain-secret');
 		});
 	});
@@ -309,7 +309,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, token: 'plain-secret-SENTINEL' } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			loadConfigFromFile();
 
 			const output = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
@@ -324,7 +324,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, token: '${SAFE_TOKEN}' } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			loadConfigFromFile();
 
 			const output = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
@@ -336,7 +336,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, token: null, username: null, password: null } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			loadConfigFromFile();
 
 			const output = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
@@ -348,7 +348,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, token: '' } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			loadConfigFromFile();
 
 			const output = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
@@ -363,7 +363,7 @@ describe('loadConfigFromFile', () => {
 					b: { ...baseWiki, username: 'zzzzzzz' },
 				},
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			loadConfigFromFile();
 
 			const output = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
@@ -380,14 +380,14 @@ describe('loadConfigFromFile', () => {
 
 		it('defaults to an empty array when neither source is set', async () => {
 			setConfigFile({ defaultWiki: 'w', wikis: { w: baseWiki } });
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().uploadDirs).toEqual([]);
 		});
 
 		it('honours MCP_UPLOAD_DIRS even when no config.json exists', async () => {
 			vi.mocked(fs.existsSync).mockReturnValue(false);
 			vi.stubEnv('MCP_UPLOAD_DIRS', '/x');
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().uploadDirs).toEqual(['/x']);
 		});
 
@@ -403,14 +403,14 @@ describe('loadConfigFromFile', () => {
 				wikis: { w: baseWiki },
 				uploadDirs: ['/home/user/uploads', '/tmp/incoming'],
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().uploadDirs).toEqual(['/var/lib/uploads', '/tmp/incoming']);
 		});
 
 		it('parses MCP_UPLOAD_DIRS env var with colon separator', async () => {
 			vi.stubEnv('MCP_UPLOAD_DIRS', '/a:/b');
 			setConfigFile({ defaultWiki: 'w', wikis: { w: baseWiki } });
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().uploadDirs).toEqual(['/a', '/b']);
 		});
 
@@ -421,14 +421,14 @@ describe('loadConfigFromFile', () => {
 				wikis: { w: baseWiki },
 				uploadDirs: ['/b', '/c'],
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().uploadDirs).toEqual(['/a', '/b', '/c']);
 		});
 
 		it('treats empty MCP_UPLOAD_DIRS as unset', async () => {
 			vi.stubEnv('MCP_UPLOAD_DIRS', '');
 			setConfigFile({ defaultWiki: 'w', wikis: { w: baseWiki } });
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().uploadDirs).toEqual([]);
 		});
 
@@ -438,7 +438,7 @@ describe('loadConfigFromFile', () => {
 				wikis: { w: baseWiki },
 				uploadDirs: ['/a', 42],
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(() => loadConfigFromFile()).toThrow(/uploadDirs/);
 		});
 
@@ -448,14 +448,14 @@ describe('loadConfigFromFile', () => {
 				wikis: { w: baseWiki },
 				uploadDirs: ['relative/path'],
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(() => loadConfigFromFile()).toThrow(/must be absolute/);
 		});
 
 		it('throws when MCP_UPLOAD_DIRS contains a relative entry', async () => {
 			vi.stubEnv('MCP_UPLOAD_DIRS', '/ok:relative');
 			setConfigFile({ defaultWiki: 'w', wikis: { w: baseWiki } });
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(() => loadConfigFromFile()).toThrow(/must be absolute/);
 		});
 
@@ -471,7 +471,7 @@ describe('loadConfigFromFile', () => {
 				wikis: { w: baseWiki },
 				uploadDirs: ['/does/not/exist'],
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(() => loadConfigFromFile()).toThrow(/cannot be resolved/);
 		});
 	});
@@ -487,7 +487,7 @@ describe('loadConfigFromFile', () => {
 					},
 				},
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			const token = loadConfigFromFile().wikis.w.token;
 			expect(token).toEqual({ exec: { command: 'op', args: ['read', 'op://vault/token'] } });
 			expect(vi.mocked(execFileSync)).not.toHaveBeenCalled();
@@ -498,7 +498,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, token: { exec: { command: 'my-helper' } } } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().wikis.w.token).toEqual({
 				exec: { command: 'my-helper', args: [] },
 			});
@@ -512,7 +512,7 @@ describe('loadConfigFromFile', () => {
 					b: { ...baseWiki, username: { exec: { command: 'op', args: ['b'] } } },
 				},
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			loadConfigFromFile();
 			expect(vi.mocked(execFileSync)).not.toHaveBeenCalled();
 		});
@@ -522,7 +522,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, token: { exec: { command: '' } } } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(() => loadConfigFromFile()).toThrow(
 				'Config error: wikis.w.token.exec.command must be a non-empty string',
 			);
@@ -533,7 +533,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, token: { exec: { command: 'op', args: [1, 2] } } } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(() => loadConfigFromFile()).toThrow(
 				'Config error: wikis.w.token.exec.args must be an array of strings',
 			);
@@ -544,7 +544,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'w',
 				wikis: { w: { ...baseWiki, token: { wrong: 'shape' } } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(() => loadConfigFromFile()).toThrow(
 				'Config error: wikis.w.token must be a string, null, or an {exec: …} object',
 			);
@@ -557,7 +557,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'a',
 				wikis: { a: { ...baseWiki, oauth2ClientId: 'abc123' } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().wikis.a.oauth2ClientId).toBe('abc123');
 		});
 
@@ -566,7 +566,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'a',
 				wikis: { a: { ...baseWiki } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().wikis.a.oauth2ClientId).toBeUndefined();
 		});
 
@@ -575,7 +575,7 @@ describe('loadConfigFromFile', () => {
 				defaultWiki: 'a',
 				wikis: { a: { ...baseWiki, oauth2ClientId: null } },
 			});
-			const { loadConfigFromFile } = await import('../../src/config/loadConfig.js');
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
 			expect(loadConfigFromFile().wikis.a.oauth2ClientId).toBeNull();
 		});
 	});

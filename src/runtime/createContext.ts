@@ -1,15 +1,15 @@
-import type { Logger } from './logger.js';
-import type { ToolContext } from './context.js';
-import type { AppState } from '../wikis/state.js';
-import type { ProxyConfig } from '../auth/authorizationServer/proxyConfig.js';
-import { WikiCacheImpl } from '../wikis/wikiCache.js';
-import { SectionServiceImpl } from '../services/sectionService.js';
-import { EditServiceImpl } from '../services/editService.js';
-import { RevisionNormalizerImpl } from '../services/revisionNormalize.js';
-import { ResponseFormatterImpl } from '../results/response.js';
-import { ErrorClassifierImpl } from '../errors/classifyError.js';
-import { withAbortSignal } from '../wikis/abortableMwn.js';
-import { getRequestSignal } from './requestContext.js';
+import type { Logger } from './logger.ts';
+import type { ToolContext } from './context.ts';
+import type { AppState } from '../wikis/state.ts';
+import type { ProxyConfig } from '../auth/authorizationServer/proxyConfig.ts';
+import { WikiCacheImpl } from '../wikis/wikiCache.ts';
+import { SectionServiceImpl } from '../services/sectionService.ts';
+import { EditServiceImpl } from '../services/editService.ts';
+import { RevisionNormalizerImpl } from '../services/revisionNormalize.ts';
+import { ResponseFormatterImpl } from '../results/response.ts';
+import { ErrorClassifierImpl } from '../errors/classifyError.ts';
+import { withAbortSignal } from '../wikis/abortableMwn.ts';
+import { getRequestSignal } from './requestContext.ts';
 
 export function createToolContext(deps: {
 	logger: Logger;

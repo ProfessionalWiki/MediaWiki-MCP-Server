@@ -1,18 +1,18 @@
 // tests/runtime/dispatch.oauth.test.ts
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { WikiConfig } from '../../src/config/loadConfig.js';
-import type { ToolContext } from '../../src/runtime/context.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import type { Tool } from '../../src/runtime/tool.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.js';
-import { fakeBrowserDriver } from '../helpers/fakeBrowserDriver.js';
-import { useTempTokenStore } from '../helpers/tempTokenStore.js';
-import { getRequestWiki, getRuntimeToken } from '../../src/runtime/requestContext.js';
-import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.js';
-import { _resetBrowserAuthDedupForTesting } from '../../src/auth/browserAuth.js';
-import { _resetRefreshDedupForTesting } from '../../src/auth/tokenRefresh.js';
+import type { WikiConfig } from '../../src/config/loadConfig.ts';
+import type { ToolContext } from '../../src/runtime/context.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import type { Tool } from '../../src/runtime/tool.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
+import { fakeBrowserDriver } from '../helpers/fakeBrowserDriver.ts';
+import { useTempTokenStore } from '../helpers/tempTokenStore.ts';
+import { getRequestWiki, getRuntimeToken } from '../../src/runtime/requestContext.ts';
+import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.ts';
+import { _resetBrowserAuthDedupForTesting } from '../../src/auth/browserAuth.ts';
+import { _resetRefreshDedupForTesting } from '../../src/auth/tokenRefresh.ts';
 
 vi.mock('open', () => ({ default: vi.fn() }));
 import openMod from 'open';

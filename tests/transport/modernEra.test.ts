@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { createMcpHandler, InMemoryServerEventBus } from '@modelcontextprotocol/server';
 import type { McpHttpHandler } from '@modelcontextprotocol/server';
-import { createServer, type ChangePublisher } from '../../src/server.js';
-import { clearRegisteredServers } from '../../src/runtime/logger.js';
-import { fakeContext } from '../helpers/fakeContext.js';
+import { createServer, type ChangePublisher } from '../../src/server.ts';
+import { clearRegisteredServers } from '../../src/runtime/logger.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
 
 // Drives the era-routing handler in memory, exactly as buildApp wires it: the
 // same per-request createServer factory, the same publisher-over-notify shape.

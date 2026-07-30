@@ -1,7 +1,7 @@
 import fetch from 'node-fetch';
-import { USER_AGENT } from '../runtime/constants.js';
-import { assertPublicDestination, buildPinnedAgent, SsrfValidationError } from './ssrfGuard.js';
-import type { CimdFetchResult } from '../auth/authorizationServer/cimd.js';
+import { USER_AGENT } from '../runtime/constants.ts';
+import { assertPublicDestination, buildPinnedAgent, SsrfValidationError } from './ssrfGuard.ts';
+import type { CimdFetchResult } from '../auth/authorizationServer/cimd.ts';
 
 const DEFAULT_MAX_BYTES = 5 * 1024; // IETF CIMD draft recommended read cap.
 const DEFAULT_TIMEOUT_MS = 5_000;

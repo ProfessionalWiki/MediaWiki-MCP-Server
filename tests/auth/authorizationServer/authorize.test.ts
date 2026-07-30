@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { planAuthorize, planDeny } from '../../../src/auth/authorizationServer/authorize.js';
-import { InMemoryProxyStore } from '../../../src/auth/authorizationServer/proxyStore.js';
+import { planAuthorize, planDeny } from '../../../src/auth/authorizationServer/authorize.ts';
+import { InMemoryProxyStore } from '../../../src/auth/authorizationServer/proxyStore.ts';
 
 const pc = {
 	issuer: 'https://wiki.example/mcp',

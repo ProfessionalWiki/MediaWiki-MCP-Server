@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { watchUnhandledRejections } from '../helpers/unhandledRejections.js';
+import { watchUnhandledRejections } from '../helpers/unhandledRejections.ts';
 
 const mockRequest = vi.fn();
 
@@ -15,10 +15,10 @@ import {
 	__resetReadyCacheForTesting,
 	__probeDefaultWikiForTesting,
 	READY_PROBE_TIMEOUT_MS,
-} from '../../src/transport/ready.js';
-import type { ActiveWiki } from '../../src/wikis/activeWiki.js';
-import type { MwnProvider } from '../../src/wikis/mwnProvider.js';
-import type { WikiConfig } from '../../src/config/loadConfig.js';
+} from '../../src/transport/ready.ts';
+import type { ActiveWiki } from '../../src/wikis/activeWiki.ts';
+import type { MwnProvider } from '../../src/wikis/mwnProvider.ts';
+import type { WikiConfig } from '../../src/config/loadConfig.ts';
 
 const exampleWikiConfig: WikiConfig = {
 	sitename: 'Example',

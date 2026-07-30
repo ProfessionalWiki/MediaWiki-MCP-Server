@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import type { CallToolResult } from '@modelcontextprotocol/server';
-import { emitTelemetryEvent } from './logger.js';
-import { recordToolCall } from './metrics.js';
-import type { ErrorCategory } from '../errors/classifyError.js';
+import { emitTelemetryEvent } from './logger.ts';
+import { recordToolCall } from './metrics.ts';
+import type { ErrorCategory } from '../errors/classifyError.ts';
 
 // `cancelled` sits alongside ErrorCategory rather than inside it: the caller
 // walked away, which is not a fault to classify or to shape into a response.

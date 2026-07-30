@@ -1,17 +1,17 @@
 import type { Mwn } from 'mwn';
-import type { WikiRegistry } from '../wikis/wikiRegistry.js';
-import type { ActiveWiki } from '../wikis/activeWiki.js';
-import type { UploadDirs } from '../wikis/uploadDirs.js';
-import type { WikiCache } from '../wikis/wikiCache.js';
-import type { SiteInfoCache } from '../wikis/siteInfoCache.js';
-import type { WikiProbe } from '../wikis/wikiProbe.js';
-import type { SectionService } from '../services/sectionService.js';
-import type { EditService } from '../services/editService.js';
-import type { RevisionNormalizer } from '../services/revisionNormalize.js';
-import type { ResponseFormatter } from '../results/response.js';
-import type { ErrorClassifier } from '../errors/classifyError.js';
-import type { ProxyConfig } from '../auth/authorizationServer/proxyConfig.js';
-import type { Logger } from './logger.js';
+import type { WikiRegistry } from '../wikis/wikiRegistry.ts';
+import type { ActiveWiki } from '../wikis/activeWiki.ts';
+import type { UploadDirs } from '../wikis/uploadDirs.ts';
+import type { WikiCache } from '../wikis/wikiCache.ts';
+import type { SiteInfoCache } from '../wikis/siteInfoCache.ts';
+import type { WikiProbe } from '../wikis/wikiProbe.ts';
+import type { SectionService } from '../services/sectionService.ts';
+import type { EditService } from '../services/editService.ts';
+import type { RevisionNormalizer } from '../services/revisionNormalize.ts';
+import type { ResponseFormatter } from '../results/response.ts';
+import type { ErrorClassifier } from '../errors/classifyError.ts';
+import type { ProxyConfig } from '../auth/authorizationServer/proxyConfig.ts';
+import type { Logger } from './logger.ts';
 
 export interface ToolContext {
 	readonly mwn: (wikiKey?: string) => Promise<Mwn>;

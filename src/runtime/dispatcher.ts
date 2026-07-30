@@ -1,20 +1,20 @@
 import type { ZodRawShape, z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
-import type { Tool } from './tool.js';
-import type { ToolContext } from './context.js';
-import { applySpecialCase } from '../errors/specialCases.js';
-import { errorMessage } from '../errors/isErrnoException.js';
-import { getRequestSignal, getRuntimeToken, withRequestFields } from './requestContext.js';
-import { isWikiScoped, normalizeWikiArg } from './wikiArg.js';
+import type { Tool } from './tool.ts';
+import type { ToolContext } from './context.ts';
+import { applySpecialCase } from '../errors/specialCases.ts';
+import { errorMessage } from '../errors/isErrnoException.ts';
+import { getRequestSignal, getRuntimeToken, withRequestFields } from './requestContext.ts';
+import { isWikiScoped, normalizeWikiArg } from './wikiArg.ts';
 import {
 	emitToolCall,
 	extractUpstreamStatus,
 	parseEnvelope,
 	type ToolOutcome,
-} from './instrument.js';
-import { acquireToken } from '../auth/acquireToken.js';
-import { structuredResult } from '../results/response.js';
-import { checkWikiCapability } from './wikiCapability.js';
+} from './instrument.ts';
+import { acquireToken } from '../auth/acquireToken.ts';
+import { structuredResult } from '../results/response.ts';
+import { checkWikiCapability } from './wikiCapability.ts';
 
 // Tools that operate on server-local state (the wiki registry, the OAuth token
 // store) rather than a wiki's API. They must not be blocked by an OAuth gate

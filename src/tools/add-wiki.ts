@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
-import type { Tool } from '../runtime/tool.js';
-import type { ManagementContext } from '../runtime/context.js';
-import { discoverWiki } from '../wikis/wikiDiscovery.js';
-import { SsrfValidationError } from '../transport/ssrfGuard.js';
-import { DuplicateWikiKeyError } from '../wikis/wikiRegistry.js';
+import type { Tool } from '../runtime/tool.ts';
+import type { ManagementContext } from '../runtime/context.ts';
+import { discoverWiki } from '../wikis/wikiDiscovery.ts';
+import { SsrfValidationError } from '../transport/ssrfGuard.ts';
+import { DuplicateWikiKeyError } from '../wikis/wikiRegistry.ts';
 
 const inputSchema = {
 	wikiUrl: z

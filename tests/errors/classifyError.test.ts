@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import type { ErrorCategory } from '../../src/errors/classifyError.js';
-import { classifyError } from '../../src/errors/classifyError.js';
-import { errorResult } from '../../src/results/response.js';
-import { createMockMwnError } from '../helpers/mock-mwn-error.js';
-import { assertStructuredError } from '../helpers/structuredResult.js';
-import { CredentialResolutionError } from '../../src/errors/credentialResolutionError.js';
+import type { ErrorCategory } from '../../src/errors/classifyError.ts';
+import { classifyError } from '../../src/errors/classifyError.ts';
+import { errorResult } from '../../src/results/response.ts';
+import { createMockMwnError } from '../helpers/mock-mwn-error.ts';
+import { assertStructuredError } from '../helpers/structuredResult.ts';
+import { CredentialResolutionError } from '../../src/errors/credentialResolutionError.ts';
 
 describe('classifyError', () => {
 	describe('maps MW .code to category', () => {

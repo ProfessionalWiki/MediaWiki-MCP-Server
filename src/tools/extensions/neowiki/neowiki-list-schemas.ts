@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
-import type { Tool } from '../../../runtime/tool.js';
-import type { ToolContext } from '../../../runtime/context.js';
-import type { TruncationInfo } from '../../../results/truncation.js';
-import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.js';
+import type { Tool } from '../../../runtime/tool.ts';
+import type { ToolContext } from '../../../runtime/context.ts';
+import type { TruncationInfo } from '../../../results/truncation.ts';
+import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
 
 // The /schemas endpoint caps `limit` at 50 (rejects higher with a 400).
 // Paginate beyond that via the offset carried in continueFrom.

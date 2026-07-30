@@ -1,7 +1,7 @@
 import type { Mwn } from 'mwn';
 import type { CallToolResult } from '@modelcontextprotocol/server';
-import type { ErrorCategory } from '../../../errors/classifyError.js';
-import type { ToolContext } from '../../../runtime/context.js';
+import type { ErrorCategory } from '../../../errors/classifyError.ts';
+import type { ToolContext } from '../../../runtime/context.ts';
 
 /** A NeoWiki REST failure already classified into an MCP error category. */
 export class NeoWikiApiError extends Error {

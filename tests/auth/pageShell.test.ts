@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderPage, renderIcon, esc } from '../../src/auth/pageShell.js';
+import { renderPage, renderIcon, esc } from '../../src/auth/pageShell.ts';
 
 describe('pageShell', () => {
 	it('escapes HTML metacharacters', () => {

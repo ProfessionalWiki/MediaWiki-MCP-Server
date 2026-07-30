@@ -3,8 +3,8 @@ import { execFile } from 'node:child_process';
 
 vi.mock('node:child_process');
 
-import { runExecSecret } from '../../src/wikis/execSecret.js';
-import { CredentialResolutionError } from '../../src/errors/credentialResolutionError.js';
+import { runExecSecret } from '../../src/wikis/execSecret.ts';
+import { CredentialResolutionError } from '../../src/errors/credentialResolutionError.ts';
 
 const SENTINEL = 'SECRET-NEVER-LEAK';
 const descriptor = 'the "token" credential for wiki "w"';

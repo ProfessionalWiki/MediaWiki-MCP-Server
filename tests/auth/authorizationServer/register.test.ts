@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { handleRegister } from '../../../src/auth/authorizationServer/register.js';
-import { InMemoryProxyStore } from '../../../src/auth/authorizationServer/proxyStore.js';
+import { handleRegister } from '../../../src/auth/authorizationServer/register.ts';
+import { InMemoryProxyStore } from '../../../src/auth/authorizationServer/proxyStore.ts';
 import {
 	buildRedirectPolicy,
 	parseRedirectAllowlist,
-} from '../../../src/auth/authorizationServer/redirectPolicy.js';
+} from '../../../src/auth/authorizationServer/redirectPolicy.ts';
 
 // The predicate a deployment actually runs with NO operator config: the source-1
 // built-ins (loopback + claude.ai) PLUS the shipped client defaults. This is the

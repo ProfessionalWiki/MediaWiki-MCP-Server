@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../../../helpers/mock-mwn.js';
-import { fakeContext } from '../../../helpers/fakeContext.js';
-import { neowikiSetMainSubject } from '../../../../src/tools/extensions/neowiki/neowiki-set-main-subject.js';
-import { assertStructuredError } from '../../../helpers/structuredResult.js';
+import { createMockMwn } from '../../../helpers/mock-mwn.ts';
+import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { neowikiSetMainSubject } from '../../../../src/tools/extensions/neowiki/neowiki-set-main-subject.ts';
+import { assertStructuredError } from '../../../helpers/structuredResult.ts';
 
 function httpError(status: number, data: unknown): Error & { response: unknown } {
 	const err = new Error(`HTTP ${status}`) as Error & { response: unknown };

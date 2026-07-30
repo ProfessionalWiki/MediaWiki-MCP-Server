@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, type Mock } from 'vitest';
 import { z } from 'zod';
 import type { ZodRawShape } from 'zod';
-import { register } from '../../src/runtime/register.js';
-import type { Tool } from '../../src/runtime/tool.js';
+import { register } from '../../src/runtime/register.ts';
+import type { Tool } from '../../src/runtime/tool.ts';
 
 // `register` wraps the descriptor's raw shape in a z.object() before handing it
 // to the SDK, so the registered field names are read back off `.shape`.

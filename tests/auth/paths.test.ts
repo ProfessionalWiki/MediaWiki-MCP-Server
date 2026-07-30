@@ -1,7 +1,7 @@
 // tests/auth/paths.test.ts
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as path from 'node:path';
-import { getCredentialsPath, getProxyStorePath } from '../../src/auth/paths.js';
+import { getCredentialsPath, getProxyStorePath } from '../../src/auth/paths.ts';
 
 afterEach(() => {
 	vi.unstubAllEnvs();

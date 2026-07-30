@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { oauthLogout } from '../../src/tools/oauth-logout.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { useTempTokenStore } from '../helpers/tempTokenStore.js';
-import { createTokenStore } from '../../src/auth/tokenStore.js';
-import { fakeContext } from '../helpers/fakeContext.js';
+import { oauthLogout } from '../../src/tools/oauth-logout.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import { useTempTokenStore } from '../helpers/tempTokenStore.ts';
+import { createTokenStore } from '../../src/auth/tokenStore.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
 
 useTempTokenStore();
 

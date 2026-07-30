@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { logger } from '../runtime/logger.js';
-import { errorMessage } from '../errors/isErrnoException.js';
-import { wikiKeyProblem, wikiKeyProblemMessage } from '../runtime/wikiKey.js';
+import { logger } from '../runtime/logger.ts';
+import { errorMessage } from '../errors/isErrnoException.ts';
+import { wikiKeyProblem, wikiKeyProblemMessage } from '../runtime/wikiKey.ts';
 
 export interface WikiConfig {
 	/**

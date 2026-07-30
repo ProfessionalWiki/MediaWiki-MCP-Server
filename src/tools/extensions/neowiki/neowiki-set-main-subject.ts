@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
-import type { Tool } from '../../../runtime/tool.js';
-import type { ToolContext } from '../../../runtime/context.js';
-import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.js';
-import { resolvePageId, hasOnePageRef } from './pageId.js';
+import type { Tool } from '../../../runtime/tool.ts';
+import type { ToolContext } from '../../../runtime/context.ts';
+import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
+import { resolvePageId, hasOnePageRef } from './pageId.ts';
 
 const inputSchema = {
 	title: z.string().min(1).optional().describe('Wiki page title. Provide this OR pageId.'),

@@ -1,7 +1,7 @@
-import type { ToolContext } from '../runtime/context.js';
-import type { SiteInfo, LicenseInfo, SiteInfoCache } from './siteInfoCache.js';
-import { normalizeServer } from './normalizeServer.js';
-import { withoutRequestSignal } from '../runtime/requestContext.js';
+import type { ToolContext } from '../runtime/context.ts';
+import type { SiteInfo, LicenseInfo, SiteInfoCache } from './siteInfoCache.ts';
+import { normalizeServer } from './normalizeServer.ts';
+import { withoutRequestSignal } from '../runtime/requestContext.ts';
 
 interface SiteInfoApiResponse {
 	query?: {

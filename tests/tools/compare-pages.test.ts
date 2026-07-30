@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { comparePages } from '../../src/tools/compare-pages.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import { comparePages } from '../../src/tools/compare-pages.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
 
 const PAIRED_CHANGE_HTML = [
 	'<table class="diff">',

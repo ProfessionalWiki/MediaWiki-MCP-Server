@@ -1,9 +1,9 @@
-import { makeApiRequest } from '../transport/httpFetch.js';
-import type { WikiRegistry } from './wikiRegistry.js';
-import type { LicenseInfo } from './siteInfoCache.js';
-import { normalizeServer } from './normalizeServer.js';
-import { errorMessage } from '../errors/isErrnoException.js';
-import { logger } from '../runtime/logger.js';
+import { makeApiRequest } from '../transport/httpFetch.ts';
+import type { WikiRegistry } from './wikiRegistry.ts';
+import type { LicenseInfo } from './siteInfoCache.ts';
+import { normalizeServer } from './normalizeServer.ts';
+import { errorMessage } from '../errors/isErrnoException.ts';
+import { logger } from '../runtime/logger.ts';
 
 const TTL_SUCCESS_MS = 60 * 60 * 1000; // 1 hour
 const TTL_FAILURE_MS = 60 * 1000; // 60 seconds

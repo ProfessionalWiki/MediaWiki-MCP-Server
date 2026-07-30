@@ -1,5 +1,5 @@
-import type { WikiConfig } from '../config/loadConfig.js';
-import { isCredentialConfigured } from '../config/loadConfig.js';
+import type { WikiConfig } from '../config/loadConfig.ts';
+import { isCredentialConfigured } from '../config/loadConfig.ts';
 
 // Pure classification of how the server authenticates to its wikis, derived from
 // config alone. A lower-layer primitive: consumed by runtime/ (banner, wiki

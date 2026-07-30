@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../../../helpers/mock-mwn.js';
-import { fakeContext } from '../../../helpers/fakeContext.js';
-import { neowikiGetPageSubjects } from '../../../../src/tools/extensions/neowiki/neowiki-get-page-subjects.js';
-import { assertStructuredError } from '../../../helpers/structuredResult.js';
+import { createMockMwn } from '../../../helpers/mock-mwn.ts';
+import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { neowikiGetPageSubjects } from '../../../../src/tools/extensions/neowiki/neowiki-get-page-subjects.ts';
+import { assertStructuredError } from '../../../helpers/structuredResult.ts';
 
 const pageSubjectsBody = {
 	data: {

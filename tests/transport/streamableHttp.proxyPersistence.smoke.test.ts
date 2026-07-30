@@ -8,20 +8,20 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import request from 'supertest';
-import { buildApp, type BuildAppDeps } from '../../src/transport/streamableHttp.js';
-import { resolveUpstreamBearer } from '../../src/auth/upstreamBearer.js';
-import { createAppState } from '../../src/wikis/state.js';
+import { buildApp, type BuildAppDeps } from '../../src/transport/streamableHttp.ts';
+import { resolveUpstreamBearer } from '../../src/auth/upstreamBearer.ts';
+import { createAppState } from '../../src/wikis/state.ts';
 import {
 	InMemoryProxyStore,
 	type ProxyStore,
-} from '../../src/auth/authorizationServer/proxyStore.js';
-import { PersistentProxyStore } from '../../src/auth/authorizationServer/proxyStorePersistence.js';
-import { deriveKey } from '../../src/auth/authorizationServer/proxyStoreCrypto.js';
-import { buildRedirectPolicy } from '../../src/auth/authorizationServer/redirectPolicy.js';
-import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.js';
-import { randomVerifier, s256 } from '../../src/auth/pkce.js';
-import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.js';
-import { runHostedFlow } from '../helpers/fakeMcpClient.js';
+} from '../../src/auth/authorizationServer/proxyStore.ts';
+import { PersistentProxyStore } from '../../src/auth/authorizationServer/proxyStorePersistence.ts';
+import { deriveKey } from '../../src/auth/authorizationServer/proxyStoreCrypto.ts';
+import { buildRedirectPolicy } from '../../src/auth/authorizationServer/redirectPolicy.ts';
+import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.ts';
+import { randomVerifier, s256 } from '../../src/auth/pkce.ts';
+import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
+import { runHostedFlow } from '../helpers/fakeMcpClient.ts';
 
 const ISSUER = 'https://mcp.example/mcp';
 const SIGNING_KEY = 'k'.repeat(32);

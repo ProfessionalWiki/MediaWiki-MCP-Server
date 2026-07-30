@@ -1,6 +1,6 @@
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
-import type { Tool } from '../../../runtime/tool.js';
-import type { ToolContext } from '../../../runtime/context.js';
+import type { Tool } from '../../../runtime/tool.ts';
+import type { ToolContext } from '../../../runtime/context.ts';
 
 const inputSchema = {} as const;
 

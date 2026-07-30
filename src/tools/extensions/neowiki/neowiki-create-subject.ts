@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
-import type { Tool } from '../../../runtime/tool.js';
-import type { ToolContext } from '../../../runtime/context.js';
-import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.js';
-import { resolvePageId, hasOnePageRef } from './pageId.js';
+import type { Tool } from '../../../runtime/tool.ts';
+import type { ToolContext } from '../../../runtime/context.ts';
+import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
+import { resolvePageId, hasOnePageRef } from './pageId.ts';
 
 // A statement keyed by property name. The write API reads `propertyType` (NOT
 // the `type` key read tools return) and silently drops entries without it, so

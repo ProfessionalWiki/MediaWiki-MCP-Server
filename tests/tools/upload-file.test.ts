@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { createMockMwnError } from '../helpers/mock-mwn-error.js';
-import { fakeContext } from '../helpers/fakeContext.js';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { createMockMwnError } from '../helpers/mock-mwn-error.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
 
-vi.mock('../../src/transport/uploadGuard.js', async () => {
-	const actual = await vi.importActual<typeof import('../../src/transport/uploadGuard.js')>(
-		'../../src/transport/uploadGuard.js',
+vi.mock('../../src/transport/uploadGuard.ts', async () => {
+	const actual = await vi.importActual<typeof import('../../src/transport/uploadGuard.ts')>(
+		'../../src/transport/uploadGuard.ts',
 	);
 	return {
 		...actual,
@@ -13,10 +13,10 @@ vi.mock('../../src/transport/uploadGuard.js', async () => {
 	};
 });
 
-import { assertAllowedPath, UploadValidationError } from '../../src/transport/uploadGuard.js';
-import { uploadFile } from '../../src/tools/upload-file.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
+import { assertAllowedPath, UploadValidationError } from '../../src/transport/uploadGuard.ts';
+import { uploadFile } from '../../src/tools/upload-file.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
 
 // fakeContext's edit slice throws on any method a test leaves unstubbed.
 const baseEdit = fakeContext().edit;

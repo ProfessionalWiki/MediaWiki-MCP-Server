@@ -1,8 +1,8 @@
 // src/auth/tokenStore.ts
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { isErrnoException } from '../errors/isErrnoException.js';
-import { getCredentialsPath } from './paths.js';
+import { isErrnoException } from '../errors/isErrnoException.ts';
+import { getCredentialsPath } from './paths.ts';
 
 export interface StoredToken {
 	access_token: string;

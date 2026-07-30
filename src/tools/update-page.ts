@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
-import type { Tool } from '../runtime/tool.js';
-import type { ToolContext } from '../runtime/context.js';
-import { buildPageUrl, formatEditComment } from '../wikis/utils.js';
+import type { Tool } from '../runtime/tool.ts';
+import type { ToolContext } from '../runtime/context.ts';
+import { buildPageUrl, formatEditComment } from '../wikis/utils.ts';
 
 interface ApiEditResponse {
 	result?: string;

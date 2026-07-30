@@ -6,19 +6,19 @@ import {
 	createMcpRouteHandler,
 	type McpRouteOptions,
 	type ProxyConfigGetter,
-} from '../../src/transport/mcpRoute.js';
+} from '../../src/transport/mcpRoute.ts';
 import {
 	AUTHENTICATION_REQUIRED_ERROR_CODE,
 	UPSTREAM_UNAVAILABLE_ERROR_CODE,
-} from '../../src/transport/errorCodes.js';
-import { resolveUpstreamBearer } from '../../src/auth/upstreamBearer.js';
-import { OAuthFlowError } from '../../src/auth/oauthFlow.js';
-import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.js';
-import { mintAccessToken } from '../../src/auth/authorizationServer/jwt.js';
-import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.js';
-import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
-import type { WikiConfig } from '../../src/config/loadConfig.js';
-import { getRuntimeToken } from '../../src/runtime/requestContext.js';
+} from '../../src/transport/errorCodes.ts';
+import { resolveUpstreamBearer } from '../../src/auth/upstreamBearer.ts';
+import { OAuthFlowError } from '../../src/auth/oauthFlow.ts';
+import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.ts';
+import { mintAccessToken } from '../../src/auth/authorizationServer/jwt.ts';
+import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.ts';
+import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
+import type { WikiConfig } from '../../src/config/loadConfig.ts';
+import { getRuntimeToken } from '../../src/runtime/requestContext.ts';
 
 const pc = {
 	issuer: 'https://wiki.example/mcp',

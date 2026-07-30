@@ -1,9 +1,9 @@
 import type { RegisteredTool } from '@modelcontextprotocol/server';
-import type { WikiConfig } from '../config/loadConfig.js';
-import type { WikiRegistry } from '../wikis/wikiRegistry.js';
-import type { WikiProbe } from '../wikis/wikiProbe.js';
-import type { ExtensionPack } from '../tools/extensions/types.js';
-import { WRITE_TOOL_NAMES } from './wikiCapability.js';
+import type { WikiConfig } from '../config/loadConfig.ts';
+import type { WikiRegistry } from '../wikis/wikiRegistry.ts';
+import type { WikiProbe } from '../wikis/wikiProbe.ts';
+import type { ExtensionPack } from '../tools/extensions/types.ts';
+import { WRITE_TOOL_NAMES } from './wikiCapability.ts';
 
 export type Reconcile = () => Promise<void>;
 

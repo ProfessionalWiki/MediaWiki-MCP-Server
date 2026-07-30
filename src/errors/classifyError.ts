@@ -1,4 +1,4 @@
-import { CredentialResolutionError } from './credentialResolutionError.js';
+import { CredentialResolutionError } from './credentialResolutionError.ts';
 
 export type ErrorCategory =
 	| 'not_found'

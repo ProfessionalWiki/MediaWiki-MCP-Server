@@ -2,11 +2,11 @@ import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
 import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { ApiUploadResponse } from 'mwn';
-import type { Tool } from '../runtime/tool.js';
-import type { ToolContext } from '../runtime/context.js';
-import { assertAllowedPath, UploadValidationError } from '../transport/uploadGuard.js';
-import { assertFileExists, FileNotFoundError } from '../transport/fileExistence.js';
-import { formatEditComment, buildPageUrl } from '../wikis/utils.js';
+import type { Tool } from '../runtime/tool.ts';
+import type { ToolContext } from '../runtime/context.ts';
+import { assertAllowedPath, UploadValidationError } from '../transport/uploadGuard.ts';
+import { assertFileExists, FileNotFoundError } from '../transport/fileExistence.ts';
+import { formatEditComment, buildPageUrl } from '../wikis/utils.ts';
 
 const inputSchema = {
 	filepath: z.string().describe('File path on the local disk'),

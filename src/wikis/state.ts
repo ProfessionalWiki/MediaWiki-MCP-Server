@@ -1,11 +1,11 @@
-import type { Config } from '../config/loadConfig.js';
-import { getRuntimeToken } from '../runtime/requestContext.js';
-import { WikiRegistryImpl, type WikiRegistry } from './wikiRegistry.js';
-import { ActiveWikiImpl, type ActiveWiki } from './activeWiki.js';
-import { UploadDirsImpl, type UploadDirs } from './uploadDirs.js';
-import { MwnProviderImpl, type MwnProvider } from './mwnProvider.js';
-import { SiteInfoCacheImpl, type SiteInfoCache } from './siteInfoCache.js';
-import { WikiProbeImpl, type WikiProbe } from './wikiProbe.js';
+import type { Config } from '../config/loadConfig.ts';
+import { getRuntimeToken } from '../runtime/requestContext.ts';
+import { WikiRegistryImpl, type WikiRegistry } from './wikiRegistry.ts';
+import { ActiveWikiImpl, type ActiveWiki } from './activeWiki.ts';
+import { UploadDirsImpl, type UploadDirs } from './uploadDirs.ts';
+import { MwnProviderImpl, type MwnProvider } from './mwnProvider.ts';
+import { SiteInfoCacheImpl, type SiteInfoCache } from './siteInfoCache.ts';
+import { WikiProbeImpl, type WikiProbe } from './wikiProbe.ts';
 
 export interface AppState {
 	readonly wikiRegistry: WikiRegistry;

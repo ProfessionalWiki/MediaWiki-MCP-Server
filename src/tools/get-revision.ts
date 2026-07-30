@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
 import type { ApiPage, ApiRevision } from 'mwn';
-import type { Tool } from '../runtime/tool.js';
-import type { ToolContext } from '../runtime/context.js';
-import { buildPageUrl } from '../wikis/utils.js';
-import { ContentFormat } from '../results/contentFormat.js';
+import type { Tool } from '../runtime/tool.ts';
+import type { ToolContext } from '../runtime/context.ts';
+import { buildPageUrl } from '../wikis/utils.ts';
+import { ContentFormat } from '../results/contentFormat.ts';
 
 const inputSchema = {
 	revisionId: z.number().int().positive().describe('Revision ID'),

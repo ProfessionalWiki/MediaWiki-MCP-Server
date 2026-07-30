@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Mwn, RawRequestParams } from 'mwn';
-import { withAbortSignal } from '../../src/wikis/abortableMwn.js';
-import { wrapMwnErrors } from '../../src/wikis/mwnErrorSanitizer.js';
+import { withAbortSignal } from '../../src/wikis/abortableMwn.ts';
+import { wrapMwnErrors } from '../../src/wikis/mwnErrorSanitizer.ts';
 
 /**
  * A stand-in shaped like the parts of mwn this wrapper leans on: `rawRequest`

@@ -3,13 +3,13 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
-import { createOAuthProtectedResourceHandler } from '../../src/transport/streamableHttp.js';
-import { createMcpRouteHandler, type McpRouteOptions } from '../../src/transport/mcpRoute.js';
-import { AUTHENTICATION_REQUIRED_ERROR_CODE } from '../../src/transport/errorCodes.js';
-import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
-import type { WikiConfig } from '../../src/config/loadConfig.js';
-import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.js';
-import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.js';
+import { createOAuthProtectedResourceHandler } from '../../src/transport/streamableHttp.ts';
+import { createMcpRouteHandler, type McpRouteOptions } from '../../src/transport/mcpRoute.ts';
+import { AUTHENTICATION_REQUIRED_ERROR_CODE } from '../../src/transport/errorCodes.ts';
+import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
+import type { WikiConfig } from '../../src/config/loadConfig.ts';
+import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.ts';
+import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 
 function fakeRegistry(wikis: Record<string, Partial<WikiConfig>>): WikiRegistry {
 	return {

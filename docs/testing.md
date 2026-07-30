@@ -7,16 +7,16 @@ Reference for unit tests, integration testing against a real wiki, and the local
 
 ## Unit tests
 
-Tests use [Vitest](https://vitest.dev/). Each tool exports a `Tool<TSchema>` descriptor from `src/tools/<name>.ts`; tests import the descriptor and route through `dispatch( descriptor, ctx )` from `src/runtime/dispatcher.js`.
+Tests use [Vitest](https://vitest.dev/). Each tool exports a `Tool<TSchema>` descriptor from `src/tools/<name>.ts`; tests import the descriptor and route through `dispatch( descriptor, ctx )` from `src/runtime/dispatcher.ts`.
 
 Build a `ToolContext` per test via `fakeContext()` from `tests/helpers/fakeContext.ts`. Override only the slices the test exercises — by default unstubbed methods throw, so tests fail loudly when they reach for something they didn't mean to:
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { getPage } from '../../src/tools/get-page.js';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import { getPage } from '../../src/tools/get-page.ts';
 
 it( 'returns page source', async () => {
 	const mwn = createMockMwn( { read: vi.fn().mockResolvedValue( /* … */ ) } );

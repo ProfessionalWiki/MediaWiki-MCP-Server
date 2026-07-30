@@ -1,8 +1,8 @@
 // src/auth/tokenRefresh.ts
-import { logger } from '../runtime/logger.js';
-import { OAuthFlowError, refreshTokens } from './oauthFlow.js';
-import { createTokenStore, type StoredToken } from './tokenStore.js';
-import type { UpstreamAsMetadata } from './metadata.js';
+import { logger } from '../runtime/logger.ts';
+import { OAuthFlowError, refreshTokens } from './oauthFlow.ts';
+import { createTokenStore, type StoredToken } from './tokenStore.ts';
+import type { UpstreamAsMetadata } from './metadata.ts';
 
 const REFRESH_THRESHOLD_MS = 60_000;
 

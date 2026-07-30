@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { createMockMwnError } from '../helpers/mock-mwn-error.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { createPage } from '../../src/tools/create-page.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { createMockMwnError } from '../helpers/mock-mwn-error.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import { createPage } from '../../src/tools/create-page.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
 
 // The default fake EditService; each test spreads it and replaces only the
 // slice it exercises, so an unexpected call to another member still throws.

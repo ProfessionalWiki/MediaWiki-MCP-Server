@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { structuredResult } from '../../src/results/response.js';
-import { formatPayload } from '../../src/results/format.js';
+import { structuredResult } from '../../src/results/response.ts';
+import { formatPayload } from '../../src/results/format.ts';
 
 // structuredResult renders the payload via formatPayload and rides the result
 // in content[0].text. It also sets structuredContent to the original payload

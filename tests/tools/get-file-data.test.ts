@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { ImageContent, TextContent } from '@modelcontextprotocol/server';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { getFileData } from '../../src/tools/get-file-data.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { assertStructuredError } from '../helpers/structuredResult.js';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import { getFileData } from '../../src/tools/get-file-data.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import { assertStructuredError } from '../helpers/structuredResult.ts';
 
 // Build an action=query&prop=imageinfo response. `info` is the imageinfo[0]
 // object; pass `missing: true` for a missing-page response.

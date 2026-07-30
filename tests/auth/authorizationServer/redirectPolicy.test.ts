@@ -5,7 +5,7 @@ import {
 	buildRedirectPolicy,
 	RedirectAllowlistError,
 	redirectUriMatches,
-} from '../../../src/auth/authorizationServer/redirectPolicy.js';
+} from '../../../src/auth/authorizationServer/redirectPolicy.ts';
 
 describe('isAllowedRedirect', () => {
 	it.each([

@@ -3,8 +3,8 @@ import { describe, it, expect } from 'vitest';
 import express, { type Express, type Request } from 'express';
 import request from 'supertest';
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
-import { createMcpRouteHandler, extractBearerToken } from '../../src/transport/mcpRoute.js';
-import { getRuntimeToken } from '../../src/runtime/requestContext.js';
+import { createMcpRouteHandler, extractBearerToken } from '../../src/transport/mcpRoute.ts';
+import { getRuntimeToken } from '../../src/runtime/requestContext.ts';
 
 function req(authorization: string | undefined): Request {
 	return { headers: { authorization } } as unknown as Request;

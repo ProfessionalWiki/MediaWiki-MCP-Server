@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { WikiCacheImpl } from '../../src/wikis/wikiCache.js';
+import { WikiCacheImpl } from '../../src/wikis/wikiCache.ts';
 
 describe('WikiCacheImpl', () => {
 	it('invalidates mwnProvider, siteInfoCache, and wikiProbe for the wiki key', () => {

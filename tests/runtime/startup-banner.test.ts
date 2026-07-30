@@ -1,9 +1,9 @@
-import { type StderrWriteSpy } from '../helpers/stderrSpy.js';
+import { type StderrWriteSpy } from '../helpers/stderrSpy.ts';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { emitStartupBanner } from '../../src/runtime/banner.js';
-import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
-import type { ActiveWiki } from '../../src/wikis/activeWiki.js';
-import type { WikiConfig } from '../../src/config/loadConfig.js';
+import { emitStartupBanner } from '../../src/runtime/banner.ts';
+import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
+import type { ActiveWiki } from '../../src/wikis/activeWiki.ts';
+import type { WikiConfig } from '../../src/config/loadConfig.ts';
 
 const baseWikiConfig: WikiConfig = {
 	sitename: 'A',

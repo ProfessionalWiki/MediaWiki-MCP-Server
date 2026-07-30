@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { EditServiceImpl } from '../../src/services/editService.js';
-import type { ActiveWiki } from '../../src/wikis/activeWiki.js';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { EditServiceImpl } from '../../src/services/editService.ts';
+import type { ActiveWiki } from '../../src/wikis/activeWiki.ts';
 
 const fakeActiveWiki = (tags: string | string[] | null = null): ActiveWiki => ({
 	get: () => ({

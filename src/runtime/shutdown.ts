@@ -1,5 +1,5 @@
 import type { Server as HttpServer } from 'node:http';
-import { emitTelemetryEvent, logger } from './logger.js';
+import { emitTelemetryEvent, logger } from './logger.ts';
 
 const DEFAULT_GRACE_MS = 10_000;
 const MAX_GRACE_MS = 600_000;

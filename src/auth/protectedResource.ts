@@ -1,5 +1,5 @@
 // src/auth/protectedResource.ts
-import type { UpstreamAsMetadata } from './metadata.js';
+import type { UpstreamAsMetadata } from './metadata.ts';
 
 const RESOURCE_DOCUMENTATION =
 	'https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/blob/master/docs/configuration.md#oauth';

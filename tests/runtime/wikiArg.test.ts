@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeWikiArg, buildToolInputSchema } from '../../src/runtime/wikiArg.js';
-import { getPage } from '../../src/tools/get-page.js';
-import { addWiki } from '../../src/tools/add-wiki.js';
+import { normalizeWikiArg, buildToolInputSchema } from '../../src/runtime/wikiArg.ts';
+import { getPage } from '../../src/tools/get-page.ts';
+import { addWiki } from '../../src/tools/add-wiki.ts';
 
 describe('normalizeWikiArg', () => {
 	it('passes a bare key through', () => {

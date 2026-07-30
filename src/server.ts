@@ -1,12 +1,12 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import type { McpRequestContext, RegisteredTool } from '@modelcontextprotocol/server';
 import { createRequire } from 'node:module';
-import { registerServer, unregisterServer } from './runtime/logger.js';
-import { registerAllTools } from './tools/index.js';
-import { registerAllResources } from './resources/index.js';
-import { reconcileTools } from './runtime/reconcile.js';
-import { extensionPacks } from './tools/extensions/index.js';
-import type { ToolContext } from './runtime/context.js';
+import { registerServer, unregisterServer } from './runtime/logger.ts';
+import { registerAllTools } from './tools/index.ts';
+import { registerAllResources } from './resources/index.ts';
+import { reconcileTools } from './runtime/reconcile.ts';
+import { extensionPacks } from './tools/extensions/index.ts';
+import type { ToolContext } from './runtime/context.ts';
 
 // https://github.com/nodejs/node/issues/51347#issuecomment-2111337854
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- compile-time JSON import; ESM `import ... assert { type: 'json' }` migration is a separate follow-up

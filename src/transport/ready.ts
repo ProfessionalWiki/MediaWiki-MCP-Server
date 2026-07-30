@@ -1,7 +1,7 @@
 import type express from 'express';
-import { recordReadyFailure } from '../runtime/metrics.js';
-import type { MwnProvider } from '../wikis/mwnProvider.js';
-import type { ActiveWiki } from '../wikis/activeWiki.js';
+import { recordReadyFailure } from '../runtime/metrics.ts';
+import type { MwnProvider } from '../wikis/mwnProvider.ts';
+import type { ActiveWiki } from '../wikis/activeWiki.ts';
 
 interface ReadyCacheEntry {
 	expiresAt: number;

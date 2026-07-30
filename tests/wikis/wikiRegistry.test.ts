@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { WikiRegistryImpl, DuplicateWikiKeyError } from '../../src/wikis/wikiRegistry.js';
-import type { WikiConfig } from '../../src/config/loadConfig.js';
+import { WikiRegistryImpl, DuplicateWikiKeyError } from '../../src/wikis/wikiRegistry.ts';
+import type { WikiConfig } from '../../src/config/loadConfig.ts';
 
 const sample = (name: string): WikiConfig => ({
 	sitename: name,

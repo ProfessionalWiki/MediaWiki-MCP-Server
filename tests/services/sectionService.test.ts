@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { SectionServiceImpl } from '../../src/services/sectionService.js';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { SectionServiceImpl } from '../../src/services/sectionService.ts';
 
 describe('SectionServiceImpl', () => {
 	it('returns lead-empty plus heading lines', async () => {

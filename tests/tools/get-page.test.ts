@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { getPage } from '../../src/tools/get-page.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { ContentFormat } from '../../src/results/contentFormat.js';
-import { SectionServiceImpl } from '../../src/services/sectionService.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
-import type { SiteInfo } from '../../src/wikis/siteInfoCache.js';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import { getPage } from '../../src/tools/get-page.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import { ContentFormat } from '../../src/results/contentFormat.ts';
+import { SectionServiceImpl } from '../../src/services/sectionService.ts';
+import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
+import type { SiteInfo } from '../../src/wikis/siteInfoCache.ts';
 
 describe('get-page', () => {
 	it('returns page source using mwn.read()', async () => {

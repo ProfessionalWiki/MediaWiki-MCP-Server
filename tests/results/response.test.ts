@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ResponseFormatterImpl } from '../../src/results/response.js';
+import { ResponseFormatterImpl } from '../../src/results/response.ts';
 
 describe('ResponseFormatterImpl', () => {
 	const fmt = new ResponseFormatterImpl();

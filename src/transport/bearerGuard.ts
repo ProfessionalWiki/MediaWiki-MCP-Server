@@ -1,5 +1,5 @@
-import type { WikiConfig } from '../config/loadConfig.js';
-import { hasStaticCredentials } from '../runtime/authShape.js';
+import type { WikiConfig } from '../config/loadConfig.ts';
+import { hasStaticCredentials } from '../runtime/authShape.ts';
 
 export interface BearerGuardEnv {
 	MCP_ALLOW_STATIC_FALLBACK?: string;

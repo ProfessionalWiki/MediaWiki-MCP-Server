@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, type Mock } from 'vitest';
 import type { RegisteredTool } from '@modelcontextprotocol/server';
-import type { WikiConfig } from '../../src/config/loadConfig.js';
-import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
-import type { ActiveWiki } from '../../src/wikis/activeWiki.js';
-import type { WikiProbe } from '../../src/wikis/wikiProbe.js';
-import { reconcileTools, computeDesiredEnabledState } from '../../src/runtime/reconcile.js';
-import type { ToolGatingRule, ReconcileContext } from '../../src/runtime/reconcile.js';
-import { WRITE_TOOL_NAMES } from '../../src/runtime/wikiCapability.js';
-import type { ExtensionPack } from '../../src/tools/extensions/types.js';
-import type { Tool } from '../../src/runtime/tool.js';
+import type { WikiConfig } from '../../src/config/loadConfig.ts';
+import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
+import type { ActiveWiki } from '../../src/wikis/activeWiki.ts';
+import type { WikiProbe } from '../../src/wikis/wikiProbe.ts';
+import { reconcileTools, computeDesiredEnabledState } from '../../src/runtime/reconcile.ts';
+import type { ToolGatingRule, ReconcileContext } from '../../src/runtime/reconcile.ts';
+import { WRITE_TOOL_NAMES } from '../../src/runtime/wikiCapability.ts';
+import type { ExtensionPack } from '../../src/tools/extensions/types.ts';
+import type { Tool } from '../../src/runtime/tool.ts';
 
 const NON_WRITE_TOOL_NAMES = ['get-page', 'search-page'];
 const WIKI_SET_TOOL_NAMES = ['add-wiki', 'remove-wiki', 'list-wikis'];

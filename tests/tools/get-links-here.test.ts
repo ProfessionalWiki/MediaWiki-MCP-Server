@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { getLinksHere, LinkType, RedirectFilter } from '../../src/tools/get-links-here.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import { getLinksHere, LinkType, RedirectFilter } from '../../src/tools/get-links-here.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
 import {
 	assertStructuredData,
 	assertStructuredError,
 	assertStructuredSuccess,
-} from '../helpers/structuredResult.js';
+} from '../helpers/structuredResult.ts';
 
 // The SDK applies zod defaults in production; a direct handle() call does not,
 // and handle()'s arg type (zod output) makes defaulted fields required. This

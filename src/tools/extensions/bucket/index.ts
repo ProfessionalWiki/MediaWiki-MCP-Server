@@ -1,5 +1,5 @@
-import type { ExtensionPack } from '../types.js';
-import { bucketQuery } from './bucket-query.js';
+import type { ExtensionPack } from '../types.ts';
+import { bucketQuery } from './bucket-query.ts';
 
 export const bucketPack: ExtensionPack = {
 	id: 'bucket',

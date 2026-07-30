@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { SignJWT, UnsecuredJWT } from 'jose';
-import * as jwt from '../../../src/auth/authorizationServer/jwt.js';
+import * as jwt from '../../../src/auth/authorizationServer/jwt.ts';
 
 const key = 'k'.repeat(32);
 const issuer = 'https://wiki.example/mcp';

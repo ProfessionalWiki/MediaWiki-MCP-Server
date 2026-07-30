@@ -1,7 +1,7 @@
 import type { ApiParams, Mwn } from 'mwn';
 import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { ApiUploadResponse } from 'mwn';
-import type { ActiveWiki } from '../wikis/activeWiki.js';
+import type { ActiveWiki } from '../wikis/activeWiki.ts';
 
 export interface EditService {
 	/** Wraps mwn.request with CSRF + tag injection + formatversion=2. For action:edit and similar. */

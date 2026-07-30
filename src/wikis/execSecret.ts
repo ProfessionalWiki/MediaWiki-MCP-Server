@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
-import type { ExecSecret } from '../config/loadConfig.js';
-import { CredentialResolutionError } from '../errors/credentialResolutionError.js';
+import type { ExecSecret } from '../config/loadConfig.ts';
+import { CredentialResolutionError } from '../errors/credentialResolutionError.ts';
 
 const TIMEOUT_MS = 30_000;
 const STDERR_LIMIT = 200;

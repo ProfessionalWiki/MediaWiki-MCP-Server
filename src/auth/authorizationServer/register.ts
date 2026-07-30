@@ -1,4 +1,4 @@
-import type { ProxyStore } from './proxyStore.js';
+import type { ProxyStore } from './proxyStore.ts';
 
 export interface RegisterResult {
 	status: number;

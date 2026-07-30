@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../../../helpers/mock-mwn.js';
-import { fakeContext } from '../../../helpers/fakeContext.js';
-import { cargoListTables } from '../../../../src/tools/extensions/cargo/cargo-list-tables.js';
-import { dispatch } from '../../../../src/runtime/dispatcher.js';
+import { createMockMwn } from '../../../helpers/mock-mwn.ts';
+import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { cargoListTables } from '../../../../src/tools/extensions/cargo/cargo-list-tables.ts';
+import { dispatch } from '../../../../src/runtime/dispatcher.ts';
 import {
 	assertStructuredError,
 	assertStructuredSuccess,
-} from '../../../helpers/structuredResult.js';
+} from '../../../helpers/structuredResult.ts';
 
 describe('cargo-list-tables', () => {
 	it('forwards to action=cargotables and returns the tables array', async () => {

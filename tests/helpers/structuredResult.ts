@@ -1,6 +1,6 @@
 import { expect } from 'vitest';
 import type { CallToolResult, TextContent } from '@modelcontextprotocol/server';
-import { ErrorEnvelopeSchema, type ErrorEnvelope } from '../../src/results/schemas.js';
+import { ErrorEnvelopeSchema, type ErrorEnvelope } from '../../src/results/schemas.ts';
 
 // Tool responses ride entirely in content[0].text. Successful responses carry
 // the typed payload as labelled prose (formatPayload) and also set

@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import type { CallToolResult } from '@modelcontextprotocol/server';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import type { Tool } from '../../src/runtime/tool.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { getRequestWiki } from '../../src/runtime/requestContext.js';
-import { updatePage } from '../../src/tools/update-page.js';
-import { getPage } from '../../src/tools/get-page.js';
-import { cargoQuery } from '../../src/tools/extensions/cargo/cargo-query.js';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import type { Tool } from '../../src/runtime/tool.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import { getRequestWiki } from '../../src/runtime/requestContext.ts';
+import { updatePage } from '../../src/tools/update-page.ts';
+import { getPage } from '../../src/tools/get-page.ts';
+import { cargoQuery } from '../../src/tools/extensions/cargo/cargo-query.ts';
 
 // A minimal wiki-scoped tool that reports the wiki it ran against.
 const probe: Tool<Record<string, never>> = {

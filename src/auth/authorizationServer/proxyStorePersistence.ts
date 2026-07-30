@@ -1,11 +1,11 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { isErrnoException } from '../../errors/isErrnoException.js';
-import { recordStoreFlush, recordStoreFlushFailure } from '../../runtime/metrics.js';
-import { getProxyStorePath } from '../paths.js';
-import type { ProxyConfig } from './proxyConfig.js';
-import { deriveKey, decrypt, encrypt } from './proxyStoreCrypto.js';
+import { isErrnoException } from '../../errors/isErrnoException.ts';
+import { recordStoreFlush, recordStoreFlushFailure } from '../../runtime/metrics.ts';
+import { getProxyStorePath } from '../paths.ts';
+import type { ProxyConfig } from './proxyConfig.ts';
+import { deriveKey, decrypt, encrypt } from './proxyStoreCrypto.ts';
 import {
 	InMemoryProxyStore,
 	type ClientRecord,
@@ -15,7 +15,7 @@ import {
 	type ProxyStoreStats,
 	type TransactionRecord,
 	type UpstreamToken,
-} from './proxyStore.js';
+} from './proxyStore.ts';
 
 export class ProxyStorePersistenceError extends Error {
 	public constructor(message: string) {

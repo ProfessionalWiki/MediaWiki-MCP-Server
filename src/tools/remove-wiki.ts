@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
-import type { Tool } from '../runtime/tool.js';
-import type { ManagementContext } from '../runtime/context.js';
-import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../wikis/wikiResource.js';
+import type { Tool } from '../runtime/tool.ts';
+import type { ManagementContext } from '../runtime/context.ts';
+import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../wikis/wikiResource.ts';
 
 const inputSchema = {
 	uri: z

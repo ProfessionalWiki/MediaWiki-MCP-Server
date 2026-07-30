@@ -1,5 +1,5 @@
-import type { ClientRecord } from './proxyStore.js';
-import { isLoopbackHost } from './redirectPolicy.js';
+import type { ClientRecord } from './proxyStore.ts';
+import { isLoopbackHost } from './redirectPolicy.ts';
 
 export class CimdValidationError extends Error {
 	public constructor(message: string) {

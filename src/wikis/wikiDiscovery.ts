@@ -1,7 +1,7 @@
-import { errorMessage } from '../errors/isErrnoException.js';
-import { makeApiRequest, fetchPageHtml } from '../transport/httpFetch.js';
-import { assertPublicDestination } from '../transport/ssrfGuard.js';
-import { logger } from '../runtime/logger.js';
+import { errorMessage } from '../errors/isErrnoException.ts';
+import { makeApiRequest, fetchPageHtml } from '../transport/httpFetch.ts';
+import { assertPublicDestination } from '../transport/ssrfGuard.ts';
+import { logger } from '../runtime/logger.ts';
 
 const COMMON_SCRIPT_PATHS = ['/w', ''];
 

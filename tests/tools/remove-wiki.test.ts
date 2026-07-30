@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import type { WikiConfig } from '../../src/config/loadConfig.js';
-import { formatPayload } from '../../src/results/format.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
-import { fakeManagementContext } from '../helpers/fakeContext.js';
-import { removeWiki } from '../../src/tools/remove-wiki.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
+import type { WikiConfig } from '../../src/config/loadConfig.ts';
+import { formatPayload } from '../../src/results/format.ts';
+import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
+import { fakeManagementContext } from '../helpers/fakeContext.ts';
+import { removeWiki } from '../../src/tools/remove-wiki.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
 
 function wikiConfig(overrides: Partial<WikiConfig> = {}): WikiConfig {
 	return {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import type { ToolContext } from '../../src/runtime/context.js';
-import { formatEditComment } from '../../src/wikis/utils.js';
-import { fakeContext } from '../helpers/fakeContext.js';
+import type { ToolContext } from '../../src/runtime/context.ts';
+import { formatEditComment } from '../../src/wikis/utils.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
 
 function ctxWithAttribution(attributeEdits?: boolean): ToolContext {
 	return fakeContext({

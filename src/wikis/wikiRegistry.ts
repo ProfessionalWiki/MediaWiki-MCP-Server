@@ -1,5 +1,5 @@
-import type { WikiConfig } from '../config/loadConfig.js';
-import { wikiKeyProblem, wikiKeyProblemMessage } from '../runtime/wikiKey.js';
+import type { WikiConfig } from '../config/loadConfig.ts';
+import { wikiKeyProblem, wikiKeyProblemMessage } from '../runtime/wikiKey.ts';
 
 export interface WikiRegistry {
 	getAll(): Readonly<Record<string, WikiConfig>>;

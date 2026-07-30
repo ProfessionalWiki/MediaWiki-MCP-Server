@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../../../helpers/mock-mwn.js';
-import { fakeContext } from '../../../helpers/fakeContext.js';
-import { neowikiGetSchema } from '../../../../src/tools/extensions/neowiki/neowiki-get-schema.js';
-import { assertStructuredError } from '../../../helpers/structuredResult.js';
+import { createMockMwn } from '../../../helpers/mock-mwn.ts';
+import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { neowikiGetSchema } from '../../../../src/tools/extensions/neowiki/neowiki-get-schema.ts';
+import { assertStructuredError } from '../../../helpers/structuredResult.ts';
 
 describe('neowiki-get-schema', () => {
 	it('normalizes propertyDefinitions to a properties array, preserving relation/select metadata', async () => {

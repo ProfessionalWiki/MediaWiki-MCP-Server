@@ -8,9 +8,9 @@ vi.mock('node-fetch', async () => {
 	};
 });
 
-vi.mock('../../src/transport/ssrfGuard.js', async () => {
-	const actual = await vi.importActual<typeof import('../../src/transport/ssrfGuard.js')>(
-		'../../src/transport/ssrfGuard.js',
+vi.mock('../../src/transport/ssrfGuard.ts', async () => {
+	const actual = await vi.importActual<typeof import('../../src/transport/ssrfGuard.ts')>(
+		'../../src/transport/ssrfGuard.ts',
 	);
 	return { ...actual, assertPublicDestination: vi.fn(), buildPinnedAgent: vi.fn() };
 });
@@ -20,7 +20,7 @@ import {
 	assertPublicDestination,
 	buildPinnedAgent,
 	SsrfValidationError,
-} from '../../src/transport/ssrfGuard.js';
+} from '../../src/transport/ssrfGuard.ts';
 import {
 	makeApiRequest,
 	fetchPageHtml,
@@ -28,7 +28,7 @@ import {
 	shouldRescueToWiki,
 	HttpStatusError,
 	FileTooLargeError,
-} from '../../src/transport/httpFetch.js';
+} from '../../src/transport/httpFetch.ts';
 
 describe('utils.fetchCore (via makeApiRequest / fetchPageHtml)', () => {
 	beforeEach(() => {

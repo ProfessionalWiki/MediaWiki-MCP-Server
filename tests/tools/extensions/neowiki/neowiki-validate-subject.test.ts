@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../../../helpers/mock-mwn.js';
-import { fakeContext } from '../../../helpers/fakeContext.js';
-import { neowikiValidateSubject } from '../../../../src/tools/extensions/neowiki/neowiki-validate-subject.js';
-import { assertStructuredError } from '../../../helpers/structuredResult.js';
+import { createMockMwn } from '../../../helpers/mock-mwn.ts';
+import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { neowikiValidateSubject } from '../../../../src/tools/extensions/neowiki/neowiki-validate-subject.ts';
+import { assertStructuredError } from '../../../helpers/structuredResult.ts';
 
 const stmts = { Founded: { propertyType: 'number', value: 2019 } };
 
