@@ -85,6 +85,26 @@ describe('2026-07-28 era over Streamable HTTP (in-memory)', () => {
 		expect(result.isError ?? false).toBe(false);
 	});
 
+	it('stamps the configured cache hints on cacheable modern-era results', async () => {
+		const { handler } = buildHandler();
+		cleanups.push(() => handler.close());
+
+		const client = new Client(
+			{ name: 'cache-hint-test', version: '0.0.0' },
+			{ versionNegotiation: { mode: { pin: '2026-07-28' } } },
+		);
+		cleanups.push(() => client.close());
+		await client.connect(clientTransport(handler));
+
+		const tools = await client.listTools();
+		expect(tools.ttlMs).toBe(60_000);
+		expect(tools.cacheScope).toBe('private');
+
+		const resources = await client.listResources();
+		expect(resources.ttlMs).toBe(60_000);
+		expect(resources.cacheScope).toBe('private');
+	});
+
 	it('falls back to a legacy handshake through the same handler when negotiation is off', async () => {
 		const { handler } = buildHandler();
 		cleanups.push(() => handler.close());
