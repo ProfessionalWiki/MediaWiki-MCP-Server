@@ -19,6 +19,9 @@ describe('createServer capabilities', () => {
 		const client = new Client({ name: 'server-test', version: '0.0.0' });
 		await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
 		try {
+			// The positive assertion anchors the negative one: without it, a
+			// capabilities object that never arrived would also pass.
+			expect(client.getServerCapabilities()?.tools).toBeDefined();
 			expect(client.getServerCapabilities()?.logging).toBeUndefined();
 		} finally {
 			await client.close();
