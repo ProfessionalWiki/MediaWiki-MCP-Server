@@ -18,6 +18,9 @@ import { uploadFile } from '../../src/tools/upload-file.js';
 import { dispatch } from '../../src/runtime/dispatcher.js';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
 
+// fakeContext's edit slice throws on any method a test leaves unstubbed.
+const baseEdit = fakeContext().edit;
+
 describe('upload-file', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -33,11 +36,7 @@ describe('upload-file', () => {
 		const submitUpload = vi.fn();
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			edit: {
-				submit: vi.fn() as never,
-				submitUpload: submitUpload as never,
-				applyTags: (o: object) => ({ ...o }),
-			},
+			edit: { ...baseEdit, submitUpload },
 			uploadDirs: { list: () => ['/home/user/uploads'] },
 		});
 
@@ -62,11 +61,7 @@ describe('upload-file', () => {
 		const submitUpload = vi.fn();
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			edit: {
-				submit: vi.fn() as never,
-				submitUpload: submitUpload as never,
-				applyTags: (o: object) => ({ ...o }),
-			},
+			edit: { ...baseEdit, submitUpload },
 			uploadDirs: { list: () => ['/home/user/uploads'] },
 		});
 
@@ -97,11 +92,7 @@ describe('upload-file', () => {
 		});
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			edit: {
-				submit: vi.fn() as never,
-				submitUpload: submitUpload as never,
-				applyTags: (o: object) => ({ ...o }),
-			},
+			edit: { ...baseEdit, submitUpload },
 			uploadDirs: { list: () => ['/home/user/uploads'] },
 		});
 
@@ -136,11 +127,7 @@ describe('upload-file', () => {
 		const submitUpload = vi.fn().mockResolvedValue({ result: 'Success' });
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			edit: {
-				submit: vi.fn() as never,
-				submitUpload: submitUpload as never,
-				applyTags: (o: object) => ({ ...o }),
-			},
+			edit: { ...baseEdit, submitUpload },
 			uploadDirs: { list: () => ['/home/user/uploads'] },
 		});
 
@@ -164,11 +151,7 @@ describe('upload-file', () => {
 		const submitUpload = vi.fn().mockRejectedValue(createMockMwnError('permissiondenied'));
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			edit: {
-				submit: vi.fn() as never,
-				submitUpload: submitUpload as never,
-				applyTags: (o: object) => ({ ...o }),
-			},
+			edit: { ...baseEdit, submitUpload },
 			uploadDirs: { list: () => ['/home/user/uploads'] },
 		});
 

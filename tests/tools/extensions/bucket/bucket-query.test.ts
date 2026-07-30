@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, type Mock } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.js';
 import { fakeContext } from '../../../helpers/fakeContext.js';
 import { bucketQuery } from '../../../../src/tools/extensions/bucket/bucket-query.js';
@@ -17,7 +17,7 @@ function renderedQuery(call: unknown[]): string {
 	return new URLSearchParams(opts.data).get('query') ?? '';
 }
 
-function rawRequestMock(payload: unknown): ReturnType<typeof vi.fn> {
+function rawRequestMock(payload: unknown): Mock {
 	return vi.fn().mockResolvedValue({ data: payload });
 }
 

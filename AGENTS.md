@@ -23,9 +23,10 @@ Project context for AI coding agents working on this repo. For human users, star
 - `npm run build` — compile TypeScript to `dist/`.
 - `npm test` — run the vitest suite once.
 - `npm run lint` — oxlint.
+- `npm run typecheck` — `tsc --noEmit` over `src` **and** `tests`, via `tsconfig.lint.json`. `npm run build` only typechecks `src`, so this is the check that covers test code.
 - `npm run fmt` / `npm run fmt:check` — oxfmt (write / dry-run).
-- `npm run preflight` — full gate (install, lint, fmt check, validate `server.json`, test, build, bundle). Run before a release.
-- Git hooks: `lefthook` auto-installs on `npm install`. Pre-commit runs `oxfmt` (auto-fix on staged files) + `oxlint`. Pre-push runs `tsc --noEmit` + the test suite. Bypass with `--no-verify`.
+- `npm run preflight` — full gate (install, lint, typecheck, fmt check, validate `server.json`, test, build, bundle). Run before a release.
+- Git hooks: `lefthook` auto-installs on `npm install`. Pre-commit runs `oxfmt` (auto-fix on staged files) + `oxlint`. Pre-push runs `npm run typecheck` + the test suite. Bypass with `--no-verify`.
 - `npm run inspector` — watch-mode build + MCP Inspector UI for interactive debugging.
 
 ## Tool conventions

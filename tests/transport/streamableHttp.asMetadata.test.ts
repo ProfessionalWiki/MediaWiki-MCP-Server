@@ -7,7 +7,7 @@ import {
 	type ProxyConfigGetter,
 } from '../../src/transport/streamableHttp.js';
 import { buildAsMetadata } from '../../src/auth/authorizationServer/asMetadata.js';
-import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.js';
+import { fakeProxyConfig } from '../helpers/fakeProxyConfig.js';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.js';
@@ -23,18 +23,15 @@ function fakeRegistry(wikis: Record<string, Partial<WikiConfig>>): WikiRegistry 
 	} as unknown as WikiRegistry;
 }
 
-const PROXY: ProxyConfig = {
+// A proxy whose own issuer (mcp.example) differs from the upstream wiki it
+// fronts, so an endpoint accidentally rooted at the wiki rather than at the
+// issuer shows up in the assertions below.
+const PROXY = fakeProxyConfig({
 	issuer: 'https://mcp.example/mcp',
-	authorizeBase: 'https://wiki.example',
 	tokenExchangeBase: 'https://wiki.svc',
-	scriptpath: '/w',
 	callbackUrl: 'https://mcp.example/mcp/oauth/callback',
 	upstreamClientId: 'client-id',
-	signingKey: 'k'.repeat(32),
-	consentTtlMs: 1000,
-	tokenTtlMs: 1000,
-	redirectAllowlist: [],
-};
+});
 
 // Mirrors the production AS-metadata route handler in streamableHttp.ts so the
 // 200/404 gating can be exercised without booting the side-effecting module.

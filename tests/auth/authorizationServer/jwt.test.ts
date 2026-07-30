@@ -230,6 +230,7 @@ describe('proxy jwt', () => {
 				issuer,
 				signingKey: key,
 				upstreamTokenId: 'u1',
+				refreshId: 'rid-1',
 				ttlMs: 60_000,
 			});
 			expect(

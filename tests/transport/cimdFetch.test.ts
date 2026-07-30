@@ -1,12 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import { Agent as HttpsAgent } from 'node:https';
+import type { assertPublicDestination, buildPinnedAgent } from '../../src/transport/ssrfGuard.js';
+
 // Held in top-level variables (like fetchMock below) rather than created inline
 // in the vi.mock factory: a mock function referenced only through a dynamically
 // re-imported module binding does not reliably share state with the instance
 // cimdFetch.ts's static import resolves to, which let a consumed
 // mockRejectedValueOnce leak into a later test's unrelated call.
-const assertPublicDestinationMock = vi.fn(async () => [{ address: '93.184.216.34', family: 4 }]);
-const buildPinnedAgentMock = vi.fn(() => undefined);
+// Typed against the real exports so the doubles keep the guard's signatures.
+const assertPublicDestinationMock = vi.fn<typeof assertPublicDestination>(async () => [
+	{ address: '93.184.216.34', family: 4 },
+]);
+const buildPinnedAgentMock = vi.fn<typeof buildPinnedAgent>(() => new HttpsAgent());
 vi.mock('../../src/transport/ssrfGuard.js', async () => {
 	const actual = await vi.importActual<typeof import('../../src/transport/ssrfGuard.js')>(
 		'../../src/transport/ssrfGuard.js',

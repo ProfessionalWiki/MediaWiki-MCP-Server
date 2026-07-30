@@ -1,3 +1,4 @@
+import { type StderrWriteSpy } from '../helpers/stderrSpy.js';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { emitStartupBanner } from '../../src/runtime/banner.js';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
@@ -26,7 +27,7 @@ const mockActiveWiki: ActiveWiki = {
 
 const mockUploadDirs = { list: () => [] };
 
-function captureLines(spy: ReturnType<typeof vi.spyOn>): Record<string, unknown>[] {
+function captureLines(spy: StderrWriteSpy): Record<string, unknown>[] {
 	return spy.mock.calls
 		.map((c) => String(c[0]))
 		.filter((s) => s.startsWith('{'))
@@ -34,7 +35,7 @@ function captureLines(spy: ReturnType<typeof vi.spyOn>): Record<string, unknown>
 }
 
 describe('startup banner', () => {
-	let stderrSpy: ReturnType<typeof vi.spyOn>;
+	let stderrSpy: StderrWriteSpy;
 
 	beforeEach(() => {
 		vi.stubEnv('MCP_LOG_LEVEL', 'debug');

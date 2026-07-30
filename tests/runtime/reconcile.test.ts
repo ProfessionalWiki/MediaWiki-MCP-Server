@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, type Mock } from 'vitest';
 import type { RegisteredTool } from '@modelcontextprotocol/server';
 import type { WikiConfig } from '../../src/config/loadConfig.js';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
@@ -16,8 +16,8 @@ const STDIO_ONLY_TOOL_NAMES = ['oauth-status', 'oauth-logout'];
 
 interface MockTool {
 	enabled: boolean;
-	enable: ReturnType<typeof vi.fn>;
-	disable: ReturnType<typeof vi.fn>;
+	enable: Mock;
+	disable: Mock;
 }
 
 function makeMockTool(initiallyEnabled: boolean): MockTool {

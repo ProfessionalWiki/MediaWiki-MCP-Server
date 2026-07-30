@@ -20,7 +20,7 @@ import { createToolContext } from '../../src/runtime/createContext.js';
 import { logger } from '../../src/runtime/logger.js';
 import { withRequestContext, getRuntimeToken } from '../../src/runtime/requestContext.js';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.js';
-import { runHostedFlow } from '../helpers/fakeMcpClient.js';
+import { runHostedFlow, setCookieHeaders } from '../helpers/fakeMcpClient.js';
 
 const ISSUER = 'https://mcp.example/mcp';
 const SIGNING_KEY = 'k'.repeat(32);
@@ -428,7 +428,7 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		};
 		const authz = await request(app).get('/mcp/authorize').query(params);
 		expect(authz.status).toBe(200);
-		const csrfSetCookie = ((authz.headers['set-cookie'] as string[] | undefined) ?? []).find((c) =>
+		const csrfSetCookie = setCookieHeaders(authz.headers['set-cookie']).find((c) =>
 			c.startsWith('mcp_consent_csrf='),
 		);
 		const csrf = csrfSetCookie ? csrfSetCookie.split(';')[0].split('=').slice(1).join('=') : '';
@@ -529,7 +529,7 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 			// off the URL it is given, so a fall-through would plant the CLIENT's own
 			// state as the proxy transaction id. Asserted with a predicate because a
 			// negated `toContain` against an asymmetric matcher can never fail.
-			const setCookies = (res.headers['set-cookie'] as string[] | undefined) ?? [];
+			const setCookies = setCookieHeaders(res.headers['set-cookie']);
 			expect(setCookies.some((c) => c.startsWith('mcp_txn='))).toBe(false);
 		});
 
@@ -560,7 +560,7 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 			// falls through to the "consent could not be applied" page, which is the
 			// same dead end on the client's side.
 			const authz = await request(app).get('/mcp/authorize').query(params);
-			const cookies = (authz.headers['set-cookie'] as string[]) ?? [];
+			const cookies = setCookieHeaders(authz.headers['set-cookie']);
 			const csrf = cookies.find((c) => c.startsWith('mcp_consent_csrf='))!.split(';')[0];
 			const csrfToken = csrf.split('=').slice(1).join('=');
 
@@ -575,7 +575,7 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 			const loc = new URL(res.headers.location as string);
 			expect(loc.searchParams.get('error')).toBe('invalid_target');
 			expect(loc.searchParams.get('iss')).toBe(ISSUER);
-			const setCookies = (res.headers['set-cookie'] as string[] | undefined) ?? [];
+			const setCookies = setCookieHeaders(res.headers['set-cookie']);
 			expect(setCookies.some((c) => c.startsWith('mcp_txn='))).toBe(false);
 		});
 
@@ -1269,7 +1269,7 @@ async function runFlowUpToCode(
 		scope: 'mwoauth-authonly',
 	};
 	const authz = await request(app).get('/mcp/authorize').query(params);
-	const csrfSetCookie = ((authz.headers['set-cookie'] as string[] | undefined) ?? []).find((c) =>
+	const csrfSetCookie = setCookieHeaders(authz.headers['set-cookie']).find((c) =>
 		c.startsWith('mcp_consent_csrf='),
 	);
 	const csrf = csrfSetCookie ? csrfSetCookie.split(';')[0].split('=').slice(1).join('=') : '';
@@ -1279,8 +1279,7 @@ async function runFlowUpToCode(
 		.set('Cookie', `mcp_consent_csrf=${csrf}`)
 		.type('form')
 		.send({ decision: 'approve', csrf });
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- supertest header value is string|string[]
-	const cookie = (consent.headers['set-cookie'] as string[])[0].split(';')[0];
+	const cookie = setCookieHeaders(consent.headers['set-cookie'])[0].split(';')[0];
 	const upstream = await fetch(consent.headers.location, { redirect: 'manual' });
 	const cb = new URL(upstream.headers.get('location')!);
 	const cbRes = await request(app)

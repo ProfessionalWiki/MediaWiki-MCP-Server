@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { type StderrWriteSpy } from '../helpers/stderrSpy.js';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 
 vi.mock('../../src/runtime/metrics.js', () => ({
@@ -16,7 +17,7 @@ import {
 import { registerServer, clearRegisteredServers } from '../../src/runtime/logger.js';
 import { recordToolCall } from '../../src/runtime/metrics.js';
 
-function captureToolCallLine(spy: ReturnType<typeof vi.spyOn>): Record<string, unknown> {
+function captureToolCallLine(spy: StderrWriteSpy): Record<string, unknown> {
 	const events = spy.mock.calls
 		.map((c) => String(c[0]))
 		.filter((s) => s.startsWith('{'))
@@ -152,7 +153,7 @@ describe('safeTarget', () => {
 });
 
 describe('emitToolCall', () => {
-	let stderrSpy: ReturnType<typeof vi.spyOn>;
+	let stderrSpy: StderrWriteSpy;
 
 	beforeEach(() => {
 		vi.stubEnv('MCP_LOG_LEVEL', 'debug');
@@ -398,7 +399,7 @@ describe('emitToolCall', () => {
 
 describe('emitToolCall — metrics integration', () => {
 	beforeEach(() => {
-		(recordToolCall as ReturnType<typeof vi.fn>).mockClear();
+		(recordToolCall as Mock).mockClear();
 	});
 
 	it('forwards the call to recordToolCall with raw duration and labels', () => {
@@ -416,7 +417,7 @@ describe('emitToolCall — metrics integration', () => {
 		});
 		stderrSpy.mockRestore();
 		expect(recordToolCall).toHaveBeenCalledTimes(1);
-		const call = (recordToolCall as ReturnType<typeof vi.fn>).mock.calls[0][0];
+		const call = (recordToolCall as Mock).mock.calls[0][0];
 		expect(call).toMatchObject({
 			tool: 'get-page',
 			wiki: 'example.org',
@@ -441,7 +442,7 @@ describe('emitToolCall — metrics integration', () => {
 			wikiKey: 'example.org',
 		});
 		stderrSpy.mockRestore();
-		const call = (recordToolCall as ReturnType<typeof vi.fn>).mock.calls[0][0];
+		const call = (recordToolCall as Mock).mock.calls[0][0];
 		expect(call.upstreamStatus).toBeUndefined();
 	});
 });

@@ -8,6 +8,7 @@ import { Agent as HttpAgent } from 'node:http';
 import { Agent as HttpsAgent } from 'node:https';
 import { lookup } from 'node:dns/promises';
 import { assertPublicDestination, buildPinnedAgent } from '../../src/transport/ssrfGuard.js';
+import { mockedLookupAll } from '../helpers/mockDnsLookup.js';
 
 describe('ssrfGuard.assertPublicDestination', () => {
 	beforeEach(() => {
@@ -19,46 +20,46 @@ describe('ssrfGuard.assertPublicDestination', () => {
 	});
 
 	it('rejects an IPv4 loopback literal', async () => {
-		vi.mocked(lookup).mockResolvedValue([{ address: '127.0.0.1', family: 4 }]);
+		mockedLookupAll().mockResolvedValue([{ address: '127.0.0.1', family: 4 }]);
 		await expect(assertPublicDestination('http://127.0.0.1/')).rejects.toThrow(/127\.0\.0\.1/);
 	});
 
 	it('rejects the cloud metadata link-local address', async () => {
-		vi.mocked(lookup).mockResolvedValue([{ address: '169.254.169.254', family: 4 }]);
+		mockedLookupAll().mockResolvedValue([{ address: '169.254.169.254', family: 4 }]);
 		await expect(
 			assertPublicDestination('http://169.254.169.254/latest/meta-data/'),
 		).rejects.toThrow(/169\.254\.169\.254/);
 	});
 
 	it('rejects a hostname resolving to RFC1918 space', async () => {
-		vi.mocked(lookup).mockResolvedValue([{ address: '10.0.0.5', family: 4 }]);
+		mockedLookupAll().mockResolvedValue([{ address: '10.0.0.5', family: 4 }]);
 		await expect(assertPublicDestination('https://internal.example/')).rejects.toThrow(
 			/10\.0\.0\.5/,
 		);
 	});
 
 	it('rejects CGNAT and other non-unicast v4 ranges', async () => {
-		vi.mocked(lookup).mockResolvedValue([{ address: '100.64.0.1', family: 4 }]);
+		mockedLookupAll().mockResolvedValue([{ address: '100.64.0.1', family: 4 }]);
 		await expect(assertPublicDestination('https://cgnat.example/')).rejects.toThrow();
 	});
 
 	it('rejects IPv6 loopback', async () => {
-		vi.mocked(lookup).mockResolvedValue([{ address: '::1', family: 6 }]);
+		mockedLookupAll().mockResolvedValue([{ address: '::1', family: 6 }]);
 		await expect(assertPublicDestination('http://[::1]/')).rejects.toThrow(/::1/);
 	});
 
 	it('rejects IPv6 unique-local (fc00::/7)', async () => {
-		vi.mocked(lookup).mockResolvedValue([{ address: 'fd12:3456:789a::1', family: 6 }]);
+		mockedLookupAll().mockResolvedValue([{ address: 'fd12:3456:789a::1', family: 6 }]);
 		await expect(assertPublicDestination('https://ula.example/')).rejects.toThrow();
 	});
 
 	it('unwraps IPv4-mapped IPv6 and rejects underlying private v4', async () => {
-		vi.mocked(lookup).mockResolvedValue([{ address: '::ffff:127.0.0.1', family: 6 }]);
+		mockedLookupAll().mockResolvedValue([{ address: '::ffff:127.0.0.1', family: 6 }]);
 		await expect(assertPublicDestination('https://mapped.example/')).rejects.toThrow(/loopback/);
 	});
 
 	it('rejects when any resolved address is private in a dual-stack result', async () => {
-		vi.mocked(lookup).mockResolvedValue([
+		mockedLookupAll().mockResolvedValue([
 			{ address: '93.184.216.34', family: 4 },
 			{ address: '::1', family: 6 },
 		]);
@@ -70,7 +71,7 @@ describe('ssrfGuard.assertPublicDestination', () => {
 			{ address: '93.184.216.34', family: 4 },
 			{ address: '2606:2800:220:1:248:1893:25c8:1946', family: 6 },
 		];
-		vi.mocked(lookup).mockResolvedValue(addrs);
+		mockedLookupAll().mockResolvedValue(addrs);
 
 		const result = await assertPublicDestination('https://example.com/wiki/Main_Page');
 
@@ -78,26 +79,26 @@ describe('ssrfGuard.assertPublicDestination', () => {
 	});
 
 	it('rejects IPv4 benchmarking range 198.18.0.0/15 (RFC 2544)', async () => {
-		vi.mocked(lookup).mockResolvedValue([{ address: '198.18.0.1', family: 4 }]);
+		mockedLookupAll().mockResolvedValue([{ address: '198.18.0.1', family: 4 }]);
 		await expect(assertPublicDestination('https://bench.example/')).rejects.toThrow(
 			/198\.18\.0\.1/,
 		);
 	});
 
 	it('rejects deprecated IPv6 site-local fec0::/10', async () => {
-		vi.mocked(lookup).mockResolvedValue([{ address: 'fec0::1', family: 6 }]);
+		mockedLookupAll().mockResolvedValue([{ address: 'fec0::1', family: 6 }]);
 		await expect(assertPublicDestination('https://sitelocal.example/')).rejects.toThrow(/fec0::1/);
 	});
 
 	it('rejects deprecated IPv6 6bone 3ffe::/16', async () => {
-		vi.mocked(lookup).mockResolvedValue([{ address: '3ffe:1234::1', family: 6 }]);
+		mockedLookupAll().mockResolvedValue([{ address: '3ffe:1234::1', family: 6 }]);
 		await expect(assertPublicDestination('https://sixbone.example/')).rejects.toThrow(
 			/3ffe:1234::1/,
 		);
 	});
 
 	it('accepts a protocol-relative URL (MediaWiki siteinfo shape) by assuming https', async () => {
-		vi.mocked(lookup).mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+		mockedLookupAll().mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
 
 		const result = await assertPublicDestination('//en.wikipedia.org');
 
@@ -106,14 +107,14 @@ describe('ssrfGuard.assertPublicDestination', () => {
 	});
 
 	it('rejects when DNS lookup returns no addresses', async () => {
-		vi.mocked(lookup).mockResolvedValue([]);
+		mockedLookupAll().mockResolvedValue([]);
 		await expect(assertPublicDestination('https://empty.example/')).rejects.toThrow(
 			/no addresses/i,
 		);
 	});
 
 	it('surfaces DNS lookup failures to the caller', async () => {
-		vi.mocked(lookup).mockRejectedValue(
+		mockedLookupAll().mockRejectedValue(
 			Object.assign(new Error('getaddrinfo ENOTFOUND nope.invalid'), { code: 'ENOTFOUND' }),
 		);
 		await expect(assertPublicDestination('https://nope.invalid/')).rejects.toThrow(/ENOTFOUND/);
@@ -132,7 +133,7 @@ describe('ssrfGuard.assertPublicDestination with MCP_TRUSTED_HOSTS', () => {
 	it('allows a trusted host that resolves to a private IP, still returning the addresses for pinning', async () => {
 		process.env.MCP_TRUSTED_HOSTS = 'mediawiki.svc';
 		const addrs = [{ address: '172.18.0.5', family: 4 }];
-		vi.mocked(lookup).mockResolvedValue(addrs);
+		mockedLookupAll().mockResolvedValue(addrs);
 
 		const result = await assertPublicDestination('http://mediawiki.svc:80/w/api.php');
 
@@ -143,13 +144,13 @@ describe('ssrfGuard.assertPublicDestination with MCP_TRUSTED_HOSTS', () => {
 
 	it('still rejects a non-listed private host while an allowlist is set', async () => {
 		process.env.MCP_TRUSTED_HOSTS = 'mediawiki.svc';
-		vi.mocked(lookup).mockResolvedValue([{ address: '10.0.0.5', family: 4 }]);
+		mockedLookupAll().mockResolvedValue([{ address: '10.0.0.5', family: 4 }]);
 		await expect(assertPublicDestination('http://other.svc/')).rejects.toThrow(/10\.0\.0\.5/);
 	});
 
 	it('matches the allowlist exactly, not as a suffix (no mediawiki.svc.evil.com bypass)', async () => {
 		process.env.MCP_TRUSTED_HOSTS = 'mediawiki.svc';
-		vi.mocked(lookup).mockResolvedValue([{ address: '172.18.0.5', family: 4 }]);
+		mockedLookupAll().mockResolvedValue([{ address: '172.18.0.5', family: 4 }]);
 		await expect(assertPublicDestination('http://mediawiki.svc.evil.com/')).rejects.toThrow(
 			/172\.18\.0\.5/,
 		);
@@ -157,13 +158,13 @@ describe('ssrfGuard.assertPublicDestination with MCP_TRUSTED_HOSTS', () => {
 
 	it('still requires DNS to resolve to at least one address for a trusted host', async () => {
 		process.env.MCP_TRUSTED_HOSTS = 'mediawiki.svc';
-		vi.mocked(lookup).mockResolvedValue([]);
+		mockedLookupAll().mockResolvedValue([]);
 		await expect(assertPublicDestination('http://mediawiki.svc/')).rejects.toThrow(/no addresses/i);
 	});
 
 	it('honours a host:port entry only for the matching port', async () => {
 		process.env.MCP_TRUSTED_HOSTS = 'mediawiki.svc:8080';
-		vi.mocked(lookup).mockResolvedValue([{ address: '172.18.0.5', family: 4 }]);
+		mockedLookupAll().mockResolvedValue([{ address: '172.18.0.5', family: 4 }]);
 		await expect(assertPublicDestination('http://mediawiki.svc:8080/')).resolves.toEqual([
 			{ address: '172.18.0.5', family: 4 },
 		]);
@@ -174,14 +175,14 @@ describe('ssrfGuard.assertPublicDestination with MCP_TRUSTED_HOSTS', () => {
 
 	it('trims and case-folds comma-separated entries', async () => {
 		process.env.MCP_TRUSTED_HOSTS = ' Foo.Internal , Mediawiki.SVC ';
-		vi.mocked(lookup).mockResolvedValue([{ address: '172.18.0.5', family: 4 }]);
+		mockedLookupAll().mockResolvedValue([{ address: '172.18.0.5', family: 4 }]);
 		await expect(assertPublicDestination('http://mediawiki.svc/')).resolves.toEqual([
 			{ address: '172.18.0.5', family: 4 },
 		]);
 	});
 
 	it('has no effect when unset (guard stays on for private IPs)', async () => {
-		vi.mocked(lookup).mockResolvedValue([{ address: '172.18.0.5', family: 4 }]);
+		mockedLookupAll().mockResolvedValue([{ address: '172.18.0.5', family: 4 }]);
 		await expect(assertPublicDestination('http://mediawiki.svc/')).rejects.toThrow(/172\.18\.0\.5/);
 	});
 });

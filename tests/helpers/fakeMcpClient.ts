@@ -108,10 +108,19 @@ export async function registerClient(
 	return { clientId: String(body.client_id), body };
 }
 
+// Node parses set-cookie into an array of header lines, but superagent's Response
+// declares `headers` as Record<string, string>. Take whichever shape arrives and
+// return the header lines.
+export function setCookieHeaders(value: string | string[] | undefined): string[] {
+	if (value === undefined) {
+		return [];
+	}
+	return Array.isArray(value) ? value : [value];
+}
+
 // Parses the Set-Cookie header(s) for the mcp_consent cookie and returns a value
 // suitable for a subsequent Cookie request header.
-function consentCookieFrom(setCookie: string[] | undefined): string {
-	const headers = setCookie ?? [];
+function consentCookieFrom(headers: string[]): string {
 	for (const c of headers) {
 		const first = c.split(';')[0];
 		if (first.startsWith('mcp_consent=')) {
@@ -155,7 +164,7 @@ export async function runHostedFlow(opts: FakeMcpClientOptions): Promise<FakeMcp
 	if (authRes.status !== 200 || !/Authorize application/.test(authRes.text)) {
 		throw new FakeMcpClientError('expected consent page', authRes.status, authRes.text);
 	}
-	const csrfSetCookie = ((authRes.headers['set-cookie'] as string[] | undefined) ?? []).find((c) =>
+	const csrfSetCookie = setCookieHeaders(authRes.headers['set-cookie']).find((c) =>
 		c.startsWith('mcp_consent_csrf='),
 	);
 	const csrfToken = csrfSetCookie ? csrfSetCookie.split(';')[0].split('=').slice(1).join('=') : '';
@@ -172,8 +181,7 @@ export async function runHostedFlow(opts: FakeMcpClientOptions): Promise<FakeMcp
 	if (consentRes.status !== 302) {
 		throw new FakeMcpClientError('consent did not redirect', consentRes.status, consentRes.body);
 	}
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- supertest header value is string|string[]
-	const consentCookie = consentCookieFrom(consentRes.headers['set-cookie'] as string[] | undefined);
+	const consentCookie = consentCookieFrom(setCookieHeaders(consentRes.headers['set-cookie']));
 	const upstreamAuthorizeUrl = consentRes.headers.location;
 	if (typeof upstreamAuthorizeUrl !== 'string') {
 		throw new Error('consent response carried no Location');

@@ -29,18 +29,16 @@ const UPLOAD_OK = {
 	},
 };
 
+// fakeContext's edit slice throws on any method a test leaves unstubbed.
+const baseEdit = fakeContext().edit;
+
 function ctxWithServerUpload(
 	mock: ReturnType<typeof createMockMwn>,
 	submitUploadFromBytes = vi.fn().mockResolvedValue(UPLOAD_OK),
 ) {
 	return fakeContext({
 		mwn: async () => mock as never,
-		edit: {
-			submit: vi.fn() as never,
-			submitUpload: vi.fn() as never,
-			submitUploadFromBytes: submitUploadFromBytes as never,
-			applyTags: (o: object) => ({ ...o }),
-		},
+		edit: { ...baseEdit, submitUploadFromBytes },
 	});
 }
 
@@ -171,10 +169,9 @@ describe('upload-file-from-url', () => {
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
 			edit: {
-				submit: vi.fn() as never,
-				submitUpload: vi.fn() as never,
-				submitUploadFromBytes: vi.fn() as never,
-				applyTags: (o: object) => ({ ...o, tags: 'mcp-server' }),
+				...baseEdit,
+				submitUploadFromBytes: vi.fn(),
+				applyTags: <T extends Record<string, unknown>>(o: T) => ({ ...o, tags: 'mcp-server' }),
 			},
 		});
 

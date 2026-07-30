@@ -1,8 +1,10 @@
+import { type StderrWriteSpy } from '../helpers/stderrSpy.js';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { z } from 'zod';
 import { dispatch } from '../../src/runtime/dispatcher.js';
 import type { Tool } from '../../src/runtime/tool.js';
 import { fakeContext } from '../helpers/fakeContext.js';
+import { fakeLogger } from '../helpers/fakeLogger.js';
 import { createMockMwnError } from '../helpers/mock-mwn-error.js';
 import { clearRegisteredServers } from '../../src/runtime/logger.js';
 import { CredentialResolutionError } from '../../src/errors/credentialResolutionError.js';
@@ -24,9 +26,7 @@ const noopTool = (handle: Tool<{ x: z.ZodString }>['handle']): Tool<{ x: z.ZodSt
 	handle,
 });
 
-function captureToolCallLine(
-	spy: ReturnType<typeof vi.spyOn>,
-): Record<string, unknown> | undefined {
+function captureToolCallLine(spy: StderrWriteSpy): Record<string, unknown> | undefined {
 	const events = spy.mock.calls
 		.map((c) => String(c[0]))
 		.filter((s) => s.startsWith('{'))
@@ -72,12 +72,7 @@ describe('dispatcher', () => {
 	});
 
 	it('logs the failure with tool name and category', async () => {
-		const logger = {
-			info: vi.fn(),
-			warning: vi.fn(),
-			error: vi.fn(),
-			debug: vi.fn(),
-		};
+		const logger = fakeLogger();
 		const ctx = fakeContext({ logger });
 		const tool = noopTool(async () => {
 			throw new Error('boom');
@@ -131,7 +126,7 @@ describe('dispatcher', () => {
 });
 
 describe('dispatcher emits tool_call telemetry', () => {
-	let stderrSpy: ReturnType<typeof vi.spyOn>;
+	let stderrSpy: StderrWriteSpy;
 
 	beforeEach(() => {
 		vi.stubEnv('MCP_LOG_LEVEL', 'debug');

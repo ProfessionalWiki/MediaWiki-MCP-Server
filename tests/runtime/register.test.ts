@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, type Mock } from 'vitest';
 import { z } from 'zod';
 import type { ZodRawShape } from 'zod';
 import { register } from '../../src/runtime/register.js';
@@ -6,7 +6,7 @@ import type { Tool } from '../../src/runtime/tool.js';
 
 // `register` wraps the descriptor's raw shape in a z.object() before handing it
 // to the SDK, so the registered field names are read back off `.shape`.
-function registeredShape(registerTool: ReturnType<typeof vi.fn>): ZodRawShape {
+function registeredShape(registerTool: Mock): ZodRawShape {
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reading back the schema this call registered
 	const config = registerTool.mock.calls[0][1] as { inputSchema: z.ZodObject<ZodRawShape> };
 	return config.inputSchema.shape;

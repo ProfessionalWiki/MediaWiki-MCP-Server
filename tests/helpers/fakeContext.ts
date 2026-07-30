@@ -4,6 +4,7 @@ import { ResponseFormatterImpl } from '../../src/results/response.js';
 import { ErrorClassifierImpl } from '../../src/errors/classifyError.js';
 import { RevisionNormalizerImpl } from '../../src/services/revisionNormalize.js';
 import { getRequestWiki } from '../../src/runtime/requestContext.js';
+import { fakeLogger } from './fakeLogger.js';
 
 const throws = (label: string) => () => {
 	throw new Error(`fakeContext: ${label} called but not stubbed`);
@@ -82,7 +83,7 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 		revision: new RevisionNormalizerImpl(),
 		format: new ResponseFormatterImpl(),
 		errors: new ErrorClassifierImpl(),
-		logger: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), debug: vi.fn() },
+		logger: fakeLogger(),
 		transport: 'stdio' as const,
 		...overrides,
 	};

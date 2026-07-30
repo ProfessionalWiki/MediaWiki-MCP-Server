@@ -1,8 +1,9 @@
+import { type StderrWriteSpy } from '../helpers/stderrSpy.js';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resolveShutdownGrace, registerShutdownHandlers } from '../../src/runtime/shutdown.js';
 
 describe('resolveShutdownGrace', () => {
-	let stderrSpy: ReturnType<typeof vi.spyOn>;
+	let stderrSpy: StderrWriteSpy;
 
 	beforeEach(() => {
 		vi.stubEnv('MCP_LOG_LEVEL', 'debug');
@@ -71,7 +72,7 @@ function fakeProcess(): FakeProcess {
 	};
 }
 
-function captureEvents(spy: ReturnType<typeof vi.spyOn>, name: string): Record<string, unknown>[] {
+function captureEvents(spy: StderrWriteSpy, name: string): Record<string, unknown>[] {
 	return spy.mock.calls
 		.map((c) => String(c[0]))
 		.filter((s) => s.startsWith('{'))
@@ -80,7 +81,7 @@ function captureEvents(spy: ReturnType<typeof vi.spyOn>, name: string): Record<s
 }
 
 describe('registerShutdownHandlers (http)', () => {
-	let stderrSpy: ReturnType<typeof vi.spyOn>;
+	let stderrSpy: StderrWriteSpy;
 
 	beforeEach(() => {
 		vi.stubEnv('MCP_LOG_LEVEL', 'debug');
@@ -202,7 +203,7 @@ describe('registerShutdownHandlers (http)', () => {
 });
 
 describe('registerShutdownHandlers (stdio)', () => {
-	let stderrSpy: ReturnType<typeof vi.spyOn>;
+	let stderrSpy: StderrWriteSpy;
 
 	beforeEach(() => {
 		vi.stubEnv('MCP_LOG_LEVEL', 'debug');
