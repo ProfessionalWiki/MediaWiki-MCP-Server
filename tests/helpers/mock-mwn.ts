@@ -1,25 +1,25 @@
-import { vi } from 'vitest';
+import { vi, type Mock } from 'vitest';
 
 export interface MockMwn {
-	read: ReturnType<typeof vi.fn>;
-	create: ReturnType<typeof vi.fn>;
-	edit: ReturnType<typeof vi.fn>;
-	save: ReturnType<typeof vi.fn>;
-	delete: ReturnType<typeof vi.fn>;
-	undelete: ReturnType<typeof vi.fn>;
-	move: ReturnType<typeof vi.fn>;
-	upload: ReturnType<typeof vi.fn>;
-	uploadFromUrl: ReturnType<typeof vi.fn>;
-	request: ReturnType<typeof vi.fn>;
-	rawRequest: ReturnType<typeof vi.fn>;
-	query: ReturnType<typeof vi.fn>;
-	massQuery: ReturnType<typeof vi.fn>;
-	getPagesByPrefix: ReturnType<typeof vi.fn>;
-	getCsrfToken: ReturnType<typeof vi.fn>;
+	read: Mock;
+	create: Mock;
+	edit: Mock;
+	save: Mock;
+	delete: Mock;
+	undelete: Mock;
+	move: Mock;
+	upload: Mock;
+	uploadFromUrl: Mock;
+	request: Mock;
+	rawRequest: Mock;
+	query: Mock;
+	massQuery: Mock;
+	getPagesByPrefix: Mock;
+	getCsrfToken: Mock;
 	options: { apiUrl: string; OAuth2AccessToken?: string };
 	usingOAuth2: boolean;
 	Category: {
-		members: ReturnType<typeof vi.fn>;
+		members: Mock;
 	};
 	cookieJar: null;
 }
