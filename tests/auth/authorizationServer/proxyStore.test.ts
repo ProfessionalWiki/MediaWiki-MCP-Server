@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { InMemoryProxyStore } from '../../../src/auth/authorizationServer/proxyStore.js';
+import { InMemoryProxyStore } from '../../../src/auth/authorizationServer/proxyStore.ts';
 
 describe('InMemoryProxyStore stats', () => {
 	it('reports upstream-token and client counts', () => {

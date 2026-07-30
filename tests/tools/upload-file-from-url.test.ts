@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { FetchError } from 'node-fetch';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { createMockMwnError } from '../helpers/mock-mwn-error.js';
-import { fakeContext } from '../helpers/fakeContext.js';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { createMockMwnError } from '../helpers/mock-mwn-error.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
 
-vi.mock('../../src/transport/httpFetch.js', async () => {
-	const actual = await vi.importActual<typeof import('../../src/transport/httpFetch.js')>(
-		'../../src/transport/httpFetch.js',
+vi.mock('../../src/transport/httpFetch.ts', async () => {
+	const actual = await vi.importActual<typeof import('../../src/transport/httpFetch.ts')>(
+		'../../src/transport/httpFetch.ts',
 	);
 	return { ...actual, fetchFileBytes: vi.fn() };
 });
@@ -15,10 +15,10 @@ import {
 	fetchFileBytes,
 	FileTooLargeError,
 	HttpStatusError,
-} from '../../src/transport/httpFetch.js';
-import { uploadFileFromUrl } from '../../src/tools/upload-file-from-url.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
+} from '../../src/transport/httpFetch.ts';
+import { uploadFileFromUrl } from '../../src/tools/upload-file-from-url.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
 
 const UPLOAD_OK = {
 	result: 'Success',

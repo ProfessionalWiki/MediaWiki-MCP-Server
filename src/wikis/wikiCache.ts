@@ -1,6 +1,6 @@
-import type { MwnProvider } from './mwnProvider.js';
-import type { SiteInfoCache } from './siteInfoCache.js';
-import type { WikiProbe } from './wikiProbe.js';
+import type { MwnProvider } from './mwnProvider.ts';
+import type { SiteInfoCache } from './siteInfoCache.ts';
+import type { WikiProbe } from './wikiProbe.ts';
 
 /**
  * Invalidates wiki-scoped caches. Used by remove-wiki to drop cached wiki

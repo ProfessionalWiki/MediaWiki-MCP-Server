@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Client } from '@modelcontextprotocol/client';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
-import { createServer } from '../../src/server.js';
-import { clearRegisteredServers } from '../../src/runtime/logger.js';
-import { getRequestSignal } from '../../src/runtime/requestContext.js';
-import { fakeContext } from '../helpers/fakeContext.js';
+import { createServer } from '../../src/server.ts';
+import { clearRegisteredServers } from '../../src/runtime/logger.ts';
+import { getRequestSignal } from '../../src/runtime/requestContext.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
 
 afterEach(() => {
 	clearRegisteredServers();

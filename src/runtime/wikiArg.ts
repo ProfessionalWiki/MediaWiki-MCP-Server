@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { ZodRawShape } from 'zod';
-import { WIKI_RESOURCE_URI_PREFIX } from './constants.js';
-import { decodeWikiKey } from './wikiKey.js';
+import { WIKI_RESOURCE_URI_PREFIX } from './constants.ts';
+import { decodeWikiKey } from './wikiKey.ts';
 
 export const WIKI_ARG_DESCRIPTION =
 	'Wiki to target, as a key from the mcp://wikis/ resources (e.g. en.wikipedia.org), ' +

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../../../helpers/mock-mwn.js';
-import { fakeContext } from '../../../helpers/fakeContext.js';
-import { neowikiSearchSubjects } from '../../../../src/tools/extensions/neowiki/neowiki-search-subjects.js';
+import { createMockMwn } from '../../../helpers/mock-mwn.ts';
+import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { neowikiSearchSubjects } from '../../../../src/tools/extensions/neowiki/neowiki-search-subjects.ts';
 
 describe('neowiki-search-subjects', () => {
 	it('passes schema and search and returns matches', async () => {

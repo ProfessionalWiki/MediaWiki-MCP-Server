@@ -8,15 +8,15 @@ import {
 	initMetrics,
 	getMetricsHandler,
 	__resetMetricsForTesting,
-} from '../../../src/runtime/metrics.js';
-import type { ProxyConfig } from '../../../src/auth/authorizationServer/proxyConfig.js';
-import { InMemoryProxyStore } from '../../../src/auth/authorizationServer/proxyStore.js';
+} from '../../../src/runtime/metrics.ts';
+import type { ProxyConfig } from '../../../src/auth/authorizationServer/proxyConfig.ts';
+import { InMemoryProxyStore } from '../../../src/auth/authorizationServer/proxyStore.ts';
 import {
 	PersistentProxyStore,
 	ProxyStorePersistenceError,
 	createProxyStore,
-} from '../../../src/auth/authorizationServer/proxyStorePersistence.js';
-import { deriveKey, encrypt } from '../../../src/auth/authorizationServer/proxyStoreCrypto.js';
+} from '../../../src/auth/authorizationServer/proxyStorePersistence.ts';
+import { deriveKey, encrypt } from '../../../src/auth/authorizationServer/proxyStoreCrypto.ts';
 
 const SIGNING_KEY = 'test-signing-key-of-at-least-32-chars!!';
 const KEY = deriveKey(SIGNING_KEY);

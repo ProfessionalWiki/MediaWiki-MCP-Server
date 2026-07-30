@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
-import { logger } from '../runtime/logger.js';
-import { createServer } from '../server.js';
-import { emitStartupBanner } from '../runtime/banner.js';
-import { createToolContext } from '../runtime/createContext.js';
-import { registerShutdownHandlers } from '../runtime/shutdown.js';
-import { loadConfigFromFile } from '../config/loadConfig.js';
-import { createAppState } from '../wikis/state.js';
+import { logger } from '../runtime/logger.ts';
+import { createServer } from '../server.ts';
+import { emitStartupBanner } from '../runtime/banner.ts';
+import { createToolContext } from '../runtime/createContext.ts';
+import { registerShutdownHandlers } from '../runtime/shutdown.ts';
+import { loadConfigFromFile } from '../config/loadConfig.ts';
+import { createAppState } from '../wikis/state.ts';
 
 async function main(): Promise<void> {
 	const config = loadConfigFromFile();

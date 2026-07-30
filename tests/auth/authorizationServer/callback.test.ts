@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { handleCallback } from '../../../src/auth/authorizationServer/callback.js';
-import { InMemoryProxyStore } from '../../../src/auth/authorizationServer/proxyStore.js';
-import { fakeProxyConfig } from '../../helpers/fakeProxyConfig.js';
+import { handleCallback } from '../../../src/auth/authorizationServer/callback.ts';
+import { InMemoryProxyStore } from '../../../src/auth/authorizationServer/proxyStore.ts';
+import { fakeProxyConfig } from '../../helpers/fakeProxyConfig.ts';
 
 // The exchange asserts the token endpoint is built from tokenExchangeBase, so
 // that one field is pinned to a value distinct from authorizeBase.

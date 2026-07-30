@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
 	buildProtectedResource,
 	type ProtectedResourceInput,
-} from '../../src/auth/protectedResource.js';
-import type { UpstreamAsMetadata } from '../../src/auth/metadata.js';
+} from '../../src/auth/protectedResource.ts';
+import type { UpstreamAsMetadata } from '../../src/auth/metadata.ts';
 
 const baseMetadata: UpstreamAsMetadata = {
 	issuer: 'https://wiki.example.org',

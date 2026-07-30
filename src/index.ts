@@ -5,15 +5,15 @@ async function main(): Promise<void> {
 	// dependency writing there corrupts the JSON-RPC stream. Imported
 	// dynamically like the transports below so a failure here still reaches the
 	// fail-safe handler rather than escaping as a module-load error.
-	const { guardStdout } = await import('./runtime/stdoutGuard.js');
+	const { guardStdout } = await import('./runtime/stdoutGuard.ts');
 	guardStdout();
 
 	const transportType = process.env.MCP_TRANSPORT || 'stdio';
 	if (transportType === 'http') {
-		const { startHttpServer } = await import('./transport/streamableHttp.js');
+		const { startHttpServer } = await import('./transport/streamableHttp.ts');
 		startHttpServer();
 	} else {
-		await import('./transport/stdio.js');
+		await import('./transport/stdio.ts');
 	}
 }
 

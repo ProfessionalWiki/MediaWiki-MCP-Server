@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { createToolContext } from '../../src/runtime/createContext.js';
-import { createAppState, type AppState } from '../../src/wikis/state.js';
-import { logger } from '../../src/runtime/logger.js';
-import { withRequestFields } from '../../src/runtime/requestContext.js';
-import type { Config } from '../../src/config/loadConfig.js';
+import { createToolContext } from '../../src/runtime/createContext.ts';
+import { createAppState, type AppState } from '../../src/wikis/state.ts';
+import { logger } from '../../src/runtime/logger.ts';
+import { withRequestFields } from '../../src/runtime/requestContext.ts';
+import type { Config } from '../../src/config/loadConfig.ts';
 
 const testConfig: Config = {
 	defaultWiki: 'w',

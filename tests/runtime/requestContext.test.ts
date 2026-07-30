@@ -5,7 +5,7 @@ import {
 	getRuntimeToken,
 	withRequestContext,
 	withRequestFields,
-} from '../../src/runtime/requestContext.js';
+} from '../../src/runtime/requestContext.ts';
 
 describe('requestContext', () => {
 	it('returns undefined outside a run', () => {

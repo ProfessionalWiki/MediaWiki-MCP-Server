@@ -1,10 +1,10 @@
 import { vi } from 'vitest';
-import type { ToolContext, ManagementContext } from '../../src/runtime/context.js';
-import { ResponseFormatterImpl } from '../../src/results/response.js';
-import { ErrorClassifierImpl } from '../../src/errors/classifyError.js';
-import { RevisionNormalizerImpl } from '../../src/services/revisionNormalize.js';
-import { getRequestWiki } from '../../src/runtime/requestContext.js';
-import { fakeLogger } from './fakeLogger.js';
+import type { ToolContext, ManagementContext } from '../../src/runtime/context.ts';
+import { ResponseFormatterImpl } from '../../src/results/response.ts';
+import { ErrorClassifierImpl } from '../../src/errors/classifyError.ts';
+import { RevisionNormalizerImpl } from '../../src/services/revisionNormalize.ts';
+import { getRequestWiki } from '../../src/runtime/requestContext.ts';
+import { fakeLogger } from './fakeLogger.ts';
 
 const throws = (label: string) => () => {
 	throw new Error(`fakeContext: ${label} called but not stubbed`);

@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
-import type { Tool } from '../runtime/tool.js';
-import type { ToolContext } from '../runtime/context.js';
-import { inlineDiffToText } from '../results/diffFormat.js';
-import { truncateByBytes } from '../results/truncation.js';
+import type { Tool } from '../runtime/tool.ts';
+import type { ToolContext } from '../runtime/context.ts';
+import { inlineDiffToText } from '../results/diffFormat.ts';
+import { truncateByBytes } from '../results/truncation.ts';
 
 interface CompareResponse {
 	fromrevid?: number;

@@ -1,10 +1,10 @@
 import { Mwn, type MwnOptions } from 'mwn';
-import { USER_AGENT } from '../runtime/constants.js';
-import type { ExecSecret, WikiConfig } from '../config/loadConfig.js';
-import { runExecSecret } from './execSecret.js';
-import { redactAuthorizationHeader, wrapMwnErrors } from './mwnErrorSanitizer.js';
-import type { WikiRegistry } from './wikiRegistry.js';
-import type { ActiveWiki } from './activeWiki.js';
+import { USER_AGENT } from '../runtime/constants.ts';
+import type { ExecSecret, WikiConfig } from '../config/loadConfig.ts';
+import { runExecSecret } from './execSecret.ts';
+import { redactAuthorizationHeader, wrapMwnErrors } from './mwnErrorSanitizer.ts';
+import type { WikiRegistry } from './wikiRegistry.ts';
+import type { ActiveWiki } from './activeWiki.ts';
 
 export interface MwnProvider {
 	get(wikiKey?: string): Promise<Mwn>;

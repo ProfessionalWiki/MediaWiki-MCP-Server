@@ -1,14 +1,14 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { getPages, BatchContentFormat } from '../../src/tools/get-pages.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { SectionServiceImpl } from '../../src/services/sectionService.js';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import { getPages, BatchContentFormat } from '../../src/tools/get-pages.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import { SectionServiceImpl } from '../../src/services/sectionService.ts';
 import {
 	assertStructuredData,
 	assertStructuredError,
 	assertStructuredSuccess,
-} from '../helpers/structuredResult.js';
+} from '../helpers/structuredResult.ts';
 
 function massQueryPage(title: string, pageid: number, revid: number, content?: string) {
 	return {

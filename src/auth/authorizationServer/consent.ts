@@ -1,7 +1,7 @@
-import type { ProxyConfig } from './proxyConfig.js';
-import { signConsent } from './jwt.js';
-import { isLoopbackHost } from './redirectPolicy.js';
-import { esc, renderPage } from '../pageShell.js';
+import type { ProxyConfig } from './proxyConfig.ts';
+import { signConsent } from './jwt.ts';
+import { isLoopbackHost } from './redirectPolicy.ts';
+import { esc, renderPage } from '../pageShell.ts';
 
 const COOKIE = 'mcp_consent';
 const CSRF_COOKIE = 'mcp_consent_csrf';

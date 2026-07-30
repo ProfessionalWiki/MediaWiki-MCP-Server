@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
 import type { ApiPage, ImageInfo } from 'mwn';
-import type { Tool } from '../runtime/tool.js';
-import type { ToolContext } from '../runtime/context.js';
+import type { Tool } from '../runtime/tool.ts';
+import type { ToolContext } from '../runtime/context.ts';
 
 const inputSchema = {
 	title: z.string().describe('File title (with or without the "File:" prefix)'),

@@ -2,11 +2,11 @@ import {
 	refreshTokens as defaultRefresh,
 	classifyRefreshError,
 	type RefreshArgs,
-} from './oauthFlow.js';
-import type { ProxyConfig } from './authorizationServer/proxyConfig.js';
-import type { ProxyStore } from './authorizationServer/proxyStore.js';
-import { verifyAccessToken } from './authorizationServer/jwt.js';
-import { mwOauth2TokenEndpoint } from './mwOauth2Endpoints.js';
+} from './oauthFlow.ts';
+import type { ProxyConfig } from './authorizationServer/proxyConfig.ts';
+import type { ProxyStore } from './authorizationServer/proxyStore.ts';
+import { verifyAccessToken } from './authorizationServer/jwt.ts';
+import { mwOauth2TokenEndpoint } from './mwOauth2Endpoints.ts';
 
 // Refresh tokens within this window of expiry rather than waiting for an actual
 // upstream 401, so the very next wiki call uses a fresh token.

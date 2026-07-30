@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Mwn } from 'mwn';
-import { guardStdout } from '../../src/runtime/stdoutGuard.js';
+import { guardStdout } from '../../src/runtime/stdoutGuard.ts';
 
 interface StrayEvent {
 	event?: string;

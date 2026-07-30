@@ -9,8 +9,8 @@ import {
 	readCsrfCookie,
 	buildTxnCookie,
 	readTxnCookie,
-} from '../../../src/auth/authorizationServer/consent.js';
-import { signConsent } from '../../../src/auth/authorizationServer/jwt.js';
+} from '../../../src/auth/authorizationServer/consent.ts';
+import { signConsent } from '../../../src/auth/authorizationServer/jwt.ts';
 
 const pc = {
 	issuer: 'https://wiki.example/mcp',

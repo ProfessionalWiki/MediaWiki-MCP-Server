@@ -1,10 +1,10 @@
 import { ResourceNotFoundError, ResourceTemplate } from '@modelcontextprotocol/server';
 import type { McpServer, Resource } from '@modelcontextprotocol/server';
-import type { ToolContext } from '../runtime/context.js';
-import type { WikiConfig, PublicWikiConfig } from '../config/loadConfig.js';
-import { WIKI_RESOURCE_URI_PREFIX } from '../runtime/constants.js';
-import { resolveSiteInfo } from '../wikis/siteInfo.js';
-import { decodeWikiKey, encodeWikiKey } from '../runtime/wikiKey.js';
+import type { ToolContext } from '../runtime/context.ts';
+import type { WikiConfig, PublicWikiConfig } from '../config/loadConfig.ts';
+import { WIKI_RESOURCE_URI_PREFIX } from '../runtime/constants.ts';
+import { resolveSiteInfo } from '../wikis/siteInfo.ts';
+import { decodeWikiKey, encodeWikiKey } from '../runtime/wikiKey.ts';
 
 // Builds the published view of a wiki by naming the public fields, so a new
 // WikiConfig field is private until someone adds it here. Credentials

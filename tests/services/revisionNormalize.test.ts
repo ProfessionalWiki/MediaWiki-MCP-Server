@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { RevisionNormalizerImpl } from '../../src/services/revisionNormalize.js';
+import { RevisionNormalizerImpl } from '../../src/services/revisionNormalize.ts';
 
 describe('RevisionNormalizerImpl', () => {
 	const norm = new RevisionNormalizerImpl();

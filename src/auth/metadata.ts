@@ -1,6 +1,6 @@
 // src/auth/metadata.ts
-import { logger } from '../runtime/logger.js';
-import { mwOauth2AuthorizeEndpoint, mwOauth2TokenEndpoint } from './mwOauth2Endpoints.js';
+import { logger } from '../runtime/logger.ts';
+import { mwOauth2AuthorizeEndpoint, mwOauth2TokenEndpoint } from './mwOauth2Endpoints.ts';
 
 // The authorization-server metadata of an upstream wiki, as discovered from its
 // .well-known document or synthesized from conventions when discovery fails.

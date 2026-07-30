@@ -6,8 +6,8 @@ import type {
 	TextContent,
 } from '@modelcontextprotocol/server';
 import type { ApiPage, ImageInfo } from 'mwn';
-import type { Tool } from '../runtime/tool.js';
-import type { ToolContext } from '../runtime/context.js';
+import type { Tool } from '../runtime/tool.ts';
+import type { ToolContext } from '../runtime/context.ts';
 
 const DEFAULT_IMAGE_WIDTH = 1024;
 const DEFAULT_TEXT_WIDTH = 512;

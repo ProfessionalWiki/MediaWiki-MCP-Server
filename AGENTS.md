@@ -18,6 +18,16 @@ Project context for AI coding agents working on this repo. For human users, star
 - `src/server.ts`, `src/index.ts` — server factory and bootstrap.
 - `tests/` — vitest suites mirroring the source tree; shared helpers in `tests/helpers/`.
 
+## Imports
+
+Relative imports name the `.ts` file they actually resolve to — `import { foo } from './foo.ts'`, not `'./foo.js'`. TypeScript rewrites the extension to `.js` on emit (`rewriteRelativeImportExtensions`), so `dist/` is unchanged. Package specifiers are untouched.
+
+`import/extensions` enforces this, so a stale `.js` specifier fails the pre-commit hook. Its help text says to remove the extension; ignore that and change it to `.ts`, since `NodeNext` will not resolve an extensionless relative path.
+
+The module paths passed to `vi.mock`, `vi.doMock`, `vi.unmock`, `vi.importActual` and `vi.importMock` take the same `.ts` extension, but the lint rule does not reach them and the compiler does not rewrite them — they are function arguments, not imports. Keep each one in step with the static import it doubles by hand.
+
+A path handed to a runtime `createRequire( import.meta.url )` resolves against the **emitted** file, not the source, so it keeps the extension and depth `dist/` needs. Leave those alone.
+
 ## Commands
 
 - `npm run build` — compile TypeScript to `dist/`.
@@ -57,8 +67,8 @@ A pack is a self-describing module exposing tools that share an extension gate. 
 1. Create `src/tools/extensions/<id>/<id>-<verb>.ts` for each tool, following the conventions in `docs/tool-conventions.md`.
 2. Create `src/tools/extensions/<id>/index.ts` exporting the pack:
 	```ts
-	import type { ExtensionPack } from '../types.js';
-	import { myTool } from './<id>-<verb>.js';
+	import type { ExtensionPack } from '../types.ts';
+	import { myTool } from './<id>-<verb>.ts';
 
 	// Convention: export name folds the id — `smwPack`, `bucketPack`, etc.
 	export const myPack: ExtensionPack = {

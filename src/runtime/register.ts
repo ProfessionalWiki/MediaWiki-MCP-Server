@@ -6,10 +6,10 @@ import type {
 	CallToolResult,
 } from '@modelcontextprotocol/server';
 import type { ZodRawShape, z } from 'zod';
-import type { Tool } from './tool.js';
-import type { ToolContext } from './context.js';
-import { buildToolInputSchema } from './wikiArg.js';
-import { withRequestFields } from './requestContext.js';
+import type { Tool } from './tool.ts';
+import type { ToolContext } from './context.ts';
+import { buildToolInputSchema } from './wikiArg.ts';
+import { withRequestFields } from './requestContext.ts';
 
 /**
  * Runs `fn` with the SDK request's cancellation signal in the request scope, so

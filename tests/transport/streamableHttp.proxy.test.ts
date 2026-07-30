@@ -3,24 +3,24 @@ import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import type { RequestHandler } from 'express';
 import { McpServer, PARSE_ERROR } from '@modelcontextprotocol/server';
-import { buildApp, type BuildAppDeps } from '../../src/transport/streamableHttp.js';
-import { resolveUpstreamBearer } from '../../src/auth/upstreamBearer.js';
-import { createAppState } from '../../src/wikis/state.js';
-import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.js';
-import { CimdResolver } from '../../src/auth/authorizationServer/cimd.js';
-import type { CimdFetchResult } from '../../src/auth/authorizationServer/cimd.js';
-import { verifyAccessToken } from '../../src/auth/authorizationServer/jwt.js';
-import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.js';
+import { buildApp, type BuildAppDeps } from '../../src/transport/streamableHttp.ts';
+import { resolveUpstreamBearer } from '../../src/auth/upstreamBearer.ts';
+import { createAppState } from '../../src/wikis/state.ts';
+import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.ts';
+import { CimdResolver } from '../../src/auth/authorizationServer/cimd.ts';
+import type { CimdFetchResult } from '../../src/auth/authorizationServer/cimd.ts';
+import { verifyAccessToken } from '../../src/auth/authorizationServer/jwt.ts';
+import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.ts';
 import {
 	buildRedirectPolicy,
 	parseRedirectAllowlist,
-} from '../../src/auth/authorizationServer/redirectPolicy.js';
-import { checkWikiCapability } from '../../src/runtime/wikiCapability.js';
-import { createToolContext } from '../../src/runtime/createContext.js';
-import { logger } from '../../src/runtime/logger.js';
-import { withRequestContext, getRuntimeToken } from '../../src/runtime/requestContext.js';
-import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.js';
-import { runHostedFlow, setCookieHeaders } from '../helpers/fakeMcpClient.js';
+} from '../../src/auth/authorizationServer/redirectPolicy.ts';
+import { checkWikiCapability } from '../../src/runtime/wikiCapability.ts';
+import { createToolContext } from '../../src/runtime/createContext.ts';
+import { logger } from '../../src/runtime/logger.ts';
+import { withRequestContext, getRuntimeToken } from '../../src/runtime/requestContext.ts';
+import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
+import { runHostedFlow, setCookieHeaders } from '../helpers/fakeMcpClient.ts';
 
 const ISSUER = 'https://mcp.example/mcp';
 const SIGNING_KEY = 'k'.repeat(32);
@@ -417,7 +417,7 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 			.post('/mcp/register')
 			.set('Content-Type', 'application/json')
 			.send({ redirect_uris: [redirectUri], client_name: 'CSRF' });
-		const { randomVerifier, s256 } = await import('../../src/auth/pkce.js');
+		const { randomVerifier, s256 } = await import('../../src/auth/pkce.ts');
 		const params = {
 			client_id: String(reg.body.client_id),
 			redirect_uri: redirectUri,
@@ -477,7 +477,7 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 				.post('/mcp/register')
 				.set('Content-Type', 'application/json')
 				.send({ redirect_uris: [REDIRECT], client_name: 'E' });
-			const { randomVerifier, s256 } = await import('../../src/auth/pkce.js');
+			const { randomVerifier, s256 } = await import('../../src/auth/pkce.ts');
 			return {
 				client_id: String(reg.body.client_id),
 				redirect_uri: REDIRECT,
@@ -610,7 +610,7 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 			.post('/mcp/register')
 			.set('Content-Type', 'application/json')
 			.send({ redirect_uris: [redirectUri], client_name: 'D' });
-		const { randomVerifier, s256 } = await import('../../src/auth/pkce.js');
+		const { randomVerifier, s256 } = await import('../../src/auth/pkce.ts');
 		const params = {
 			client_id: String(reg.body.client_id),
 			redirect_uri: redirectUri,
@@ -1258,7 +1258,7 @@ async function runFlowUpToCode(
 	// Use a fixed, valid PKCE pair the test controls; the verifier matching the
 	// challenge is what client B would submit — we deliberately submit a DIFFERENT
 	// one at redemption time.
-	const { randomVerifier, s256 } = await import('../../src/auth/pkce.js');
+	const { randomVerifier, s256 } = await import('../../src/auth/pkce.ts');
 	const verifier = randomVerifier();
 	const params = {
 		client_id: clientId,
@@ -1302,7 +1302,7 @@ async function callbackWithMismatchedConsent(
 	text: string;
 	headers: Record<string, string>;
 }> {
-	const { buildConsentCookie } = await import('../../src/auth/authorizationServer/consent.js');
+	const { buildConsentCookie } = await import('../../src/auth/authorizationServer/consent.ts');
 	// A transaction owned by client "B-real".
 	store.putTransaction('txn-mismatch', {
 		clientId: 'B-real',

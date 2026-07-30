@@ -19,9 +19,9 @@ import {
 	localhostHostValidation,
 	originValidation,
 } from '@modelcontextprotocol/express';
-import { evaluateBearerGuard } from './bearerGuard.js';
-import { LOCALHOST_HOSTS, resolveHttpConfig } from './httpConfig.js';
-import { logger } from '../runtime/logger.js';
+import { evaluateBearerGuard } from './bearerGuard.ts';
+import { LOCALHOST_HOSTS, resolveHttpConfig } from './httpConfig.ts';
+import { logger } from '../runtime/logger.ts';
 import {
 	getMetricsHandler,
 	initMetrics,
@@ -29,27 +29,27 @@ import {
 	setInFlightProvider,
 	setSubscriptionStreamsProvider,
 	setProxyStoreStatsProvider,
-} from '../runtime/metrics.js';
-import { createInFlightCounter, type InFlightCounter } from './inFlight.js';
-import { createMcpRouteHandler, resolveRequestProto, type ProxyConfigGetter } from './mcpRoute.js';
-import { PAYLOAD_TOO_LARGE_ERROR_CODE } from './errorCodes.js';
-import { mountReadyEndpoint } from './ready.js';
-import { loadConfigFromFile } from '../config/loadConfig.js';
-import type { WikiRegistry } from '../wikis/wikiRegistry.js';
-import { fetchMetadata, type UpstreamAsMetadata } from '../auth/metadata.js';
-import { buildProtectedResource } from '../auth/protectedResource.js';
-import { resolveProxyConfig, type ProxyConfig } from '../auth/authorizationServer/proxyConfig.js';
-import type { ProxyStore } from '../auth/authorizationServer/proxyStore.js';
-import { createProxyStore } from '../auth/authorizationServer/proxyStorePersistence.js';
-import { mountAuthorizationServer } from '../auth/authorizationServer/router.js';
-import { buildRedirectPolicy } from '../auth/authorizationServer/redirectPolicy.js';
-import { buildCimdHostPredicate, CimdResolver } from '../auth/authorizationServer/cimd.js';
-import { fetchCimdDocument } from './cimdFetch.js';
-import { createAppState, type AppState } from '../wikis/state.js';
-import { createServer, type ChangePublisher, type CreateServerOptions } from '../server.js';
-import { emitStartupBanner } from '../runtime/banner.js';
-import { createToolContext } from '../runtime/createContext.js';
-import { registerShutdownHandlers, resolveShutdownGrace } from '../runtime/shutdown.js';
+} from '../runtime/metrics.ts';
+import { createInFlightCounter, type InFlightCounter } from './inFlight.ts';
+import { createMcpRouteHandler, resolveRequestProto, type ProxyConfigGetter } from './mcpRoute.ts';
+import { PAYLOAD_TOO_LARGE_ERROR_CODE } from './errorCodes.ts';
+import { mountReadyEndpoint } from './ready.ts';
+import { loadConfigFromFile } from '../config/loadConfig.ts';
+import type { WikiRegistry } from '../wikis/wikiRegistry.ts';
+import { fetchMetadata, type UpstreamAsMetadata } from '../auth/metadata.ts';
+import { buildProtectedResource } from '../auth/protectedResource.ts';
+import { resolveProxyConfig, type ProxyConfig } from '../auth/authorizationServer/proxyConfig.ts';
+import type { ProxyStore } from '../auth/authorizationServer/proxyStore.ts';
+import { createProxyStore } from '../auth/authorizationServer/proxyStorePersistence.ts';
+import { mountAuthorizationServer } from '../auth/authorizationServer/router.ts';
+import { buildRedirectPolicy } from '../auth/authorizationServer/redirectPolicy.ts';
+import { buildCimdHostPredicate, CimdResolver } from '../auth/authorizationServer/cimd.ts';
+import { fetchCimdDocument } from './cimdFetch.ts';
+import { createAppState, type AppState } from '../wikis/state.ts';
+import { createServer, type ChangePublisher, type CreateServerOptions } from '../server.ts';
+import { emitStartupBanner } from '../runtime/banner.ts';
+import { createToolContext } from '../runtime/createContext.ts';
+import { registerShutdownHandlers, resolveShutdownGrace } from '../runtime/shutdown.ts';
 
 // The exported surface here (BuildAppDeps, and the protected-resource handler's
 // deps) names this type, so a caller has to be able to name it too.

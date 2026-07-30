@@ -7,11 +7,11 @@ import {
 	ResourceNotFoundError,
 } from '@modelcontextprotocol/server';
 import type { ResourceTemplate } from '@modelcontextprotocol/server';
-import { registerAllResources } from '../../src/resources/index.js';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import type { SiteInfo } from '../../src/wikis/siteInfoCache.js';
-import type { WikiConfig } from '../../src/config/loadConfig.js';
+import { registerAllResources } from '../../src/resources/index.ts';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import type { SiteInfo } from '../../src/wikis/siteInfoCache.ts';
+import type { WikiConfig } from '../../src/config/loadConfig.ts';
 
 function emptyCache() {
 	const map = new Map<string, SiteInfo>();

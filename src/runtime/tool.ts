@@ -1,6 +1,6 @@
 import type { ZodRawShape, z } from 'zod';
 import type { ToolAnnotations, CallToolResult } from '@modelcontextprotocol/server';
-import type { ToolContext } from './context.js';
+import type { ToolContext } from './context.ts';
 
 export interface Tool<TSchema extends ZodRawShape, TCtx extends ToolContext = ToolContext> {
 	readonly name: string;

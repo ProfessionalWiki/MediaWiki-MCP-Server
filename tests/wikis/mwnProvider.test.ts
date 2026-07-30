@@ -16,20 +16,20 @@ vi.mock('mwn', () => ({
 	},
 }));
 
-vi.mock('../../src/runtime/constants.js', () => ({
+vi.mock('../../src/runtime/constants.ts', () => ({
 	USER_AGENT: 'test-agent',
 }));
 
 const { mockRunExecSecret } = vi.hoisted(() => ({ mockRunExecSecret: vi.fn() }));
-vi.mock('../../src/wikis/execSecret.js', () => ({
+vi.mock('../../src/wikis/execSecret.ts', () => ({
 	runExecSecret: mockRunExecSecret,
 }));
 
-import { MwnProviderImpl } from '../../src/wikis/mwnProvider.js';
-import { WikiRegistryImpl } from '../../src/wikis/wikiRegistry.js';
-import { ActiveWikiImpl } from '../../src/wikis/activeWiki.js';
-import type { WikiConfig } from '../../src/config/loadConfig.js';
-import { CredentialResolutionError } from '../../src/errors/credentialResolutionError.js';
+import { MwnProviderImpl } from '../../src/wikis/mwnProvider.ts';
+import { WikiRegistryImpl } from '../../src/wikis/wikiRegistry.ts';
+import { ActiveWikiImpl } from '../../src/wikis/activeWiki.ts';
+import type { WikiConfig } from '../../src/config/loadConfig.ts';
+import { CredentialResolutionError } from '../../src/errors/credentialResolutionError.ts';
 
 const sample = (name: string): WikiConfig => ({
 	sitename: name,

@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { getCategoryMembers } from '../../src/tools/get-category-members.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import { getCategoryMembers } from '../../src/tools/get-category-members.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
 import {
 	assertStructuredData,
 	assertStructuredError,
 	assertStructuredSuccess,
-} from '../helpers/structuredResult.js';
+} from '../helpers/structuredResult.ts';
 
 describe('get-category-members', () => {
 	it('prefixes a bare category name with "Category:" for cmtitle', async () => {

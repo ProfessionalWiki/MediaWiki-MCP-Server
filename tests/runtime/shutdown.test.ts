@@ -1,6 +1,6 @@
-import { type StderrWriteSpy } from '../helpers/stderrSpy.js';
+import { type StderrWriteSpy } from '../helpers/stderrSpy.ts';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { resolveShutdownGrace, registerShutdownHandlers } from '../../src/runtime/shutdown.js';
+import { resolveShutdownGrace, registerShutdownHandlers } from '../../src/runtime/shutdown.ts';
 
 describe('resolveShutdownGrace', () => {
 	let stderrSpy: StderrWriteSpy;

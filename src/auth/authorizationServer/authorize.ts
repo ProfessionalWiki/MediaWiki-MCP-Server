@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import type { ProxyConfig } from './proxyConfig.js';
-import type { ClientRecord, ProxyStore } from './proxyStore.js';
-import { randomVerifier, s256 } from '../pkce.js';
-import { mwOauth2AuthorizeEndpoint } from '../mwOauth2Endpoints.js';
-import { redirectUriMatches } from './redirectPolicy.js';
+import type { ProxyConfig } from './proxyConfig.ts';
+import type { ClientRecord, ProxyStore } from './proxyStore.ts';
+import { randomVerifier, s256 } from '../pkce.ts';
+import { mwOauth2AuthorizeEndpoint } from '../mwOauth2Endpoints.ts';
+import { redirectUriMatches } from './redirectPolicy.ts';
 
 export interface AuthorizeQuery {
 	client_id?: string;

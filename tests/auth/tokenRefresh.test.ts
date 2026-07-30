@@ -4,11 +4,11 @@ import {
 	_resetRefreshDedupForTesting,
 	refreshIfNeeded,
 	type RefreshContext,
-} from '../../src/auth/tokenRefresh.js';
-import { createTokenStore, type StoredToken } from '../../src/auth/tokenStore.js';
-import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.js';
-import { fakeClock } from '../helpers/fakeClock.js';
-import { useTempTokenStore } from '../helpers/tempTokenStore.js';
+} from '../../src/auth/tokenRefresh.ts';
+import { createTokenStore, type StoredToken } from '../../src/auth/tokenStore.ts';
+import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
+import { fakeClock } from '../helpers/fakeClock.ts';
+import { useTempTokenStore } from '../helpers/tempTokenStore.ts';
 
 useTempTokenStore();
 

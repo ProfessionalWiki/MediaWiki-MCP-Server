@@ -1,16 +1,16 @@
-import { type StderrWriteSpy } from '../helpers/stderrSpy.js';
+import { type StderrWriteSpy } from '../helpers/stderrSpy.ts';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { z } from 'zod';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import type { Tool } from '../../src/runtime/tool.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { fakeLogger } from '../helpers/fakeLogger.js';
-import { createMockMwnError } from '../helpers/mock-mwn-error.js';
-import { clearRegisteredServers } from '../../src/runtime/logger.js';
-import { CredentialResolutionError } from '../../src/errors/credentialResolutionError.js';
-import { withRequestFields } from '../../src/runtime/requestContext.js';
-import { getPage } from '../../src/tools/get-page.js';
-import { ContentFormat } from '../../src/results/contentFormat.js';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import type { Tool } from '../../src/runtime/tool.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import { fakeLogger } from '../helpers/fakeLogger.ts';
+import { createMockMwnError } from '../helpers/mock-mwn-error.ts';
+import { clearRegisteredServers } from '../../src/runtime/logger.ts';
+import { CredentialResolutionError } from '../../src/errors/credentialResolutionError.ts';
+import { withRequestFields } from '../../src/runtime/requestContext.ts';
+import { getPage } from '../../src/tools/get-page.ts';
+import { ContentFormat } from '../../src/results/contentFormat.ts';
 
 const noopTool = (handle: Tool<{ x: z.ZodString }>['handle']): Tool<{ x: z.ZodString }> => ({
 	name: 'get-page',

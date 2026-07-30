@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { resolveSiteInfo } from '../../src/wikis/siteInfo.js';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import type { SiteInfo } from '../../src/wikis/siteInfoCache.js';
+import { resolveSiteInfo } from '../../src/wikis/siteInfo.ts';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import type { SiteInfo } from '../../src/wikis/siteInfoCache.ts';
 
 // A fresh Map-backed cache (the fakeContext default is seeded; tests of the
 // fetch path need an empty cache so resolveSiteInfo actually calls mwn).

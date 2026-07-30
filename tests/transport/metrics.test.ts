@@ -9,12 +9,12 @@ const mockRequest = vi.fn();
 
 import express from 'express';
 import request from 'supertest';
-import { mountMetricsEndpoint } from '../../src/transport/streamableHttp.js';
-import { mountReadyEndpoint, __resetReadyCacheForTesting } from '../../src/transport/ready.js';
-import { __resetMetricsForTesting, setInFlightProvider } from '../../src/runtime/metrics.js';
-import type { ActiveWiki } from '../../src/wikis/activeWiki.js';
-import type { MwnProvider } from '../../src/wikis/mwnProvider.js';
-import type { WikiConfig } from '../../src/config/loadConfig.js';
+import { mountMetricsEndpoint } from '../../src/transport/streamableHttp.ts';
+import { mountReadyEndpoint, __resetReadyCacheForTesting } from '../../src/transport/ready.ts';
+import { __resetMetricsForTesting, setInFlightProvider } from '../../src/runtime/metrics.ts';
+import type { ActiveWiki } from '../../src/wikis/activeWiki.ts';
+import type { MwnProvider } from '../../src/wikis/mwnProvider.ts';
+import type { WikiConfig } from '../../src/config/loadConfig.ts';
 
 const exampleWikiConfig: WikiConfig = {
 	sitename: 'Example',

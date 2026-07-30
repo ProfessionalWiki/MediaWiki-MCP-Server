@@ -1,9 +1,9 @@
 import type { CallToolResult } from '@modelcontextprotocol/server';
-import type { ToolContext } from './context.js';
-import type { ExtensionPack } from '../tools/extensions/types.js';
-import { extensionPacks } from '../tools/extensions/index.js';
-import { getRuntimeToken } from './requestContext.js';
-import { hasStaticCredentials } from './authShape.js';
+import type { ToolContext } from './context.ts';
+import type { ExtensionPack } from '../tools/extensions/types.ts';
+import { extensionPacks } from '../tools/extensions/index.ts';
+import { getRuntimeToken } from './requestContext.ts';
+import { hasStaticCredentials } from './authShape.ts';
 
 const CORE_WRITE_TOOL_NAMES: readonly string[] = [
 	'create-page',

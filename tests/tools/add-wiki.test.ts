@@ -1,21 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../src/wikis/wikiDiscovery.js', () => ({
+vi.mock('../../src/wikis/wikiDiscovery.ts', () => ({
 	discoverWiki: vi.fn(),
 }));
 
 import type { RegisteredTool } from '@modelcontextprotocol/server';
-import { discoverWiki } from '../../src/wikis/wikiDiscovery.js';
-import { SsrfValidationError } from '../../src/transport/ssrfGuard.js';
-import { DuplicateWikiKeyError, WikiRegistryImpl } from '../../src/wikis/wikiRegistry.js';
-import type { WikiConfig } from '../../src/config/loadConfig.js';
-import { reconcileTools } from '../../src/runtime/reconcile.js';
-import { WRITE_TOOL_NAMES } from '../../src/runtime/wikiCapability.js';
-import { formatPayload } from '../../src/results/format.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
-import { fakeManagementContext } from '../helpers/fakeContext.js';
-import { addWiki } from '../../src/tools/add-wiki.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
+import { discoverWiki } from '../../src/wikis/wikiDiscovery.ts';
+import { SsrfValidationError } from '../../src/transport/ssrfGuard.ts';
+import { DuplicateWikiKeyError, WikiRegistryImpl } from '../../src/wikis/wikiRegistry.ts';
+import type { WikiConfig } from '../../src/config/loadConfig.ts';
+import { reconcileTools } from '../../src/runtime/reconcile.ts';
+import { WRITE_TOOL_NAMES } from '../../src/runtime/wikiCapability.ts';
+import { formatPayload } from '../../src/results/format.ts';
+import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
+import { fakeManagementContext } from '../helpers/fakeContext.ts';
+import { addWiki } from '../../src/tools/add-wiki.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
 
 describe('add-wiki', () => {
 	beforeEach(() => {

@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, type Mock } from 'vitest';
-import { whoami } from '../../src/tools/whoami.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { assertStructuredData, assertStructuredError } from '../helpers/structuredResult.js';
+import { whoami } from '../../src/tools/whoami.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import { assertStructuredData, assertStructuredError } from '../helpers/structuredResult.ts';
 
 function ctxWith(request: Mock) {
 	const mwn = createMockMwn({ request });

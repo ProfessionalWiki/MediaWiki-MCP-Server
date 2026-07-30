@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { classifyAuthShape, hasStaticCredentials } from '../../src/runtime/authShape.js';
-import type { WikiConfig } from '../../src/config/loadConfig.js';
+import { classifyAuthShape, hasStaticCredentials } from '../../src/runtime/authShape.ts';
+import type { WikiConfig } from '../../src/config/loadConfig.ts';
 
 function wiki(overrides: Partial<WikiConfig> = {}): WikiConfig {
 	return {

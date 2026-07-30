@@ -10,7 +10,7 @@ import {
 	synthesizeClientRecord,
 	cimdTtlMs,
 	CimdResolver,
-} from '../../../src/auth/authorizationServer/cimd.js';
+} from '../../../src/auth/authorizationServer/cimd.ts';
 
 describe('isCimdClientId', () => {
 	it.each([

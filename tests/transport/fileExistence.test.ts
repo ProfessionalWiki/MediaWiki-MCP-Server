@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { assertFileExists, FileNotFoundError } from '../../src/transport/fileExistence.js';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { assertFileExists, FileNotFoundError } from '../../src/transport/fileExistence.ts';
 
 describe('assertFileExists', () => {
 	beforeEach(() => {

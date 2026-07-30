@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
-import type { Tool } from '../../../runtime/tool.js';
-import type { ToolContext } from '../../../runtime/context.js';
+import type { Tool } from '../../../runtime/tool.ts';
+import type { ToolContext } from '../../../runtime/context.ts';
 
 const inputSchema = {
 	table: z.string().min(1).describe('Cargo table name. Use cargo-list-tables to discover.'),

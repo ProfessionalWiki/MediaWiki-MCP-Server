@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import express, { type Request, type Response, type RequestHandler } from 'express';
-import type { ProxyConfig } from './proxyConfig.js';
-import type { ProxyStore, ClientRecord } from './proxyStore.js';
-import { buildAsMetadata } from './asMetadata.js';
-import { handleRegister } from './register.js';
-import { isCimdClientId, CimdResolver } from './cimd.js';
-import { planAuthorize, planDeny, type AuthorizeQuery, type ConsentClaims } from './authorize.js';
+import type { ProxyConfig } from './proxyConfig.ts';
+import type { ProxyStore, ClientRecord } from './proxyStore.ts';
+import { buildAsMetadata } from './asMetadata.ts';
+import { handleRegister } from './register.ts';
+import { isCimdClientId, CimdResolver } from './cimd.ts';
+import { planAuthorize, planDeny, type AuthorizeQuery, type ConsentClaims } from './authorize.ts';
 import {
 	renderConsentPage,
 	renderCancelledPage,
@@ -17,10 +17,10 @@ import {
 	buildTxnCookie,
 	readTxnCookie,
 	clearTxnCookie,
-} from './consent.js';
-import { verifyConsent } from './jwt.js';
-import { handleCallback } from './callback.js';
-import { handleToken } from './token.js';
+} from './consent.ts';
+import { verifyConsent } from './jwt.ts';
+import { handleCallback } from './callback.ts';
+import { handleToken } from './token.ts';
 
 // Everything the authorization-server routes need. Resolved once (from config/env)
 // by the caller; the routes 404 per-endpoint when the proxy is disabled

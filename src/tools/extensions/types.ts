@@ -1,4 +1,4 @@
-import type { Tool } from '../../runtime/tool.js';
+import type { Tool } from '../../runtime/tool.ts';
 
 export interface ExtensionPack {
 	/** Stable id used for rule names and telemetry; e.g. 'cargo'. Conventionally

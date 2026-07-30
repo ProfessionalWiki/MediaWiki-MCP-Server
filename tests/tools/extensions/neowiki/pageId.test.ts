@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../../../helpers/mock-mwn.js';
-import { resolvePageId, hasOnePageRef } from '../../../../src/tools/extensions/neowiki/pageId.js';
+import { createMockMwn } from '../../../helpers/mock-mwn.ts';
+import { resolvePageId, hasOnePageRef } from '../../../../src/tools/extensions/neowiki/pageId.ts';
 
 describe('hasOnePageRef', () => {
 	it('is true for exactly one of title/pageId', () => {

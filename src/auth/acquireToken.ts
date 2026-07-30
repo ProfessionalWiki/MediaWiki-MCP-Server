@@ -1,9 +1,9 @@
 // src/auth/acquireToken.ts
-import { browserAuth } from './browserAuth.js';
-import { fetchMetadata, type WikiSlice } from './metadata.js';
-import { OAuthFlowError } from './oauthFlow.js';
-import { refreshIfNeeded } from './tokenRefresh.js';
-import { createTokenStore } from './tokenStore.js';
+import { browserAuth } from './browserAuth.ts';
+import { fetchMetadata, type WikiSlice } from './metadata.ts';
+import { OAuthFlowError } from './oauthFlow.ts';
+import { refreshIfNeeded } from './tokenRefresh.ts';
+import { createTokenStore } from './tokenStore.ts';
 
 export interface AcquireCtx {
 	wiki: WikiSlice;

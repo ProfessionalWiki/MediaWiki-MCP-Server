@@ -2,9 +2,9 @@ import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
 import type { ApiDeleteResponse } from 'mwn';
 import type { ApiDeleteParams } from 'types-mediawiki-api';
-import type { Tool } from '../runtime/tool.js';
-import type { ToolContext } from '../runtime/context.js';
-import { formatEditComment } from '../wikis/utils.js';
+import type { Tool } from '../runtime/tool.ts';
+import type { ToolContext } from '../runtime/context.ts';
+import { formatEditComment } from '../wikis/utils.ts';
 
 const inputSchema = {
 	title: z.string().describe('Wiki page title'),

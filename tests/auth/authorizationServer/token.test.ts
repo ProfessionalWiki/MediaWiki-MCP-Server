@@ -1,17 +1,17 @@
 import { describe, it, expect, vi } from 'vitest';
-import { handleToken } from '../../../src/auth/authorizationServer/token.js';
+import { handleToken } from '../../../src/auth/authorizationServer/token.ts';
 import {
 	InMemoryProxyStore,
 	type UpstreamToken,
-} from '../../../src/auth/authorizationServer/proxyStore.js';
-import { randomVerifier, s256 } from '../../../src/auth/pkce.js';
+} from '../../../src/auth/authorizationServer/proxyStore.ts';
+import { randomVerifier, s256 } from '../../../src/auth/pkce.ts';
 import {
 	verifyAccessToken,
 	mintRefreshToken,
 	mintAccessToken,
-} from '../../../src/auth/authorizationServer/jwt.js';
-import { OAuthFlowError } from '../../../src/auth/oauthFlow.js';
-import { fakeProxyConfig } from '../../helpers/fakeProxyConfig.js';
+} from '../../../src/auth/authorizationServer/jwt.ts';
+import { OAuthFlowError } from '../../../src/auth/oauthFlow.ts';
+import { fakeProxyConfig } from '../../helpers/fakeProxyConfig.ts';
 
 // The refresh grant asserts the token endpoint is built from tokenExchangeBase,
 // so that field is pinned to a value distinct from authorizeBase. tokenTtlMs

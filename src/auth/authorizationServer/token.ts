@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import type { ProxyConfig } from './proxyConfig.js';
-import type { ProxyStore } from './proxyStore.js';
-import { s256 } from '../pkce.js';
-import { mwOauth2TokenEndpoint } from '../mwOauth2Endpoints.js';
-import { mintAccessToken, mintRefreshToken, verifyRefreshToken } from './jwt.js';
-import { refreshTokens as defaultRefresh, classifyRefreshError } from '../oauthFlow.js';
+import type { ProxyConfig } from './proxyConfig.ts';
+import type { ProxyStore } from './proxyStore.ts';
+import { s256 } from '../pkce.ts';
+import { mwOauth2TokenEndpoint } from '../mwOauth2Endpoints.ts';
+import { mintAccessToken, mintRefreshToken, verifyRefreshToken } from './jwt.ts';
+import { refreshTokens as defaultRefresh, classifyRefreshError } from '../oauthFlow.ts';
 
 type RefreshFn = typeof defaultRefresh;
 

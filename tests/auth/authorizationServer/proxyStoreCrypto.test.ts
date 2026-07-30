@@ -4,7 +4,7 @@ import {
 	deriveKey,
 	encrypt,
 	decrypt,
-} from '../../../src/auth/authorizationServer/proxyStoreCrypto.js';
+} from '../../../src/auth/authorizationServer/proxyStoreCrypto.ts';
 
 describe('proxyStoreCrypto', () => {
 	const key = deriveKey('x'.repeat(32));

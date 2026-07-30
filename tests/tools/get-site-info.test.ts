@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, type Mock } from 'vitest';
-import { getSiteInfo } from '../../src/tools/get-site-info.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { assertStructuredData, assertStructuredError } from '../helpers/structuredResult.js';
-import type { LicenseInfo } from '../../src/wikis/siteInfoCache.js';
+import { getSiteInfo } from '../../src/tools/get-site-info.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import { assertStructuredData, assertStructuredError } from '../helpers/structuredResult.ts';
+import type { LicenseInfo } from '../../src/wikis/siteInfoCache.ts';
 
 function siteinfoResponse(generalOverrides: Record<string, unknown> = {}) {
 	return {

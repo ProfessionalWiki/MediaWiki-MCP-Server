@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../../../helpers/mock-mwn.js';
-import { createMockMwnError } from '../../../helpers/mock-mwn-error.js';
-import { fakeContext } from '../../../helpers/fakeContext.js';
-import { cargoQuery } from '../../../../src/tools/extensions/cargo/cargo-query.js';
-import { dispatch } from '../../../../src/runtime/dispatcher.js';
+import { createMockMwn } from '../../../helpers/mock-mwn.ts';
+import { createMockMwnError } from '../../../helpers/mock-mwn-error.ts';
+import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { cargoQuery } from '../../../../src/tools/extensions/cargo/cargo-query.ts';
+import { dispatch } from '../../../../src/runtime/dispatcher.ts';
 import {
 	assertStructuredError,
 	assertStructuredSuccess,
-} from '../../../helpers/structuredResult.js';
+} from '../../../helpers/structuredResult.ts';
 
 describe('cargo-query', () => {
 	it('forwards tables and optional params to action=cargoquery and unwraps rows', async () => {

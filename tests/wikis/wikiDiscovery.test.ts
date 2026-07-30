@@ -1,18 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { LookupAddress } from 'node:dns';
 
-vi.mock('../../src/transport/httpFetch.js', () => ({
+vi.mock('../../src/transport/httpFetch.ts', () => ({
 	makeApiRequest: vi.fn(),
 	fetchPageHtml: vi.fn(),
 }));
 
-vi.mock('../../src/transport/ssrfGuard.js', () => ({
+vi.mock('../../src/transport/ssrfGuard.ts', () => ({
 	assertPublicDestination: vi.fn(),
 }));
 
-import { makeApiRequest } from '../../src/transport/httpFetch.js';
-import { assertPublicDestination } from '../../src/transport/ssrfGuard.js';
-import { discoverWiki } from '../../src/wikis/wikiDiscovery.js';
+import { makeApiRequest } from '../../src/transport/httpFetch.ts';
+import { assertPublicDestination } from '../../src/transport/ssrfGuard.ts';
+import { discoverWiki } from '../../src/wikis/wikiDiscovery.ts';
 
 // assertPublicDestination resolves the addresses it validated, so a stubbed
 // approval has to hand back a resolved public address, not nothing.

@@ -1,6 +1,6 @@
 import type { RequestHandler } from 'express';
 import { Counter, Gauge, Histogram, Registry } from 'prom-client';
-import type { ToolOutcome } from './instrument.js';
+import type { ToolOutcome } from './instrument.ts';
 
 export interface RecordToolCallInput {
 	readonly tool: string;

@@ -13,7 +13,7 @@ import {
 	recordStoreFlush,
 	recordStoreFlushFailure,
 	setProxyStoreStatsProvider,
-} from '../../src/runtime/metrics.js';
+} from '../../src/runtime/metrics.ts';
 
 describe('metrics module — disabled state', () => {
 	beforeEach(() => {

@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import type { ProxyConfig } from './proxyConfig.js';
-import type { ProxyStore } from './proxyStore.js';
-import { exchangeCode as defaultExchange } from '../oauthFlow.js';
-import { mwOauth2TokenEndpoint } from '../mwOauth2Endpoints.js';
+import type { ProxyConfig } from './proxyConfig.ts';
+import type { ProxyStore } from './proxyStore.ts';
+import { exchangeCode as defaultExchange } from '../oauthFlow.ts';
+import { mwOauth2TokenEndpoint } from '../mwOauth2Endpoints.ts';
 
 type ExchangeFn = typeof defaultExchange;
 

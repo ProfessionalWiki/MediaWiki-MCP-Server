@@ -1,9 +1,9 @@
 import { createRequire } from 'node:module';
-import { logger } from './logger.js';
-import { classifyAuthShape } from './authShape.js';
-import type { WikiRegistry } from '../wikis/wikiRegistry.js';
-import type { ActiveWiki } from '../wikis/activeWiki.js';
-import type { UploadDirs } from '../wikis/uploadDirs.js';
+import { logger } from './logger.ts';
+import { classifyAuthShape } from './authShape.ts';
+import type { WikiRegistry } from '../wikis/wikiRegistry.ts';
+import type { ActiveWiki } from '../wikis/activeWiki.ts';
+import type { UploadDirs } from '../wikis/uploadDirs.ts';
 
 // https://github.com/nodejs/node/issues/51347#issuecomment-2111337854
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- compile-time JSON import; ESM `import ... assert { type: 'json' }` migration is a separate follow-up

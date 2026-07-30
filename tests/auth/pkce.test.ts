@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { randomVerifier, s256 } from '../../src/auth/pkce.js';
+import { randomVerifier, s256 } from '../../src/auth/pkce.ts';
 
 describe('pkce.randomVerifier', () => {
 	it('returns a string between 43 and 128 chars', () => {

@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { searchPage } from '../../src/tools/search-page.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
-import type { SiteInfo } from '../../src/wikis/siteInfoCache.js';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import { searchPage } from '../../src/tools/search-page.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
+import type { SiteInfo } from '../../src/wikis/siteInfoCache.ts';
 
 describe('search-page', () => {
 	it('returns full-text search results with snippets', async () => {

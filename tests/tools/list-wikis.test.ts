@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { CallToolResult } from '@modelcontextprotocol/server';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { listWikis } from '../../src/tools/list-wikis.js';
-import { fakeContext } from '../helpers/fakeContext.js';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import { listWikis } from '../../src/tools/list-wikis.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
 
 const fetchMetadata = vi.fn();
-vi.mock('../../src/auth/metadata.js', () => ({
+vi.mock('../../src/auth/metadata.ts', () => ({
 	fetchMetadata: (...args: unknown[]) => fetchMetadata(...args) as unknown,
 }));
 

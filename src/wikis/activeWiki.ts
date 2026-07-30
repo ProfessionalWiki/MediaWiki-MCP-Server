@@ -1,6 +1,6 @@
-import type { WikiConfig } from '../config/loadConfig.js';
-import type { WikiRegistry } from './wikiRegistry.js';
-import { getRequestWiki } from '../runtime/requestContext.js';
+import type { WikiConfig } from '../config/loadConfig.ts';
+import type { WikiRegistry } from './wikiRegistry.ts';
+import { getRequestWiki } from '../runtime/requestContext.ts';
 
 export interface ActiveWiki {
 	// The wiki for the current call: the request-context wiki, else the default.

@@ -1,8 +1,8 @@
-import { type StderrWriteSpy } from '../helpers/stderrSpy.js';
+import { type StderrWriteSpy } from '../helpers/stderrSpy.ts';
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 
-vi.mock('../../src/runtime/metrics.js', () => ({
+vi.mock('../../src/runtime/metrics.ts', () => ({
 	recordToolCall: vi.fn(),
 }));
 import {
@@ -13,9 +13,9 @@ import {
 	levelFor,
 	parseEnvelope,
 	safeTarget,
-} from '../../src/runtime/instrument.js';
-import { registerServer, clearRegisteredServers } from '../../src/runtime/logger.js';
-import { recordToolCall } from '../../src/runtime/metrics.js';
+} from '../../src/runtime/instrument.ts';
+import { registerServer, clearRegisteredServers } from '../../src/runtime/logger.ts';
+import { recordToolCall } from '../../src/runtime/metrics.ts';
 
 function captureToolCallLine(spy: StderrWriteSpy): Record<string, unknown> {
 	const events = spy.mock.calls

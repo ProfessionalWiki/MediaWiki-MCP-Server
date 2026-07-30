@@ -1,7 +1,7 @@
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
-import type { Tool } from '../runtime/tool.js';
-import type { ToolContext } from '../runtime/context.js';
-import { createTokenStore } from '../auth/tokenStore.js';
+import type { Tool } from '../runtime/tool.ts';
+import type { ToolContext } from '../runtime/context.ts';
+import { createTokenStore } from '../auth/tokenStore.ts';
 
 export const oauthStatus: Tool<Record<string, never>> = {
 	name: 'oauth-status',

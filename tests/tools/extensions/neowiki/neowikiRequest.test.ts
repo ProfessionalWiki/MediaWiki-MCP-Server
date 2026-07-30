@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../../../helpers/mock-mwn.js';
-import { fakeContext } from '../../../helpers/fakeContext.js';
+import { createMockMwn } from '../../../helpers/mock-mwn.ts';
+import { fakeContext } from '../../../helpers/fakeContext.ts';
 import {
 	neowikiRequest,
 	neowikiErrorResult,
 	NeoWikiApiError,
-} from '../../../../src/tools/extensions/neowiki/neowikiRequest.js';
+} from '../../../../src/tools/extensions/neowiki/neowikiRequest.ts';
 
 // Builds an axios-style rejection: a thrown error carrying `.response`.
 function httpError(status: number, data: unknown): Error & { response: unknown } {

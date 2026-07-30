@@ -1,8 +1,8 @@
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
-import type { Tool } from '../runtime/tool.js';
-import type { ToolContext } from '../runtime/context.js';
-import { extensionPacks } from './extensions/index.js';
-import { fetchMetadata } from '../auth/metadata.js';
+import type { Tool } from '../runtime/tool.ts';
+import type { ToolContext } from '../runtime/context.ts';
+import { extensionPacks } from './extensions/index.ts';
+import { fetchMetadata } from '../auth/metadata.ts';
 
 interface WikiSummary {
 	key: string;

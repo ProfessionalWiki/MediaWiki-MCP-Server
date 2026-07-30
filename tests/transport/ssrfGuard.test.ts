@@ -7,8 +7,8 @@ vi.mock('node:dns/promises', () => ({
 import { Agent as HttpAgent } from 'node:http';
 import { Agent as HttpsAgent } from 'node:https';
 import { lookup } from 'node:dns/promises';
-import { assertPublicDestination, buildPinnedAgent } from '../../src/transport/ssrfGuard.js';
-import { mockedLookupAll } from '../helpers/mockDnsLookup.js';
+import { assertPublicDestination, buildPinnedAgent } from '../../src/transport/ssrfGuard.ts';
+import { mockedLookupAll } from '../helpers/mockDnsLookup.ts';
 
 describe('ssrfGuard.assertPublicDestination', () => {
 	beforeEach(() => {

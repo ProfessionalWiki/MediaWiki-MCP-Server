@@ -14,16 +14,16 @@ import {
 	resolveMcpHostValidation,
 	resolveMcpOriginValidation,
 	toOriginHostnames,
-} from '../../src/transport/streamableHttp.js';
+} from '../../src/transport/streamableHttp.ts';
 import {
 	AUTHENTICATION_REQUIRED_ERROR_CODE,
 	PAYLOAD_TOO_LARGE_ERROR_CODE,
 	UPSTREAM_UNAVAILABLE_ERROR_CODE,
-} from '../../src/transport/errorCodes.js';
-import { createMcpRouteHandler } from '../../src/transport/mcpRoute.js';
-import { createInFlightCounter } from '../../src/transport/inFlight.js';
-import { getRuntimeToken, withRequestContext } from '../../src/runtime/requestContext.js';
-import { logger } from '../../src/runtime/logger.js';
+} from '../../src/transport/errorCodes.ts';
+import { createMcpRouteHandler } from '../../src/transport/mcpRoute.ts';
+import { createInFlightCounter } from '../../src/transport/inFlight.ts';
+import { getRuntimeToken, withRequestContext } from '../../src/runtime/requestContext.ts';
+import { logger } from '../../src/runtime/logger.ts';
 
 describe('handleListenError', () => {
 	function listenErr(code: string): NodeJS.ErrnoException {

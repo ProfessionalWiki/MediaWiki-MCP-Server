@@ -1,5 +1,5 @@
-import { WIKI_RESOURCE_URI_PREFIX } from '../runtime/constants.js';
-import { decodeWikiKey } from '../runtime/wikiKey.js';
+import { WIKI_RESOURCE_URI_PREFIX } from '../runtime/constants.ts';
+import { decodeWikiKey } from '../runtime/wikiKey.ts';
 
 export interface ParsedWikiUri {
 	wikiKey: string;

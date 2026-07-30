@@ -1,5 +1,5 @@
-import type { ToolContext } from '../runtime/context.js';
-import { resolveSiteInfo } from './siteInfo.js';
+import type { ToolContext } from '../runtime/context.ts';
+import { resolveSiteInfo } from './siteInfo.ts';
 
 export async function buildPageUrl(ctx: ToolContext, title: string): Promise<string> {
 	const { key } = ctx.activeWiki.get();

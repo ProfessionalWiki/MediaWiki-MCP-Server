@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createMockMwn, type MockMwn } from '../helpers/mock-mwn.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import type { ToolContext } from '../../src/runtime/context.js';
-import { getRecentChanges } from '../../src/tools/get-recent-changes.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
+import { createMockMwn, type MockMwn } from '../helpers/mock-mwn.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import type { ToolContext } from '../../src/runtime/context.ts';
+import { getRecentChanges } from '../../src/tools/get-recent-changes.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
 import {
 	assertStructuredData,
 	assertStructuredError,
 	assertStructuredSuccess,
-} from '../helpers/structuredResult.js';
+} from '../helpers/structuredResult.ts';
 
 const RC_PROP = 'user|userid|comment|flags|timestamp|title|ids|sizes|tags|loginfo';
 

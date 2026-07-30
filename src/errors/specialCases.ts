@@ -1,5 +1,5 @@
-import type { ErrorCategory } from './classifyError.js';
-import { errorMessage } from './isErrnoException.js';
+import type { ErrorCategory } from './classifyError.ts';
+import { errorMessage } from './isErrnoException.ts';
 
 export interface SpecialCaseResult {
 	category: ErrorCategory;

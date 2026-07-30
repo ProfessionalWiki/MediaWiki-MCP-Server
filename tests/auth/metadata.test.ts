@@ -4,8 +4,8 @@ import {
 	fetchMetadata,
 	MetadataError,
 	_resetMetadataCacheForTesting,
-} from '../../src/auth/metadata.js';
-import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.js';
+} from '../../src/auth/metadata.ts';
+import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 
 let fakeAs: FakeAsHandle;
 

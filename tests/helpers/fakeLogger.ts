@@ -1,5 +1,5 @@
 import { vi, type Mock } from 'vitest';
-import type { Logger } from '../../src/runtime/logger.js';
+import type { Logger } from '../../src/runtime/logger.ts';
 
 export type FakeLogger = { [K in keyof Logger]: Mock<Logger[K]> };
 

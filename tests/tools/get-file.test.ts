@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { getFile } from '../../src/tools/get-file.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { formatPayload } from '../../src/results/format.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import { getFile } from '../../src/tools/get-file.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import { formatPayload } from '../../src/results/format.ts';
+import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
 
 describe('get-file', () => {
 	it('returns file info using action=query&prop=imageinfo', async () => {

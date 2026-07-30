@@ -10,7 +10,7 @@ import {
 	unregisterServer,
 	type LogContext,
 	type LogLevel,
-} from '../../src/runtime/logger.js';
+} from '../../src/runtime/logger.ts';
 
 interface FakeServer {
 	sendLoggingMessage: Mock;

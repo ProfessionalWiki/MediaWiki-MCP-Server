@@ -1,7 +1,7 @@
 import fetch, { Response, FetchError } from 'node-fetch';
-import { USER_AGENT } from '../runtime/constants.js';
-import { isErrnoException } from '../errors/isErrnoException.js';
-import { assertPublicDestination, buildPinnedAgent, SsrfValidationError } from './ssrfGuard.js';
+import { USER_AGENT } from '../runtime/constants.ts';
+import { isErrnoException } from '../errors/isErrnoException.ts';
+import { assertPublicDestination, buildPinnedAgent, SsrfValidationError } from './ssrfGuard.ts';
 
 const MAX_REDIRECTS = 5;
 

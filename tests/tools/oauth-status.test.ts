@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { oauthStatus } from '../../src/tools/oauth-status.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { useTempTokenStore } from '../helpers/tempTokenStore.js';
-import { createTokenStore } from '../../src/auth/tokenStore.js';
-import { fakeContext } from '../helpers/fakeContext.js';
+import { oauthStatus } from '../../src/tools/oauth-status.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import { useTempTokenStore } from '../helpers/tempTokenStore.ts';
+import { createTokenStore } from '../../src/auth/tokenStore.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
 
 useTempTokenStore();
 

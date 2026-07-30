@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	mwOauth2AuthorizeEndpoint,
 	mwOauth2TokenEndpoint,
-} from '../../src/auth/mwOauth2Endpoints.js';
+} from '../../src/auth/mwOauth2Endpoints.ts';
 
 describe('mwOauth2Endpoints', () => {
 	it('builds the access_token endpoint from base + scriptpath', () => {

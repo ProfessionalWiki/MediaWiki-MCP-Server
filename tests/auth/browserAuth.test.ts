@@ -5,12 +5,12 @@ import {
 	browserAuth,
 	BrowserAuthError,
 	_resetBrowserAuthDedupForTesting,
-} from '../../src/auth/browserAuth.js';
-import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.js';
-import { useTempTokenStore } from '../helpers/tempTokenStore.js';
-import { createTokenStore } from '../../src/auth/tokenStore.js';
-import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.js';
-import { fakeBrowserDriver } from '../helpers/fakeBrowserDriver.js';
+} from '../../src/auth/browserAuth.ts';
+import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
+import { useTempTokenStore } from '../helpers/tempTokenStore.ts';
+import { createTokenStore } from '../../src/auth/tokenStore.ts';
+import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.ts';
+import { fakeBrowserDriver } from '../helpers/fakeBrowserDriver.ts';
 
 vi.mock('open', () => ({ default: vi.fn() }));
 import openMod from 'open';

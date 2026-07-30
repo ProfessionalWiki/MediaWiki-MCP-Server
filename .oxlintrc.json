@@ -1,6 +1,6 @@
 {
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
-	"plugins": ["typescript", "node"],
+	"plugins": ["typescript", "node", "import"],
 	"categories": {
 		"correctness": "error",
 		"suspicious": "warn"
@@ -16,7 +16,8 @@
 		"typescript/no-floating-promises": "error",
 		"typescript/no-misused-promises": "error",
 		"typescript/await-thenable": "error",
-		"typescript/no-explicit-any": "warn"
+		"typescript/no-explicit-any": "warn",
+		"import/extensions": ["error", "ignorePackages", { "js": "never" }]
 	},
 	"overrides": [
 		{

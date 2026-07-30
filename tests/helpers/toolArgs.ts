@@ -1,5 +1,5 @@
 import { z, type ZodRawShape } from 'zod';
-import type { Tool } from '../../src/runtime/tool.js';
+import type { Tool } from '../../src/runtime/tool.ts';
 
 // Applies a tool's own schema defaults to a partial argument object, producing
 // exactly what the handler receives once the SDK has parsed the call. Calling

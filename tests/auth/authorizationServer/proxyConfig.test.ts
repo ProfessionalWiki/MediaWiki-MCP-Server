@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
 	resolveProxyConfig,
 	ProxyConfigError,
-} from '../../../src/auth/authorizationServer/proxyConfig.js';
+} from '../../../src/auth/authorizationServer/proxyConfig.ts';
 
 const wiki = {
 	server: 'http://mediawiki.svc:80',

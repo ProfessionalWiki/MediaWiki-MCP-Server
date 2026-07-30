@@ -2,9 +2,9 @@ import { z } from 'zod';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
 import type { ApiMoveResponse } from 'mwn';
 import type { ApiMoveParams } from 'types-mediawiki-api';
-import type { Tool } from '../runtime/tool.js';
-import type { ToolContext } from '../runtime/context.js';
-import { buildPageUrl, formatEditComment } from '../wikis/utils.js';
+import type { Tool } from '../runtime/tool.ts';
+import type { ToolContext } from '../runtime/context.ts';
+import { buildPageUrl, formatEditComment } from '../wikis/utils.ts';
 
 const inputSchema = {
 	fromTitle: z.string().describe('Current title of the wiki page to move'),

@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { getPageHistory } from '../../src/tools/get-page-history.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import { getPageHistory } from '../../src/tools/get-page-history.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
 import {
 	assertStructuredError,
 	assertStructuredSuccess,
 	assertStructuredData,
-} from '../helpers/structuredResult.js';
+} from '../helpers/structuredResult.ts';
 
 describe('get-page-history', () => {
 	it('returns basic revision history', async () => {

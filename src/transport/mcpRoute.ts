@@ -1,22 +1,22 @@
 import type { Request, RequestHandler, Response } from 'express';
 import type { McpHttpHandler } from '@modelcontextprotocol/server';
 import { toNodeHandler } from '@modelcontextprotocol/node';
-import { hasStaticCredentials } from '../runtime/authShape.js';
-import { withRequestContext } from '../runtime/requestContext.js';
-import type { WikiConfig } from '../config/loadConfig.js';
-import type { WikiRegistry } from '../wikis/wikiRegistry.js';
-import { resolvePublicBase } from '../auth/protectedResource.js';
+import { hasStaticCredentials } from '../runtime/authShape.ts';
+import { withRequestContext } from '../runtime/requestContext.ts';
+import type { WikiConfig } from '../config/loadConfig.ts';
+import type { WikiRegistry } from '../wikis/wikiRegistry.ts';
+import { resolvePublicBase } from '../auth/protectedResource.ts';
 import {
 	AUTHENTICATION_REQUIRED_ERROR_CODE,
 	UPSTREAM_UNAVAILABLE_ERROR_CODE,
-} from './errorCodes.js';
-import type { ProxyConfig } from '../auth/authorizationServer/proxyConfig.js';
-import type { ProxyStore } from '../auth/authorizationServer/proxyStore.js';
+} from './errorCodes.ts';
+import type { ProxyConfig } from '../auth/authorizationServer/proxyConfig.ts';
+import type { ProxyStore } from '../auth/authorizationServer/proxyStore.ts';
 import {
 	resolveUpstreamBearer,
 	UpstreamBearerError,
 	type RefreshFn,
-} from '../auth/upstreamBearer.js';
+} from '../auth/upstreamBearer.ts';
 
 export function extractBearerToken(req: Request): string | undefined {
 	const raw = req.headers.authorization;

@@ -2,12 +2,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { InMemoryTransport, McpServer } from '@modelcontextprotocol/server';
 import type { RegisteredTool } from '@modelcontextprotocol/server';
 import { Client } from '@modelcontextprotocol/client';
-import type { WikiConfig } from '../../src/config/loadConfig.js';
-import type { WikiProbe } from '../../src/wikis/wikiProbe.js';
-import { reconcileTools } from '../../src/runtime/reconcile.js';
-import { extensionPacks } from '../../src/tools/extensions/index.js';
-import { registerAllTools } from '../../src/tools/index.js';
-import { fakeContext } from '../helpers/fakeContext.js';
+import type { WikiConfig } from '../../src/config/loadConfig.ts';
+import type { WikiProbe } from '../../src/wikis/wikiProbe.ts';
+import { reconcileTools } from '../../src/runtime/reconcile.ts';
+import { extensionPacks } from '../../src/tools/extensions/index.ts';
+import { registerAllTools } from '../../src/tools/index.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
 
 const wikiA: WikiConfig = {
 	sitename: 'Writeable',

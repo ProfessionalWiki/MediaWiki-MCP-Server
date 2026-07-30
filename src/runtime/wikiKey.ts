@@ -1,4 +1,4 @@
-import { WIKI_RESOURCE_URI_PREFIX } from './constants.js';
+import { WIKI_RESOURCE_URI_PREFIX } from './constants.ts';
 
 // The mapping between a wiki key and the `mcp://wikis/` URI segment naming it.
 // The config loader, the registry, the resource layer and the `wiki` tool

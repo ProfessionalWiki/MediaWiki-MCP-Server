@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { assertStructuredSuccess, assertStructuredError } from './structuredResult.js';
-import { structuredResult, errorResult } from '../../src/results/response.js';
+import { assertStructuredSuccess, assertStructuredError } from './structuredResult.ts';
+import { structuredResult, errorResult } from '../../src/results/response.ts';
 
 describe('assertStructuredSuccess', () => {
 	it('returns the rendered text on a valid payload', () => {

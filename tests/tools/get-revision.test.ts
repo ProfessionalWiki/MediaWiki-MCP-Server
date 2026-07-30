@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.js';
-import { fakeContext } from '../helpers/fakeContext.js';
-import { getRevision } from '../../src/tools/get-revision.js';
-import { dispatch } from '../../src/runtime/dispatcher.js';
-import { ContentFormat } from '../../src/results/contentFormat.js';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.js';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { fakeContext } from '../helpers/fakeContext.ts';
+import { getRevision } from '../../src/tools/get-revision.ts';
+import { dispatch } from '../../src/runtime/dispatcher.ts';
+import { ContentFormat } from '../../src/results/contentFormat.ts';
+import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
 
 describe('get-revision', () => {
 	it('returns source content from a specific revision', async () => {

@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { WikiProbeImpl } from '../../src/wikis/wikiProbe.js';
-import type { WikiRegistry } from '../../src/wikis/wikiRegistry.js';
-import type { WikiConfig } from '../../src/config/loadConfig.js';
-import { fakeClock } from '../helpers/fakeClock.js';
+import { WikiProbeImpl } from '../../src/wikis/wikiProbe.ts';
+import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
+import type { WikiConfig } from '../../src/config/loadConfig.ts';
+import { fakeClock } from '../helpers/fakeClock.ts';
 
-vi.mock('../../src/transport/httpFetch.js', () => ({
+vi.mock('../../src/transport/httpFetch.ts', () => ({
 	makeApiRequest: vi.fn(),
 }));
 
-import { makeApiRequest } from '../../src/transport/httpFetch.js';
+import { makeApiRequest } from '../../src/transport/httpFetch.ts';
 
 const baseWiki: WikiConfig = {
 	sitename: 'Test',
