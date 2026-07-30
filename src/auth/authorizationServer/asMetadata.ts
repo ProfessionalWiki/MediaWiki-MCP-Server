@@ -2,8 +2,9 @@ import type { OAuthMetadata } from '@modelcontextprotocol/server';
 import type { ProxyConfig } from './proxyConfig.ts';
 
 // The SDK's RFC 8414 document type, narrowed to the fields this proxy always
-// emits: RFC 8414 makes them optional, but clients rely on the PKCE, DCR, iss
-// and CIMD advertisements to pick a compatible flow.
+// emits: the spec and its registry extensions make them optional, but clients
+// pick a compatible flow from these advertisements (grant types, auth
+// methods, PKCE, DCR, iss, CIMD).
 export type AsMetadataDoc = OAuthMetadata &
 	Required<
 		Pick<
