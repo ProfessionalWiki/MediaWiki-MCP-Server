@@ -2,6 +2,10 @@
 
 const TIMEOUT_MS = 5000;
 
+// Deliberately not the SDK's OAuthTokens, which requires token_type and makes
+// expires_in optional — the inverse of what post() enforces. expires_in must
+// be present because token stores schedule refresh from it; token_type may be
+// absent in MediaWiki responses.
 export interface TokenResponse {
 	access_token: string;
 	refresh_token?: string;

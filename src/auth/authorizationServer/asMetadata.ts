@@ -1,18 +1,22 @@
+import type { OAuthMetadata } from '@modelcontextprotocol/server';
 import type { ProxyConfig } from './proxyConfig.ts';
 
-export interface AsMetadataDoc {
-	issuer: string;
-	authorization_endpoint: string;
-	token_endpoint: string;
-	registration_endpoint: string;
-	response_types_supported: string[];
-	grant_types_supported: string[];
-	code_challenge_methods_supported: string[];
-	token_endpoint_auth_methods_supported: string[];
-	authorization_response_iss_parameter_supported: boolean;
-	client_id_metadata_document_supported: boolean;
-	scopes_supported?: string[];
-}
+// The SDK's RFC 8414 document type, narrowed to the fields this proxy always
+// emits: the spec and its registry extensions make them optional, but clients
+// pick a compatible flow from these advertisements (grant types, auth
+// methods, PKCE, DCR, iss, CIMD).
+export type AsMetadataDoc = OAuthMetadata &
+	Required<
+		Pick<
+			OAuthMetadata,
+			| 'registration_endpoint'
+			| 'grant_types_supported'
+			| 'code_challenge_methods_supported'
+			| 'token_endpoint_auth_methods_supported'
+			| 'authorization_response_iss_parameter_supported'
+			| 'client_id_metadata_document_supported'
+		>
+	>;
 
 /**
  * Builds the RFC 8414 authorization-server metadata document advertising this
