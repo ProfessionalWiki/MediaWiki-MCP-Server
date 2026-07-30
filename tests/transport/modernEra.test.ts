@@ -103,6 +103,13 @@ describe('2026-07-28 era over Streamable HTTP (in-memory)', () => {
 		const resources = await client.listResources();
 		expect(resources.ttlMs).toBe(60_000);
 		expect(resources.cacheScope).toBe('private');
+
+		// resources/read is the one operation with a competing precedence path
+		// (a per-registration cacheHint would override field by field), so pin
+		// that the per-operation hint reaches an actual read result.
+		const read = await client.readResource({ uri: 'mcp://wikis/test-wiki' });
+		expect(read.ttlMs).toBe(60_000);
+		expect(read.cacheScope).toBe('private');
 	});
 
 	it('falls back to a legacy handshake through the same handler when negotiation is off', async () => {
@@ -115,6 +122,10 @@ describe('2026-07-28 era over Streamable HTTP (in-memory)', () => {
 
 		const tools = await client.listTools();
 		expect(tools.tools.length).toBeGreaterThan(0);
+		// Cache hints are a 2026-07-28 wire feature; a legacy-era response must
+		// not carry them.
+		expect(tools.ttlMs).toBeUndefined();
+		expect(tools.cacheScope).toBeUndefined();
 	});
 
 	it('delivers toolsChanged to a modern listen subscriber when a management tool reconciles', async () => {
