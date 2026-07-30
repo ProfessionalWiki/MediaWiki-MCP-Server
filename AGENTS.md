@@ -22,7 +22,9 @@ Project context for AI coding agents working on this repo. For human users, star
 
 Relative imports name the `.ts` file they actually resolve to — `import { foo } from './foo.ts'`, not `'./foo.js'`. TypeScript rewrites the extension to `.js` on emit (`rewriteRelativeImportExtensions`), so `dist/` is unchanged. Package specifiers are untouched.
 
-The module paths passed to `vi.mock`, `vi.doMock`, `vi.unmock`, `vi.importActual` and `vi.importMock` take the same `.ts` extension, but the compiler does not rewrite them — they are function arguments, not imports. Keep each one in step with the static import it doubles by hand; nothing checks it.
+`import/extensions` enforces this, so a stale `.js` specifier fails the pre-commit hook. Its help text says to remove the extension; ignore that and change it to `.ts`, since `NodeNext` will not resolve an extensionless relative path.
+
+The module paths passed to `vi.mock`, `vi.doMock`, `vi.unmock`, `vi.importActual` and `vi.importMock` take the same `.ts` extension, but the lint rule does not reach them and the compiler does not rewrite them — they are function arguments, not imports. Keep each one in step with the static import it doubles by hand.
 
 A path handed to a runtime `createRequire( import.meta.url )` resolves against the **emitted** file, not the source, so it keeps the extension and depth `dist/` needs. Leave those alone.
 
