@@ -174,6 +174,7 @@ satisfies the contract below works.
 | Variable | Meaning | Source |
 |---|---|---|
 | `OAUTH2_CLIENT_ID` | Consumer key → `config.json` `oauth2ClientId` | provisioning script |
+| `MCP_OAUTH2_CLIENT_SECRET` | Consumer secret. The proxy refuses to start without it | provisioning script |
 | `MW_DEV_BOT_USER` / `MW_DEV_BOT_PASSWORD` | Static credentials for non-proxy auth tests | provisioning script |
 | `MCP_TRUSTED_HOSTS` | Outbound SSRF-guard exemption for a loopback/private wiki | provisioning script |
 | `MCP_PUBLIC_URL`, `MCP_OAUTH_JWT_SIGNING_KEY`, `PORT`, `MCP_TRANSPORT` | Proxy configuration | you |
@@ -186,18 +187,25 @@ set -a; eval "$( scripts/provision-dev-wiki.sh <container> )"; set +a
 ```
 
 On a wiki whose Extension:OAuth is recent enough to register OAuth2 consumers
-from the command line, this registers an approved OAuth 2.0 public (PKCE)
+from the command line, this registers an approved **confidential** OAuth 2.0
 consumer whose callback matches `${MCP_PUBLIC_URL}/oauth/callback`, creates a bot
-password, and exports `OAUTH2_CLIENT_ID`, `MW_DEV_BOT_USER`, `MW_DEV_BOT_PASSWORD`,
-and (for a loopback wiki) `MCP_TRUSTED_HOSTS`. Override the proxy base with
-`--public-url` if you run the server on a non-default port.
+password, and exports `OAUTH2_CLIENT_ID`, `MCP_OAUTH2_CLIENT_SECRET`,
+`MW_DEV_BOT_USER`, `MW_DEV_BOT_PASSWORD`, and (for a loopback wiki)
+`MCP_TRUSTED_HOSTS`. Override the proxy base with `--public-url` if you run the
+server on a non-default port, and the install path with `--mw-path` if MediaWiki
+does not live at `/var/www/html` — MediaWiki core's own docker environment puts
+it at `/var/www/html/w`.
+
+The consumer must be confidential: the proxy authenticates with the secret to
+refresh upstream tokens, and refuses to start without one.
 
 On an older Extension:OAuth — for example the copy bundled with the MediaWiki
 1.43 LTS, whose `createOAuthConsumer.php` is OAuth1-only — the script cannot
 register the consumer from the command line. It prints step-by-step instructions
 to register it once in the browser at
 `Special:OAuthConsumerRegistration/propose/oauth2`, after which you set
-`OAUTH2_CLIENT_ID` yourself before starting the proxy.
+`OAUTH2_CLIENT_ID` and `MCP_OAUTH2_CLIENT_SECRET` yourself before starting the
+proxy. Tick "Client is confidential" there; the secret is shown once.
 
 ### 3. Configure the wiki entry
 
@@ -213,7 +221,8 @@ In `config.json`, point the wiki at the provisioned consumer (adjust
       "server": "http://localhost:8080",
       "articlepath": "/wiki",
       "scriptpath": "/w",
-      "oauth2ClientId": "${OAUTH2_CLIENT_ID}"
+      "oauth2ClientId": "${OAUTH2_CLIENT_ID}",
+      "oauth2ClientSecret": "${MCP_OAUTH2_CLIENT_SECRET}"
     }
   }
 }
@@ -227,8 +236,8 @@ export MCP_OAUTH_JWT_SIGNING_KEY="$(openssl rand -hex 32)"   # keep this FIXED a
 node dist/index.js
 ```
 
-`MCP_TRUSTED_HOSTS` (from step 2) is already exported for a loopback wiki. A
-changed signing key invalidates every issued token.
+`MCP_TRUSTED_HOSTS` and `MCP_OAUTH2_CLIENT_SECRET` (from step 2) are already
+exported. A changed signing key invalidates every issued token.
 
 ### 5. Walk the sign-in flow
 
