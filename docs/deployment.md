@@ -71,7 +71,7 @@ One-time, wiki-side setup, with [Extension:OAuth](https://www.mediawiki.org/wiki
 - **OAuth 2.0**, requesting **specific permissions** (a *full* consumer, not the owner-only "for use only by me" option), including the edit grants your users need.
 - **Grant types:** Authorization code and Refresh token.
 - **Callback URL:** exactly `<MCP_PUBLIC_URL>/oauth/callback`; Extension:OAuth exact-matches the redirect URI. With `MCP_PUBLIC_URL=https://wiki.example.org/mcp`, that is `https://wiki.example.org/mcp/oauth/callback`.
-- **Confidential client:** check "This consumer is confidential" and keep the **client secret** it shows. The proxy authenticates with that secret to refresh tokens and keep users signed in past the wiki's ~1-hour access-token lifetime; it refuses to start without one, so a public/PKCE consumer is not supported.
+- **Confidential client:** check "Client is confidential" and keep the **client secret** it shows. The proxy authenticates with that secret to refresh tokens and keep users signed in past the wiki's ~1-hour access-token lifetime; it refuses to start without one, so a public/PKCE consumer is not supported.
 
 Copy the resulting consumer **key** into the wiki's `oauth2ClientId` and its **secret** into `oauth2ClientSecret` (next step).
 

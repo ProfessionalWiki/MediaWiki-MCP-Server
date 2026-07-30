@@ -49,8 +49,8 @@ Options:
   --dry-run            Print the docker commands that would run, then exit.
   -h, --help           Show this help.
 
-Output (stdout, env-file format): OAUTH2_CLIENT_ID, MW_DEV_BOT_USER,
-MW_DEV_BOT_PASSWORD, and (for loopback wikis) MCP_TRUSTED_HOSTS.
+Output (stdout, env-file format): OAUTH2_CLIENT_ID, MCP_OAUTH2_CLIENT_SECRET,
+MW_DEV_BOT_USER, MW_DEV_BOT_PASSWORD, and (for loopback wikis) MCP_TRUSTED_HOSTS.
 EOF
 }
 
@@ -82,7 +82,7 @@ OAUTH_SCRIPT="${MW_PATH%/}/extensions/OAuth/maintenance/createOAuthConsumer.php"
 consumer_argv=(docker exec "$CONTAINER" php "$RUN_PHP" "$OAUTH_SCRIPT"
 	--user "$ADMIN_USER" --name "$CONSUMER_NAME"
 	--description 'MediaWiki MCP Server dev proxy' --version '1.0'
-	--oauthVersion 2 --oauth2IsNotConfidential
+	--oauthVersion 2
 	--oauth2GrantTypes authorization_code --oauth2GrantTypes refresh_token
 	--callbackUrl "$CALLBACK_URL" --approve --jsonOnSuccess)
 IFS=',' read -ra grant_arr <<< "$GRANTS"
@@ -108,28 +108,40 @@ docker exec "$CONTAINER" test -f "$OAUTH_SCRIPT" \
 	|| die "Extension:OAuth not found at $MW_PATH/extensions/OAuth (install it and enable OAuth2)"
 
 # --- register consumer (only if the stock CLI supports OAuth2) ---------------
-# The --oauthVersion / --oauth2IsNotConfidential flags exist only in newer
-# Extension:OAuth. The copy bundled with some releases (e.g. the MediaWiki 1.43
-# LTS) ships an OAuth1-only createOAuthConsumer.php, so CLI registration of an
-# OAuth2 public client is impossible there and must be done in the browser.
-# Detect by looking for the public-client flag in the script itself.
+# The OAuth2 flags exist only in newer Extension:OAuth. The copy bundled with the
+# MediaWiki 1.43 LTS ships an OAuth1-only createOAuthConsumer.php, so the consumer
+# has to be registered in the browser there.
+#
+# Probe on oauth2IsNotConfidential: it appears only in the newer script. Do not
+# probe 'oauthVersion' or 'oauth2GrantTypes' — the OAuth1-only file contains both
+# as hardcoded array values, so matching those sends a 1.43 wiki down the CLI
+# path, where registration then fails on the unrecognised flags.
 client_id=''
+client_secret=''
 if docker exec "$CONTAINER" grep -q 'oauth2IsNotConfidential' "$OAUTH_SCRIPT" 2>/dev/null; then
 	log "Registering OAuth 2.0 consumer '${CONSUMER_NAME}'"
 	log "  callback: ${CALLBACK_URL}"
 	consumer_json="$("${consumer_argv[@]}")" || die "consumer registration failed (see above)"
 	client_id="$(printf '%s' "$consumer_json" | sed -n 's/.*"key":"\([^"]*\)".*/\1/p')"
 	[ -n "$client_id" ] || die "could not parse consumer key from output: $consumer_json"
+	# A confidential consumer prints its secret once, here. Without it the proxy
+	# refuses to start, so an unparsed secret is a hard failure rather than a
+	# missing convenience.
+	client_secret="$(printf '%s' "$consumer_json" | sed -n 's/.*"secret":"\([^"]*\)".*/\1/p')"
+	[ -n "$client_secret" ] || die "could not parse consumer secret from output: $consumer_json"
 else
-	log "This wiki's Extension:OAuth createOAuthConsumer.php is OAuth1-only (no CLI"
-	log "flag for OAuth2 public clients), so the consumer can't be registered from"
-	log "the command line here. Register it once in the browser instead:"
+	log "This wiki's Extension:OAuth createOAuthConsumer.php is OAuth1-only, so the"
+	log "consumer can't be registered from the command line here. Register it once"
+	log "in the browser instead:"
 	log "  1. On the wiki, open Special:OAuthConsumerRegistration/propose/oauth2"
 	log "  2. Callback URL (exact): ${CALLBACK_URL}"
-	log "  3. Leave 'This consumer is confidential' UNCHECKED (public + PKCE)."
-	log "  4. Grant types: tick Authorization code and Refresh token."
+	log "  3. TICK 'Client is confidential' — the proxy authenticates with a client"
+	log "     secret to refresh tokens, and a public consumer has no secret."
+	log "  4. Under 'Allowed OAuth2 grant types', keep Authorization code and"
+	log "     Refresh token ticked."
 	log "  5. Request the grants your tools need (default set: ${GRANTS})."
-	log "  6. Copy the client application key into OAUTH2_CLIENT_ID."
+	log "  6. Copy the client application key into OAUTH2_CLIENT_ID and the client"
+	log "     secret into MCP_OAUTH2_CLIENT_SECRET; the secret is shown only once."
 	log "See docs/deployment.md for the field-by-field walkthrough."
 fi
 
@@ -150,6 +162,7 @@ fi
 # so `MW_DEV_BOT_USER=First Last@mcp-dev` must be quoted.
 if [ -n "$client_id" ]; then
 	printf 'OAUTH2_CLIENT_ID=%q\n' "$client_id"
+	printf 'MCP_OAUTH2_CLIENT_SECRET=%q\n' "$client_secret"
 fi
 if [ "$WITH_BOT" -eq 1 ]; then
 	printf 'MW_DEV_BOT_USER=%q\n' "$bot_user"
