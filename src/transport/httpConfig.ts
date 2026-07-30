@@ -1,3 +1,5 @@
+import type { RateLimitSettings } from './rateLimit.ts';
+
 export interface HttpConfig {
 	host: string;
 	port: number;
@@ -7,6 +9,8 @@ export interface HttpConfig {
 	// request", which is the safe default rather than an absent control.
 	allowedOrigins: string[];
 	maxRequestBody: string;
+	// null when the operator disabled rate limiting with MCP_RATE_LIMIT=0.
+	rateLimit: RateLimitSettings | null;
 	warnings: string[];
 }
 
@@ -109,11 +113,58 @@ function resolveMaxRequestBody(): { value: string; warning?: string } {
 	return { value: trimmed };
 }
 
+const DEFAULT_RATE_LIMIT = 30;
+const DEFAULT_ANONYMOUS_RATE_LIMIT = 100;
+
+// Accepts a non-negative number; undefined means unset, null means unparseable.
+function parseRateValue(raw: string | undefined): number | null | undefined {
+	if (raw === undefined || raw.trim() === '') {
+		return undefined;
+	}
+	const parsed = Number(raw);
+	return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+// Rate limiting for tools/call, on by default. MCP_RATE_LIMIT=0 disables it
+// entirely; MCP_RATE_LIMIT_ANONYMOUS=0 leaves anonymous traffic unlimited while
+// signed-in callers stay limited. Bursts default to twice the sustained rate,
+// the headroom an agent firing a batch of calls needs; only the per-caller
+// burst is separately tunable.
+function resolveRateLimit(): { value: RateLimitSettings | null; warnings: string[] } {
+	const warnings: string[] = [];
+	const read = (name: string, fallback: number): number => {
+		const parsed = parseRateValue(process.env[name]);
+		if (parsed === null) {
+			warnings.push(
+				`${name}=${process.env[name]} is not a non-negative number; using default ${fallback}`,
+			);
+			return fallback;
+		}
+		return parsed ?? fallback;
+	};
+	const rate = read('MCP_RATE_LIMIT', DEFAULT_RATE_LIMIT);
+	if (rate === 0) {
+		return { value: null, warnings };
+	}
+	const burst = read('MCP_RATE_LIMIT_BURST', rate * 2);
+	const anonymousRate = read('MCP_RATE_LIMIT_ANONYMOUS', DEFAULT_ANONYMOUS_RATE_LIMIT);
+	return {
+		value: {
+			ratePerSecond: rate,
+			burst: Math.max(1, burst),
+			anonymousRatePerSecond: anonymousRate,
+			anonymousBurst: Math.max(1, anonymousRate * 2),
+		},
+		warnings,
+	};
+}
+
 export function resolveHttpConfig(): HttpConfig {
 	const host = resolveHost();
 	const port = resolvePort();
 	const body = resolveMaxRequestBody();
-	const warnings: string[] = [];
+	const rateLimit = resolveRateLimit();
+	const warnings: string[] = [...rateLimit.warnings];
 	if (body.warning) {
 		warnings.push(body.warning);
 	}
@@ -132,6 +183,7 @@ export function resolveHttpConfig(): HttpConfig {
 		allowedHosts: resolveAllowedHosts(),
 		allowedOrigins: resolveAllowedOrigins(host, port),
 		maxRequestBody: body.value,
+		rateLimit: rateLimit.value,
 		warnings,
 	};
 }

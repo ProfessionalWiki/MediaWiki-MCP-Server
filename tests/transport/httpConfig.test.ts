@@ -245,6 +245,55 @@ describe('resolveHttpConfig', () => {
 		});
 	});
 
+	describe('rateLimit', () => {
+		it('defaults to 30/s with burst 60, anonymous 100/s with burst 200', () => {
+			expect(resolveHttpConfig().rateLimit).toEqual({
+				ratePerSecond: 30,
+				burst: 60,
+				anonymousRatePerSecond: 100,
+				anonymousBurst: 200,
+			});
+		});
+
+		it('MCP_RATE_LIMIT=0 disables rate limiting entirely', () => {
+			vi.stubEnv('MCP_RATE_LIMIT', '0');
+			expect(resolveHttpConfig().rateLimit).toBeNull();
+		});
+
+		it('burst follows a customised rate at twice its value', () => {
+			vi.stubEnv('MCP_RATE_LIMIT', '5');
+			expect(resolveHttpConfig().rateLimit).toMatchObject({ ratePerSecond: 5, burst: 10 });
+		});
+
+		it('an explicit burst overrides the derived one', () => {
+			vi.stubEnv('MCP_RATE_LIMIT', '5');
+			vi.stubEnv('MCP_RATE_LIMIT_BURST', '40');
+			expect(resolveHttpConfig().rateLimit).toMatchObject({ ratePerSecond: 5, burst: 40 });
+		});
+
+		it('MCP_RATE_LIMIT_ANONYMOUS=0 leaves anonymous unlimited while callers stay limited', () => {
+			vi.stubEnv('MCP_RATE_LIMIT_ANONYMOUS', '0');
+			expect(resolveHttpConfig().rateLimit).toMatchObject({
+				ratePerSecond: 30,
+				anonymousRatePerSecond: 0,
+			});
+		});
+
+		it('warns and uses the default for an unparseable value', () => {
+			vi.stubEnv('MCP_RATE_LIMIT', 'lots');
+			const config = resolveHttpConfig();
+			expect(config.rateLimit).toMatchObject({ ratePerSecond: 30 });
+			expect(config.warnings.some((w) => w.includes('MCP_RATE_LIMIT=lots'))).toBe(true);
+		});
+
+		it('warns and uses the default for a negative value', () => {
+			vi.stubEnv('MCP_RATE_LIMIT', '-5');
+			const config = resolveHttpConfig();
+			expect(config.rateLimit).toMatchObject({ ratePerSecond: 30 });
+			expect(config.warnings.length).toBeGreaterThan(0);
+		});
+	});
+
 	describe('MCP_SESSION_IDLE_TIMEOUT (obsolete)', () => {
 		it('warns when the obsolete variable is still set', () => {
 			vi.stubEnv('MCP_SESSION_IDLE_TIMEOUT', '900');

@@ -18,6 +18,7 @@ type ProxyStoreStats = { readonly upstreamTokens: number; readonly clients: numb
 interface Recorder {
 	recordToolCall(input: RecordToolCallInput): void;
 	recordReadyFailure(): void;
+	recordRateLimited(caller: 'caller' | 'anonymous'): void;
 	setInFlightProvider(fn: () => number): void;
 	setSubscriptionStreamsProvider(fn: () => number): void;
 	recordStoreFlush(durationMs: number): void;
@@ -41,6 +42,7 @@ function makeDisabledRecorder(): Recorder {
 	return {
 		recordToolCall: () => {},
 		recordReadyFailure: () => {},
+		recordRateLimited: () => {},
 		setInFlightProvider: () => {},
 		setSubscriptionStreamsProvider: () => {},
 		recordStoreFlush: () => {},
@@ -81,6 +83,13 @@ function makeLiveRecorder(): Recorder {
 	const readyFailures = new Counter({
 		name: 'mcp_ready_failures_total',
 		help: 'Total number of /ready probes that returned a non-200 status.',
+		registers: [registry],
+	});
+
+	const rateLimited = new Counter({
+		name: 'mcp_rate_limited_total',
+		help: 'Total tools/call requests refused with 429, labelled by whether the caller was authenticated.',
+		labelNames: ['caller'] as const,
 		registers: [registry],
 	});
 
@@ -153,6 +162,9 @@ function makeLiveRecorder(): Recorder {
 		recordReadyFailure() {
 			readyFailures.inc();
 		},
+		recordRateLimited(caller) {
+			rateLimited.inc({ caller });
+		},
 		setInFlightProvider(fn) {
 			inFlightProvider = fn;
 		},
@@ -195,6 +207,10 @@ export function recordToolCall(input: RecordToolCallInput): void {
 
 export function recordReadyFailure(): void {
 	recorder.recordReadyFailure();
+}
+
+export function recordRateLimited(caller: 'caller' | 'anonymous'): void {
+	recorder.recordRateLimited(caller);
 }
 
 export function setInFlightProvider(fn: () => number): void {

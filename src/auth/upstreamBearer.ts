@@ -93,28 +93,37 @@ async function performUpstreamRefresh(
 // UpstreamBearerError for a transient upstream failure, or a non-retryable one for
 // a dead refresh token. verifyAccessToken throws on an invalid/expired/mis-
 // audienced JWT; the caller maps that (and a missing upstream token) to a 401.
+export interface ResolvedUpstreamBearer {
+	accessToken: string;
+	// The proxy JWT's jti: stable per signed-in user and client across both proxy
+	// JWT refreshes and upstream token refreshes, which makes it the per-caller
+	// rate-limit key.
+	upstreamTokenId: string;
+}
+
 export async function resolveUpstreamBearer(
 	proxyJwt: string,
 	pc: ProxyConfig,
 	store: ProxyStore,
 	refresh: RefreshFn = defaultRefresh,
-): Promise<string> {
+): Promise<ResolvedUpstreamBearer> {
 	const { upstreamTokenId } = await verifyAccessToken(proxyJwt, pc);
 	const upstream = store.getUpstreamToken(upstreamTokenId);
 	if (!upstream) {
 		throw new Error('upstream token not found');
 	}
 	if (!(upstream.expiresAt <= Date.now() + UPSTREAM_REFRESH_SKEW_MS && upstream.refreshToken)) {
-		return upstream.accessToken;
+		return { accessToken: upstream.accessToken, upstreamTokenId };
 	}
 	const currentRefreshToken = upstream.refreshToken;
 	try {
-		return await coalesceUpstreamRefresh(upstreamTokenId, () =>
+		const accessToken = await coalesceUpstreamRefresh(upstreamTokenId, () =>
 			performUpstreamRefresh(upstreamTokenId, currentRefreshToken, pc, store, refresh),
 		);
+		return { accessToken, upstreamTokenId };
 	} catch (err) {
 		if (Date.now() < upstream.expiresAt) {
-			return upstream.accessToken;
+			return { accessToken: upstream.accessToken, upstreamTokenId };
 		}
 		throw new UpstreamBearerError(
 			classifyRefreshError(err) === 'retryable',

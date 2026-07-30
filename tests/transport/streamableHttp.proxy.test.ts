@@ -256,7 +256,11 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 
 		// The stored upstream token is the wiki access token the fake AS issued for
 		// the auto-approved code (`access-auth-<state>`), reachable via resolve.
-		const upstreamToken = await resolveUpstreamBearer(result.accessToken, pc, store);
+		const { accessToken: upstreamToken } = await resolveUpstreamBearer(
+			result.accessToken,
+			pc,
+			store,
+		);
 		expect(upstreamToken).toMatch(/^access-auth-/);
 		// The proxy JWT and the upstream wiki token are distinct values.
 		expect(upstreamToken).not.toBe(result.accessToken);
@@ -288,7 +292,11 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		const result = await runHostedFlow({ app });
 
 		// Resolve the upstream wiki token the proxy is holding for this grant.
-		const upstreamToken = await resolveUpstreamBearer(result.accessToken, pc, store);
+		const { accessToken: upstreamToken } = await resolveUpstreamBearer(
+			result.accessToken,
+			pc,
+			store,
+		);
 		expect(upstreamToken).toMatch(/^access-auth-/);
 
 		const tokenJson = JSON.stringify(result.tokenBody);

@@ -1,15 +1,19 @@
+import { createHash } from 'node:crypto';
 import type { Request, RequestHandler, Response } from 'express';
 import type { McpHttpHandler } from '@modelcontextprotocol/server';
 import { toNodeHandler } from '@modelcontextprotocol/node';
 import { bearerPassthroughEnabled, hasStaticCredentials } from '../runtime/authShape.ts';
+import { recordRateLimited } from '../runtime/metrics.ts';
 import { withRequestContext } from '../runtime/requestContext.ts';
 import type { WikiConfig } from '../config/loadConfig.ts';
 import type { WikiRegistry } from '../wikis/wikiRegistry.ts';
 import { resolvePublicBase } from '../auth/protectedResource.ts';
 import {
 	AUTHENTICATION_REQUIRED_ERROR_CODE,
+	RATE_LIMITED_ERROR_CODE,
 	UPSTREAM_UNAVAILABLE_ERROR_CODE,
 } from './errorCodes.ts';
+import type { RateLimitDecision, RateLimiter } from './rateLimit.ts';
 import type { ProxyConfig } from '../auth/authorizationServer/proxyConfig.ts';
 import type { ProxyStore } from '../auth/authorizationServer/proxyStore.ts';
 import {
@@ -126,6 +130,58 @@ function emit503Unavailable(req: Request, res: Response): void {
 	});
 }
 
+// One shared allowance for every caller-supplied bearer, charged alongside the
+// per-token bucket. This server cannot verify those tokens, so without it a
+// caller minting a random bearer per request would never meet a limit.
+const PASSTHROUGH_SHARED_KEY = 'bearer:shared';
+
+// The refusal that should be reported when two allowances are charged: a refusal
+// beats an admission, and the longer wait beats the shorter.
+function worstOf(a: RateLimitDecision, b: RateLimitDecision): RateLimitDecision {
+	if (a.allowed) {
+		return b;
+	}
+	if (b.allowed) {
+		return a;
+	}
+	return a.retryAfterSeconds >= b.retryAfterSeconds ? a : b;
+}
+
+function emit429RateLimited(req: Request, res: Response, retryAfterSeconds: number): void {
+	res.set('Retry-After', String(retryAfterSeconds));
+	res.status(429).json({
+		jsonrpc: '2.0',
+		error: {
+			code: RATE_LIMITED_ERROR_CODE,
+			message: `Rate limit exceeded. Retry after ${retryAfterSeconds}s.`,
+		},
+		...echoedId(req),
+	});
+}
+
+// Only tools/call is limited: that is the request the spec's rate-limit
+// requirement names, and it is the one that reaches the wiki. Discovery,
+// initialize, cancellations and the held-open subscriptions/listen stream all
+// pass untouched — a stream that consumed a token would hold it forever.
+function isToolsCallMessage(message: unknown): boolean {
+	return (
+		typeof message === 'object' &&
+		message !== null &&
+		(message as { method?: unknown }).method === 'tools/call'
+	);
+}
+
+// How many tokens a request costs. The legacy stateless leg executes a JSON-RPC
+// batch array entry by entry, so a batch must be charged per tools/call entry:
+// counting the array as one request would let any caller wrap N calls in
+// brackets and pay for one.
+function toolsCallCost(body: unknown): number {
+	if (Array.isArray(body)) {
+		return body.filter(isToolsCallMessage).length;
+	}
+	return isToolsCallMessage(body) ? 1 : 0;
+}
+
 export interface McpRouteOptions {
 	wikiRegistry?: WikiRegistry;
 	// When the hosted OAuth proxy is enabled, the /mcp bearer is a proxy-minted
@@ -146,6 +202,9 @@ export interface McpRouteOptions {
 	// handler.fetch itself threw. Handler-internal errors surface through the
 	// handler's own onerror instead.
 	onerror?: (error: Error) => void;
+	// Limits tools/call per authenticated caller (shared bucket for anonymous
+	// traffic). Omitted when rate limiting is disabled (MCP_RATE_LIMIT=0).
+	rateLimiter?: RateLimiter;
 }
 
 // Builds the /mcp route: per-request bearer resolution in front of the SDK's
@@ -159,7 +218,8 @@ export function createMcpRouteHandler(
 	handler: Pick<McpHttpHandler, 'fetch'>,
 	options: McpRouteOptions = {},
 ): RequestHandler {
-	const { wikiRegistry, getProxyConfig, proxyStore, refresh, defaultWikiKey } = options;
+	const { wikiRegistry, getProxyConfig, proxyStore, refresh, defaultWikiKey, rateLimiter } =
+		options;
 	const nodeHandler = toNodeHandler(handler, { onerror: options.onerror });
 	return async (req, res) => {
 		const bearer = extractBearerToken(req);
@@ -183,6 +243,10 @@ export function createMcpRouteHandler(
 		// UPSTREAM wiki token resolved from the proxy JWT (or undefined for an
 		// anonymous, tokenless request).
 		let resolvedBearer = bearer;
+		// Rate-limit key for the VERIFIED caller. Assigned only after the bearer
+		// has been resolved, so an invalid bearer is 401'd and never mints a
+		// bucket; anonymous traffic stays undefined and shares one bucket.
+		let rateLimitKey: string | undefined;
 
 		if (pc && proxyStore) {
 			// Proxy enabled. A bearer is a proxy JWT: verify + resolve it to the
@@ -192,7 +256,9 @@ export function createMcpRouteHandler(
 			// happens later in checkWikiCapability, not as a transport 401).
 			if (bearer) {
 				try {
-					resolvedBearer = await resolveUpstreamBearer(bearer, pc, proxyStore, refresh);
+					const resolved = await resolveUpstreamBearer(bearer, pc, proxyStore, refresh);
+					resolvedBearer = resolved.accessToken;
+					rateLimitKey = `user:${resolved.upstreamTokenId}`;
 				} catch (err) {
 					// A transient upstream refresh failure is retryable: answer 503 without a
 					// re-auth challenge. Everything else (bad/expired JWT, dead refresh token)
@@ -234,6 +300,39 @@ export function createMcpRouteHandler(
 			if (allNeedAuth) {
 				emit401Challenge(req, res, pc !== null);
 				return;
+			}
+		}
+
+		// A bearer that survived to here outside the proxy path is being forwarded
+		// under the deprecated opt-in. This server never verifies it, so a digest
+		// of the token is the only identity available.
+		let forwardedBearer = false;
+		if (rateLimitKey === undefined && resolvedBearer !== undefined && !(pc && proxyStore)) {
+			const digest = createHash('sha256').update(resolvedBearer).digest('hex').slice(0, 32);
+			rateLimitKey = `bearer:${digest}`;
+			forwardedBearer = true;
+		}
+
+		if (rateLimiter && req.method === 'POST') {
+			const cost = toolsCallCost(req.body);
+			if (cost > 0) {
+				// An unverified bearer would otherwise mint a fresh allowance per
+				// request: rotating random tokens rotates digests. Charging a shared
+				// bucket as well caps the whole forwarding path, while the per-digest
+				// bucket still keeps distinct legitimate callers apart. Refusing on
+				// either leaves the other's token spent — an accounting slip that
+				// only ever makes the limiter stricter under abuse.
+				const decision = forwardedBearer
+					? worstOf(
+							rateLimiter.take(PASSTHROUGH_SHARED_KEY, cost),
+							rateLimiter.take(rateLimitKey, cost),
+						)
+					: rateLimiter.take(rateLimitKey, cost);
+				if (!decision.allowed) {
+					recordRateLimited(decision.bucket);
+					emit429RateLimited(req, res, decision.retryAfterSeconds);
+					return;
+				}
 			}
 		}
 

@@ -43,7 +43,7 @@ describe('resolveUpstreamBearer', () => {
 			ttlMs: 60_000,
 			scopes: [],
 		});
-		expect(await resolveUpstreamBearer(jwt, pc, store)).toBe('WA');
+		expect(await resolveUpstreamBearer(jwt, pc, store)).toMatchObject({ accessToken: 'WA' });
 	});
 
 	it('throws on an invalid JWT', async () => {
@@ -81,7 +81,9 @@ describe('resolveUpstreamBearer', () => {
 		const refresh = vi
 			.fn()
 			.mockResolvedValue({ access_token: 'NEW', refresh_token: 'WR2', expires_in: 3600 });
-		expect(await resolveUpstreamBearer(jwt, pc, store, refresh)).toBe('NEW');
+		expect(await resolveUpstreamBearer(jwt, pc, store, refresh)).toMatchObject({
+			accessToken: 'NEW',
+		});
 		expect(store.getUpstreamToken(id)?.accessToken).toBe('NEW');
 		expect(store.getUpstreamToken(id)?.refreshToken).toBe('WR2');
 		expect(refresh).toHaveBeenCalledOnce();
@@ -110,7 +112,9 @@ describe('resolveUpstreamBearer', () => {
 			scopes: [],
 		});
 		const refresh = vi.fn();
-		expect(await resolveUpstreamBearer(jwt, pc, store, refresh)).toBe('STILLGOOD');
+		expect(await resolveUpstreamBearer(jwt, pc, store, refresh)).toMatchObject({
+			accessToken: 'STILLGOOD',
+		});
 		expect(refresh).not.toHaveBeenCalled();
 	});
 
@@ -131,7 +135,9 @@ describe('resolveUpstreamBearer', () => {
 			scopes: [],
 		});
 		const refresh = vi.fn().mockRejectedValue(new OAuthFlowError('transient', 'wiki 503'));
-		expect(await resolveUpstreamBearer(jwt, pc, store, refresh)).toBe('STILLGOOD');
+		expect(await resolveUpstreamBearer(jwt, pc, store, refresh)).toMatchObject({
+			accessToken: 'STILLGOOD',
+		});
 		expect(refresh).toHaveBeenCalledOnce();
 		// The stored token is left intact for the next attempt.
 		expect(store.getUpstreamToken(id)?.accessToken).toBe('STILLGOOD');
@@ -207,8 +213,8 @@ describe('resolveUpstreamBearer', () => {
 			resolveUpstreamBearer(jwt, pc, store, refresh),
 			resolveUpstreamBearer(jwt, pc, store, refresh),
 		]);
-		expect(a).toBe('NEW');
-		expect(b).toBe('NEW');
+		expect(a.accessToken).toBe('NEW');
+		expect(b.accessToken).toBe('NEW');
 		expect(refresh).toHaveBeenCalledOnce();
 	});
 });
