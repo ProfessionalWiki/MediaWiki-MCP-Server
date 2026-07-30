@@ -1,6 +1,10 @@
 {
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
-	"plugins": ["typescript", "node", "import"],
+	"plugins": [
+		"typescript",
+		"node",
+		"import"
+	],
 	"categories": {
 		"correctness": "error",
 		"suspicious": "warn"
@@ -17,16 +21,26 @@
 		"typescript/no-misused-promises": "error",
 		"typescript/await-thenable": "error",
 		"typescript/no-explicit-any": "warn",
-		"import/extensions": ["error", "ignorePackages", { "js": "never" }]
+		"import/extensions": [
+			"error",
+			"ignorePackages",
+			{
+				"js": "never"
+			}
+		],
+		"typescript/no-unnecessary-type-assertion": "error"
 	},
 	"overrides": [
 		{
-			"files": ["scripts/**"],
-			"rules": {
-			}
+			"files": [
+				"scripts/**"
+			],
+			"rules": {}
 		},
 		{
-			"files": ["tests/**"],
+			"files": [
+				"tests/**"
+			],
 			"rules": {
 				"typescript/no-unsafe-type-assertion": "off",
 				"typescript/no-unnecessary-type-assertion": "off"
