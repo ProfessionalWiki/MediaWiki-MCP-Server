@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ManagementContext } from '../runtime/context.ts';
 import { parseWikiResourceUri, InvalidWikiResourceUriError } from '../wikis/wikiResource.ts';
@@ -22,7 +22,7 @@ export const removeWiki: Tool<typeof inputSchema, ManagementContext> = {
 		destructiveHint: true,
 		idempotentHint: true,
 		openWorldHint: false,
-	} as ToolAnnotations,
+	},
 	failureVerb: 'remove wiki',
 	target: (a) => a.uri,
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { ApiUploadResponse } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
@@ -26,7 +26,7 @@ export const updateFileFromUrl: Tool<typeof inputSchema> = {
 		destructiveHint: true,
 		idempotentHint: false,
 		openWorldHint: true,
-	} as ToolAnnotations,
+	},
 	failureVerb: 'update file',
 	target: (a) => a.title,
 

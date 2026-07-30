@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ManagementContext } from '../runtime/context.ts';
 import { discoverWiki } from '../wikis/wikiDiscovery.ts';
@@ -25,7 +25,7 @@ export const addWiki: Tool<typeof inputSchema, ManagementContext> = {
 		destructiveHint: false,
 		idempotentHint: true,
 		openWorldHint: true,
-	} as ToolAnnotations,
+	},
 	failureVerb: 'add wiki',
 	target: (a) => a.wikiUrl,
 

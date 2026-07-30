@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ApiEditPageParams } from 'types-mediawiki-api';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
@@ -34,7 +34,7 @@ export const createPage: Tool<typeof inputSchema> = {
 		destructiveHint: false,
 		idempotentHint: true,
 		openWorldHint: true,
-	} as ToolAnnotations,
+	},
 	failureVerb: 'create page',
 	target: (a) => a.title,
 
@@ -45,8 +45,7 @@ export const createPage: Tool<typeof inputSchema> = {
 		const mwn = await ctx.mwn();
 		const baseOptions: ApiEditPageParams = {};
 		if (contentModel !== undefined) {
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- input is validated against ApiEditPageParams.contentmodel via the inputSchema enum
-			baseOptions.contentmodel = contentModel as ApiEditPageParams['contentmodel'];
+			baseOptions.contentmodel = contentModel;
 		}
 		if (bot === true) {
 			baseOptions.bot = true;

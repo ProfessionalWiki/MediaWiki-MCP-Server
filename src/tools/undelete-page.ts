@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ApiUndeleteResponse } from 'mwn';
 import type { ApiUndeleteParams } from 'types-mediawiki-api';
 import type { Tool } from '../runtime/tool.ts';
@@ -22,7 +22,7 @@ export const undeletePage: Tool<typeof inputSchema> = {
 		destructiveHint: false,
 		idempotentHint: true,
 		openWorldHint: true,
-	} as ToolAnnotations,
+	},
 	failureVerb: 'undelete page',
 	target: (a) => a.title,
 

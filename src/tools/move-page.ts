@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ApiMoveResponse } from 'mwn';
 import type { ApiMoveParams } from 'types-mediawiki-api';
 import type { Tool } from '../runtime/tool.ts';
@@ -40,7 +40,7 @@ export const movePage: Tool<typeof inputSchema> = {
 		destructiveHint: true,
 		idempotentHint: true,
 		openWorldHint: true,
-	} as ToolAnnotations,
+	},
 	failureVerb: 'move page',
 	target: (a) => a.fromTitle,
 

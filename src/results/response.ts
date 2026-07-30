@@ -1,4 +1,4 @@
-import type { CallToolResult, TextContent } from '@modelcontextprotocol/server';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ErrorEnvelope } from '../results/schemas.ts';
 import type { ErrorCategory } from '../errors/classifyError.ts';
 import { formatPayload } from './format.ts';
@@ -16,7 +16,7 @@ export interface ResponseFormatter {
 
 export function structuredResult(data: unknown): CallToolResult {
 	return {
-		content: [{ type: 'text', text: formatPayload(data) } as TextContent],
+		content: [{ type: 'text', text: formatPayload(data) }],
 		// structuredContent mirrors the typed payload so the dispatcher can detect
 		// truncation via the `truncation` field without reparsing the rendered text.
 		structuredContent: data,
@@ -35,7 +35,7 @@ export function errorResult(
 	const envelope: ErrorEnvelope =
 		code !== undefined ? { category, message, code } : { category, message };
 	return {
-		content: [{ type: 'text', text: JSON.stringify(envelope) } as TextContent],
+		content: [{ type: 'text', text: JSON.stringify(envelope) }],
 		isError: true,
 	};
 }
