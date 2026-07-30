@@ -83,9 +83,11 @@ describe('planAuthorize', () => {
 		};
 		expect(
 			planAuthorize(q, undefined, pc, store, 'Ex', store.getClient(client.clientId)).kind,
+			// A page, not a redirect: this redirect_uri is not registered, so bouncing
+			// an error to it would make the endpoint an open redirector.
 		).toBe('error');
 	});
-	it('errors on resource mismatch', () => {
+	it('redirects a resource mismatch back to the client as invalid_target', () => {
 		const { store, client } = setup();
 		expect(
 			planAuthorize(
@@ -96,7 +98,7 @@ describe('planAuthorize', () => {
 				'Ex',
 				store.getClient(client.clientId),
 			).kind,
-		).toBe('error');
+		).toBe('error-redirect');
 	});
 	it('accepts a resource equal to the issuer with a trailing slash (RFC 8707)', () => {
 		// A spec-compliant client echoes the protected-resource doc's `resource`
@@ -112,9 +114,9 @@ describe('planAuthorize', () => {
 				'Ex',
 				store.getClient(client.clientId),
 			).kind,
-		).not.toBe('error');
+		).toBe('consent');
 	});
-	it('still errors on a genuinely different resource (not just a trailing slash)', () => {
+	it('still refuses a genuinely different resource (not just a trailing slash)', () => {
 		const { store, client } = setup();
 		expect(
 			planAuthorize(
@@ -125,9 +127,9 @@ describe('planAuthorize', () => {
 				'Ex',
 				store.getClient(client.clientId),
 			).kind,
-		).toBe('error');
+		).toBe('error-redirect');
 	});
-	it('errors when code_challenge_method is not S256', () => {
+	it('redirects a non-S256 code_challenge_method back as invalid_request', () => {
 		const { store, client } = setup();
 		expect(
 			planAuthorize(
@@ -138,15 +140,15 @@ describe('planAuthorize', () => {
 				'Ex',
 				store.getClient(client.clientId),
 			).kind,
-		).toBe('error');
+		).toBe('error-redirect');
 	});
-	it('errors when code_challenge is missing', () => {
+	it('redirects a missing code_challenge back as invalid_request', () => {
 		const { store, client } = setup();
 		const q = baseQuery(client.clientId);
 		delete (q as Record<string, unknown>).code_challenge;
 		expect(
 			planAuthorize(q, undefined, pc, store, 'Ex', store.getClient(client.clientId)).kind,
-		).toBe('error');
+		).toBe('error-redirect');
 	});
 	it('renders consent when no cookie', () => {
 		const { store, client } = setup();

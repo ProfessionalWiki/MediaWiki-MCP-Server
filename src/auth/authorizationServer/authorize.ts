@@ -8,6 +8,7 @@ import { redirectUriMatches } from './redirectPolicy.js';
 export interface AuthorizeQuery {
 	client_id?: string;
 	redirect_uri?: string;
+	response_type?: string;
 	state?: string;
 	code_challenge?: string;
 	code_challenge_method?: string;
@@ -22,9 +23,39 @@ export interface ConsentClaims {
 }
 
 export type AuthorizePlan =
+	// Rendered as a page. Only for a request whose client or redirect_uri we could
+	// not establish: bouncing an error to an unverified redirect_uri would make the
+	// endpoint an open redirector.
 	| { kind: 'error'; status: number; body: Record<string, unknown> }
+	// Returned to the client as OAuth error parameters, once its redirect_uri is
+	// known-registered (RFC 6749 §4.1.2.1). A page here instead leaves the client
+	// waiting on a callback that never arrives.
+	| { kind: 'error-redirect'; location: string }
 	| { kind: 'consent'; clientName: string }
 	| { kind: 'redirect'; location: string };
+
+/**
+ * Builds an OAuth error response on a redirect_uri already established as
+ * registered for this client. `iss` is always included: asMetadata advertises
+ * `authorization_response_iss_parameter_supported`, which obliges a client to
+ * reject an authorization response that omits it.
+ */
+function errorRedirectTo(
+	redirectUri: string,
+	pc: ProxyConfig,
+	error: string,
+	description: string,
+	state: string | undefined,
+): string {
+	const u = new URL(redirectUri);
+	u.searchParams.set('error', error);
+	u.searchParams.set('error_description', description);
+	if (state) {
+		u.searchParams.set('state', state);
+	}
+	u.searchParams.set('iss', pc.issuer);
+	return u.toString();
+}
 
 /**
  * Pure planner for the proxy's /authorize endpoint. Validates the downstream
@@ -67,6 +98,25 @@ export function planAuthorize(
 	if (!q.redirect_uri || !client.redirectUris.some((u) => redirectUriMatches(q.redirect_uri!, u))) {
 		return err('redirect_uri not registered');
 	}
+	// Captured in straight-line code: the narrowing above is lost inside a closure,
+	// since `q.redirect_uri` is a mutable property.
+	const redirectUri = q.redirect_uri;
+	// Everything below runs on a redirect_uri we have established as registered, so
+	// the client learns about the failure through its own callback.
+	const errRedirect = (error: string, d: string): AuthorizePlan => ({
+		kind: 'error-redirect',
+		location: errorRedirectTo(redirectUri, pc, error, d, q.state),
+	});
+
+	// `response_type` is REQUIRED by OAuth 2.1 and `code` is the only value this
+	// server supports (asMetadata publishes `response_types_supported: ['code']`).
+	// A present-but-unsupported value is refused rather than silently answered with
+	// a code the client did not ask for. An absent one is still treated as a code
+	// request: clients that omit it work today, and rejecting them would newly break
+	// a working setup for no security gain.
+	if (q.response_type !== undefined && q.response_type !== 'code') {
+		return errRedirect('unsupported_response_type', 'only response_type=code is supported');
+	}
 	// RFC 8707 resource indicator. A spec-compliant client reads `resource` from
 	// the protected-resource document (resolvePublicBase, WITH a trailing slash)
 	// and echoes it here, while pc.issuer is the RFC 8414 issuer (slash-free).
@@ -74,13 +124,15 @@ export function planAuthorize(
 	// normalized off rather than rejecting the slash-bearing variant.
 	const stripSlash = (s: string): string => s.replace(/\/+$/, '');
 	if (q.resource && stripSlash(q.resource) !== stripSlash(pc.issuer)) {
-		return err('resource does not match this server');
+		// RFC 8707 §2 defines invalid_target for a resource the server does not
+		// serve, which a client can act on by retrying with a corrected value.
+		return errRedirect('invalid_target', 'resource does not match this server');
 	}
 	if (q.code_challenge_method !== 'S256' || !q.code_challenge) {
-		return err('S256 code_challenge required');
+		return errRedirect('invalid_request', 'S256 code_challenge required');
 	}
 
-	const redirectHost = new URL(q.redirect_uri).hostname;
+	const redirectHost = new URL(redirectUri).hostname;
 	const consentOk =
 		consent && consent.clientId === client.clientId && consent.redirectHost === redirectHost;
 	if (!consentOk) {
@@ -139,12 +191,14 @@ export function planDeny(
 	) {
 		return { kind: 'page' };
 	}
-	const u = new URL(q.redirect_uri);
-	u.searchParams.set('error', 'access_denied');
-	u.searchParams.set('error_description', 'The user denied the authorization request.');
-	if (q.state) {
-		u.searchParams.set('state', q.state);
-	}
-	u.searchParams.set('iss', pc.issuer);
-	return { kind: 'redirect', location: u.toString() };
+	return {
+		kind: 'redirect',
+		location: errorRedirectTo(
+			q.redirect_uri,
+			pc,
+			'access_denied',
+			'The user denied the authorization request.',
+			q.state,
+		),
+	};
 }
