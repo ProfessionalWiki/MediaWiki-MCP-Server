@@ -3,7 +3,6 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 import { createMcpHandler, InMemoryServerEventBus } from '@modelcontextprotocol/server';
 import type { McpHttpHandler } from '@modelcontextprotocol/server';
 import { createServer, type ChangePublisher } from '../../src/server.ts';
-import { clearRegisteredServers } from '../../src/runtime/logger.ts';
 import { fakeContext } from '../helpers/fakeContext.ts';
 
 // Drives the era-routing handler in memory, exactly as buildApp wires it: the
@@ -18,7 +17,7 @@ function buildHandler(ctx = fakeContext()): {
 		toolsChanged: () => handler.notify.toolsChanged(),
 		resourcesChanged: () => handler.notify.resourcesChanged(),
 	};
-	const handler = createMcpHandler((reqCtx) => createServer(ctx, reqCtx, { publisher }), {
+	const handler = createMcpHandler(() => createServer(ctx, { publisher }), {
 		legacy: 'stateless',
 		bus,
 	});
@@ -46,7 +45,6 @@ describe('2026-07-28 era over Streamable HTTP (in-memory)', () => {
 		for (const cleanup of cleanups.splice(0)) {
 			await cleanup();
 		}
-		clearRegisteredServers();
 	});
 
 	it('negotiates the modern era when pinned to 2026-07-28 and round-trips a tool call', async () => {

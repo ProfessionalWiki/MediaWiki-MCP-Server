@@ -27,7 +27,7 @@ async function main(): Promise<void> {
 	// modern-pinned connection the entry rewrites outbound change
 	// notifications onto its subscriptions/listen streams — so the default
 	// change publisher in createServer covers both eras here.
-	const handle = serveStdio((reqCtx) => createServer(ctx, reqCtx), {
+	const handle = serveStdio(() => createServer(ctx), {
 		onerror: (error) => logger.error(`stdio serving error: ${error.message}`),
 	});
 

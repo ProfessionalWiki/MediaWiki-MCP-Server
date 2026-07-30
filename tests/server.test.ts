@@ -1,30 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Client } from '@modelcontextprotocol/client';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
 import { createServer } from '../src/server.ts';
-import { clearRegisteredServers, getRegisteredServerCount } from '../src/runtime/logger.ts';
 import { fakeContext } from './helpers/fakeContext.ts';
-
-afterEach(() => {
-	clearRegisteredServers();
-});
-
-describe('createServer era gating', () => {
-	it('registers with the logger broadcast when built without a request context', async () => {
-		await createServer(fakeContext());
-		expect(getRegisteredServerCount()).toBe(1);
-	});
-
-	it('registers a legacy-era instance with the logger broadcast', async () => {
-		await createServer(fakeContext(), { era: 'legacy' });
-		expect(getRegisteredServerCount()).toBe(1);
-	});
-
-	it('does not register a modern-era instance', async () => {
-		await createServer(fakeContext(), { era: 'modern' });
-		expect(getRegisteredServerCount()).toBe(0);
-	});
-});
 
 const wikiConfig = {
 	sitename: 'Test',
@@ -34,10 +12,39 @@ const wikiConfig = {
 	tags: null,
 };
 
+describe('createServer capabilities', () => {
+	it('does not advertise the logging capability', async () => {
+		const server = await createServer(fakeContext());
+		const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+		const client = new Client({ name: 'server-test', version: '0.0.0' });
+		await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+		try {
+			expect(client.getServerCapabilities()?.logging).toBeUndefined();
+		} finally {
+			await client.close();
+		}
+	});
+
+	it('rejects construction when the initial gating pass fails', async () => {
+		const ctx = fakeContext({
+			wikiProbe: {
+				hasExtension: (async () => false) as never,
+				// Fails the construction-time gating pass, after tool registration.
+				hasAnyExtension: (async () => {
+					throw new Error('probe exploded');
+				}) as never,
+				inspect: (() => {}) as never,
+				invalidate: (() => {}) as never,
+			},
+		});
+		await expect(createServer(ctx)).rejects.toThrow('probe exploded');
+	});
+});
+
 describe('createServer change publishing', () => {
 	it('does not publish during construction', async () => {
 		const publisher = { toolsChanged: vi.fn(), resourcesChanged: vi.fn() };
-		await createServer(fakeContext(), undefined, { publisher });
+		await createServer(fakeContext(), { publisher });
 		expect(publisher.toolsChanged).not.toHaveBeenCalled();
 		expect(publisher.resourcesChanged).not.toHaveBeenCalled();
 	});
@@ -61,7 +68,7 @@ describe('createServer change publishing', () => {
 			wikiCache: { invalidate: vi.fn() as never },
 		});
 		const publisher = { toolsChanged: vi.fn(), resourcesChanged: vi.fn() };
-		const server = await createServer(ctx, { era: 'legacy' }, { publisher });
+		const server = await createServer(ctx, { publisher });
 
 		const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 		const client = new Client({ name: 'server-test', version: '0.0.0' });
@@ -80,24 +87,5 @@ describe('createServer change publishing', () => {
 		} finally {
 			await client.close();
 		}
-	});
-
-	it('does not leave a failed construction registered with the logger broadcast', async () => {
-		const ctx = fakeContext({
-			wikiProbe: {
-				hasExtension: (async () => false) as never,
-				// Fails the construction-time gating pass, after tool registration.
-				hasAnyExtension: (async () => {
-					throw new Error('probe exploded');
-				}) as never,
-				inspect: (() => {}) as never,
-				invalidate: (() => {}) as never,
-			},
-		});
-		await expect(createServer(ctx, { era: 'legacy' })).rejects.toThrow('probe exploded');
-		// The throw happened before registration, so nothing leaked: the only
-		// unregister path is onclose, which never fires for an instance that was
-		// never connected.
-		expect(getRegisteredServerCount()).toBe(0);
 	});
 });

@@ -14,7 +14,6 @@ import {
 	parseEnvelope,
 	safeTarget,
 } from '../../src/runtime/instrument.ts';
-import { registerServer, clearRegisteredServers } from '../../src/runtime/logger.ts';
 import { recordToolCall } from '../../src/runtime/metrics.ts';
 
 function captureToolCallLine(spy: StderrWriteSpy): Record<string, unknown> {
@@ -162,7 +161,6 @@ describe('emitToolCall', () => {
 
 	afterEach(() => {
 		stderrSpy.mockRestore();
-		clearRegisteredServers();
 		vi.unstubAllEnvs();
 	});
 
@@ -371,29 +369,6 @@ describe('emitToolCall', () => {
 		});
 
 		expect(captureToolCallLine(stderrSpy).caller).toMatch(/^sha256:[0-9a-f]{12}$/);
-	});
-
-	it('does not broadcast tool_call events to connected MCP clients', () => {
-		const fakeServer = {
-			sendLoggingMessage: vi.fn().mockResolvedValue(undefined),
-			server: { onclose: undefined },
-		};
-		registerServer(fakeServer as unknown as Parameters<typeof registerServer>[0]);
-
-		emitToolCall({
-			toolName: 'get-page',
-			target: undefined,
-			args: {},
-			started: performance.now(),
-			result: okResult(),
-			outcome: 'success',
-			upstreamStatus: undefined,
-			errorMessage: undefined,
-			runtimeToken: undefined,
-			wikiKey: 'a.example',
-		});
-
-		expect(fakeServer.sendLoggingMessage).not.toHaveBeenCalled();
 	});
 });
 

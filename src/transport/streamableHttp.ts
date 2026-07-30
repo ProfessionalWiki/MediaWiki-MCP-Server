@@ -12,7 +12,6 @@ import {
 	InMemoryServerEventBus,
 	isJsonContentType,
 	PARSE_ERROR,
-	type McpRequestContext,
 	type McpServer,
 } from '@modelcontextprotocol/server';
 import {
@@ -387,10 +386,7 @@ export interface BuildAppDeps {
 	// Called once per serving unit — every HTTP request under createMcpHandler
 	// (modern or stateless legacy alike) gets a fresh instance. The options
 	// carry the change publisher buildApp wires to the handler's notify facade.
-	createServerFn: (
-		reqCtx: McpRequestContext,
-		opts?: CreateServerOptions,
-	) => McpServer | Promise<McpServer>;
+	createServerFn: (opts?: CreateServerOptions) => McpServer | Promise<McpServer>;
 	host: string;
 	allowedHosts?: string[];
 	// Required, and empty means refuse every cross-origin request. See
@@ -506,7 +502,7 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		toolsChanged: (): void => handler.notify.toolsChanged(),
 		resourcesChanged: (): void => handler.notify.resourcesChanged(),
 	};
-	const handler = createMcpHandler((reqCtx) => createServerFn(reqCtx, { publisher }), {
+	const handler = createMcpHandler(() => createServerFn({ publisher }), {
 		legacy: 'stateless',
 		bus,
 		onerror: (error) => logger.error(`MCP handler error: ${error.message}`),
@@ -740,7 +736,7 @@ export function startHttpServer(): void {
 		cimdResolver,
 		defaultWikiKey,
 		defaultWikiSitename,
-		createServerFn: (reqCtx, opts) => createServer(ctx, reqCtx, opts),
+		createServerFn: (opts) => createServer(ctx, opts),
 		host,
 		allowedHosts,
 		allowedOrigins,

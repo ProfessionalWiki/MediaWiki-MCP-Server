@@ -1,32 +1,16 @@
-import type { McpServer, LoggingLevel } from '@modelcontextprotocol/server';
-
-// Eight RFC 5424 severity levels, in the order LoggingLevelSchema declares them.
-// Used both for the level field in the JSON stderr line and the
-// LoggingMessageNotification the SDK forwards to clients.
-export type LogLevel = LoggingLevel;
+// Eight RFC 5424 severity levels, in ascending-severity order, matching the
+// level field in each JSON stderr line.
+export type LogLevel =
+	| 'debug'
+	| 'info'
+	| 'notice'
+	| 'warning'
+	| 'error'
+	| 'critical'
+	| 'alert'
+	| 'emergency';
 
 export type LogContext = Record<string, unknown>;
-
-const LOGGER_NAME = 'mediawiki-mcp-server';
-
-const servers: Set<McpServer> = new Set();
-
-export function registerServer(server: McpServer): void {
-	servers.add(server);
-}
-
-export function unregisterServer(server: McpServer): void {
-	servers.delete(server);
-}
-
-// Test-only: callers must not rely on these in production code.
-export function clearRegisteredServers(): void {
-	servers.clear();
-}
-
-export function getRegisteredServerCount(): number {
-	return servers.size;
-}
 
 const RESERVED_KEYS = new Set<string>(['ts', 'level', 'message']);
 
@@ -79,43 +63,18 @@ function buildLogObject(
 	return obj;
 }
 
-// Best-effort handler. The SDK already filters by per-session setLevel and skips
-// when capabilities.logging is unset, and we have already written stderr for the
-// operator. Failing here would be unhelpful noise.
-const swallowNotificationError = (): undefined => undefined;
-
-// Emits a structured event to stderr only, bypassing the MCP
-// sendLoggingMessage broadcast. Used for operator-facing telemetry
-// (e.g. tool_call events) that must not leak to connected clients.
-export function emitTelemetryEvent(level: LogLevel, data: LogContext): void {
-	if (LEVEL_RANK[level] < currentThreshold()) {
-		return;
-	}
-	const line = buildLogObject(level, '', data);
-	process.stderr.write(JSON.stringify(line) + '\n');
-}
-
 function emit(level: LogLevel, message: string, data?: LogContext): void {
 	if (LEVEL_RANK[level] < currentThreshold()) {
 		return;
 	}
 	const line = buildLogObject(level, message, data);
 	process.stderr.write(JSON.stringify(line) + '\n');
+}
 
-	if (servers.size === 0) {
-		return;
-	}
-
-	const payload: LogContext = data === undefined ? { message } : { message, ...data };
-	for (const server of servers) {
-		server
-			.sendLoggingMessage({
-				level,
-				logger: LOGGER_NAME,
-				data: payload,
-			})
-			.catch(swallowNotificationError);
-	}
+// Emits a structured event line carrying an `event` field instead of a
+// `message` (e.g. tool_call events for operator-facing telemetry).
+export function emitTelemetryEvent(level: LogLevel, data: LogContext): void {
+	emit(level, '', data);
 }
 
 export const logger = {

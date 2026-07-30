@@ -6,7 +6,6 @@ import type { Tool } from '../../src/runtime/tool.ts';
 import { fakeContext } from '../helpers/fakeContext.ts';
 import { fakeLogger } from '../helpers/fakeLogger.ts';
 import { createMockMwnError } from '../helpers/mock-mwn-error.ts';
-import { clearRegisteredServers } from '../../src/runtime/logger.ts';
 import { CredentialResolutionError } from '../../src/errors/credentialResolutionError.ts';
 import { withRequestFields } from '../../src/runtime/requestContext.ts';
 import { getPage } from '../../src/tools/get-page.ts';
@@ -135,7 +134,6 @@ describe('dispatcher emits tool_call telemetry', () => {
 
 	afterEach(() => {
 		stderrSpy.mockRestore();
-		clearRegisteredServers();
 		vi.unstubAllEnvs();
 	});
 

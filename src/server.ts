@@ -1,7 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/server';
-import type { McpRequestContext, RegisteredTool } from '@modelcontextprotocol/server';
+import type { RegisteredTool } from '@modelcontextprotocol/server';
 import { createRequire } from 'node:module';
-import { registerServer, unregisterServer } from './runtime/logger.ts';
 import { registerAllTools } from './tools/index.ts';
 import { registerAllResources } from './resources/index.ts';
 import { reconcileTools } from './runtime/reconcile.ts';
@@ -41,7 +40,6 @@ export interface CreateServerOptions {
 
 export const createServer = async (
 	ctx: ToolContext,
-	reqCtx?: Pick<McpRequestContext, 'era'>,
 	options: CreateServerOptions = {},
 ): Promise<McpServer> => {
 	const server = new McpServer(
@@ -59,7 +57,6 @@ export const createServer = async (
 				tools: {
 					listChanged: true,
 				},
-				logging: {},
 			},
 			instructions: SERVER_INSTRUCTIONS,
 		},
@@ -102,24 +99,6 @@ export const createServer = async (
 	// publish would fan change events out to unrelated clients on every
 	// request.
 	await applyGates();
-
-	// Only legacy-era instances join the sendLoggingMessage broadcast: the
-	// 2026-07-28 revision has no unsolicited notifications/message channel
-	// (SEP-2577 deprecates the API), and a modern instance would churn the
-	// registry without ever delivering anything. A per-request legacy instance
-	// registers for its request's lifetime, so mid-call log lines still reach
-	// the caller on the response stream. Registration comes last on purpose:
-	// the only unregister path is onclose, which never fires for an instance
-	// that failed mid-construction and was never connected, so registering any
-	// earlier would leak a dead entry per construction throw.
-	if (reqCtx === undefined || reqCtx.era === 'legacy') {
-		registerServer(server);
-		const previousOnClose = server.server.onclose;
-		server.server.onclose = (): void => {
-			unregisterServer(server);
-			previousOnClose?.();
-		};
-	}
 
 	return server;
 };

@@ -18,6 +18,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - The server no longer advertises the wikis' own authorization servers, so a client can no longer discover where to mint a token to send here. Without hosted OAuth sign-in enabled, `/.well-known/oauth-protected-resource` now answers `404`, and `list-wikis` stops reporting each wiki's `authorizationServer`. Deployments running the hosted sign-in are unaffected.
 - The `Origin` header is now validated on every bind, and a request carrying an unlisted origin is refused with `403`. If you serve a browser-based client from a public bind, set `MCP_ALLOWED_ORIGINS` before upgrading. Clients that send no `Origin` header, which is most of them, are unaffected.
 
+### Removed
+
+- The server no longer sends log messages to connected MCP clients and no longer advertises the `logging` capability, following the feature's deprecation in the 2026-07-28 MCP revision. All logging goes to stderr, unchanged; `MCP_LOG_LEVEL` still controls it.
+
 ### Changed
 
 - The hosted OAuth sign-in's approval page is shorter and now names the address you will be returned to, including for a local application, where it previously said only "an application on this device". It no longer promises a permissions step the wiki does not always show.
