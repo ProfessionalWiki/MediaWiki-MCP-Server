@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-07-30
+
 ### Security
 
 - A refresh token issued by the hosted OAuth sign-in can no longer be redeemed by a different client. A request presenting a `client_id` other than the one the token was issued to is refused with `invalid_grant` and has to sign in again. Requests that send no `client_id`, and tokens issued before this release, keep working.
@@ -314,7 +316,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - Smithery integration.
 
-[Unreleased]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.13.0...v0.13.1
