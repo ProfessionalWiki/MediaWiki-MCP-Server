@@ -21,7 +21,7 @@ Fields you'll filter on:
 - **`caller`** — `sha256:` plus the first 12 hex chars of SHA-256 of the bearer token, or the literal string `anonymous`. Stable per token within a process; never the raw token.
 - **`target`** — a single identifier extracted from the tool's input (typically a page title, search query, or URL). Omitted for tools without one: `get-pages`, `compare-pages`, `parse-wikitext`, `get-recent-changes`.
 
-`tool_call` lines go to stderr only; they are never forwarded to the connected MCP client.
+All log output goes to stderr only; nothing is forwarded to the connected MCP client.
 
 ### Startup banner
 
