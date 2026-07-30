@@ -1,4 +1,5 @@
 // src/auth/protectedResource.ts
+import type { OAuthProtectedResourceMetadata } from '@modelcontextprotocol/server';
 import type { UpstreamAsMetadata } from './metadata.ts';
 
 const RESOURCE_DOCUMENTATION =
@@ -21,13 +22,13 @@ export interface ProtectedResourceInput {
 	authorizationServers: readonly string[];
 }
 
-export interface ProtectedResourceDoc {
-	resource: string;
-	authorization_servers: string[];
-	bearer_methods_supported: string[];
-	scopes_supported?: string[];
-	resource_documentation?: string;
-}
+// The SDK's RFC 9728 document type, narrowed to the fields this server always
+// emits: RFC 9728 makes them optional, but a doc without an authorization
+// server would leave a client nowhere to sign in.
+export type ProtectedResourceDoc = OAuthProtectedResourceMetadata &
+	Required<
+		Pick<OAuthProtectedResourceMetadata, 'authorization_servers' | 'bearer_methods_supported'>
+	>;
 
 function anyWikiHasOAuth(wikis: Record<string, { oauth2ClientId?: string | null }>): boolean {
 	return Object.values(wikis).some(
