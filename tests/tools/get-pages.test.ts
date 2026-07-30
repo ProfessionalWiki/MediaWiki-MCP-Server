@@ -563,7 +563,10 @@ describe('get-pages', () => {
 
 			const text = assertStructuredSuccess(result);
 			// No requestedTitle when title equals the requested title; first field is pageId.
-			expect(text).toMatch(/Page ID: 1[\s\S]*?Source:\n\nx{50000}\n {2}Truncation:/);
+			// The blank line after the source is what separates it from the next field:
+			// without it the wikitext runs straight into `Truncation:`, and a page whose
+			// own text contains such a line would read as a field of this payload.
+			expect(text).toMatch(/Page ID: 1[\s\S]*?Source:\n\nx{50000}\n\n {2}Truncation:/);
 			expect(text).toContain('    Reason: content-truncated');
 			expect(text).toContain('    Returned bytes: 50000');
 			expect(text).toContain('    Total bytes: 50001');
