@@ -167,9 +167,15 @@ Extension:OAuth works.
 ### 1. Prerequisites and the environment contract
 
 You need a reachable MediaWiki container with **Extension:OAuth installed and
-OAuth2 enabled** (OAuth2 signing keys configured on the wiki), a known admin
-account, and a local build of this repo (`npm run build`). Any environment that
-satisfies the contract below works.
+OAuth2 enabled**, a known admin account, and a local build of this repo
+(`npm run build`). Any environment that satisfies the contract below works.
+
+Installing Extension:OAuth is not enough to issue OAuth2 tokens. The wiki also
+needs `$wgOAuth2PrivateKey` and `$wgOAuth2PublicKey` set, the admin account needs
+an email address, and that account needs `mwoauthproposeconsumer` and
+`mwoauthmanageconsumer` — rights Extension:OAuth grants to no group by default.
+The provisioning script checks all three and prints the fix for whatever is
+missing, so run it first and let it tell you.
 
 | Variable | Meaning | Source |
 |---|---|---|
