@@ -88,6 +88,6 @@ describe('checkWikiCapability proxy step-up', () => {
 		// read tool — proving the step-up only loosens behavior when the proxy is on.
 		const result = await checkWikiCapability('get-page', 'w', ctx({ proxy: false }));
 		expect(result?.isError).toBe(true);
-		expect(messageOf(result)).toContain('requires OAuth');
+		expect(messageOf(result)).toContain('requires an authenticated user');
 	});
 });

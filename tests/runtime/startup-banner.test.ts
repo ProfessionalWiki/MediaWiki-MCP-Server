@@ -99,7 +99,8 @@ describe('startup banner', () => {
 		expect(e.transport).toBe('http');
 		expect(e.host).toBe('0.0.0.0');
 		expect(e.port).toBe(8080);
-		expect(e.auth_shape).toBe('bearer-passthrough');
+		// Plain HTTP with no static credentials and no opted-in forwarding.
+		expect(e.auth_shape).toBe('anonymous');
 		expect(e.allowed_hosts).toEqual(['wiki.example.org']);
 		expect(e.allowed_origins).toEqual(['https://wiki.example.org']);
 		expect(e.max_request_body).toBe('2mb');

@@ -202,6 +202,6 @@ describe('dispatch capability guard', () => {
 		});
 		const result = await dispatch(getPage, ctx)({ title: 'X' } as never);
 		expect(result.isError).toBe(true);
-		expect(JSON.stringify(result.content)).toContain('requires OAuth');
+		expect(JSON.stringify(result.content)).toContain('requires an authenticated user');
 	});
 });

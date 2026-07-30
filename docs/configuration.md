@@ -201,7 +201,7 @@ If your wiki doesn't have an OAuth consumer set up, omit `oauth2ClientId`. Stati
 
 #### HTTP transport behaviour
 
-Over the HTTP transport, OAuth runs through discovery and `401` challenges instead of a local browser flow, and each request carries the bearer for its target wiki. That behaviour is in [deployment.md — per-request bearer token](deployment.md#per-request-bearer-token-http-transport).
+Over the HTTP transport, OAuth runs through discovery and `401` challenges instead of a local browser flow, and each request is served with whichever identity the deployment provides. That behaviour is in [deployment.md — per-request bearer token](deployment.md#per-request-bearer-token-http-transport-deprecated).
 
 #### Hosted OAuth proxy environment variables
 

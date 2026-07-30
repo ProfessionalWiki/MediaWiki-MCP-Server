@@ -20,6 +20,7 @@ import {
 	originValidation,
 } from '@modelcontextprotocol/express';
 import { evaluateBearerGuard } from './bearerGuard.ts';
+import { bearerPassthroughEnabled, hasStaticCredentials } from '../runtime/authShape.ts';
 import { LOCALHOST_HOSTS, resolveHttpConfig } from './httpConfig.ts';
 import { logger } from '../runtime/logger.ts';
 import {
@@ -178,13 +179,23 @@ export function handleListenError(
 
 export function createOAuthProtectedResourceHandler(deps: {
 	wikiRegistry: WikiRegistry;
-	// When the hosted OAuth proxy is enabled, this server is itself the
-	// authorization server, so the protected-resource doc must advertise the
-	// proxy issuer (self) rather than the per-wiki upstream issuers.
-	getProxyConfig?: ProxyConfigGetter;
+	// Required: this document exists only while the hosted proxy does, so a caller
+	// that omitted it would silently disable the endpoint rather than select a
+	// fallback. Pass `() => null` to mean "no proxy".
+	getProxyConfig: ProxyConfigGetter;
 }): RequestHandler {
 	return async (req, res, next) => {
 		try {
+			// Only the hosted proxy makes this server an authorization server. Without
+			// it there is nothing to advertise: naming the wikis' own issuers is what
+			// steered clients into minting tokens this server must not accept. Answered
+			// before the metadata fetches below, so an unauthenticated request no
+			// longer triggers one outbound fetch per OAuth wiki.
+			const proxyConfig = deps.getProxyConfig();
+			if (!proxyConfig) {
+				res.status(404).end();
+				return;
+			}
 			const wikis = deps.wikiRegistry.getAll();
 			const oauthWikis = Object.entries(wikis).filter(
 				([, w]) => typeof w.oauth2ClientId === 'string' && w.oauth2ClientId.trim() !== '',
@@ -212,13 +223,12 @@ export function createOAuthProtectedResourceHandler(deps: {
 				return;
 			}
 			const requestProto = resolveRequestProto(req);
-			const proxyConfig = deps.getProxyConfig?.() ?? null;
 			const doc = buildProtectedResource({
 				wikis,
 				metadatas,
 				requestHost: req.headers.host ?? undefined,
 				requestProto,
-				authorizationServersOverride: proxyConfig ? [proxyConfig.issuer] : undefined,
+				authorizationServers: [proxyConfig.issuer],
 			});
 			if (!doc) {
 				res.status(404).end();
@@ -426,9 +436,9 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		const hasAs = typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
 		if (cfg.private === true && !hasAs) {
 			logger.warning(
-				`Wiki "${key}" is marked private but has no oauth2ClientId; anonymous clients ` +
-					'will be challenged with a 401 pointing at an authorization server the wiki does ' +
-					'not advertise. Configure an OAuth2 consumer or unset `private`.',
+				`Wiki "${key}" is marked private but has no oauth2ClientId, so a client cannot be ` +
+					'pointed anywhere to sign in. Configure hosted OAuth sign-in (oauth2ClientId, ' +
+					'oauth2ClientSecret, MCP_PUBLIC_URL and MCP_OAUTH_JWT_SIGNING_KEY) or unset `private`.',
 			);
 		}
 	}
@@ -593,7 +603,7 @@ export function startHttpServer(): void {
 				guard.wikis.join(', ') +
 				'.\n' +
 				'A request without an Authorization header would silently act as the configured identity, ' +
-				'defeating per-caller bearer passthrough.\n' +
+				'so writes could not be attributed to the caller that made them.\n' +
 				'Remove `token`, `username`, and `password` from these wikis in config.json, ' +
 				'or set MCP_ALLOW_STATIC_FALLBACK=true to acknowledge the shared-identity deployment shape.',
 		);
@@ -615,6 +625,48 @@ export function startHttpServer(): void {
 	// than the first request. Memoized, so the route handlers reuse the cached result.
 	const eagerProxyConfig = getDefaultProxyConfig();
 	const proxyEnabled = eagerProxyConfig !== null;
+	if (bearerPassthroughEnabled()) {
+		logger.warning(
+			proxyEnabled
+				? 'MCP_ALLOW_BEARER_PASSTHROUGH=true is set but has no effect: hosted OAuth sign-in ' +
+						'is configured, so a bearer is read as a token this server issued and a ' +
+						'caller-supplied one is refused. Unset the variable.'
+				: 'MCP_ALLOW_BEARER_PASSTHROUGH=true is set. A caller-supplied Authorization header ' +
+						'is forwarded to MediaWiki as that caller. This is deprecated: MCP servers must ' +
+						'not accept tokens that were not issued for them. Prefer the hosted OAuth ' +
+						'sign-in, which issues this server its own tokens.',
+		);
+	}
+	// A deployment can now be configured so that nothing it serves can authenticate:
+	// wikis that require OAuth, no hosted sign-in to mint a token, and no opted-in
+	// forwarding to carry one. Nothing a client sends can fix that, so say it here
+	// rather than leaving every call to fail upstream.
+	if (!proxyEnabled && !bearerPassthroughEnabled()) {
+		const staticAllowed = process.env.MCP_ALLOW_STATIC_FALLBACK === 'true';
+		const stranded = Object.entries(state.wikiRegistry.getAll())
+			.filter(([key, cfg]) => {
+				const usesOAuth =
+					typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
+				const usableStatic = hasStaticCredentials(cfg) && staticAllowed;
+				// A `private` DEFAULT wiki cannot be rescued by static credentials: the
+				// route challenges a tokenless request before any credential is
+				// resolved, so every request to such a deployment is answered 401.
+				if (cfg.private === true && key === defaultWikiKey) {
+					return true;
+				}
+				return (usesOAuth || cfg.private === true) && !usableStatic;
+			})
+			.map(([key]) => key);
+		if (stranded.length > 0) {
+			logger.warning(
+				'No way to authenticate to wiki(s): ' +
+					stranded.join(', ') +
+					'. They require a signed-in user, but the hosted OAuth sign-in is not configured ' +
+					'and forwarding a caller-supplied token is off. Set MCP_PUBLIC_URL and ' +
+					'MCP_OAUTH_JWT_SIGNING_KEY to enable hosted sign-in (see docs/deployment.md).',
+			);
+		}
+	}
 	// Single process-wide proxy store, shared by the proxy handlers
 	// (register/authorize/callback/token). It persists its durable state (client
 	// registrations + upstream tokens) to an encrypted local file when the proxy is

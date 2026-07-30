@@ -28,10 +28,10 @@ Fields you'll filter on:
 One line on server boot — a snapshot of the effective configuration that's safe to paste into a support ticket:
 
 ```json
-{"ts":"...","level":"info","event":"startup","version":"0.8.0","transport":"http","host":"0.0.0.0","port":8080,"auth_shape":"bearer-passthrough","default_wiki":"example.org","wikis":["example.org"],"allow_wiki_management":false,"allowed_hosts":["wiki.example.org"],"allowed_origins":["https://wiki.example.org"],"max_request_body":"1mb","upload_dirs_configured":false}
+{"ts":"...","level":"info","event":"startup","version":"0.8.0","transport":"http","host":"0.0.0.0","port":8080,"auth_shape":"anonymous","default_wiki":"example.org","wikis":["example.org"],"allow_wiki_management":false,"allowed_hosts":["wiki.example.org"],"allowed_origins":["https://wiki.example.org"],"max_request_body":"1mb","upload_dirs_configured":false}
 ```
 
-- **`auth_shape`** — `anonymous`, `static-credential`, or `bearer-passthrough`.
+- **`auth_shape`** — `anonymous`, `static-credential`, `oauth-proxy` (hosted sign-in configured), or `bearer-passthrough` (only while the deprecated `MCP_ALLOW_BEARER_PASSTHROUGH` is set).
 - **`host`, `port`, `allowed_hosts`, `allowed_origins`** — HTTP transport only. `allowed_hosts` is omitted when not configured. `allowed_origins` is always present: an empty array means every browser request is refused, not that the check is off.
 - **`upload_dirs_configured`** — `true` when `uploadDirs` (config) or `MCP_UPLOAD_DIRS` (env) is set. The actual paths are not logged.
 - **`max_request_body`** — HTTP transport only. The resolved `MCP_MAX_REQUEST_BODY` value.

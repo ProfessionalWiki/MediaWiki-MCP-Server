@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 import express, { type Express } from 'express';
 import request from 'supertest';
@@ -29,6 +29,10 @@ const pc = {
 } as unknown as ProxyConfig;
 
 describe('resolveUpstreamBearer', () => {
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
 	it('returns the upstream access token for a valid JWT', async () => {
 		const store = new InMemoryProxyStore();
 		const id = store.putUpstreamToken({ accessToken: 'WA', expiresAt: Date.now() + 1e6 });
@@ -366,10 +370,38 @@ describe('POST /mcp proxy bearer rewire', () => {
 		expect(captured.token).toBeUndefined();
 	});
 
-	it('leaves the legacy 401 challenge unchanged when the proxy is disabled', async () => {
+	it('serves a tokenless request when the proxy is off and forwarding is not opted into', async () => {
 		const captured: { token?: string; seen: boolean } = { seen: false };
-		// Proxy disabled (getProxyConfig returns null, no store): the OAuth-only
-		// wiki with no bearer must still get the legacy 401 short-circuit.
+		// An OAuth-only wiki with no proxy and no forwarding leaves a caller nothing
+		// it can supply, so the old discovery challenge would send it round a loop it
+		// cannot complete. That state is an operator misconfiguration, not a 401.
+		const app = buildMcpApp(fakeRegistry({ test: oauthWiki }), () => null, undefined, captured);
+
+		const res = await request(app).post('/mcp').set('Content-Type', 'application/json').send(body);
+
+		expect(res.status).not.toBe(401);
+		expect(captured.seen).toBe(true);
+		expect(captured.token).toBeUndefined();
+	});
+
+	it('refuses a caller-supplied bearer when the proxy is off and forwarding is not opted into', async () => {
+		const captured: { token?: string; seen: boolean } = { seen: false };
+		const app = buildMcpApp(fakeRegistry({ test: oauthWiki }), () => null, undefined, captured);
+
+		const res = await request(app)
+			.post('/mcp')
+			.set('Content-Type', 'application/json')
+			.set('Authorization', 'Bearer raw-wiki-token')
+			.send(body);
+
+		expect(res.status).toBe(401);
+		expect(res.body?.error?.code).toBe(AUTHENTICATION_REQUIRED_ERROR_CODE);
+		expect(captured.seen).toBe(false);
+	});
+
+	it('challenges a tokenless request once forwarding is opted into', async () => {
+		vi.stubEnv('MCP_ALLOW_BEARER_PASSTHROUGH', 'true');
+		const captured: { token?: string; seen: boolean } = { seen: false };
 		const app = buildMcpApp(fakeRegistry({ test: oauthWiki }), () => null, undefined, captured);
 
 		const res = await request(app).post('/mcp').set('Content-Type', 'application/json').send(body);
@@ -380,7 +412,8 @@ describe('POST /mcp proxy bearer rewire', () => {
 		expect(captured.seen).toBe(false);
 	});
 
-	it('forwards the raw bearer unchanged when the proxy is disabled (legacy passthrough)', async () => {
+	it('forwards the raw bearer once forwarding is opted into', async () => {
+		vi.stubEnv('MCP_ALLOW_BEARER_PASSTHROUGH', 'true');
 		const captured: { token?: string; seen: boolean } = { seen: false };
 		const app = buildMcpApp(fakeRegistry({ test: oauthWiki }), () => null, undefined, captured);
 

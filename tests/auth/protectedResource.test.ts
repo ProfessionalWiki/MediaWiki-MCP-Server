@@ -23,6 +23,7 @@ function makeInput(overrides: Partial<ProtectedResourceInput> = {}): ProtectedRe
 	return {
 		wikis: { mywiki: { oauth2ClientId: 'client-abc' } },
 		metadatas: [baseMetadata],
+		authorizationServers: ['https://mcp.example.org/mcp'],
 		requestHost: 'mcp.example.org',
 		requestProto: 'https',
 		...overrides,
@@ -109,9 +110,11 @@ describe('buildProtectedResource', () => {
 		expect(result?.resource).toBe('https://localhost');
 	});
 
-	it('lists the AS issuer in authorization_servers', () => {
+	it('lists the given authorization server, not the wiki that metadata came from', () => {
 		const result = buildProtectedResource(makeInput());
-		expect(result?.authorization_servers).toEqual(['https://wiki.example.org']);
+		expect(result?.authorization_servers).toEqual(['https://mcp.example.org/mcp']);
+		// baseMetadata's issuer is the wiki's own; it supplies scopes, never issuers.
+		expect(result?.authorization_servers).not.toContain('https://wiki.example.org');
 	});
 
 	it('always includes bearer_methods_supported: ["header"]', () => {
@@ -148,39 +151,22 @@ describe('buildProtectedResource', () => {
 		expect(result).toBeDefined();
 	});
 
-	it('lists every distinct issuer across multiple authorization servers', () => {
-		const doc = buildProtectedResource({
-			wikis: { a: { oauth2ClientId: 'ca' }, b: { oauth2ClientId: 'cb' } },
-			metadatas: [
-				{
-					issuer: 'https://a.example',
-					authorization_endpoint: 'x',
-					token_endpoint: 'y',
-					source: 'well-known',
-					synthesized: false,
-					scopes_supported: ['read'],
-				},
-				{
-					issuer: 'https://b.example',
-					authorization_endpoint: 'x',
-					token_endpoint: 'y',
-					source: 'well-known',
-					synthesized: false,
-					scopes_supported: ['write'],
-				},
-				{
-					issuer: 'https://a.example',
-					authorization_endpoint: 'x',
-					token_endpoint: 'y',
-					source: 'well-known',
-					synthesized: false,
-				},
-			],
-			requestHost: 'mcp.example',
-			requestProto: 'https',
-		});
-		expect(doc?.authorization_servers).toEqual(['https://a.example', 'https://b.example']);
-		expect(doc?.scopes_supported?.sort()).toEqual(['read', 'write']);
+	it('names only the given authorization server, whatever the wikis use', () => {
+		const doc = buildProtectedResource(
+			makeInput({
+				wikis: { a: { oauth2ClientId: 'ca' }, b: { oauth2ClientId: 'cb' } },
+				metadatas: [
+					{ ...baseMetadata, issuer: 'https://a.example' },
+					{ ...baseMetadata, issuer: 'https://b.example' },
+				],
+			}),
+		);
+
+		// The wikis' own issuers are never advertised: a client minting a token there
+		// and presenting it here is the shape the passthrough prohibition forbids.
+		expect(doc?.authorization_servers).toEqual(['https://mcp.example.org/mcp']);
+		expect(doc?.authorization_servers).not.toContain('https://a.example');
+		expect(doc?.authorization_servers).not.toContain('https://b.example');
 	});
 
 	it('returns undefined when no metadata resolved', () => {
@@ -188,6 +174,7 @@ describe('buildProtectedResource', () => {
 			buildProtectedResource({
 				wikis: { a: { oauth2ClientId: 'ca' } },
 				metadatas: [],
+				authorizationServers: ['https://mcp.example.org/mcp'],
 				requestHost: 'mcp.example',
 				requestProto: 'https',
 			}),

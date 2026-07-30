@@ -14,7 +14,11 @@ export interface ProtectedResourceInput {
 	 * authorization server. Pass the proxy issuer(s) here to advertise self
 	 * instead of the per-wiki upstream issuers derived from `metadatas`.
 	 */
-	authorizationServersOverride?: readonly string[];
+	// The authorization servers this document names. Required: only the hosted
+	// proxy makes this server an authorization server, and it names itself. There is
+	// no per-wiki fallback — naming the wikis' own issuers is what steered clients
+	// into minting tokens this server must not accept.
+	authorizationServers: readonly string[];
 }
 
 export interface ProtectedResourceDoc {
@@ -75,10 +79,7 @@ export function buildProtectedResource(
 	// not match expected .../mcp"). resolvePublicBase keeps its trailing slash for
 	// building the resource_metadata URL; strip it for the identifier only.
 	const resource = resolvePublicBase(input.requestHost, input.requestProto).replace(/\/+$/, '');
-	const issuers =
-		input.authorizationServersOverride !== undefined
-			? [...input.authorizationServersOverride]
-			: [...new Set(input.metadatas.map((m) => m.issuer))];
+	const issuers = [...input.authorizationServers];
 	const scopes = [...new Set(input.metadatas.flatMap((m) => m.scopes_supported ?? []))];
 
 	const doc: ProtectedResourceDoc = {

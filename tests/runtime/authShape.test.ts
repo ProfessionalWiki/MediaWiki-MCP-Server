@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import { classifyAuthShape, hasStaticCredentials } from '../../src/runtime/authShape.ts';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import {
+	bearerPassthroughEnabled,
+	classifyAuthShape,
+	hasStaticCredentials,
+} from '../../src/runtime/authShape.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
 
 function wiki(overrides: Partial<WikiConfig> = {}): WikiConfig {
@@ -77,9 +81,16 @@ describe('classifyAuthShape', () => {
 		expect(classifyAuthShape(wikis, 'http')).toBe('static-credential');
 	});
 
-	it('returns bearer-passthrough on http when no static creds', () => {
+	it('returns anonymous on http when no static creds and passthrough is off', () => {
 		const wikis = { a: baseWiki };
-		expect(classifyAuthShape(wikis, 'http')).toBe('bearer-passthrough');
+		// Forwarding a caller-supplied bearer is off unless opted into, so a plain
+		// HTTP deployment is not a passthrough deployment by default.
+		expect(classifyAuthShape(wikis, 'http', false, false)).toBe('anonymous');
+	});
+
+	it('returns bearer-passthrough on http once forwarding is opted into', () => {
+		const wikis = { a: baseWiki };
+		expect(classifyAuthShape(wikis, 'http', false, true)).toBe('bearer-passthrough');
 	});
 
 	it('returns anonymous on stdio when no static creds', () => {
@@ -105,7 +116,34 @@ describe('classifyAuthShape', () => {
 	it('is unaffected by partial credentials (username only or password only)', () => {
 		const wikisU = { a: { ...baseWiki, username: 'u' } };
 		const wikisP = { a: { ...baseWiki, password: 'p' } };
-		expect(classifyAuthShape(wikisU, 'http')).toBe('bearer-passthrough');
-		expect(classifyAuthShape(wikisP, 'http')).toBe('bearer-passthrough');
+		expect(classifyAuthShape(wikisU, 'http', false, true)).toBe('bearer-passthrough');
+		expect(classifyAuthShape(wikisP, 'http', false, true)).toBe('bearer-passthrough');
+	});
+});
+
+describe('bearerPassthroughEnabled', () => {
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	it('is off unless the variable is exactly "true"', () => {
+		expect(bearerPassthroughEnabled({} as NodeJS.ProcessEnv)).toBe(false);
+		expect(
+			bearerPassthroughEnabled({ MCP_ALLOW_BEARER_PASSTHROUGH: '1' } as NodeJS.ProcessEnv),
+		).toBe(false);
+		expect(
+			bearerPassthroughEnabled({ MCP_ALLOW_BEARER_PASSTHROUGH: 'TRUE' } as NodeJS.ProcessEnv),
+		).toBe(false);
+		expect(
+			bearerPassthroughEnabled({ MCP_ALLOW_BEARER_PASSTHROUGH: 'true' } as NodeJS.ProcessEnv),
+		).toBe(true);
+	});
+
+	it('reads process.env when given no environment', () => {
+		// The call sites in the request path take no argument, so this default is the
+		// one production actually uses.
+		expect(bearerPassthroughEnabled()).toBe(false);
+		vi.stubEnv('MCP_ALLOW_BEARER_PASSTHROUGH', 'true');
+		expect(bearerPassthroughEnabled()).toBe(true);
 	});
 });

@@ -16,10 +16,19 @@ export function hasStaticCredentials(wiki: WikiConfig): boolean {
 export type AuthShape = 'anonymous' | 'static-credential' | 'bearer-passthrough' | 'oauth-proxy';
 export type Transport = 'stdio' | 'http';
 
+// Forwarding a client-supplied bearer to the wiki is deprecated and off unless a
+// deployment opts in: MCP servers must not accept tokens that were not issued for
+// them. Reading the environment here keeps the single source of truth beside the
+// shape it names, since the classifier is what the banner reports.
+export function bearerPassthroughEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+	return env.MCP_ALLOW_BEARER_PASSTHROUGH === 'true';
+}
+
 export function classifyAuthShape(
 	wikis: Readonly<Record<string, WikiConfig>>,
 	transport: Transport,
 	proxyEnabled = false,
+	passthroughEnabled = bearerPassthroughEnabled(),
 ): AuthShape {
 	const anyStatic = Object.values(wikis).some(hasStaticCredentials);
 	if (anyStatic) {
@@ -31,5 +40,8 @@ export function classifyAuthShape(
 	// When the hosted OAuth proxy is active this server is itself the
 	// authorization server (minting per-user tokens), not a plain
 	// bearer-passthrough that forwards a client-supplied token verbatim.
-	return proxyEnabled ? 'oauth-proxy' : 'bearer-passthrough';
+	if (proxyEnabled) {
+		return 'oauth-proxy';
+	}
+	return passthroughEnabled ? 'bearer-passthrough' : 'anonymous';
 }

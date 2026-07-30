@@ -166,7 +166,7 @@ For the full field reference, env-var substitution, secret sources, change tags,
 Tools marked 🔐 require authentication. Write tools (including extension-pack writes) are hidden from `tools/list` when the configured default wiki has `readOnly: true` — see [Deployment](#deployment).
 
 - **Browser-based OAuth (recommended).** Sign in through a browser tab the first time a tool needs auth. Set `oauth2ClientId` and `oauth2CallbackPort` per wiki — see [docs/configuration.md — OAuth (browser-based)](docs/configuration.md#oauth-browser-based).
-- **Per-request bearer token (HTTP).** Each request carries `Authorization: Bearer <token>`; the server forwards it to MediaWiki. See [docs/deployment.md — per-request bearer token](docs/deployment.md#per-request-bearer-token-http-transport).
+- **Per-request bearer token (HTTP), deprecated.** Each request carries `Authorization: Bearer <token>` and the server forwards it to MediaWiki. Off by default, because an MCP server must not accept tokens that were not issued for it. See [docs/deployment.md — per-request bearer token](docs/deployment.md#per-request-bearer-token-http-transport-deprecated).
 - **Hosted OAuth proxy (HTTP).** The server fronts one MediaWiki consumer as an OAuth 2.1 Authorization Server, so an OAuth-aware client signs each user in — no manual tokens. Point it at `https://<wiki>/mcp`; anonymous read still works. See [docs/deployment.md — hosted OAuth sign-in](docs/deployment.md#hosted-oauth-sign-in).
 - **Manual OAuth2 access token.** Paste a long-lived token into `config.json`. See [docs/configuration.md — manual OAuth2 access token](docs/configuration.md#manual-oauth2-access-token).
 - **Bot password.** Fallback when Extension:OAuth isn't installed. See [docs/configuration.md — bot password](docs/configuration.md#bot-password).
@@ -284,7 +284,7 @@ Running the server as a remote HTTP endpoint for other users has its own configu
 
 Defaults are safe for single-user use. Before exposing the HTTP transport to others, lock down three things:
 
-- **Trust the proxy, not the header.** The server forwards any `Authorization: Bearer` header straight to MediaWiki — authentication is the reverse proxy's job. Terminate TLS there, and don't expose the MCP port directly on an untrusted network. See [docs/deployment.md — security checklist](docs/deployment.md#security-checklist).
+- **Terminate TLS at your reverse proxy.** Don't expose the MCP port directly on an untrusted network. See [docs/deployment.md — security checklist](docs/deployment.md#security-checklist).
 - **Pair `MCP_BIND` with `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS`.** The HTTP transport binds to `127.0.0.1` by default. When you open it up with `MCP_BIND=0.0.0.0`, set `MCP_ALLOWED_HOSTS` to the hostnames your proxy forwards and `MCP_ALLOWED_ORIGINS` to the browser origins allowed to call the server — these block DNS-rebinding and cross-origin attacks respectively.
 - **Uploads are opt-in.** `upload-file` is disabled until you list allowed directories in `uploadDirs` or `MCP_UPLOAD_DIRS`. See [docs/configuration.md — upload directories](docs/configuration.md#upload-directories).
 - **Internal destinations need `MCP_TRUSTED_HOSTS`.** Outbound fetches are SSRF-guarded: a destination resolving to a private or loopback address (e.g. a Docker-network alias like `mediawiki.svc`) is refused until you list its host in `MCP_TRUSTED_HOSTS`. See [docs/deployment.md — outbound SSRF guard](docs/deployment.md#outbound-ssrf-guard).
