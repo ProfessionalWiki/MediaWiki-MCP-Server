@@ -90,7 +90,7 @@ Exposed series:
 - `mcp_inflight_requests` — gauge of `/mcp` requests currently being served. Subscription streams are excluded: they are held open by design.
 - `mcp_subscription_streams` — gauge of open change-notification streams (`subscriptions/listen`), the closest measure of connected clients.
 - `mcp_ready_failures_total` — counter of `/ready` probes that returned non-200.
-- `mcp_rate_limited_total{caller}` — counter of `tools/call` requests refused with `429`, labelled `caller` or `anonymous`. A rising `caller` series means signed-in users hit `MCP_RATE_LIMIT`; a rising `anonymous` series means the shared backstop is engaging.
+- `mcp_rate_limited_total{caller}` — counter of `tools/call` requests refused with `429`; the `caller` label is `caller` for authenticated callers and `anonymous` for the shared bucket. A rising `caller` series means authenticated callers hit `MCP_RATE_LIMIT`; a rising `anonymous` series means the shared backstop is engaging.
 - `mcp_proxy_store_upstream_tokens` — gauge of upstream MediaWiki tokens held in the hosted OAuth proxy store. This set grows with cumulative sign-ins over the process lifetime; watch it to size memory and the flush cost below.
 - `mcp_proxy_store_clients` — gauge of registered clients held in the hosted OAuth proxy store. FIFO-capped at 10,000, so this plateaus rather than growing without bound.
 - `mcp_proxy_store_flush_duration_seconds` — histogram of hosted-proxy store durable-flush durations (serialize + encrypt + write). Every upstream-token write flushes the whole store synchronously, so this scales with the token count above. Records successful flushes only.

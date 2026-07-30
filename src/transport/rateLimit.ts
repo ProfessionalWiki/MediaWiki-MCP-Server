@@ -18,11 +18,17 @@ export interface RateLimitSettings {
 	anonymousBurst: number;
 }
 
-export type RateLimitDecision = { allowed: true } | { allowed: false; retryAfterSeconds: number };
+export type RateLimitDecision =
+	| { allowed: true }
+	// `bucket` names which allowance refused, so the metric can tell a caller
+	// hitting its own limit from one refused by the shared bucket.
+	| { allowed: false; retryAfterSeconds: number; bucket: 'caller' | 'anonymous' };
 
 export interface RateLimiter {
-	// key identifies the authenticated caller; undefined means anonymous.
-	take(key: string | undefined): RateLimitDecision;
+	// key identifies the authenticated caller; undefined means anonymous. cost is
+	// how many tool calls the request carries: a JSON-RPC batch charges one token
+	// per tools/call entry, so wrapping calls in an array buys nothing.
+	take(key: string | undefined, cost?: number): RateLimitDecision;
 }
 
 interface Bucket {
@@ -34,9 +40,22 @@ interface Bucket {
 // tracks real signed-in users — the cap is a backstop, not an expected ceiling.
 const MAX_TRACKED_KEYS = 10_000;
 
+// Retry-After must be a finite number of seconds. A directly-constructed
+// settings object could carry a zero or negative rate, making the deficit
+// division non-finite; clamp rather than emit an unparseable header value.
+const MAX_RETRY_AFTER_SECONDS = 3600;
+
 function refill(bucket: Bucket, ratePerSecond: number, burst: number, now: number): void {
 	bucket.tokens = Math.min(burst, bucket.tokens + ((now - bucket.last) / 1000) * ratePerSecond);
 	bucket.last = now;
+}
+
+function retryAfterFor(deficit: number, ratePerSecond: number): number {
+	const seconds = Math.ceil(deficit / ratePerSecond);
+	if (!Number.isFinite(seconds)) {
+		return MAX_RETRY_AFTER_SECONDS;
+	}
+	return Math.min(MAX_RETRY_AFTER_SECONDS, Math.max(1, seconds));
 }
 
 function takeFrom(
@@ -44,15 +63,21 @@ function takeFrom(
 	ratePerSecond: number,
 	burst: number,
 	now: number,
+	cost: number,
+	which: 'caller' | 'anonymous',
 ): RateLimitDecision {
 	refill(bucket, ratePerSecond, burst, now);
-	if (bucket.tokens >= 1) {
-		bucket.tokens -= 1;
+	if (bucket.tokens >= cost) {
+		bucket.tokens -= cost;
 		return { allowed: true };
 	}
+	// A cost above `burst` can never be satisfied however long the caller waits,
+	// so such a batch has to be split; the deficit still gives a truthful lower
+	// bound. Nothing is consumed on a refusal.
 	return {
 		allowed: false,
-		retryAfterSeconds: Math.max(1, Math.ceil((1 - bucket.tokens) / ratePerSecond)),
+		retryAfterSeconds: retryAfterFor(cost - bucket.tokens, ratePerSecond),
+		bucket: which,
 	};
 }
 
@@ -63,12 +88,13 @@ export function createRateLimiter(
 	const { ratePerSecond, burst, anonymousRatePerSecond, anonymousBurst } = settings;
 	const buckets = new Map<string, Bucket>();
 	const anonymous: Bucket = { tokens: anonymousBurst, last: now() };
+	const anonymousLimited = anonymousRatePerSecond > 0;
 
-	function takeAnonymous(at: number): RateLimitDecision {
-		if (anonymousRatePerSecond <= 0) {
+	function takeAnonymous(at: number, cost: number): RateLimitDecision {
+		if (!anonymousLimited) {
 			return { allowed: true };
 		}
-		return takeFrom(anonymous, anonymousRatePerSecond, anonymousBurst, at);
+		return takeFrom(anonymous, anonymousRatePerSecond, anonymousBurst, at, cost, 'anonymous');
 	}
 
 	// Evicts only buckets that have refilled to capacity: a full bucket is
@@ -85,26 +111,34 @@ export function createRateLimiter(
 	}
 
 	return {
-		take(key: string | undefined): RateLimitDecision {
+		take(key: string | undefined, cost = 1): RateLimitDecision {
+			if (cost <= 0) {
+				return { allowed: true };
+			}
 			const at = now();
 			if (key === undefined) {
-				return takeAnonymous(at);
+				return takeAnonymous(at, cost);
 			}
 			let bucket = buckets.get(key);
 			if (!bucket) {
 				if (buckets.size >= MAX_TRACKED_KEYS) {
 					sweep(at);
 					if (buckets.size >= MAX_TRACKED_KEYS) {
-						// Every tracked bucket is mid-drain. Overflow keys share the
-						// anonymous bucket rather than growing the map or passing free:
-						// memory stays bounded and the overflow caller is still limited.
-						return takeAnonymous(at);
+						// Every tracked bucket is mid-drain, so admitting this key would
+						// mean growing the map without bound. Refuse rather than fall back
+						// to the anonymous bucket, which passes everything when anonymous
+						// limiting is switched off.
+						return {
+							allowed: false,
+							retryAfterSeconds: retryAfterFor(burst, ratePerSecond),
+							bucket: 'caller',
+						};
 					}
 				}
 				bucket = { tokens: burst, last: at };
 				buckets.set(key, bucket);
 			}
-			return takeFrom(bucket, ratePerSecond, burst, at);
+			return takeFrom(bucket, ratePerSecond, burst, at, cost, 'caller');
 		},
 	};
 }

@@ -10,6 +10,7 @@ import {
 	createMcpHandler,
 	INTERNAL_ERROR,
 	InMemoryServerEventBus,
+	isJsonContentType,
 	PARSE_ERROR,
 	type McpRequestContext,
 	type McpServer,
@@ -448,7 +449,16 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 	}
 
 	const app = express();
-	app.use(express.json({ limit: maxRequestBody }));
+	// The type predicate must match the SDK's own, or a Content-Type it accepts
+	// but body-parser's default matcher rejects (`application/json;`) arrives
+	// unparsed: the handler then reads the raw stream while req.body is undefined,
+	// bypassing both the size cap and anything that classifies from the body.
+	app.use(
+		express.json({
+			limit: maxRequestBody,
+			type: (req) => isJsonContentType(req.headers['content-type']),
+		}),
+	);
 
 	const hostValidation = resolveMcpHostValidation(host, allowedHosts);
 	if (hostValidation) {
@@ -712,7 +722,7 @@ export function startHttpServer(): void {
 
 	if (rateLimit) {
 		logger.info(
-			`Rate limiting tools/call: ${rateLimit.ratePerSecond}/s per signed-in caller ` +
+			`Rate limiting tools/call: ${rateLimit.ratePerSecond}/s per authenticated caller ` +
 				`(burst ${rateLimit.burst}), anonymous callers ` +
 				(rateLimit.anonymousRatePerSecond > 0
 					? `${rateLimit.anonymousRatePerSecond}/s shared`

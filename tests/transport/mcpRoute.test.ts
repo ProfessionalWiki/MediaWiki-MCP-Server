@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 
 import express, { type Express, type Request } from 'express';
 import request from 'supertest';
-import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
+import { createMcpHandler, isJsonContentType, McpServer } from '@modelcontextprotocol/server';
 import {
 	createMcpRouteHandler,
 	extractBearerToken,
@@ -297,20 +297,41 @@ describe('rate limiting on /mcp', () => {
 		expect((await request(app).post('/mcp').send(toolsCall(3))).status).toBe(429);
 	});
 
-	it('keys forwarded bearers separately under the passthrough opt-in', async () => {
+	it('caps forwarded bearers in aggregate, so rotating tokens cannot evade the limit', async () => {
 		vi.stubEnv('MCP_ALLOW_BEARER_PASSTHROUGH', 'true');
 		const captured = { calls: 0 };
 		const app = buildLimitedApp(captured);
 		const asBearer = (token: string, id: number) =>
 			request(app).post('/mcp').set('Authorization', `Bearer ${token}`).send(toolsCall(id));
 
-		await asBearer('token-a', 1);
-		await asBearer('token-a', 2);
-		expect((await asBearer('token-a', 3)).status).toBe(429);
-		// A different caller's bearer has its own untouched bucket, and the drained
-		// keyed bucket leaves anonymous traffic unaffected.
-		expect((await asBearer('token-b', 4)).status).toBe(200);
-		expect((await request(app).post('/mcp').send(toolsCall(5))).status).toBe(200);
+		// This server never verifies a forwarded bearer, so a per-token bucket alone
+		// would hand a fresh allowance to every random token. A shared allowance is
+		// charged as well: ten distinct tokens get the burst between them, not each.
+		let allowed = 0;
+		for (let i = 0; i < 10; i++) {
+			if ((await asBearer(`rotating-${i}`, i)).status === 200) {
+				allowed++;
+			}
+		}
+		expect(allowed).toBe(SETTINGS.burst);
+		expect(captured.calls).toBe(SETTINGS.burst);
+		// Anonymous traffic keeps its own allowance regardless.
+		expect((await request(app).post('/mcp').send(toolsCall(99))).status).toBe(200);
+	});
+
+	it('charges a forwarded bearer its own bucket as well as the shared one', async () => {
+		vi.stubEnv('MCP_ALLOW_BEARER_PASSTHROUGH', 'true');
+		const captured = { calls: 0 };
+		const app = buildLimitedApp(captured);
+		const asBearer = (token: string, id: number) =>
+			request(app).post('/mcp').set('Authorization', `Bearer ${token}`).send(toolsCall(id));
+
+		// One token spending the whole burst is refused on its own bucket too, so
+		// the shared cap did not replace per-caller fairness.
+		for (let i = 0; i < SETTINGS.burst; i++) {
+			expect((await asBearer('token-a', i)).status).toBe(200);
+		}
+		expect((await asBearer('token-a', 90)).status).toBe(429);
 	});
 
 	it('keys proxy callers by their upstream token id', async () => {
@@ -352,5 +373,97 @@ describe('rate limiting on /mcp', () => {
 			expect((await request(app).post('/mcp').send(toolsCall(i))).status).toBe(200);
 		}
 		expect(captured.calls).toBe(20);
+	});
+});
+
+// The bypasses these cover both survived a limiter test suite that stubbed
+// handler.fetch: the batch array and the unparsed body are decided by how the
+// REAL request reaches the REAL handler, so these drive both.
+describe('rate limiting cannot be bypassed by request shape', () => {
+	const SETTINGS = {
+		ratePerSecond: 1,
+		burst: 2,
+		anonymousRatePerSecond: 1,
+		anonymousBurst: 2,
+	};
+
+	// Mirrors the production wiring: a real MCP handler, and express.json with the
+	// SDK's own content-type predicate.
+	function buildRealApp(calls: { count: number }): Express {
+		const app = express();
+		app.use(express.json({ type: (req) => isJsonContentType(req.headers['content-type']) }));
+		const handler = createMcpHandler(
+			() => {
+				const server = new McpServer(
+					{ name: 'rl-test-server', version: '0.0.0' },
+					{ capabilities: { tools: {} } },
+				);
+				server.registerTool('ping', { description: 'test tool', inputSchema: {} }, () => {
+					calls.count++;
+					return { content: [{ type: 'text' as const, text: 'pong' }] };
+				});
+				return server;
+			},
+			{ legacy: 'stateless' },
+		);
+		app.post('/mcp', createMcpRouteHandler(handler, { rateLimiter: createRateLimiter(SETTINGS) }));
+		return app;
+	}
+
+	const call = (id: number) => ({
+		jsonrpc: '2.0',
+		id,
+		method: 'tools/call',
+		params: { name: 'ping', arguments: {} },
+	});
+
+	it('charges a JSON-RPC batch one token per tools/call entry', async () => {
+		const calls = { count: 0 };
+		const app = buildRealApp(calls);
+		// Burst is 2. A batch of 5 tool calls cannot be paid for, so none of them
+		// may run — wrapping calls in an array must not buy extra capacity.
+		const res = await request(app)
+			.post('/mcp')
+			.set('Accept', 'application/json, text/event-stream')
+			.send([call(1), call(2), call(3), call(4), call(5)]);
+		expect(res.status).toBe(429);
+		expect(calls.count).toBe(0);
+	});
+
+	it('lets a batch through only while its whole cost fits, then refuses', async () => {
+		const calls = { count: 0 };
+		const app = buildRealApp(calls);
+		const first = await request(app)
+			.post('/mcp')
+			.set('Accept', 'application/json, text/event-stream')
+			.send([call(1), call(2)]);
+		expect(first.status).toBe(200);
+		expect(calls.count).toBe(2);
+		// The bucket is now drained, so a single further call is refused.
+		const second = await request(app)
+			.post('/mcp')
+			.set('Accept', 'application/json, text/event-stream')
+			.send(call(3));
+		expect(second.status).toBe(429);
+		expect(calls.count).toBe(2);
+	});
+
+	it('limits a request whose Content-Type body-parser would not parse', async () => {
+		const calls = { count: 0 };
+		const app = buildRealApp(calls);
+		// `application/json;` is accepted by the SDK but rejected by body-parser's
+		// default matcher. Parsed by the wrong predicate, req.body is undefined,
+		// the request looks like a non-tool call, and the tool runs unmetered.
+		const send = () =>
+			request(app)
+				.post('/mcp')
+				.set('Content-Type', 'application/json;')
+				.set('Accept', 'application/json, text/event-stream')
+				.send(JSON.stringify(call(1)));
+		expect((await send()).status).toBe(200);
+		expect((await send()).status).toBe(200);
+		const refused = await send();
+		expect(refused.status).toBe(429);
+		expect(calls.count).toBe(2);
 	});
 });

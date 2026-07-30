@@ -48,7 +48,7 @@ describe('createRateLimiter', () => {
 		expect(limiter.take('user:a')).toEqual({ allowed: true });
 		const refused = limiter.take('user:a');
 		// One token at 0.5/s takes 2s to refill.
-		expect(refused).toEqual({ allowed: false, retryAfterSeconds: 2 });
+		expect(refused).toEqual({ allowed: false, retryAfterSeconds: 2, bucket: 'caller' });
 	});
 
 	it('never reports a zero-second retry', () => {
@@ -109,22 +109,63 @@ describe('createRateLimiter', () => {
 		expect(limiter.take('user:a')).toMatchObject({ allowed: false });
 	});
 
-	it('survives map-cap pressure without handing out a fresh burst', () => {
+	it('refuses an overflow key when every tracked bucket is mid-drain', () => {
 		const clock = makeClock();
 		const limiter = createRateLimiter({ ...SETTINGS, burst: 1 }, clock.now);
 		// Fill the tracked-key map with drained buckets (burst 1: one take drains).
 		for (let i = 0; i < 10_000; i++) {
 			limiter.take(`user:${i}`);
 		}
-		// Every bucket is mid-drain, so the sweep frees nothing and the overflow
-		// key falls to the anonymous bucket — limited, not free.
-		let allowed = 0;
-		for (let i = 0; i < SETTINGS.anonymousBurst + 10; i++) {
-			if (limiter.take('user:overflow').allowed) {
-				allowed++;
-			}
+		// The sweep frees nothing, so admitting this key would grow the map without
+		// bound. It is refused rather than admitted.
+		expect(limiter.take('user:overflow')).toMatchObject({ allowed: false });
+	});
+
+	it('refuses an overflow key even when anonymous traffic is unlimited', () => {
+		const clock = makeClock();
+		const limiter = createRateLimiter(
+			{ ...SETTINGS, burst: 1, anonymousRatePerSecond: 0, anonymousBurst: 1 },
+			clock.now,
+		);
+		for (let i = 0; i < 10_000; i++) {
+			limiter.take(`user:${i}`);
 		}
-		expect(allowed).toBe(SETTINGS.anonymousBurst);
+		// Falling back to the anonymous bucket here would pass every overflow caller
+		// free, since anonymous limiting is switched off.
+		for (let i = 0; i < 5; i++) {
+			expect(limiter.take('user:overflow')).toMatchObject({ allowed: false });
+		}
+		// Anonymous callers are still unlimited, as configured.
+		expect(limiter.take(undefined)).toEqual({ allowed: true });
+	});
+
+	it('charges a multi-call cost in one take, and refuses when it does not fit', () => {
+		const clock = makeClock();
+		const limiter = createRateLimiter(SETTINGS, clock.now);
+		expect(limiter.take('user:a', 5)).toEqual({ allowed: true });
+		// 20 burst - 5 spent = 15 left, so 16 does not fit and nothing is consumed.
+		expect(limiter.take('user:a', 16)).toMatchObject({ allowed: false });
+		expect(limiter.take('user:a', 15)).toEqual({ allowed: true });
+		expect(limiter.take('user:a', 1)).toMatchObject({ allowed: false });
+	});
+
+	it('refuses a cost that can never fit the bucket, without consuming', () => {
+		const clock = makeClock();
+		const limiter = createRateLimiter(SETTINGS, clock.now);
+		expect(limiter.take('user:a', SETTINGS.burst + 1)).toMatchObject({ allowed: false });
+		// The oversized request spent nothing: the full burst is still available.
+		for (let i = 0; i < SETTINGS.burst; i++) {
+			expect(limiter.take('user:a')).toEqual({ allowed: true });
+		}
+	});
+
+	it('reports which allowance refused', () => {
+		const clock = makeClock();
+		const limiter = createRateLimiter({ ...SETTINGS, burst: 1, anonymousBurst: 1 }, clock.now);
+		limiter.take('user:a');
+		expect(limiter.take('user:a')).toMatchObject({ allowed: false, bucket: 'caller' });
+		limiter.take(undefined);
+		expect(limiter.take(undefined)).toMatchObject({ allowed: false, bucket: 'anonymous' });
 	});
 
 	it('evicts idle full buckets under cap pressure, so new callers still get their own bucket', () => {

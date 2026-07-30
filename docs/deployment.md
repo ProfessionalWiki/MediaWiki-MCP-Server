@@ -49,7 +49,7 @@ Serve a single wiki for anonymous reads: no sign-in, no writes. Good for public 
 
 `readOnly: true` together with `allowWikiManagement: false` hides the wiki-management tools (`add-wiki`, `remove-wiki`) and the six write tools (`create-page`, `update-page`, `delete-page`, `undelete-page`, `upload-file`, `upload-file-from-url`) from `tools/list`. What remains is an anonymous, read-only interface.
 
-Then run it with `MCP_TRANSPORT=http` behind a reverse proxy that terminates TLS (Cloudflare, nginx, and Caddy all work), then set the [Host and Origin allowlists](#security-checklist). The server [rate limits tool calls itself](#rate-limiting); IP-level limiting against anonymous floods still belongs at the proxy, which knows the caller's address when this server does not.
+Then run it with `MCP_TRANSPORT=http` behind a reverse proxy that terminates TLS (Cloudflare, nginx, and Caddy all work), then set the [Host and Origin allowlists](#security-checklist). The server itself [rate limits tool calls](#rate-limiting); IP-level limiting against anonymous floods still belongs at the proxy, which knows the caller's address when this server does not.
 
 ## Hosted OAuth sign-in
 
@@ -242,9 +242,9 @@ Set `MCP_TRANSPORT=http` to select this transport (the Docker image defaults to 
 | `MCP_TRUSTED_HOSTS` | unset | Comma-separated **outbound** SSRF-guard exemptions for internal destinations (e.g. `mediawiki.svc`). See [Outbound SSRF guard](#outbound-ssrf-guard). |
 | `MCP_ALLOW_STATIC_FALLBACK` | unset | Allow HTTP startup when a wiki has static credentials, making them a shared fallback identity. See [Security checklist](#security-checklist). |
 | `MCP_ALLOW_BEARER_PASSTHROUGH` | unset | Deprecated. Forward a caller's `Authorization` header to MediaWiki as that caller. Without it such a request is refused with `401`. See [Per-request bearer token](#per-request-bearer-token-http-transport-deprecated). |
-| `MCP_RATE_LIMIT` | `30` | Sustained `tools/call` per second per signed-in caller. `0` disables rate limiting. See [Rate limiting](#rate-limiting). |
+| `MCP_RATE_LIMIT` | `30` | Sustained `tools/call` per second per authenticated caller. `0` disables rate limiting. See [Rate limiting](#rate-limiting). |
 | `MCP_RATE_LIMIT_BURST` | 2 × rate | How far a caller's burst can run ahead of the sustained rate. |
-| `MCP_RATE_LIMIT_ANONYMOUS` | `100` | Sustained `tools/call` per second across **all** anonymous callers combined (burst 2 ×). `0` leaves anonymous traffic unlimited. |
+| `MCP_RATE_LIMIT_ANONYMOUS` | `100` | Sustained `tools/call` per second across **all** anonymous callers combined (burst 2 × the rate, not separately tunable). `0` leaves anonymous traffic unlimited. |
 
 `MCP_MAX_REQUEST_BODY` matches nginx's `client_max_body_size 1m`. Raise it if `update-page` calls return 413 on legitimately large edits or your wiki has raised `$wgMaxArticleSize` (MediaWiki default 2 MB). Lower it for a tighter DoS guard.
 
@@ -313,9 +313,9 @@ A request carrying an `Origin` the server cannot parse at all is rejected with a
 
 ### Rate limiting
 
-`tools/call` is rate limited per caller: each signed-in user gets their own allowance (`MCP_RATE_LIMIT`, burst `MCP_RATE_LIMIT_BURST`), and all anonymous callers share one (`MCP_RATE_LIMIT_ANONYMOUS`). A request over the limit is refused with `429` and a `Retry-After` header, and never reaches the wiki. Discovery calls and subscription streams are not limited.
+`tools/call` is rate limited per caller: each authenticated caller gets its own allowance (`MCP_RATE_LIMIT`, burst `MCP_RATE_LIMIT_BURST`), and all anonymous callers share one (`MCP_RATE_LIMIT_ANONYMOUS`). A request over the limit is refused with `429` and a `Retry-After` header, and never reaches the wiki. Only `tools/call` is limited; every other request, including subscription streams, passes untouched.
 
-The split follows who can see what: only this server knows which signed-in user a request acts as, so per-user fairness lives here; only the reverse proxy can tell anonymous callers apart by IP address, so the anonymous allowance is a flood backstop for the wiki, not fairness between anonymous callers. The limiter is per-process — replicas each enforce their own allowance — and `mcp_rate_limited_total` on [`/metrics`](operations.md#metrics) counts refusals for tuning.
+The limiter is per-process — replicas each enforce their own allowance — and `mcp_rate_limited_total` on [`/metrics`](operations.md#metrics) counts refusals for tuning.
 
 ### v1 limitations
 
@@ -346,7 +346,7 @@ Authorization: Bearer <oauth2-access-token>
 
 Use a MediaWiki OAuth2 access token obtained from `Special:OAuthConsumerRegistration/propose/oauth2` on the target wiki, with [Extension:OAuth](https://www.mediawiki.org/wiki/Extension:OAuth) installed. The server forwards it to MediaWiki as that caller's token, so writes are attributable and MediaWiki's per-user rate limits apply. A bearer is scoped to a single MediaWiki OAuth2 realm, and the server pins nothing across requests: one client can address wikis on different authorization servers by sending the right token per request. While forwarding is enabled, `list-wikis` reports each OAuth wiki's `authorizationServer` so a caller can see which realm a wiki belongs to.
 
-No OAuth discovery leads here: only [Hosted OAuth sign-in](#hosted-oauth-sign-in) publishes a protected-resource document, and it names this server, so an OAuth-aware client is never steered into minting a wiki token to present here. Obtain the token yourself and configure it on the caller. While `MCP_ALLOW_BEARER_PASSTHROUGH=true` is set, a bearer-less request is challenged with `401` when no configured wiki is usable without a token; a deployment mixing OAuth and non-OAuth wikis still serves tokenless clients on the wikis that allow anonymous access.
+No OAuth discovery points at the wikis' authorization servers: the only protected-resource document is the one [Hosted OAuth sign-in](#hosted-oauth-sign-in) publishes, and it names this server. A client cannot discover where to mint a wiki token — obtain it yourself and configure it on the caller. While `MCP_ALLOW_BEARER_PASSTHROUGH=true` is set, a bearer-less request is challenged with `401` when no configured wiki is usable without a token; a deployment mixing OAuth and non-OAuth wikis still serves tokenless clients on the wikis that allow anonymous access.
 
 **Precedence:** request header (only while `MCP_ALLOW_BEARER_PASSTHROUGH=true`; otherwise refused with `401`) → `config.json` `token` → `config.json` `username`/`password` → anonymous. The HTTP transport refuses to start with static credentials in `config.json` unless `MCP_ALLOW_STATIC_FALLBACK=true` is set; see [the Security checklist](#security-checklist) for why.
 
