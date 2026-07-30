@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Changed
 
+- Cacheable results (tool and resource lists, wiki resource reads, discovery) now carry a 60-second freshness hint instead of `ttlMs: 0`, so clients on the 2026-07-28 revision can cache them between polls. Change notifications are unaffected.
 - The hosted OAuth sign-in's approval page is shorter and now names the address you will be returned to, including for a local application, where it previously said only "an application on this device". It no longer promises a permissions step the wiki does not always show.
 - The HTTP transport's own `401`, `503` and `413` replies carry new JSON-RPC error codes. Clients read the HTTP status for these conditions, so no change is expected; anything matching on the old codes `-32001` and `-32000` needs updating.
 

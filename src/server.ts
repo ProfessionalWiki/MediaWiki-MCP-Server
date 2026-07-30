@@ -39,6 +39,14 @@ export interface CreateServerOptions {
 	publisher?: ChangePublisher;
 }
 
+// Everything cacheable here changes only when a reconcile pass runs (a wiki is
+// added or removed, or an extension probe flips), and subscribed clients learn
+// of that through listChanged events — the TTL only bounds staleness for
+// clients that poll instead. Private scope: tool and resource lists reflect
+// this deployment's wiki configuration, so a shared cache must not serve one
+// deployment's lists to another behind the same intermediary.
+const CACHE_HINT = { ttlMs: 60_000, cacheScope: 'private' } as const;
+
 export const createServer = async (
 	ctx: ToolContext,
 	reqCtx?: Pick<McpRequestContext, 'era'>,
@@ -62,6 +70,13 @@ export const createServer = async (
 				logging: {},
 			},
 			instructions: SERVER_INSTRUCTIONS,
+			cacheHints: {
+				'tools/list': CACHE_HINT,
+				'resources/list': CACHE_HINT,
+				'resources/templates/list': CACHE_HINT,
+				'resources/read': CACHE_HINT,
+				'server/discover': CACHE_HINT,
+			},
 		},
 	);
 
