@@ -37,11 +37,19 @@ Happy-path tests typically call `descriptor.handle( args, ctx )` directly. Error
 
 Use `createMockMwn()` from `tests/helpers/mock-mwn.ts` to create mock `mwn` instances with method overrides. See existing test files under `tests/tools/` for the full pattern.
 
+Reach for a shared fixture rather than spelling a literal out. A field added to the real type then breaks in one place, instead of drifting silently through every suite that happened to write the literal by hand:
+
+- `fakeLogger()` — a `Logger` double covering all eight levels.
+- `fakeProxyConfig()` — a complete `ProxyConfig`.
+- `mockedLookupAll()` — the `node:dns/promises` `lookup` mock, typed at the `{ all: true }` overload production calls.
+- `toolArgs( tool, partial )` — runs partial input through a tool's own schema, so `.default()` values arrive the way a real call delivers them.
+
 Run:
 
 ```sh
 npm test           # one-shot
 npm run test:watch # watch mode
+npm run typecheck  # tsc over src + tests
 ```
 
 ## MCP Inspector (UI)
