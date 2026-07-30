@@ -107,6 +107,61 @@ docker exec "$CONTAINER" test -f "$RUN_PHP" \
 docker exec "$CONTAINER" test -f "$OAUTH_SCRIPT" \
 	|| die "Extension:OAuth not found at $MW_PATH/extensions/OAuth (install it and enable OAuth2)"
 
+# Extension:OAuth being installed does not make the wiki able to issue OAuth2
+# tokens. Registration needs rights that Extension:OAuth grants to nobody by
+# default, and the token endpoint needs a signing keypair. Missing either, a
+# consumer registered here — or in the browser — is useless, so check before
+# provisioning rather than handing back credentials that cannot work.
+readiness_php='$u=User::newFromName("'"$ADMIN_USER"'");'
+readiness_php+='$p=MediaWiki\MediaWikiServices::getInstance()->getPermissionManager();'
+readiness_php+='echo "KEYS=".(((string)($GLOBALS["wgOAuth2PrivateKey"]??"")!==""'
+readiness_php+='&&(string)($GLOBALS["wgOAuth2PublicKey"]??"")!=="")?"yes":"no")'
+readiness_php+='." EMAIL=".($u->getEmail()!==""?"yes":"no")'
+readiness_php+='." PROPOSE=".($p->userHasRight($u,"mwoauthproposeconsumer")?"yes":"no")'
+readiness_php+='." APPROVE=".($p->userHasRight($u,"mwoauthmanageconsumer")?"yes":"no")."\n";'
+readiness="$(printf '%s' "$readiness_php" \
+	| docker exec -i "$CONTAINER" php "$RUN_PHP" eval 2>/dev/null | tr -d '\r')"
+
+case "$readiness" in
+	*KEYS=*)
+		missing=''
+		case "$readiness" in *KEYS=no*) missing="${missing}keys " ;; esac
+		case "$readiness" in *EMAIL=no*) missing="${missing}email " ;; esac
+		case "$readiness" in *PROPOSE=no*) missing="${missing}propose " ;; esac
+		case "$readiness" in *APPROVE=no*) missing="${missing}approve " ;; esac
+		if [ -n "$missing" ]; then
+			log "This wiki cannot issue OAuth2 tokens yet. Fix the items below, then re-run."
+			log ""
+			case "$missing" in *keys*)
+				log "  OAuth2 signing keys are not configured. Generate a keypair:"
+				log "    openssl genrsa -out oauth2.key 2048"
+				log "    openssl rsa -in oauth2.key -pubout -out oauth2.pub"
+				log "  and set \$wgOAuth2PrivateKey / \$wgOAuth2PublicKey in LocalSettings.php"
+				log "  to the key text (or to paths the web server user can read)."
+				log "" ;;
+			esac
+			case "$missing" in *propose*|*approve*)
+				log "  ${ADMIN_USER} may not register consumers. Extension:OAuth grants these"
+				log "  to no group by default, so add to LocalSettings.php:"
+				log "    \$wgGroupPermissions['sysop']['mwoauthproposeconsumer'] = true;"
+				log "    \$wgGroupPermissions['sysop']['mwoauthmanageconsumer'] = true;"
+				log "" ;;
+			esac
+			case "$missing" in *email*)
+				log "  ${ADMIN_USER} has no email address, which consumer registration requires."
+				log "  Set one at Special:Preferences (or Special:ChangeEmail) on the wiki."
+				log "" ;;
+			esac
+			die "wiki not ready for OAuth2 (missing: ${missing% })"
+		fi
+		;;
+	*)
+		log "warning: could not determine whether this wiki can issue OAuth2 tokens."
+		log "Continuing; if sign-in later fails, check the OAuth2 signing keys and the"
+		log "mwoauthproposeconsumer right for ${ADMIN_USER}."
+		;;
+esac
+
 # --- register consumer (only if the stock CLI supports OAuth2) ---------------
 # The OAuth2 flags exist only in newer Extension:OAuth. The copy bundled with the
 # MediaWiki 1.43 LTS ships an OAuth1-only createOAuthConsumer.php, so the consumer
