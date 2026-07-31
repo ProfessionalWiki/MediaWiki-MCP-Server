@@ -51,6 +51,7 @@
 		"lint": "oxlint --tsconfig=./tsconfig.lint.json",
 		"typecheck": "tsc -p tsconfig.lint.json --noEmit",
 		"validate:server-json": "node scripts/validate-server-json.cjs",
+		"check:mcp": "node scripts/mcp-checks.cjs",
 		"preflight": "npm ci && npm run lint && npm run typecheck && npm run fmt:check && npm run validate:server-json && npm run test && npm run build && npm run bundle -- --clean",
 		"prepare": "lefthook install",
 		"inspector": "concurrently --kill-others \"tsc --watch\" \"npx -y @modelcontextprotocol/inspector@latest node dist/index.js\"",
@@ -77,6 +78,7 @@
 	},
 	"devDependencies": {
 		"@anthropic-ai/mcpb": "^2.1.2",
+		"@mcpjam/cli": "^3.16.0",
 		"@modelcontextprotocol/client": "^2.0.0",
 		"@types/express": "^5.0.2",
 		"@types/node": "^26.0.1",
