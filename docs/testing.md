@@ -78,7 +78,7 @@ Token-free structural checks against the built server: a stdio doctor sweep plus
 npm run check:mcp
 ```
 
-Both use the minimal wiki configuration in `scripts/mcp-checks.config.json`, so results do not depend on your local `config.json`. CI runs the same script on every pull request, and additionally diffs the tool surface against the PR base — a removed or renamed tool fails the job, while description changes only show up in the report.
+Both use the minimal wiki configuration in `scripts/mcp-checks.config.json`, so results do not depend on your local `config.json`. The conformance run binds `127.0.0.1:3117`; set `PORT` to use a different port. CI runs the same script on every pull request, and additionally diffs the tool surface against the PR base — a removed or renamed tool fails the job, while description changes only show up in the report.
 
 ## MCP Inspector CLI (integration tests)
 

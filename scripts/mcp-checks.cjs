@@ -37,6 +37,8 @@ function runDoctor() {
 			REPO_ROOT,
 			'--env',
 			`CONFIG=${CONFIG_PATH}`,
+			'--env',
+			'MCP_TRANSPORT=stdio',
 			'--no-telemetry',
 			'--quiet',
 		],
@@ -78,25 +80,37 @@ function runDoctor() {
 	return true;
 }
 
+async function respondsOverHttp() {
+	try {
+		// Any HTTP response, including an error status, means something
+		// is accepting connections on the port.
+		await fetch(SERVER_URL, { method: 'GET', signal: AbortSignal.timeout(2000) });
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 async function waitForServer(child) {
 	const deadline = Date.now() + STARTUP_TIMEOUT_MS;
 	while (Date.now() < deadline) {
 		if (child.exitCode !== null) {
 			return false;
 		}
-		try {
-			// Any HTTP response, including an error status, means the
-			// transport is accepting connections.
-			await fetch(SERVER_URL, { method: 'GET' });
+		if (await respondsOverHttp()) {
 			return true;
-		} catch {
-			await new Promise((resolve) => setTimeout(resolve, 250));
 		}
+		await new Promise((resolve) => setTimeout(resolve, 250));
 	}
 	return false;
 }
 
 async function runConformance() {
+	if (await respondsOverHttp()) {
+		console.error(`Port ${PORT} is already in use by another process — set PORT to a free port.`);
+		return false;
+	}
+
 	console.log(`\nStarting HTTP transport on port ${PORT}...`);
 	const serverLog = [];
 	const child = spawn(process.execPath, [DIST_ENTRY], {
@@ -111,9 +125,12 @@ async function runConformance() {
 	});
 	child.stdout.on('data', (chunk) => serverLog.push(chunk));
 	child.stderr.on('data', (chunk) => serverLog.push(chunk));
+	// Armed before the child can possibly exit, so the finally block's
+	// await resolves even when the child is already dead by then.
+	const exited = new Promise((resolve) => child.once('exit', resolve));
 
 	try {
-		if (!(await waitForServer(child))) {
+		if (!(await waitForServer(child)) || child.exitCode !== null) {
 			console.error('HTTP transport did not become reachable:');
 			console.error(serverLog.join(''));
 			return false;
@@ -142,7 +159,7 @@ async function runConformance() {
 		return true;
 	} finally {
 		child.kill('SIGTERM');
-		await new Promise((resolve) => child.once('exit', resolve));
+		await exited;
 	}
 }
 
