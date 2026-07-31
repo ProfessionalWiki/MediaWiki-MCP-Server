@@ -22,3 +22,53 @@ jobs:
 
     - name: Ensure no changes
       run: git diff --exit-code
+
+  mcp-checks:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: actions/setup-node@v7
+      with:
+        node-version: 24
+        cache: 'npm'
+
+    - run: npm ci
+
+    - run: npm run build
+
+    - name: Doctor and protocol conformance
+      run: npm run check:mcp
+
+    - name: Check out PR base
+      if: github.event_name == 'pull_request'
+      uses: actions/checkout@v7
+      with:
+        ref: ${{ github.event.pull_request.base.sha }}
+        path: base
+
+    - name: Build PR base
+      if: github.event_name == 'pull_request'
+      working-directory: base
+      run: npm ci && npm run build
+
+    - name: Export base tool surface
+      if: github.event_name == 'pull_request'
+      run: >
+        node_modules/.bin/mcpjam server export --stable
+        --transport stdio --command node
+        --args "$GITHUB_WORKSPACE/base/dist/index.js"
+        --cwd "$GITHUB_WORKSPACE/base"
+        --env "CONFIG=$GITHUB_WORKSPACE/scripts/mcp-checks.config.json"
+        --no-telemetry --quiet > base-surface.json
+
+    - name: Diff tool surface against base
+      if: github.event_name == 'pull_request'
+      run: >
+        node_modules/.bin/mcpjam server diff --baseline base-surface.json
+        --transport stdio --command node
+        --args "$GITHUB_WORKSPACE/dist/index.js"
+        --cwd "$GITHUB_WORKSPACE"
+        --env "CONFIG=$GITHUB_WORKSPACE/scripts/mcp-checks.config.json"
+        --fail-on breaking --no-telemetry

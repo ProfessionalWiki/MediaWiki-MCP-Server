@@ -70,6 +70,16 @@ Like the MCP Inspector, but with a built-in MCP client that can drive the server
 npm run mcpjam
 ```
 
+## MCPJam CLI checks
+
+Token-free structural checks against the built server: a stdio doctor sweep plus an MCP protocol conformance run against the HTTP transport. Build first with `npm run build`, then:
+
+```sh
+npm run check:mcp
+```
+
+Both use the minimal wiki configuration in `scripts/mcp-checks.config.json`, so results do not depend on your local `config.json`. The conformance run binds `127.0.0.1:3117`; set `PORT` to use a different port. CI runs the same script on every pull request, and additionally diffs the tool surface against the PR base — a removed or renamed tool fails the job, while description changes only show up in the report.
+
 ## MCP Inspector CLI (integration tests)
 
 The [MCP Inspector CLI](https://github.com/modelcontextprotocol/inspector) exercises tools against a real wiki. Build first with `npm run build`, then:

@@ -34,6 +34,7 @@ A path handed to a runtime `createRequire( import.meta.url )` resolves against t
 - `npm test` — run the vitest suite once.
 - `npm run lint` — oxlint.
 - `npm run typecheck` — `tsc --noEmit` over `src` **and** `tests`, via `tsconfig.lint.json`. `npm run build` only typechecks `src`, so this is the check that covers test code.
+- `npm run check:mcp` — MCPJam doctor + MCP protocol conformance against the built server (build first). CI runs it on every PR and also diffs the tool surface against the PR base, failing on breaking changes.
 - `npm run fmt` / `npm run fmt:check` — oxfmt (write / dry-run).
 - `npm run preflight` — full gate (install, lint, typecheck, fmt check, validate `server.json`, test, build, bundle). Run before a release.
 - Git hooks: `lefthook` auto-installs on `npm install`. Pre-commit runs `oxfmt` (auto-fix on staged files) + `oxlint`. Pre-push runs `npm run typecheck` + the test suite. Bypass with `--no-verify`.

@@ -1,0 +1,10 @@
+{
+	"wikis": {
+		"en.wikipedia.org": {
+			"server": "https://en.wikipedia.org",
+			"articlePath": "/wiki",
+			"scriptPath": "/w"
+		}
+	},
+	"defaultWiki": "en.wikipedia.org"
+}
