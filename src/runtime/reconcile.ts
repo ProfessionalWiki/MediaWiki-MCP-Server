@@ -64,19 +64,40 @@ const STATIC_RULES: readonly ToolGatingRule[] = [
 ];
 
 function buildExtensionRules(packs: readonly ExtensionPack[]): readonly ToolGatingRule[] {
-	return packs.map((pack) => ({
-		name: `${pack.id}-extension`,
-		affects: pack.tools.map((t) => t.name),
-		// Union gating: the pack's tools are offered if ANY configured wiki has
-		// the extension. The per-call capability guard rejects a call to a wiki
-		// that lacks it.
-		isAllowed: async (c) => {
-			const results = await Promise.all(
-				Object.keys(c.allWikis).map((key) => c.wikiProbe.hasAnyExtension(key, pack.extensionNames)),
-			);
-			return results.some((r) => r);
+	return packs.flatMap((pack) => [
+		{
+			name: `${pack.id}-extension`,
+			affects: pack.tools.map((t) => t.name),
+			// Union gating: the pack's tools are offered if ANY configured wiki has
+			// the extension. The per-call capability guard rejects a call to a wiki
+			// that lacks it.
+			isAllowed: async (c: ReconcileContext) => {
+				const results = await Promise.all(
+					Object.keys(c.allWikis).map((key) =>
+						c.wikiProbe.hasAnyExtension(key, pack.extensionNames),
+					),
+				);
+				return results.some((r) => r);
+			},
 		},
-	}));
+		...wikiGateRule(pack),
+	]);
+}
+
+// A pack whose tools need a configured wiki capability on top of the extension
+// declares it, rather than reconcile knowing about that pack.
+function wikiGateRule(pack: ExtensionPack): ToolGatingRule[] {
+	const gate = pack.wikiGate;
+	if (gate === undefined) {
+		return [];
+	}
+	return [
+		{
+			name: `${pack.id}-wiki-gate`,
+			affects: gate.tools,
+			isAllowed: (c) => Object.values(c.allWikis).some((w) => gate.isSatisfied(w)),
+		},
+	];
 }
 
 function buildContext(deps: ReconcileDeps): ReconcileContext {

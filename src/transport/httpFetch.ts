@@ -43,19 +43,24 @@ function resolveUploadMaxBytes(): number {
 /** A fetched URL responded with a non-2xx status: the source was reachable but rejected the request. */
 export class HttpStatusError extends Error {
 	public readonly status: number;
+	/** The response body, kept apart from the message for callers that report the source's own diagnostics. */
+	public readonly body?: string;
 	public constructor(status: number, url: string, body?: string) {
 		super(`HTTP error! status: ${status} for URL: ${url}.${body ? ` Response: ${body}` : ''}`);
 		this.name = 'HttpStatusError';
 		this.status = status;
+		this.body = body;
 	}
 }
 
-/** A fetched body exceeded the server-side size cap (MCP_UPLOAD_MAX_BYTES). */
+/** A fetched body exceeded the server-side size cap for the fetch that asked for it. */
 export class FileTooLargeError extends Error {
 	public readonly size: number;
 	public readonly limit: number;
-	public constructor(size: number, limit: number) {
-		super(`Fetched file is ${size} bytes, over the ${limit}-byte limit (MCP_UPLOAD_MAX_BYTES).`);
+	/** `limitName` names the setting behind the cap, when a setting is what set it. */
+	public constructor(size: number, limit: number, limitName?: string) {
+		const source = limitName === undefined ? '' : ` (${limitName})`;
+		super(`Fetched body is ${size} bytes, over the ${limit}-byte limit${source}.`);
 		this.name = 'FileTooLargeError';
 		this.size = size;
 		this.limit = limit;
@@ -68,6 +73,7 @@ async function fetchCore(
 		params?: Record<string, string>;
 		headers?: Record<string, string>;
 		method?: string;
+		body?: string;
 		signal?: AbortSignal;
 	},
 ): Promise<Response> {
@@ -97,9 +103,17 @@ async function fetchCore(
 	for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
 		const addresses = await assertPublicDestination(currentUrl);
 		const agent = buildPinnedAgent(currentUrl, addresses);
+		// Handed a body and a signal that is already aborted, node-fetch destroys
+		// the body stream before anything subscribes to it, and the unhandled
+		// 'error' event takes the process down. The DNS lookup above is a window
+		// wide enough for a cancellation to land in, once per hop, so refuse the
+		// request here instead. Throwing the signal's own reason keeps the
+		// AbortError callers classify on.
+		options?.signal?.throwIfAborted();
 		response = await fetch(currentUrl, {
 			headers: requestHeaders,
 			method: options?.method || 'GET',
+			...(options?.body !== undefined ? { body: options.body } : {}),
 			redirect: 'manual',
 			agent,
 			signal: options?.signal,
@@ -145,6 +159,66 @@ export async function makeApiRequest<T>(
 	return (await response.json()) as T;
 }
 
+/**
+ * POSTs a form-encoded body through the SSRF guard and returns the response
+ * text. For APIs that take a payload too large or too structured for a query
+ * string — notably SPARQL endpoints, whose protocol defines this encoding.
+ *
+ * `maxBytes` caps what is read into memory, refusing an over-cap body by its
+ * declared length and again by what actually arrives; without it the response is
+ * buffered whole.
+ *
+ * Throws HttpStatusError (carrying the response body, which such APIs use to
+ * explain what they rejected) on a non-2xx, FileTooLargeError over the cap, and
+ * the same reachability errors as the rest of this module otherwise.
+ */
+export async function postForm(
+	url: string,
+	form: Record<string, string>,
+	options?: { headers?: Record<string, string>; signal?: AbortSignal; maxBytes?: number },
+): Promise<string> {
+	const response = await fetchCore(url, {
+		method: 'POST',
+		body: new URLSearchParams(form).toString(),
+		headers: { ...options?.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+		signal: options?.signal,
+	});
+	if (options?.maxBytes === undefined) {
+		return await response.text();
+	}
+	return (await readCapped(response, options.maxBytes)).toString('utf8');
+}
+
+/**
+ * Reads a response body into memory under a byte cap, checked twice: the
+ * declared content-length rejects an over-cap body before a byte is read, and
+ * the running total catches one that under-declares or declares nothing.
+ */
+async function readCapped(
+	response: Response,
+	maxBytes: number,
+	limitName?: string,
+): Promise<Buffer> {
+	const declared = Number(response.headers.get('content-length'));
+	if (Number.isFinite(declared) && declared > maxBytes) {
+		throw new FileTooLargeError(declared, maxBytes, limitName);
+	}
+	const chunks: Buffer[] = [];
+	let total = 0;
+	if (response.body !== null) {
+		// node-fetch v3 exposes the body as a Node Readable (async-iterable).
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- node-fetch v3 body is always a Node.js Readable; narrowing to AsyncIterable<Buffer> is safe at this boundary
+		for await (const chunk of response.body as AsyncIterable<Buffer>) {
+			total += chunk.length;
+			if (total > maxBytes) {
+				throw new FileTooLargeError(total, maxBytes, limitName);
+			}
+			chunks.push(chunk);
+		}
+	}
+	return Buffer.concat(chunks);
+}
+
 export async function fetchPageHtml(url: string): Promise<string | null> {
 	try {
 		const response = await fetchCore(url);
@@ -174,25 +248,11 @@ export async function fetchFileBytes(
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), timeoutMs);
 	try {
-		const response = await fetchCore(url, { signal: controller.signal });
-		const declared = Number(response.headers.get('content-length'));
-		if (Number.isFinite(declared) && declared > maxBytes) {
-			throw new FileTooLargeError(declared, maxBytes);
-		}
-		const chunks: Buffer[] = [];
-		let total = 0;
-		if (response.body !== null) {
-			// node-fetch v3 exposes the body as a Node Readable (async-iterable).
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- node-fetch v3 body is always a Node.js Readable; narrowing to AsyncIterable<Buffer> is safe at this boundary
-			for await (const chunk of response.body as AsyncIterable<Buffer>) {
-				total += chunk.length;
-				if (total > maxBytes) {
-					throw new FileTooLargeError(total, maxBytes);
-				}
-				chunks.push(chunk);
-			}
-		}
-		return Buffer.concat(chunks);
+		return await readCapped(
+			await fetchCore(url, { signal: controller.signal }),
+			maxBytes,
+			'MCP_UPLOAD_MAX_BYTES',
+		);
 	} finally {
 		clearTimeout(timer);
 	}

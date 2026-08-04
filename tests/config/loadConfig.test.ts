@@ -163,6 +163,124 @@ describe('loadConfigFromFile', () => {
 		});
 	});
 
+	describe('per-wiki sparqlEndpoint', () => {
+		it('preserves the endpoint through the loader', async () => {
+			setConfigFile({
+				defaultWiki: 'w',
+				wikis: {
+					w: { ...baseWiki, token: null, sparqlEndpoint: 'https://query.test.wiki/sparql' },
+				},
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
+			expect(loadConfigFromFile().wikis.w.sparqlEndpoint).toBe('https://query.test.wiki/sparql');
+		});
+
+		it('substitutes an environment variable in the endpoint', async () => {
+			vi.stubEnv('SPARQL_URL', 'https://query.test.wiki/sparql');
+			setConfigFile({
+				defaultWiki: 'w',
+				wikis: { w: { ...baseWiki, token: null, sparqlEndpoint: '${SPARQL_URL}' } },
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
+			expect(loadConfigFromFile().wikis.w.sparqlEndpoint).toBe('https://query.test.wiki/sparql');
+		});
+
+		it('throws when the endpoint is not a string', async () => {
+			setConfigFile({
+				defaultWiki: 'w',
+				wikis: { w: { ...baseWiki, token: null, sparqlEndpoint: 42 } },
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
+			expect(() => loadConfigFromFile()).toThrow(
+				'Config error: wikis.w.sparqlEndpoint must be a string',
+			);
+		});
+
+		it('throws when the endpoint is not a URL', async () => {
+			setConfigFile({
+				defaultWiki: 'w',
+				wikis: { w: { ...baseWiki, token: null, sparqlEndpoint: 'query.test.wiki/sparql' } },
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
+			expect(() => loadConfigFromFile()).toThrow(
+				'Config error: wikis.w.sparqlEndpoint must be a URL',
+			);
+		});
+
+		it('throws when a referenced environment variable left the endpoint unsubstituted', async () => {
+			// `${SPARQL_HOST}` is legal in a URL host, so this parses and would only
+			// be caught by the first query failing against a host of that name.
+			setConfigFile({
+				defaultWiki: 'w',
+				wikis: {
+					w: { ...baseWiki, token: null, sparqlEndpoint: 'https://${SPARQL_HOST}/sparql' },
+				},
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
+			expect(() => loadConfigFromFile()).toThrow(
+				'Config error: environment variable "SPARQL_HOST" referenced by wikis.w.sparqlEndpoint is not set',
+			);
+		});
+
+		it('throws when the endpoint uses a scheme this server does not fetch', async () => {
+			setConfigFile({
+				defaultWiki: 'w',
+				wikis: { w: { ...baseWiki, token: null, sparqlEndpoint: 'file:///etc/passwd' } },
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
+			expect(() => loadConfigFromFile()).toThrow(
+				'Config error: wikis.w.sparqlEndpoint must be an http or https URL',
+			);
+		});
+
+		it('accepts an endpoint carrying a query string', async () => {
+			setConfigFile({
+				defaultWiki: 'w',
+				wikis: {
+					w: { ...baseWiki, token: null, sparqlEndpoint: 'https://query.test.wiki/sparql?lang=en' },
+				},
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
+			expect(loadConfigFromFile().wikis.w.sparqlEndpoint).toBe(
+				'https://query.test.wiki/sparql?lang=en',
+			);
+		});
+
+		it('throws when the endpoint carries credentials that would leak into tool output', async () => {
+			setConfigFile({
+				defaultWiki: 'w',
+				wikis: {
+					w: { ...baseWiki, token: null, sparqlEndpoint: 'https://u:p@query.test.wiki/sparql' },
+				},
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
+			expect(() => loadConfigFromFile()).toThrow(
+				'Config error: wikis.w.sparqlEndpoint must not carry credentials in the URL',
+			);
+		});
+
+		it('throws when the endpoint carries a username alone', async () => {
+			setConfigFile({
+				defaultWiki: 'w',
+				wikis: {
+					w: { ...baseWiki, token: null, sparqlEndpoint: 'https://token@query.test.wiki/sparql' },
+				},
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
+			expect(() => loadConfigFromFile()).toThrow('must not carry credentials in the URL');
+		});
+
+		// Blank means "no query service" everywhere else, so the loader reads it the same way.
+		it('accepts a blank endpoint as no query service', async () => {
+			setConfigFile({
+				defaultWiki: 'w',
+				wikis: { w: { ...baseWiki, token: null, sparqlEndpoint: '  ' } },
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
+			expect(loadConfigFromFile().wikis.w.sparqlEndpoint).toBe('  ');
+		});
+	});
+
 	describe('wiki keys', () => {
 		// Percent-encoding carries these through to a reachable resource URI.
 		it.each(['a/b', 'a?b', 'a#b', 'my wiki'])('accepts a wiki key containing %j', async (key) => {

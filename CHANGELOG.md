@@ -11,6 +11,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `update-page` no longer creates sections: `section='new'` and `sectionTitle` are removed. Add a section with `mode='append'` and a source that begins with the heading, as in `"\n\n== History ==\n\nBody."`. A call still sending `section='new'` is refused with a message naming the replacement.
 - `update-page` now refuses a `section=N` replace whose source would delete the subsections nested under that section, which MediaWiki replaces along with it. Include the subsections in `source` to keep them, or pass `removeSubsections: true` to remove them deliberately. Appends, full-page replaces, and sections with no subsections are unaffected.
 
+### Added
+
+- Five tools for wikis running [Wikibase](https://www.mediawiki.org/wiki/Extension:Wikibase_Repository): `wikibase-search-entities` finds items and properties by label or alias, `wikibase-get-entity` reads one entity's terms and statements, `wikibase-query` runs SPARQL against the wiki's query service, and `wikibase-edit-entity` and `wikibase-add-statement` write. Auto-detected from `siteinfo`; only registered on wikis that are a Wikibase repository. Entities are returned as compact text with referenced IDs resolved to labels, never as raw entity JSON, and the statement list is capped at 50 properties and 10 values per property per call.
+- Per-wiki `sparqlEndpoint` configuration field, naming the SPARQL endpoint of the query service backing a Wikibase repository. `wikibase-query` is offered only for a wiki that sets it, since a query service is a separate deployment from the wiki and cannot be detected.
+
 ### Fixed
 
 - `update-page` no longer advertises itself as idempotent: in `mode='append'` and `mode='prepend'` it never was, so a client replaying a call whose result never arrived adds the content a second time. A replace resends the same content rather than adding to it.

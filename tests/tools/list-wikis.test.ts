@@ -91,6 +91,35 @@ describe('list-wikis', () => {
 		expect(def.extensionTools).toEqual([]);
 	});
 
+	it('reports the Wikibase tools a repository wiki supports', async () => {
+		const ctx = ctxWith({ 'test-wiki': new Set(['WikibaseRepository']) });
+		const result = await dispatch(listWikis, ctx)({} as never);
+		const wiki = wikisOf(result).find((w) => w.key === 'test-wiki')!;
+		expect(wiki.extensionTools).toContain('wikibase-get-entity');
+	});
+
+	it('withholds the query tool from a Wikibase wiki with no query service configured', async () => {
+		const ctx = ctxWith({ 'test-wiki': new Set(['WikibaseRepository']) });
+		const result = await dispatch(listWikis, ctx)({} as never);
+		const wiki = wikisOf(result).find((w) => w.key === 'test-wiki')!;
+		expect(wiki.extensionTools).not.toContain('wikibase-query');
+	});
+
+	it('reports the query tool once the wiki configures a query service', async () => {
+		const ctx = ctxWith({ 'sparql.wiki': new Set(['WikibaseRepository']) }, new Set(), {
+			'sparql.wiki': {
+				sitename: 'Wikibase',
+				server: 'https://sparql.wiki',
+				articlepath: '/wiki',
+				scriptpath: '/w',
+				sparqlEndpoint: 'https://query.sparql.wiki/sparql',
+			},
+		});
+		const result = await dispatch(listWikis, ctx)({} as never);
+		const wiki = wikisOf(result).find((w) => w.key === 'sparql.wiki')!;
+		expect(wiki.extensionTools).toContain('wikibase-query');
+	});
+
 	it('reports reachable=false with no extension tools for an unreachable wiki', async () => {
 		const ctx = ctxWith({}, new Set(['cargo.wiki']));
 		const result = await dispatch(listWikis, ctx)({} as never);

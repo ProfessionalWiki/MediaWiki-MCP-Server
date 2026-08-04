@@ -24,7 +24,7 @@ interface WikiSummary {
 export const listWikis: Tool<Record<string, never>> = {
 	name: 'list-wikis',
 	description:
-		'Lists every configured wiki: its key (pass as the `wiki` argument to other tools), sitename, server URL, whether it is read-only or the default, whether it is currently reachable, and which extension-gated tools (cargo-*, smw-*, bucket-query) work on it. Use to discover the configured wikis, their keys, and which extension tools each supports.',
+		'Lists every configured wiki: its key (pass as the `wiki` argument to other tools), sitename, server URL, whether it is read-only or the default, whether it is currently reachable, and which extension-gated tools work on it. Use to discover the configured wikis, their keys, and which extension tools each supports.',
 	inputSchema: {},
 	annotations: {
 		title: 'List wikis',
@@ -50,8 +50,17 @@ export const listWikis: Tool<Record<string, never>> = {
 				const extensionTools: string[] = [];
 				for (const pack of extensionPacks) {
 					if (pack.extensionNames.some((name) => extensions.has(name))) {
+						// A pack tool behind a wiki gate is reported only for a wiki that
+						// satisfies it, matching what the per-call guard would allow.
+						const gate = pack.wikiGate;
+						const withheld =
+							gate === undefined || gate.isSatisfied(config)
+								? new Set<string>()
+								: new Set(gate.tools);
 						for (const tool of pack.tools) {
-							extensionTools.push(tool.name);
+							if (!withheld.has(tool.name)) {
+								extensionTools.push(tool.name);
+							}
 						}
 					}
 				}

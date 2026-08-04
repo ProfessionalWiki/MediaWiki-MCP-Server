@@ -19,6 +19,8 @@ const MW_CODE_TO_CATEGORY: Record<string, ErrorCategory> = {
 	nosuchrevid: 'not_found',
 	nosuchsection: 'not_found',
 	nofile: 'not_found',
+	// Wikibase: the requested entity ID does not exist on the wiki.
+	'no-such-entity': 'not_found',
 	// permission_denied
 	permissiondenied: 'permission_denied',
 	protectedpage: 'permission_denied',
@@ -50,6 +52,27 @@ const MW_CODE_TO_CATEGORY: Record<string, ErrorCategory> = {
 	immobilenamespace: 'invalid_input',
 	nonfilenamespace: 'invalid_input',
 	filetypemismatch: 'invalid_input',
+	// Wikibase: the ID is not in the wiki's entity-ID format.
+	'invalid-entity-id': 'invalid_input',
+	// Wikibase writes: a parameter is missing, malformed, or names something the
+	// entity does not hold. `modification-failed` covers a change the entity
+	// itself refuses, such as a duplicate term or a statement that already exists.
+	'param-illegal': 'invalid_input',
+	'param-missing': 'invalid_input',
+	'invalid-snak': 'invalid_input',
+	'no-such-claim': 'invalid_input',
+	'not-recognized': 'invalid_input',
+	'modification-failed': 'invalid_input',
+	// Wikibase writes: the request describes a change the entity cannot apply.
+	// The data is absent, a value is malformed, or a payload field contradicts
+	// the parameter sent alongside it.
+	'inconsistent-language': 'invalid_input',
+	'inconsistent-site': 'invalid_input',
+	'no-data': 'invalid_input',
+	'param-invalid': 'invalid_input',
+	'invalid-guid': 'invalid_input',
+	'tags-invalid': 'invalid_input',
+	'failed-modify': 'invalid_input',
 	// conflict
 	editconflict: 'conflict',
 	articleexists: 'conflict',
@@ -71,6 +94,14 @@ const MW_CODE_TO_CATEGORY: Record<string, ErrorCategory> = {
 	// upstream_failure (explicit; unknown codes also fall through here)
 	readonly: 'upstream_failure',
 };
+
+// Code families the wiki numbers per case, matched by prefix rather than by
+// exact value. Wikibase reports a caller-supplied JSON value it cannot read as
+// `not-recognized-<shape>`, one code per shape it expected.
+const CODE_PREFIX_PATTERNS: readonly (readonly [RegExp, ErrorCategory])[] = [
+	[/^internal_api_error_/, 'upstream_failure'],
+	[/^not-recognized-/, 'invalid_input'],
+];
 
 // mwn sometimes surfaces codes only inside the error message, not on .code.
 // These patterns infer a canonical code from the message, which then routes
@@ -94,8 +125,10 @@ export function classifyError(err: unknown): { category: ErrorCategory; code?: s
 			if (mapped) {
 				return { category: mapped, code };
 			}
-			if (/^internal_api_error_/.test(code)) {
-				return { category: 'upstream_failure', code };
+			for (const [pattern, category] of CODE_PREFIX_PATTERNS) {
+				if (pattern.test(code)) {
+					return { category, code };
+				}
 			}
 		}
 		const message = (err as { message?: unknown }).message;

@@ -47,7 +47,7 @@ Serve a single wiki for anonymous reads: no sign-in, no writes. Good for public 
 }
 ```
 
-`readOnly: true` together with `allowWikiManagement: false` hides the wiki-management tools (`add-wiki`, `remove-wiki`) and the six write tools (`create-page`, `update-page`, `delete-page`, `undelete-page`, `upload-file`, `upload-file-from-url`) from `tools/list`. What remains is an anonymous, read-only interface.
+`readOnly: true` together with `allowWikiManagement: false` hides the wiki-management tools (`add-wiki`, `remove-wiki`) and the write tools (`create-page`, `update-page`, `delete-page`, `undelete-page`, `upload-file`, `upload-file-from-url`, and extension-pack write tools) from `tools/list`. What remains is an anonymous, read-only interface.
 
 Then run it with `MCP_TRANSPORT=http` behind a reverse proxy that terminates TLS (Cloudflare, nginx, and Caddy all work), then set the [Host and Origin allowlists](#security-checklist). The server itself [rate limits tool calls](#rate-limiting); IP-level limiting against anonymous floods still belongs at the proxy, which knows the caller's address when this server does not.
 
@@ -280,7 +280,7 @@ The split exists because the browser must reach a **public** authorize URL (the 
 
 ### Outbound SSRF guard
 
-The server makes a few outbound fetches: the anonymous siteinfo probe (which gates extension tools and fills the `extensions` field of `get-site-info`), wiki discovery, and `*-file-from-url` uploads. These are SSRF-guarded: a destination resolving to a private, loopback, or other non-public address is refused. This stops a client-supplied URL from steering the server at internal infrastructure or cloud metadata.
+The server makes a few outbound fetches: the anonymous siteinfo probe (which gates extension tools and fills the `extensions` field of `get-site-info`), wiki discovery, `*-file-from-url` uploads, and the SPARQL queries `wikibase-query` sends to a wiki's configured `sparqlEndpoint`. These are SSRF-guarded: a destination resolving to a private, loopback, or other non-public address is refused. This stops a client-supplied URL from steering the server at internal infrastructure or cloud metadata.
 
 Running deliberately against an internal host trips this guard. The common case is Docker, where a wiki's `server` is a network alias such as `http://mediawiki.svc` chosen to bypass a public reverse proxy. The probe is refused, so extension tools silently disappear and `get-site-info` reports no extensions. List the host in `MCP_TRUSTED_HOSTS` to exempt it from the public-IP check. Entries are comma-separated and match exactly (case-folded, no wildcards or suffixes):
 
@@ -288,6 +288,8 @@ Running deliberately against an internal host trips this guard. The common case 
 - a **`host:port`** entry matches only that port.
 
 The exemption skips **only** the public-IP check; the host is still DNS-resolved, its addresses are still pinned, and the guard stays on for every other destination. A listed host is trusted for **every** outbound fetch (wiki discovery and `*-file-from-url`, not only the probe), so list only hosts you control; exact matching means a client cannot reach anything beyond that one declared destination.
+
+The list is global rather than per-purpose, so a host added to reach a private `sparqlEndpoint` is equally reachable through a caller-supplied URL in a tool such as `upload-file-from-url`. Point `sparqlEndpoint` at a read-only query endpoint, and if the service supports SPARQL federation (`SERVICE`), restrict or disable it, since callers query it verbatim.
 
 `MCP_TRUSTED_HOSTS` is the **outbound** counterpart to `MCP_ALLOWED_HOSTS` (the inbound Host-header check); the two are unrelated despite the similar names.
 
