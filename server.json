@@ -29,7 +29,7 @@
         },
         {
           "name": "MCP_CONTENT_MAX_BYTES",
-          "description": "Byte cap for content bodies (wikitext, rendered HTML, diffs) returned by get-page, get-pages, parse-wikitext, and compare-pages. Oversized bodies are truncated with a trailing marker.",
+          "description": "Byte cap for the content bodies and result blocks tools return (wikitext, rendered HTML, diffs, statement and row listings). An oversized response is truncated with a trailing marker describing what was left out.",
           "format": "number",
           "default": "50000"
         },
@@ -140,7 +140,7 @@
         },
         {
           "name": "MCP_CONTENT_MAX_BYTES",
-          "description": "Byte cap for content bodies (wikitext, rendered HTML, diffs) returned by get-page, get-pages, parse-wikitext, and compare-pages. Oversized bodies are truncated with a trailing marker.",
+          "description": "Byte cap for the content bodies and result blocks tools return (wikitext, rendered HTML, diffs, statement and row listings). An oversized response is truncated with a trailing marker describing what was left out.",
           "format": "number",
           "default": "50000"
         },

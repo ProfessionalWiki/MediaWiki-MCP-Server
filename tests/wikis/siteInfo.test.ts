@@ -49,6 +49,36 @@ describe('resolveSiteInfo', () => {
 		expect(mock.request).toHaveBeenCalledTimes(1);
 	});
 
+	it('reports the wiki content language', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				query: {
+					general: { server: 'https://public.example', articlepath: '/wiki/$1', lang: 'de' },
+				},
+			}),
+		});
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			siteInfoCache: emptyCache() as never,
+		});
+
+		expect((await resolveSiteInfo(ctx, 'test-wiki')).lang).toBe('de');
+	});
+
+	it('omits the content language when siteinfo does not report one', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				query: { general: { server: 'https://public.example', articlepath: '/wiki/$1' } },
+			}),
+		});
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			siteInfoCache: emptyCache() as never,
+		});
+
+		expect(await resolveSiteInfo(ctx, 'test-wiki')).not.toHaveProperty('lang');
+	});
+
 	it('normalizes a protocol-relative server to https', async () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({

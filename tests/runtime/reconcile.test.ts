@@ -7,7 +7,7 @@ import type { WikiProbe } from '../../src/wikis/wikiProbe.ts';
 import { reconcileTools, computeDesiredEnabledState } from '../../src/runtime/reconcile.ts';
 import type { ToolGatingRule, ReconcileContext } from '../../src/runtime/reconcile.ts';
 import { WRITE_TOOL_NAMES } from '../../src/runtime/wikiCapability.ts';
-import type { ExtensionPack } from '../../src/tools/extensions/types.ts';
+import type { ExtensionPack, WikiGate } from '../../src/tools/extensions/types.ts';
 import type { Tool } from '../../src/runtime/tool.ts';
 
 const NON_WRITE_TOOL_NAMES = ['get-page', 'search-page'];
@@ -45,6 +45,20 @@ function makeToolMap(initiallyEnabled: boolean): {
 		...WIKI_SET_TOOL_NAMES,
 		...STDIO_ONLY_TOOL_NAMES,
 	]) {
+		const mock = makeMockTool(initiallyEnabled);
+		mocks.set(name, mock);
+		tools.set(name, mock as unknown as RegisteredTool);
+	}
+	return { tools, mocks };
+}
+
+function makeToolMapOf(
+	names: readonly string[],
+	initiallyEnabled: boolean,
+): { tools: Map<string, RegisteredTool>; mocks: Map<string, MockTool> } {
+	const mocks = new Map<string, MockTool>();
+	const tools = new Map<string, RegisteredTool>();
+	for (const name of names) {
 		const mock = makeMockTool(initiallyEnabled);
 		mocks.set(name, mock);
 		tools.set(name, mock as unknown as RegisteredTool);
@@ -117,6 +131,7 @@ function makeFakePack(
 	id: string,
 	extensionNames: readonly string[],
 	toolNames: readonly string[],
+	wikiGate?: WikiGate,
 ): ExtensionPack {
 	return {
 		id,
@@ -124,6 +139,7 @@ function makeFakePack(
 		// Synthetic tools — only `name` matters for reconcile (gating works on names).
 		// oxlint-disable-next-line typescript/no-explicit-any
 		tools: toolNames.map((name) => ({ name }) as unknown as Tool<any>),
+		...(wikiGate !== undefined ? { wikiGate } : {}),
 	};
 }
 
@@ -277,22 +293,8 @@ describe('reconcileTools — read-only gating of extension write tools', () => {
 		[NEOWIKI_WRITE_TOOL, NEOWIKI_READ_TOOL],
 	);
 
-	function makeNeowikiToolMap(initiallyEnabled: boolean): {
-		tools: Map<string, RegisteredTool>;
-		mocks: Map<string, MockTool>;
-	} {
-		const mocks = new Map<string, MockTool>();
-		const tools = new Map<string, RegisteredTool>();
-		for (const name of [NEOWIKI_WRITE_TOOL, NEOWIKI_READ_TOOL]) {
-			const mock = makeMockTool(initiallyEnabled);
-			mocks.set(name, mock);
-			tools.set(name, mock as unknown as RegisteredTool);
-		}
-		return { tools, mocks };
-	}
-
 	it('hides an extension write tool from tools/list on a read-only wiki while keeping the read tool', async () => {
-		const { tools, mocks } = makeNeowikiToolMap(true);
+		const { tools, mocks } = makeToolMapOf([NEOWIKI_WRITE_TOOL, NEOWIKI_READ_TOOL], true);
 		const wiki = { ...baseWiki, readOnly: true };
 		const { registry } = makeMocks({
 			activeWikiConfig: wiki,
@@ -315,7 +317,7 @@ describe('reconcileTools — read-only gating of extension write tools', () => {
 	});
 
 	it('offers extension write tools on a writable wiki with the extension present', async () => {
-		const { tools, mocks } = makeNeowikiToolMap(false);
+		const { tools, mocks } = makeToolMapOf([NEOWIKI_WRITE_TOOL, NEOWIKI_READ_TOOL], false);
 		const { registry } = makeMocks({
 			activeWikiConfig: baseWiki,
 			wikis: { a: baseWiki },
@@ -1066,5 +1068,96 @@ describe('reconcileTools — union gating', () => {
 		for (const name of WRITE_TOOL_NAMES) {
 			expect(mocks.get(name)!.disable).toHaveBeenCalledTimes(1);
 		}
+	});
+});
+
+describe('reconcileTools — wikiGateRule', () => {
+	const GATED_TOOL = 'gated-pack-query';
+	const UNGATED_TOOL = 'gated-pack-read';
+	const GATED_PACK = makeFakePack('gated', ['GatedExtension'], [UNGATED_TOOL, GATED_TOOL], {
+		tools: [GATED_TOOL],
+		isSatisfied: (wiki) => (wiki.sparqlEndpoint ?? '').trim() !== '',
+		refusal: (wikiKey) => `Wiki "${wikiKey}" has no query service.`,
+	});
+	const SATISFIED: WikiConfig = { ...baseWiki, sparqlEndpoint: 'https://query.example/sparql' };
+
+	async function reconcileWith(
+		tools: Map<string, RegisteredTool>,
+		wikis: Record<string, WikiConfig>,
+	): Promise<void> {
+		const { registry } = makeMocks({
+			activeWikiConfig: Object.values(wikis)[0],
+			wikis,
+			allowManagement: true,
+		});
+		await reconcileTools(tools, {
+			wikiRegistry: registry,
+			transport: 'stdio',
+			wikiProbe: makeFakeProbe(
+				Object.fromEntries(Object.keys(wikis).map((key) => [`${key}:GatedExtension`, true])),
+			),
+			extensionPacks: [GATED_PACK],
+		});
+	}
+
+	it('hides the gated tool when no wiki satisfies the gate', async () => {
+		const { tools, mocks } = makeToolMapOf([UNGATED_TOOL, GATED_TOOL], true);
+
+		await reconcileWith(tools, { a: baseWiki });
+
+		expect(mocks.get(GATED_TOOL)!.disable).toHaveBeenCalledTimes(1);
+		expect(mocks.get(UNGATED_TOOL)!.disable).not.toHaveBeenCalled();
+	});
+
+	it('offers the gated tool once a wiki satisfies the gate', async () => {
+		const { tools, mocks } = makeToolMapOf([UNGATED_TOOL, GATED_TOOL], false);
+
+		await reconcileWith(tools, { a: SATISFIED });
+
+		expect(mocks.get(GATED_TOOL)!.enable).toHaveBeenCalledTimes(1);
+	});
+
+	it('treats a blank configured value as not satisfying the gate', async () => {
+		const { tools, mocks } = makeToolMapOf([UNGATED_TOOL, GATED_TOOL], true);
+
+		await reconcileWith(tools, { a: { ...baseWiki, sparqlEndpoint: '   ' } });
+
+		expect(mocks.get(GATED_TOOL)!.disable).toHaveBeenCalledTimes(1);
+	});
+
+	// Union gating, as for the extension gate itself: the per-call guard is what
+	// refuses the wiki that does not satisfy it.
+	it('keeps the gated tool offered when only a non-default wiki satisfies the gate', async () => {
+		const { tools, mocks } = makeToolMapOf([UNGATED_TOOL, GATED_TOOL], false);
+
+		await reconcileWith(tools, { def: baseWiki, other: SATISFIED });
+
+		expect(mocks.get(GATED_TOOL)!.enable).toHaveBeenCalledTimes(1);
+	});
+
+	it('hides the gated tool only when no wiki of several satisfies the gate', async () => {
+		const { tools, mocks } = makeToolMapOf([UNGATED_TOOL, GATED_TOOL], true);
+
+		await reconcileWith(tools, { def: baseWiki, other: baseWiki });
+
+		expect(mocks.get(GATED_TOOL)!.disable).toHaveBeenCalledTimes(1);
+	});
+
+	it('leaves a pack with no gate alone', async () => {
+		const { tools, mocks } = makeToolMapOf(['smw-query'], true);
+		const { registry } = makeMocks({
+			activeWikiConfig: baseWiki,
+			wikis: { a: baseWiki },
+			allowManagement: true,
+		});
+
+		await reconcileTools(tools, {
+			wikiRegistry: registry,
+			transport: 'stdio',
+			wikiProbe: makeFakeProbe({ 'a:SemanticMediaWiki': true }),
+			extensionPacks: [SMW_PACK],
+		});
+
+		expect(mocks.get('smw-query')!.disable).not.toHaveBeenCalled();
 	});
 });

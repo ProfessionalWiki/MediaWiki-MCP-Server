@@ -3,6 +3,8 @@ export type LicenseInfo = { url: string; title: string };
 export type SiteInfo = {
 	server: string;
 	articlepath: string;
+	/** The wiki's content language ($wgLanguageCode); absent when siteinfo omitted it. */
+	lang?: string;
 	license?: LicenseInfo;
 };
 

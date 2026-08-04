@@ -99,6 +99,16 @@ Each pack's tools register only on wikis where its extension is installed.
 | `cargo-describe-table` | List a Cargo table's fields with their types and list-flags. |
 | `cargo-query` | Run a Cargo SQL-style query. |
 
+**[Wikibase](https://www.mediawiki.org/wiki/Extension:Wikibase_Repository)**
+
+| Name | Description |
+|---|---|
+| `wikibase-search-entities` | Find items and properties by label or alias. |
+| `wikibase-get-entity` | Read one entity's terms and statements, with referenced IDs resolved to labels. |
+| `wikibase-query` | Run a SPARQL query against the wiki's query service. Offered only for a wiki with `sparqlEndpoint` configured — see [docs/configuration.md — per-wiki fields](docs/configuration.md#per-wiki-fields). |
+| `wikibase-edit-entity` | Create or change an entity from Wikibase entity JSON. Requires the `edit` right. |
+| `wikibase-add-statement` | Add one statement with an item, string, external-id or url value. Requires the `edit` right. |
+
 ### Resources
 
 **`mcp://wikis/{wikiKey}`** — per-wiki resource exposing `sitename`, `server` (the wiki's public address), `articlepath`, `scriptpath`, and the `private` and `readOnly` flags.

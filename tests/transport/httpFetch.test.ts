@@ -23,6 +23,7 @@ import {
 } from '../../src/transport/ssrfGuard.ts';
 import {
 	makeApiRequest,
+	postForm,
 	fetchPageHtml,
 	fetchFileBytes,
 	shouldRescueToWiki,
@@ -268,5 +269,111 @@ describe('shouldRescueToWiki', () => {
 		// A coded error that is NOT a reachability failure must not rescue.
 		const other = Object.assign(new Error('boom'), { code: 'EPERM' });
 		expect(shouldRescueToWiki(other)).toBe(false);
+	});
+});
+
+describe('postForm', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.mocked(assertPublicDestination).mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+		vi.mocked(buildPinnedAgent).mockReturnValue({ __pinned: true } as never);
+	});
+
+	it('posts a form-encoded body through the guard and returns the response text', async () => {
+		vi.mocked(fetch).mockResolvedValueOnce(new Response('results', { status: 200 }));
+
+		const body = await postForm('https://query.example/sparql', { query: 'SELECT ?x WHERE {}' });
+
+		expect(body).toBe('results');
+		expect(assertPublicDestination).toHaveBeenCalledWith('https://query.example/sparql');
+		expect(fetch).toHaveBeenCalledWith(
+			'https://query.example/sparql',
+			expect.objectContaining({
+				method: 'POST',
+				body: 'query=SELECT+%3Fx+WHERE+%7B%7D',
+			}),
+		);
+	});
+
+	it('sends the caller headers alongside the form content type', async () => {
+		vi.mocked(fetch).mockResolvedValueOnce(new Response('results', { status: 200 }));
+
+		await postForm(
+			'https://query.example/sparql',
+			{ query: 'x' },
+			{ headers: { Accept: 'application/sparql-results+json' } },
+		);
+
+		expect(vi.mocked(fetch).mock.calls[0][1]!.headers).toMatchObject({
+			Accept: 'application/sparql-results+json',
+			'Content-Type': 'application/x-www-form-urlencoded',
+		});
+	});
+
+	it('returns the whole body when no byte cap is given', async () => {
+		vi.mocked(fetch).mockResolvedValueOnce(new Response(Buffer.from('x'.repeat(5000))));
+
+		const body = await postForm('https://query.example/sparql', { query: 'x' });
+
+		expect(body).toHaveLength(5000);
+	});
+
+	it('returns the body when it is under the byte cap', async () => {
+		vi.mocked(fetch).mockResolvedValueOnce(
+			new Response(Buffer.from('results'), { status: 200, headers: { 'content-length': '7' } }),
+		);
+
+		const body = await postForm('https://query.example/sparql', { query: 'x' }, { maxBytes: 1024 });
+
+		expect(body).toBe('results');
+	});
+
+	it('refuses a body whose declared length exceeds the byte cap', async () => {
+		vi.mocked(fetch).mockResolvedValueOnce(
+			new Response(Buffer.from('results'), { status: 200, headers: { 'content-length': '7' } }),
+		);
+
+		await expect(
+			postForm('https://query.example/sparql', { query: 'x' }, { maxBytes: 3 }),
+		).rejects.toBeInstanceOf(FileTooLargeError);
+	});
+
+	it('refuses a body that exceeds the byte cap while streaming', async () => {
+		vi.mocked(fetch).mockResolvedValueOnce(new Response(Buffer.from('results'), { status: 200 }));
+
+		await expect(
+			postForm('https://query.example/sparql', { query: 'x' }, { maxBytes: 3 }),
+		).rejects.toBeInstanceOf(FileTooLargeError);
+	});
+
+	it('refuses an over-cap declared length before reading a byte of the body', async () => {
+		// Seven bytes of body under a 1000-byte cap: only the declared length can
+		// refuse this, and the size it reports is the one it read the header for.
+		vi.mocked(fetch).mockResolvedValueOnce(
+			new Response(Buffer.from('results'), { status: 200, headers: { 'content-length': '5000' } }),
+		);
+
+		const error = await postForm(
+			'https://query.example/sparql',
+			{ query: 'x' },
+			{ maxBytes: 1000 },
+		).catch((e: unknown) => e);
+
+		expect(error).toBeInstanceOf(FileTooLargeError);
+		expect((error as FileTooLargeError).size).toBe(5000);
+	});
+
+	it('reports a rejected request with the status and the response body', async () => {
+		vi.mocked(fetch).mockResolvedValueOnce(
+			new Response('MalformedQueryException', { status: 400 }),
+		);
+
+		const error = await postForm('https://query.example/sparql', { query: 'x' }).catch(
+			(e: unknown) => e,
+		);
+
+		expect(error).toBeInstanceOf(HttpStatusError);
+		expect((error as HttpStatusError).status).toBe(400);
+		expect((error as HttpStatusError).body).toBe('MalformedQueryException');
 	});
 });

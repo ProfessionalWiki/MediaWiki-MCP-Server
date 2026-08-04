@@ -51,6 +51,22 @@ describe('classifyError', () => {
 			['mwoauth-invalid-authorization', 'authentication'],
 			['ratelimited', 'rate_limited'],
 			['readonly', 'upstream_failure'],
+			['no-such-entity', 'not_found'],
+			['invalid-entity-id', 'invalid_input'],
+			['not-recognized-language', 'invalid_input'],
+			['param-illegal', 'invalid_input'],
+			['param-missing', 'invalid_input'],
+			['invalid-snak', 'invalid_input'],
+			['no-such-claim', 'invalid_input'],
+			['not-recognized', 'invalid_input'],
+			['modification-failed', 'invalid_input'],
+			['inconsistent-language', 'invalid_input'],
+			['inconsistent-site', 'invalid_input'],
+			['no-data', 'invalid_input'],
+			['param-invalid', 'invalid_input'],
+			['invalid-guid', 'invalid_input'],
+			['tags-invalid', 'invalid_input'],
+			['failed-modify', 'invalid_input'],
 		];
 
 		for (const [code, expectedCategory] of cases) {
@@ -69,6 +85,14 @@ describe('classifyError', () => {
 		expect(classifyError(err)).toEqual({
 			category: 'upstream_failure',
 			code: 'internal_api_error_DBQueryError',
+		});
+	});
+
+	it('maps not-recognized-* codes to invalid_input', () => {
+		const err = createMockMwnError('not-recognized-array');
+		expect(classifyError(err)).toEqual({
+			category: 'invalid_input',
+			code: 'not-recognized-array',
 		});
 	});
 

@@ -1,5 +1,72 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { truncateByBytes, DEFAULT_CONTENT_MAX_BYTES } from '../../src/results/truncation.ts';
+import {
+	capLinesByBytes,
+	truncateByBytes,
+	DEFAULT_CONTENT_MAX_BYTES,
+} from '../../src/results/truncation.ts';
+
+function bytes(lines: string[]): number {
+	return Buffer.byteLength(lines.join('\n'), 'utf8');
+}
+
+describe('capLinesByBytes', () => {
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	it('returns every line and its byte count when the block fits', () => {
+		const lines = ['alpha', 'beta'];
+
+		const capped = capLinesByBytes(lines);
+
+		expect(capped).toEqual({
+			lines,
+			returnedBytes: bytes(lines),
+			totalBytes: bytes(lines),
+			truncated: false,
+		});
+	});
+
+	it('keeps the last line that fits whole when the cut lands on its newline', () => {
+		// 'alpha\nbeta' is exactly 10 bytes, so the budget ends on the separator
+		// before 'gamma' — the two complete lines before it all survive.
+		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '10');
+		const lines = ['alpha', 'beta', 'gamma'];
+
+		const capped = capLinesByBytes(lines);
+
+		expect(capped.lines).toEqual(['alpha', 'beta']);
+		expect(capped.returnedBytes).toBe(10);
+		expect(capped.totalBytes).toBe(bytes(lines));
+		expect(capped.truncated).toBe(true);
+	});
+
+	it('drops only the line the budget cuts into', () => {
+		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '12');
+		const lines = ['alpha', 'beta', 'gamma'];
+
+		expect(capLinesByBytes(lines).lines).toEqual(['alpha', 'beta']);
+	});
+
+	it('returns a marked, shortened first line rather than nothing', () => {
+		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '8');
+		const lines = ['a-very-long-single-line'];
+
+		const capped = capLinesByBytes(lines);
+
+		expect(capped.lines).toEqual(['a-ver…']);
+		expect(capped.returnedBytes).toBe(Buffer.byteLength('a-ver…', 'utf8'));
+		expect(capped.totalBytes).toBe(bytes(lines));
+		expect(capped.truncated).toBe(true);
+	});
+
+	it('shortens an oversized first line even when more lines follow', () => {
+		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '8');
+		const lines = ['a-very-long-single-line', 'beta'];
+
+		expect(capLinesByBytes(lines).lines).toEqual(['a-ver…']);
+	});
+});
 
 describe('DEFAULT_CONTENT_MAX_BYTES', () => {
 	it('is exported and equals 50000', () => {

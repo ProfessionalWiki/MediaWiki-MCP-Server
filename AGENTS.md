@@ -80,6 +80,8 @@ A pack is a self-describing module exposing tools that share an extension gate. 
 	```
 3. Add the pack to the `extensionPacks` array in `src/tools/extensions/index.ts`.
 
+A pack whose tools need something beyond the extension that the wiki cannot be probed for — a service configured per wiki rather than installed on it — declares an optional `wikiGate` naming those tools, the predicate over `WikiConfig`, and the message a refused call carries; the rest of the pack is unaffected. The gate is enforced centrally by the per-call capability guard, so no handler repeats it, and the tool names it lists are checked against the pack's own tools at startup.
+
 Reconcile picks up the new pack automatically — no edits to `src/runtime/reconcile.ts`. README.md and CHANGELOG.md still need updating per the policy in "Adding or changing tools".
 
 ## Adding or changing environment variables

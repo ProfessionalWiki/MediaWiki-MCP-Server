@@ -5,7 +5,7 @@ import { withoutRequestSignal } from '../runtime/requestContext.ts';
 
 interface SiteInfoApiResponse {
 	query?: {
-		general?: { server?: string; articlepath?: string };
+		general?: { server?: string; articlepath?: string; lang?: string };
 		rightsinfo?: { url?: string; text?: string };
 	};
 }
@@ -56,6 +56,7 @@ async function fetchSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInf
 				typeof general.articlepath === 'string'
 					? general.articlepath.replace('/$1', '')
 					: fallback.articlepath,
+			...(typeof general.lang === 'string' && general.lang !== '' ? { lang: general.lang } : {}),
 			...(license ? { license } : {}),
 		};
 		ctx.siteInfoCache.set(wikiKey, resolved);

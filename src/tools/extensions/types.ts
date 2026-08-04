@@ -1,4 +1,24 @@
 import type { Tool } from '../../runtime/tool.ts';
+import type { WikiConfig } from '../../config/loadConfig.ts';
+
+/**
+ * A condition some of a pack's tools need beyond the extension itself, for a
+ * capability the wiki cannot be probed for and has to be configured instead.
+ *
+ * The gate is enforced centrally, by the per-call capability guard, so a pack
+ * that declares one cannot forget to check it in a handler. It supplies the
+ * refusal text because only the pack knows what the caller has to configure.
+ */
+export interface WikiGate {
+	/**
+	 * The pack tools the condition applies to; its other tools are unaffected.
+	 * Every name must be one the pack provides, which is checked at registration.
+	 */
+	readonly tools: readonly string[];
+	readonly isSatisfied: (wiki: WikiConfig) => boolean;
+	/** What a call to a wiki that does not satisfy the gate is refused with. */
+	readonly refusal: (wikiKey: string) => string;
+}
 
 export interface ExtensionPack {
 	/** Stable id used for rule names and telemetry; e.g. 'cargo'. Conventionally
@@ -16,4 +36,9 @@ export interface ExtensionPack {
 	// in `src/tools/index.ts` for the variance rationale.
 	// oxlint-disable-next-line typescript/no-explicit-any
 	readonly tools: readonly Tool<any>[];
+
+	/** Extra gate on some of the tools above. Union-gated across wikis like the
+	 *  extension gate: the tools are offered while any configured wiki satisfies
+	 *  it, and the pack refuses a call to one that does not. */
+	readonly wikiGate?: WikiGate;
 }

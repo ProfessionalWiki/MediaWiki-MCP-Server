@@ -155,6 +155,50 @@ describe('checkWikiCapability', () => {
 	});
 });
 
+// A pack's wikiGate is union-gated, so the tool stays offered while one wiki
+// satisfies it and every call to a wiki that does not has to be refused here.
+// These run against the real wikibase pack rather than a synthetic one, since
+// what they assert is that a declared gate needs nothing from the handler.
+describe('checkWikiCapability — pack wiki gates', () => {
+	const withService: WikiConfig = { ...rwWiki, sparqlEndpoint: 'https://query.example/sparql' };
+
+	function twoWikiCtx() {
+		const wikis: Record<string, WikiConfig> = { served: withService, bare: rwWiki };
+		return fakeContext({
+			wikis: {
+				getAll: () => wikis,
+				get: (key: string) => wikis[key],
+				add: () => {},
+				remove: () => {},
+				isManagementAllowed: () => true,
+			},
+			wikiProbe: {
+				hasExtension: async () => true,
+				hasAnyExtension: async () => true,
+				invalidate: () => {},
+				inspect: async () => ({ reachable: true, extensions: new Set<string>() }),
+			},
+		});
+	}
+
+	it('refuses a gated tool on a wiki that does not satisfy the gate', async () => {
+		const result = await checkWikiCapability('wikibase-query', 'bare', twoWikiCtx());
+
+		expect(result?.isError).toBe(true);
+		const message = JSON.stringify(result?.content);
+		expect(message).toContain('sparqlEndpoint');
+		expect(message).toContain('bare');
+	});
+
+	it('allows the same tool on the wiki that satisfies the gate', async () => {
+		expect(await checkWikiCapability('wikibase-query', 'served', twoWikiCtx())).toBeUndefined();
+	});
+
+	it('leaves the pack’s ungated tools alone on the unsatisfied wiki', async () => {
+		expect(await checkWikiCapability('wikibase-get-entity', 'bare', twoWikiCtx())).toBeUndefined();
+	});
+});
+
 describe('WRITE_TOOL_NAMES', () => {
 	it('includes the core write tools', () => {
 		for (const name of [
@@ -178,6 +222,8 @@ describe('WRITE_TOOL_NAMES', () => {
 			'neowiki-update-subject',
 			'neowiki-delete-subject',
 			'neowiki-set-main-subject',
+			'wikibase-edit-entity',
+			'wikibase-add-statement',
 		]) {
 			expect(WRITE_TOOL_NAMES).toContain(name);
 		}
@@ -190,6 +236,8 @@ describe('WRITE_TOOL_NAMES', () => {
 			'smw-query',
 			'cargo-query',
 			'bucket-query',
+			'wikibase-get-entity',
+			'wikibase-query',
 		]) {
 			expect(WRITE_TOOL_NAMES).not.toContain(name);
 		}
