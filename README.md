@@ -1,4 +1,6 @@
 # MediaWiki MCP Server
+
+[![MCP Toplist](https://mcptoplist.com/badge/io.github.ProfessionalWiki%2Fmediawiki-mcp-server.svg)](https://mcptoplist.com/server/io.github.ProfessionalWiki%2Fmediawiki-mcp-server)
 [![NPM Version](https://img.shields.io/npm/v/%40professional-wiki%2Fmediawiki-mcp-server?color=red)](https://www.npmjs.com/package/@professional-wiki/mediawiki-mcp-server) [![MIT licensed](https://img.shields.io/npm/l/%40professional-wiki%2Fmediawiki-mcp-server)](./LICENSE)
 
 An MCP (Model Context Protocol) server that enables Large Language Model (LLM) clients to interact with any MediaWiki wiki.
