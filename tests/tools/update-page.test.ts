@@ -281,7 +281,7 @@ describe('update-page', () => {
 			expect(submit.mock.calls[0][1]).not.toHaveProperty('sectiontitle');
 		});
 
-		it('still edits a numbered section', async () => {
+		it('accepts a numeric section over a real MCP call', async () => {
 			const { submit, ctx } = fakeEdit();
 
 			const result = await callTool(ctx, 'update-page', {
