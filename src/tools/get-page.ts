@@ -26,7 +26,7 @@ const inputSchema = {
 		.nonnegative()
 		.optional()
 		.describe(
-			'Section number (0 = lead; 1..N = heading sections). Narrows content to one section.',
+			'Section number (0 = lead; 1..N = heading sections). Narrows content to that section together with the subsections nested under it.',
 		),
 } as const;
 
