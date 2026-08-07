@@ -33,7 +33,7 @@ const inputSchema = {
 		.union([z.number().int().nonnegative(), z.literal('new')])
 		.optional()
 		.describe(
-			"Section to edit: 0 (lead), 1..N (existing heading sections), or 'new' to append a new heading section. An existing section is replaced together with the subsections nested under it, so source must include them.",
+			"Section to edit: 0 (lead), 1..N (existing heading sections), or 'new' to append a new heading section. An existing section is replaced in full — its own heading line and every subsection nested under it — so source must carry them back.",
 		),
 	mode: z
 		.enum(['append', 'prepend'])
@@ -90,7 +90,7 @@ function buildEditParams(
 export const updatePage: Tool<typeof inputSchema> = {
 	name: 'update-page',
 	description:
-		"Replaces the existing content of a wiki page and returns the new revision ID. Fails if the page does not exist; for new pages, use create-page. Pass latestId (obtained from get-page with metadata=true) to enable edit-conflict detection: if the page has been edited since that revision, the update is rejected rather than silently clobbering concurrent changes. For large pages, three modifiers avoid shipping the full source: section=N edits one section (pairs with get-page section=N for reads), section='new' adds a new heading section, and mode='append' or 'prepend' sends a delta. A numbered section spans every subsection nested under it, up to the next heading at the same or a higher level, so source must carry those subsections back or they are removed. Each call is a separate revision; for chains of mode='append' calls, re-fetching latestId between calls confirms the previous chunk landed before the next.",
+		"Replaces the existing content of a wiki page and returns the new revision ID. Fails if the page does not exist; for new pages, use create-page. Pass latestId (obtained from get-page with metadata=true) to enable edit-conflict detection: if the page has been edited since that revision, the update is rejected rather than silently clobbering concurrent changes. For large pages, three modifiers avoid shipping the full source: section=N edits one section (pairs with get-page section=N for reads), section='new' adds a new heading section, and mode='append' or 'prepend' sends a delta. A numbered section spans its own heading line and every subsection nested under it, up to the next heading at the same or a higher level, so source must carry those subsections back or they are removed. Each call is a separate revision; for chains of mode='append' calls, re-fetching latestId between calls confirms the previous chunk landed before the next.",
 	inputSchema,
 	annotations: {
 		title: 'Update page',
