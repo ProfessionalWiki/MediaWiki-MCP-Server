@@ -33,7 +33,7 @@ it( 'maps missingtitle to not_found via the dispatcher', async () => {
 } );
 ```
 
-Happy-path tests typically call `descriptor.handle( args, ctx )` directly. Error-classification tests go through `dispatch( descriptor, ctx )` so the dispatcher's classification + special-case + format.error pipeline runs end-to-end.
+Happy-path tests typically call `descriptor.handle( args, ctx )` directly. Error-classification tests go through `dispatch( descriptor, ctx )` so the dispatcher's classification + special-case + format.error pipeline runs end-to-end. Tests asserting on what the schema itself accepts or refuses go through `callTool` instead, since neither `handle` nor `dispatch` parses raw arguments against it.
 
 Use `createMockMwn()` from `tests/helpers/mock-mwn.ts` to create mock `mwn` instances with method overrides. See existing test files under `tests/tools/` for the full pattern.
 

@@ -264,6 +264,21 @@ describe('update-page', () => {
 			expect(submit).not.toHaveBeenCalled();
 		});
 
+		it("leaves zod's own message in place for a bad value other than 'new'", async () => {
+			const { submit, ctx } = fakeEdit();
+
+			const result = await callTool(ctx, 'update-page', {
+				title: 'My Page',
+				source: 'body',
+				section: 'lead',
+			});
+
+			const message = assertRefusedArgument(result);
+			expect(message).toContain('expected number');
+			expect(message).not.toContain('no longer creates sections');
+			expect(submit).not.toHaveBeenCalled();
+		});
+
 		// Unknown keys are stripped by z.object rather than refused, so the old
 		// spelling cannot fail loudly here. What matters is that it never reaches
 		// the wiki as a sectiontitle parameter.
