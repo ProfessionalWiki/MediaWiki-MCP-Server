@@ -5,6 +5,7 @@ import { fakeContext } from '../helpers/fakeContext.ts';
 import { updatePage } from '../../src/tools/update-page.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
+import { assertRefusedArgument, callTool } from '../helpers/callTool.ts';
 
 // The default fake EditService; each test spreads it and replaces only the
 // slice it exercises, so an unexpected call to another member still throws.
@@ -247,72 +248,50 @@ describe('update-page', () => {
 			const envelope = assertStructuredError(result, 'not_found');
 			expect(envelope.message).toBe('Section 99 does not exist');
 		});
+	});
 
-		it("forwards section='new' with sectionTitle as sectiontitle", async () => {
+	describe('section=new removal', () => {
+		it('refuses section=new and points at the replacement', async () => {
 			const { submit, ctx } = fakeEdit();
 
-			await updatePage.handle(
-				{
-					title: 'My Page',
-					source: 'body',
-					section: 'new',
-					sectionTitle: 'History',
-				},
-				ctx,
-			);
-
-			const params = submit.mock.calls[0][1];
-			expect(params).toMatchObject({
+			const result = await callTool(ctx, 'update-page', {
+				title: 'My Page',
+				source: 'body',
 				section: 'new',
-				sectiontitle: 'History',
-				text: 'body',
 			});
+
+			expect(assertRefusedArgument(result)).toContain("mode='append'");
+			expect(submit).not.toHaveBeenCalled();
 		});
 
-		it("rejects section='new' without sectionTitle", async () => {
-			const { ctx } = fakeEdit();
-			const result = await updatePage.handle(
-				{
-					title: 'My Page',
-					source: 'body',
-					section: 'new',
-				},
-				ctx,
-			);
+		// Unknown keys are stripped by z.object rather than refused, so the old
+		// spelling cannot fail loudly here. What matters is that it never reaches
+		// the wiki as a sectiontitle parameter.
+		it('ignores a sectionTitle left over from the old spelling', async () => {
+			const { submit, ctx } = fakeEdit();
 
-			const envelope = assertStructuredError(result, 'invalid_input');
-			expect(envelope.message).toContain("sectionTitle is required when section='new'");
+			const result = await callTool(ctx, 'update-page', {
+				title: 'My Page',
+				source: 'body',
+				section: 2,
+				sectionTitle: 'History',
+			});
+
+			assertStructuredSuccess(result);
+			expect(submit.mock.calls[0][1]).not.toHaveProperty('sectiontitle');
 		});
 
-		it('rejects sectionTitle when section is a number', async () => {
-			const { ctx } = fakeEdit();
-			const result = await updatePage.handle(
-				{
-					title: 'My Page',
-					source: 'body',
-					section: 2,
-					sectionTitle: 'History',
-				},
-				ctx,
-			);
+		it('still edits a numbered section', async () => {
+			const { submit, ctx } = fakeEdit();
 
-			const envelope = assertStructuredError(result, 'invalid_input');
-			expect(envelope.message).toContain("sectionTitle is only valid when section='new'");
-		});
+			const result = await callTool(ctx, 'update-page', {
+				title: 'My Page',
+				source: 'new section body',
+				section: 2,
+			});
 
-		it('rejects sectionTitle when section is undefined', async () => {
-			const { ctx } = fakeEdit();
-			const result = await updatePage.handle(
-				{
-					title: 'My Page',
-					source: 'body',
-					sectionTitle: 'History',
-				},
-				ctx,
-			);
-
-			const envelope = assertStructuredError(result, 'invalid_input');
-			expect(envelope.message).toContain("sectionTitle is only valid when section='new'");
+			assertStructuredSuccess(result);
+			expect(submit.mock.calls[0][1]).toMatchObject({ section: '2', text: 'new section body' });
 		});
 	});
 
@@ -369,23 +348,6 @@ describe('update-page', () => {
 			const params = submit.mock.calls[0][1];
 			expect(params).toMatchObject({ section: '2', appendtext: '\n* row' });
 			expect(params).not.toHaveProperty('text');
-		});
-
-		it("rejects mode combined with section='new'", async () => {
-			const { ctx } = fakeEdit();
-			const result = await updatePage.handle(
-				{
-					title: 'My Page',
-					source: 'body',
-					section: 'new',
-					sectionTitle: 'History',
-					mode: 'append',
-				},
-				ctx,
-			);
-
-			const envelope = assertStructuredError(result, 'invalid_input');
-			expect(envelope.message).toContain("mode is not compatible with section='new'");
 		});
 	});
 

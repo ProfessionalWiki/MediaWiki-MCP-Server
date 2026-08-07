@@ -13,6 +13,12 @@ interface ApiEditResponse {
 	contentmodel?: string;
 }
 
+// Removed in favour of mode='append'. Kept for one release so a caller still
+// sending the old spelling is told what to send instead, rather than getting a
+// bare type error. Delete this and the `error` function below after that.
+const SECTION_NEW_REMOVED =
+	'update-page no longer creates sections. To add one, use mode=\'append\' with a source that begins with the heading, for example "\\n\\n== History ==\\n\\nBody.".';
+
 const inputSchema = {
 	title: z.string().describe('Wiki page title'),
 	source: z
@@ -30,21 +36,19 @@ const inputSchema = {
 		),
 	comment: z.string().optional().describe('Summary of the edit'),
 	section: z
-		.union([z.number().int().nonnegative(), z.literal('new')])
+		.number({
+			error: (issue) => (issue.input === 'new' ? SECTION_NEW_REMOVED : undefined),
+		})
+		.int()
+		.nonnegative()
 		.optional()
-		.describe(
-			"Section to edit: 0 (lead), 1..N (existing heading sections), or 'new' to append a new heading section.",
-		),
+		.describe('Section to edit: 0 (lead), 1..N (existing heading sections).'),
 	mode: z
 		.enum(['append', 'prepend'])
 		.optional()
 		.describe(
 			"Adds source to the existing content instead of replacing it: 'append' to the end, 'prepend' to the start.",
 		),
-	sectionTitle: z
-		.string()
-		.optional()
-		.describe("Heading for a new section; required when section='new', rejected otherwise."),
 	bot: z
 		.boolean()
 		.optional()
@@ -55,22 +59,9 @@ const inputSchema = {
 
 type UpdatePageArgs = z.infer<z.ZodObject<typeof inputSchema>>;
 
-function validateArgs({ section, mode, sectionTitle }: UpdatePageArgs): string | undefined {
-	if (section === 'new' && mode !== undefined) {
-		return "mode is not compatible with section='new'";
-	}
-	if (section === 'new' && sectionTitle === undefined) {
-		return "sectionTitle is required when section='new'";
-	}
-	if (sectionTitle !== undefined && section !== 'new') {
-		return "sectionTitle is only valid when section='new'";
-	}
-	return undefined;
-}
-
 function buildEditParams(
 	ctx: ToolContext,
-	{ title, source, latestId, comment, section, mode, sectionTitle, bot }: UpdatePageArgs,
+	{ title, source, latestId, comment, section, mode, bot }: UpdatePageArgs,
 ): Record<string, string | number | boolean> {
 	const sourceField =
 		mode === 'append' ? 'appendtext' : mode === 'prepend' ? 'prependtext' : 'text';
@@ -82,7 +73,6 @@ function buildEditParams(
 		[sourceField]: source,
 		...(latestId !== undefined ? { baserevid: latestId } : {}),
 		...(section !== undefined ? { section: String(section) } : {}),
-		...(sectionTitle !== undefined ? { sectiontitle: sectionTitle } : {}),
 		...(bot === true ? { bot: true } : {}),
 	};
 }
@@ -103,11 +93,6 @@ export const updatePage: Tool<typeof inputSchema> = {
 	target: (a) => a.title,
 
 	async handle(args, ctx: ToolContext): Promise<CallToolResult> {
-		const validationError = validateArgs(args);
-		if (validationError) {
-			return ctx.format.invalidInput(validationError);
-		}
-
 		const mwn = await ctx.mwn();
 		const response =
 			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
