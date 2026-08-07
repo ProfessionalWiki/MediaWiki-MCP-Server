@@ -13,9 +13,10 @@ interface ApiEditResponse {
 	contentmodel?: string;
 }
 
-// Removed in favour of mode='append'. Kept for one release so a caller still
-// sending the old spelling is told what to send instead, rather than getting a
-// bare type error. Delete this and the `error` function below after that.
+// `section='new'` was removed; a caller sending it gets this instead of a bare
+// type error naming a number. Delete this constant and the `error` function
+// below once the release carrying that removal has shipped — see the Breaking
+// changes entry in CHANGELOG.md.
 const SECTION_NEW_REMOVED =
 	'update-page no longer creates sections. To add one, use mode=\'append\' with a source that begins with the heading, for example "\\n\\n== History ==\\n\\nBody.".';
 
