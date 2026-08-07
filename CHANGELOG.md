@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Breaking changes
+
+- `update-page` no longer creates sections: `section='new'` and `sectionTitle` are removed. Add a section with `mode='append'` and a source that begins with the heading, as in `"\n\n== History ==\n\nBody."`. A call still sending `section='new'` is refused with a message naming the replacement.
+
 ## [0.16.0] - 2026-07-30
 
 ### Security

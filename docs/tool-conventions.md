@@ -196,6 +196,7 @@ Use these exact terms in descriptions and parameter docs. Do not introduce synon
 | MediaWiki markup source | **wikitext** | Never "wiki source" or "wiki markup" in user-facing prose. |
 | Namespace identifier (integer) | **namespace ID** | Parameter descriptions state "Namespace ID"; prose may mention the namespace name parenthetically. |
 | Content format (wikitext, javascript, css, etc.) | **content model** | Matches MediaWiki's `contentmodel` API field. |
+| Section index within a page | **section number** | 0 is the lead, 1..N are heading sections. A section number addresses the heading together with every subsection nested under it, so replacing section N replaces that whole subtree. |
 
 #### Page title vs file title
 
