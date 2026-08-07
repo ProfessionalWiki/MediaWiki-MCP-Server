@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Changed
+
+- `update-page` and `get-page` now state that `section=N` covers a section together with every subsection nested under it, up to the next heading at the same or a higher level. MediaWiki has always addressed sections this way, so an `update-page` call naming a section that has subsections replaced those subsections as well; the descriptions said only that it edits "one section", and the section outline gives no sign that a section has children. Behaviour is unchanged. (#530)
+
 ## [0.16.0] - 2026-07-30
 
 ### Security
