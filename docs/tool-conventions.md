@@ -68,7 +68,7 @@ Do not restate this in prose. Prose is for context the schema cannot express.
 
 - **Tool names** appear bare in prose (`get-page`, not in backticks).
 - **Parameter names alone** appear bare (e.g., "paginate with continueFrom"). Use backticks only when the bare form would collide with an English word (e.g., the `wiki` parameter in `oauth-logout`).
-- **Parameter assignments** are bare for primitive RHS (`section=N`, `metadata=true`) and use single quotes for enum string values (`mode='append'`, `'new'`).
+- **Parameter assignments** are bare for primitive RHS (`section=N`, `metadata=true`) and use single quotes for enum string values (`mode='append'`, `mode='prepend'`).
 - **Wiki syntax and code identifiers** use backticks: `[[Category:Person]]`, `_pageData`, `bucket("exchange")`, `MCP_CONTENT_MAX_BYTES`.
 
 #### Avoid tautology
@@ -196,6 +196,7 @@ Use these exact terms in descriptions and parameter docs. Do not introduce synon
 | MediaWiki markup source | **wikitext** | Never "wiki source" or "wiki markup" in user-facing prose. |
 | Namespace identifier (integer) | **namespace ID** | Parameter descriptions state "Namespace ID"; prose may mention the namespace name parenthetically. |
 | Content format (wikitext, javascript, css, etc.) | **content model** | Matches MediaWiki's `contentmodel` API field. |
+| Numeric section identifier | **section number** | 0 is the lead, 1..N are heading sections. A section number addresses the heading together with every subsection nested under it, so replacing section N replaces that whole subtree. |
 
 #### Page title vs file title
 

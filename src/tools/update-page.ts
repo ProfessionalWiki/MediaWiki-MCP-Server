@@ -13,12 +13,19 @@ interface ApiEditResponse {
 	contentmodel?: string;
 }
 
+// `section='new'` was removed; a caller sending it gets this instead of a bare
+// type error naming a number. Delete this constant and the `error` function
+// below once the release carrying that removal has shipped — see the Breaking
+// changes entry in CHANGELOG.md.
+const SECTION_NEW_REMOVED =
+	'update-page no longer creates sections. To add one, use mode=\'append\' with a source that begins with the heading, for example "\\n\\n== History ==\\n\\nBody.".';
+
 const inputSchema = {
 	title: z.string().describe('Wiki page title'),
 	source: z
 		.string()
 		.describe(
-			"The content to write, in the existing page's content model. Interpreted as the full page by default; as the given section's content when section is set; or as a delta (appended or prepended) when mode is set.",
+			'The content to write, in the existing page\'s content model. Interpreted as the full page by default; as the given section\'s content when section is set; or as a delta (appended or prepended) when mode is set. An appended source that opens a new section must begin on its own line, as in "\\n\\n== History ==\\n\\nBody."; without the leading newline the heading runs on from the last line of the page and is not recognised as a heading.',
 		),
 	latestId: z
 		.number()
@@ -30,10 +37,14 @@ const inputSchema = {
 		),
 	comment: z.string().optional().describe('Summary of the edit'),
 	section: z
-		.union([z.number().int().nonnegative(), z.literal('new')])
+		.number({
+			error: (issue) => (issue.input === 'new' ? SECTION_NEW_REMOVED : undefined),
+		})
+		.int()
+		.nonnegative()
 		.optional()
 		.describe(
-			"Section to edit: 0 (lead), 1..N (existing heading sections), or 'new' to append a new heading section.",
+			"Section number (0 = lead; 1..N = heading sections). Replaces that section's content.",
 		),
 	mode: z
 		.enum(['append', 'prepend'])
@@ -41,10 +52,6 @@ const inputSchema = {
 		.describe(
 			"Adds source to the existing content instead of replacing it: 'append' to the end, 'prepend' to the start.",
 		),
-	sectionTitle: z
-		.string()
-		.optional()
-		.describe("Heading for a new section; required when section='new', rejected otherwise."),
 	bot: z
 		.boolean()
 		.optional()
@@ -55,22 +62,9 @@ const inputSchema = {
 
 type UpdatePageArgs = z.infer<z.ZodObject<typeof inputSchema>>;
 
-function validateArgs({ section, mode, sectionTitle }: UpdatePageArgs): string | undefined {
-	if (section === 'new' && mode !== undefined) {
-		return "mode is not compatible with section='new'";
-	}
-	if (section === 'new' && sectionTitle === undefined) {
-		return "sectionTitle is required when section='new'";
-	}
-	if (sectionTitle !== undefined && section !== 'new') {
-		return "sectionTitle is only valid when section='new'";
-	}
-	return undefined;
-}
-
 function buildEditParams(
 	ctx: ToolContext,
-	{ title, source, latestId, comment, section, mode, sectionTitle, bot }: UpdatePageArgs,
+	{ title, source, latestId, comment, section, mode, bot }: UpdatePageArgs,
 ): Record<string, string | number | boolean> {
 	const sourceField =
 		mode === 'append' ? 'appendtext' : mode === 'prepend' ? 'prependtext' : 'text';
@@ -82,7 +76,6 @@ function buildEditParams(
 		[sourceField]: source,
 		...(latestId !== undefined ? { baserevid: latestId } : {}),
 		...(section !== undefined ? { section: String(section) } : {}),
-		...(sectionTitle !== undefined ? { sectiontitle: sectionTitle } : {}),
 		...(bot === true ? { bot: true } : {}),
 	};
 }
@@ -90,7 +83,7 @@ function buildEditParams(
 export const updatePage: Tool<typeof inputSchema> = {
 	name: 'update-page',
 	description:
-		"Replaces the existing content of a wiki page and returns the new revision ID. Fails if the page does not exist; for new pages, use create-page. Pass latestId (obtained from get-page with metadata=true) to enable edit-conflict detection: if the page has been edited since that revision, the update is rejected rather than silently clobbering concurrent changes. For large pages, three modifiers avoid shipping the full source: section=N edits one section (pairs with get-page section=N for reads), section='new' adds a new heading section, and mode='append' or 'prepend' sends a delta. Each call is a separate revision; for chains of mode='append' calls, re-fetching latestId between calls confirms the previous chunk landed before the next.",
+		"Replaces the existing content of a wiki page and returns the new revision ID. Fails if the page does not exist; for new pages, use create-page. Pass latestId (obtained from get-page with metadata=true) to enable edit-conflict detection: if the page has been edited since that revision, the update is rejected rather than silently clobbering concurrent changes. For large pages, two modifiers avoid shipping the full source: section=N replaces one section and, paired with get-page section=N, reads, changes and writes back a single section, which is also how to add content in the middle of a page; mode='append' or 'prepend' sends a delta, and adding a new section means appending a source that begins with a heading. Each call is a separate revision; for chains of mode='append' calls, re-fetching latestId between calls confirms the previous chunk landed before the next.",
 	inputSchema,
 	annotations: {
 		title: 'Update page',
@@ -103,11 +96,6 @@ export const updatePage: Tool<typeof inputSchema> = {
 	target: (a) => a.title,
 
 	async handle(args, ctx: ToolContext): Promise<CallToolResult> {
-		const validationError = validateArgs(args);
-		if (validationError) {
-			return ctx.format.invalidInput(validationError);
-		}
-
 		const mwn = await ctx.mwn();
 		const response =
 			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
