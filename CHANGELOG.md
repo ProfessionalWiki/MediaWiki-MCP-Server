@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Fixed
+
+- A numeric argument sent as a string, such as `section: "2"` on `update-page`, is now read as the number it spells. Clients that quote numbers were refused with `Invalid input`, which on `update-page` left a full-page rewrite as the only way to edit one section. Values that spell no number, including `""` and `null`, are still refused.
+
 ## [0.16.0] - 2026-07-30
 
 ### Security

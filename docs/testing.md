@@ -43,6 +43,7 @@ Reach for a shared fixture rather than spelling a literal out. A field added to 
 - `fakeProxyConfig()` — a complete `ProxyConfig`.
 - `mockedLookupAll()` — the `node:dns/promises` `lookup` mock, typed at the `{ all: true }` overload production calls.
 - `toolArgs( tool, partial )` — runs partial input through a tool's own schema, so `.default()` values arrive the way a real call delivers them.
+- `callTool( ctx, name, args )` — issues the call over a real MCP session. `handle` and `dispatch` both take arguments the SDK has already validated, so neither can show what a tool's schema accepts or refuses; assertions about the schema go through this. Pair it with `assertRefusedArgument( result )`, since a refusal resolves with `isError` rather than throwing.
 
 Run:
 

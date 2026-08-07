@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
+import { unquoteNumber } from '../runtime/numericArg.ts';
 import type { TruncationInfo } from '../results/truncation.ts';
 
 const RC_LIMIT = 50;
@@ -19,7 +20,7 @@ const inputSchema = {
 		.optional()
 		.describe('ISO 8601 timestamp — only return changes at or before this time'),
 	namespace: z
-		.array(z.number().int().nonnegative())
+		.array(unquoteNumber(z.number().int().nonnegative()))
 		.nonempty()
 		.optional()
 		.describe('Namespace IDs to restrict the feed to — e.g. [0, 1] for main and talk'),

@@ -5,6 +5,7 @@ import { fakeContext } from '../helpers/fakeContext.ts';
 import { updatePage } from '../../src/tools/update-page.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
+import { assertRefusedArgument, callTool } from '../helpers/callTool.ts';
 
 // The default fake EditService; each test spreads it and replaces only the
 // slice it exercises, so an unexpected call to another member still throws.
@@ -461,6 +462,81 @@ describe('update-page', () => {
 				appendtext: '\n* row',
 				bot: true,
 			});
+		});
+	});
+
+	// These go over a real MCP session rather than calling handle() directly,
+	// because the schema is what is under test and handle() never sees it.
+	describe('numbers sent as strings', () => {
+		it('edits the section a client named as "2"', async () => {
+			const { submit, ctx } = fakeEdit();
+
+			const result = await callTool(ctx, 'update-page', {
+				title: 'My Page',
+				source: 'new section body',
+				section: '2',
+			});
+
+			assertStructuredSuccess(result);
+			expect(submit.mock.calls[0][1]).toMatchObject({ section: '2' });
+		});
+
+		// The twin of the test above with an unquoted 2. It passes either way,
+		// which is the point: if the session harness itself broke, both would
+		// fail together and the quoted case would look like a schema problem.
+		it('edits the same section when the client sends 2', async () => {
+			const { submit, ctx } = fakeEdit();
+
+			const result = await callTool(ctx, 'update-page', {
+				title: 'My Page',
+				source: 'new section body',
+				section: 2,
+			});
+
+			assertStructuredSuccess(result);
+			expect(submit.mock.calls[0][1]).toMatchObject({ section: '2' });
+		});
+
+		it('detects edit conflicts against a latestId sent as "41"', async () => {
+			const { submit, ctx } = fakeEdit();
+
+			const result = await callTool(ctx, 'update-page', {
+				title: 'My Page',
+				source: 'body',
+				latestId: '41',
+			});
+
+			assertStructuredSuccess(result);
+			expect(submit.mock.calls[0][1]).toMatchObject({ baserevid: 41 });
+		});
+
+		it('still refuses a section that names no number', async () => {
+			const { submit, ctx } = fakeEdit();
+
+			const result = await callTool(ctx, 'update-page', {
+				title: 'My Page',
+				source: 'body',
+				section: 'lead',
+			});
+
+			expect(assertRefusedArgument(result)).toContain('section');
+			expect(submit).not.toHaveBeenCalled();
+		});
+
+		// The empty string is the value a naive conversion turns into 0, which is
+		// the lead. Refusing it is what stops a stray argument from rewriting the
+		// top of the page.
+		it('refuses an empty section rather than reading it as the lead', async () => {
+			const { submit, ctx } = fakeEdit();
+
+			const result = await callTool(ctx, 'update-page', {
+				title: 'My Page',
+				source: 'body',
+				section: '',
+			});
+
+			expect(assertRefusedArgument(result)).toContain('section');
+			expect(submit).not.toHaveBeenCalled();
 		});
 	});
 });

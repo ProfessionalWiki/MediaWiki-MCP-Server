@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
+import { unquoteNumber } from '../../../runtime/numericArg.ts';
 import type { TruncationInfo } from '../../../results/truncation.ts';
 
 const DEFAULT_LIMIT = 50;
@@ -12,11 +13,7 @@ const inputSchema = {
 		.string()
 		.optional()
 		.describe('Substring filter on property name (case-insensitive). Omit to list all properties.'),
-	limit: z
-		.number()
-		.int()
-		.min(1)
-		.max(MAX_LIMIT)
+	limit: unquoteNumber(z.number().int().min(1).max(MAX_LIMIT))
 		.optional()
 		.describe('Maximum properties to return.'),
 	continueFrom: z

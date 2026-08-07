@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
+import { unquoteNumber } from '../runtime/numericArg.ts';
 import type { TruncationInfo } from '../results/truncation.ts';
 
 enum CategoryMemberType {
@@ -28,10 +29,12 @@ const inputSchema = {
 		.optional()
 		.describe('Types of members to include'),
 	namespaces: z
-		.array(z.number().int().nonnegative())
+		.array(unquoteNumber(z.number().int().nonnegative()))
 		.optional()
 		.describe('Namespace IDs to filter by'),
-	limit: z.number().int().min(1).max(500).optional().describe('Maximum members to return (1..500)'),
+	limit: unquoteNumber(z.number().int().min(1).max(500))
+		.optional()
+		.describe('Maximum members to return (1..500)'),
 	continueFrom: z
 		.string()
 		.optional()

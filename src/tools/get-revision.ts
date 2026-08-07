@@ -3,11 +3,12 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ApiPage, ApiRevision } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
+import { unquoteNumber } from '../runtime/numericArg.ts';
 import { buildPageUrl } from '../wikis/utils.ts';
 import { ContentFormat } from '../results/contentFormat.ts';
 
 const inputSchema = {
-	revisionId: z.number().int().positive().describe('Revision ID'),
+	revisionId: unquoteNumber(z.number().int().positive().describe('Revision ID')),
 	content: z
 		.nativeEnum(ContentFormat)
 		.describe('Type of content to return')

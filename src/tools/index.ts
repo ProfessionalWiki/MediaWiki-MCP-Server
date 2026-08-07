@@ -76,6 +76,16 @@ const standardTools: Tool<any>[] = [
 // oxlint-disable-next-line typescript/no-explicit-any
 const managementTools: Tool<any, ManagementContext>[] = [addWiki, removeWiki];
 
+// Every tool the server can register, in one list, so a test can hold the whole
+// surface to a convention rather than one tool at a time. Registration below
+// still separates them, since the management tools take a wider context.
+// oxlint-disable-next-line typescript/no-explicit-any
+export const allTools: readonly Tool<any, any>[] = [
+	...standardTools,
+	...extensionPacks.flatMap((p) => p.tools),
+	...managementTools,
+];
+
 export function registerAllTools(
 	server: McpServer,
 	reconcile: Reconcile,

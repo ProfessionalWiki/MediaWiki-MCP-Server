@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
+import { unquoteNumber } from '../runtime/numericArg.ts';
 import type { TruncationInfo } from '../results/truncation.ts';
 
 interface AllPagesEntry {
@@ -12,17 +13,10 @@ interface AllPagesEntry {
 
 const inputSchema = {
 	prefix: z.string().describe('Wiki page title prefix'),
-	limit: z
-		.number()
-		.int()
-		.min(1)
-		.max(500)
+	limit: unquoteNumber(z.number().int().min(1).max(500))
 		.optional()
 		.describe('Maximum number of results to return'),
-	namespace: z
-		.number()
-		.int()
-		.nonnegative()
+	namespace: unquoteNumber(z.number().int().nonnegative())
 		.optional()
 		.describe('Namespace ID to restrict the search to'),
 } as const;

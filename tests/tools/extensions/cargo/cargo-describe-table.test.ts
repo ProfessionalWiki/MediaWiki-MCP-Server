@@ -150,9 +150,9 @@ describe('cargo-describe-table', () => {
 	});
 
 	it('rejects an empty table parameter at the schema layer', () => {
-		// zod validation runs in the dispatcher before reaching handle()
-		// — this is asserted indirectly by the schema definition; explicit
-		// dispatcher-level rejection is covered by dispatcher.test.ts.
+		// The SDK validates arguments at registration's schema, not the
+		// dispatcher, so this parses the schema directly. To assert on what a
+		// client's call does with the rejection, go through callTool instead.
 		expect(cargoDescribeTable.inputSchema.table.safeParse('').success).toBe(false);
 		expect(cargoDescribeTable.inputSchema.table.safeParse('items').success).toBe(true);
 	});

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
+import { unquoteNumber } from '../runtime/numericArg.ts';
 import type { TruncationInfo } from '../results/truncation.ts';
 
 export enum LinkType {
@@ -49,7 +50,7 @@ const inputSchema = {
 			'Inbound relationship to list: wikilinks (pages that link to the target), transclusions (pages that embed it), or fileusage (pages that display it)',
 		),
 	namespaces: z
-		.array(z.number().int().nonnegative())
+		.array(unquoteNumber(z.number().int().nonnegative()))
 		.optional()
 		.describe('Namespace IDs to filter the referencing pages by'),
 	filter: z
@@ -62,11 +63,7 @@ const inputSchema = {
 		.describe(
 			'When a referencing page is a redirect to the target, also return the pages that link through it. Applies to wikilinks and fileusage only.',
 		),
-	limit: z
-		.number()
-		.int()
-		.min(1)
-		.max(500)
+	limit: unquoteNumber(z.number().int().min(1).max(500))
 		.optional()
 		.describe('Maximum referencing pages to return (1..500)'),
 	continueFrom: z

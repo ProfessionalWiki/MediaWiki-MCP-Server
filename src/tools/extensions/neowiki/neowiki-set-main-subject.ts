@@ -2,15 +2,13 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
+import { unquoteNumber } from '../../../runtime/numericArg.ts';
 import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
 import { resolvePageId, hasOnePageRef } from './pageId.ts';
 
 const inputSchema = {
 	title: z.string().min(1).optional().describe('Wiki page title. Provide this OR pageId.'),
-	pageId: z
-		.number()
-		.int()
-		.positive()
+	pageId: unquoteNumber(z.number().int().positive())
 		.optional()
 		.describe('Numeric MediaWiki page ID. Provide this OR title.'),
 	subjectId: z

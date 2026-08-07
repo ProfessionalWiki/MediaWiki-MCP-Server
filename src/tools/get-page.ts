@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
+import { unquoteNumber } from '../runtime/numericArg.ts';
 import { buildPageUrl } from '../wikis/utils.ts';
 import { ContentFormat } from '../results/contentFormat.ts';
 import { truncateByBytes, type TruncationInfo } from '../results/truncation.ts';
@@ -20,10 +21,7 @@ const inputSchema = {
 		.describe(
 			'Whether to include metadata (page ID, revision info, size, section outline) in the response',
 		),
-	section: z
-		.number()
-		.int()
-		.nonnegative()
+	section: unquoteNumber(z.number().int().nonnegative())
 		.optional()
 		.describe(
 			'Section number (0 = lead; 1..N = heading sections). Narrows content to one section.',

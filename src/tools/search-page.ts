@@ -3,16 +3,13 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ApiSearchResult } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
+import { unquoteNumber } from '../runtime/numericArg.ts';
 import { buildPageUrl } from '../wikis/utils.ts';
 import type { TruncationInfo } from '../results/truncation.ts';
 
 const inputSchema = {
 	query: z.string().describe('Search terms'),
-	limit: z
-		.number()
-		.int()
-		.min(1)
-		.max(100)
+	limit: unquoteNumber(z.number().int().min(1).max(100))
 		.optional()
 		.describe('Maximum number of search results to return'),
 } as const;

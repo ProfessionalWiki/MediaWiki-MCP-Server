@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
+import { unquoteNumber } from '../../../runtime/numericArg.ts';
 import type { TruncationInfo } from '../../../results/truncation.ts';
 
 const HARD_LIMIT = 500;
@@ -32,11 +33,7 @@ const inputSchema = {
 	groupBy: z.string().optional().describe('SQL GROUP BY clause fragment.'),
 	having: z.string().optional().describe('SQL HAVING clause fragment (requires groupBy).'),
 	orderBy: z.string().optional().describe('SQL ORDER BY clause fragment (e.g. `drop_level DESC`).'),
-	limit: z
-		.number()
-		.int()
-		.min(1)
-		.max(HARD_LIMIT)
+	limit: unquoteNumber(z.number().int().min(1).max(HARD_LIMIT))
 		.optional()
 		.describe('Maximum rows to return. Hard cap 500. Defaults to 500 when omitted.'),
 	continueFrom: z

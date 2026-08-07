@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
+import { unquoteNumber } from '../../../runtime/numericArg.ts';
 import type { TruncationInfo } from '../../../results/truncation.ts';
 
 const HARD_LIMIT = 500;
@@ -13,11 +14,7 @@ const inputSchema = {
 			'SMW #ask query. Conditions: `[[Property::value]]`. Printouts: `|?Property`. ' +
 				'Parameters: `|limit=N`, `|offset=N`, `|sort=Property`, `|order=asc/desc`.',
 		),
-	limit: z
-		.number()
-		.int()
-		.min(1)
-		.max(HARD_LIMIT)
+	limit: unquoteNumber(z.number().int().min(1).max(HARD_LIMIT))
 		.optional()
 		.describe('Overrides |limit= in query if both are set.'),
 	continueFrom: z

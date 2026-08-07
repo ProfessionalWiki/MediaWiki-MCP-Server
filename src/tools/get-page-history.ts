@@ -3,24 +3,19 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ApiPage, ApiRevision } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
+import { unquoteNumber } from '../runtime/numericArg.ts';
 import type { TruncationInfo } from '../results/truncation.ts';
 
 const PAGE_HISTORY_LIMIT = 20;
 
 const inputSchema = {
 	title: z.string().describe('Wiki page title'),
-	olderThan: z
-		.number()
-		.int()
-		.positive()
+	olderThan: unquoteNumber(z.number().int().positive())
 		.optional()
 		.describe(
 			'Revision ID — return revisions older than this (exclusive). Mutually exclusive with newerThan.',
 		),
-	newerThan: z
-		.number()
-		.int()
-		.positive()
+	newerThan: unquoteNumber(z.number().int().positive())
 		.optional()
 		.describe(
 			'Revision ID — return revisions newer than this (exclusive). Mutually exclusive with olderThan.',

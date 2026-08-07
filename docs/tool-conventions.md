@@ -129,6 +129,12 @@ Parameter descriptions must:
 - **Not restate the zod type.** `"Optional integer"` is redundant when the schema is `z.number().int().optional()`.
 - **Be concise.** A sentence or two per parameter. Complex behaviour belongs in the tool description, not in every parameter.
 
+#### Numeric parameters
+
+Wrap every numeric schema in `unquoteNumber()` from `src/runtime/numericArg.ts`, including the element schema of an array of numbers. Clients quote numeric arguments often enough that a bare `z.number()` refuses calls that are otherwise well formed. The published schema is unaffected, so callers are still asked for a number.
+
+Apply `.optional()`, `.default()` and `.describe()` to the result, not to the argument: `unquoteNumber( z.number().int() ).optional()`. The compiler refuses the two that would misreport the parameter as required. `.default()` applied outside takes effect at runtime but is not published, so state the default in the parameter description as well.
+
 ### Runtime behavior
 
 #### Result caps and truncation signaling

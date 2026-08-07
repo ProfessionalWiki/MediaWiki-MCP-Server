@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
+import { unquoteNumber } from '../../../runtime/numericArg.ts';
 import type { TruncationInfo } from '../../../results/truncation.ts';
 
 const HARD_LIMIT = 500;
@@ -12,11 +13,7 @@ const inputSchema = {
 		.describe(
 			'Bucket Lua chain ending in `.run()`. Example: bucket("exchange").select("name","high_alch").where("name","Abyssal whip").run()',
 		),
-	limit: z
-		.number()
-		.int()
-		.min(1)
-		.max(HARD_LIMIT)
+	limit: unquoteNumber(z.number().int().min(1).max(HARD_LIMIT))
 		.optional()
 		.describe('Appended as `.limit(N)` before `.run()`. Hard cap 500.'),
 	continueFrom: z

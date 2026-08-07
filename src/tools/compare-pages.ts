@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
+import { unquoteNumber } from '../runtime/numericArg.ts';
 import { inlineDiffToText } from '../results/diffFormat.ts';
 import { truncateByBytes } from '../results/truncation.ts';
 
@@ -21,13 +22,17 @@ interface CompareResponse {
 type Side = 'from' | 'to';
 
 const inputSchema = {
-	fromRevision: z.number().int().positive().optional().describe('Revision ID for the "from" side'),
+	fromRevision: unquoteNumber(z.number().int().positive())
+		.optional()
+		.describe('Revision ID for the "from" side'),
 	fromTitle: z
 		.string()
 		.optional()
 		.describe('Wiki page title for the "from" side (latest revision is used)'),
 	fromText: z.string().optional().describe('Supplied wikitext for the "from" side'),
-	toRevision: z.number().int().positive().optional().describe('Revision ID for the "to" side'),
+	toRevision: unquoteNumber(z.number().int().positive())
+		.optional()
+		.describe('Revision ID for the "to" side'),
 	toTitle: z
 		.string()
 		.optional()

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
+import { unquoteNumber } from '../runtime/numericArg.ts';
 import { buildPageUrl, formatEditComment } from '../wikis/utils.ts';
 
 interface ApiEditResponse {
@@ -20,17 +21,14 @@ const inputSchema = {
 		.describe(
 			"The content to write, in the existing page's content model. Interpreted as the full page by default; as the given section's content when section is set; or as a delta (appended or prepended) when mode is set.",
 		),
-	latestId: z
-		.number()
-		.int()
-		.positive()
+	latestId: unquoteNumber(z.number().int().positive())
 		.optional()
 		.describe(
 			'Base revision ID for edit-conflict detection; obtain from get-page with metadata=true. If omitted, the update is applied without conflict detection.',
 		),
 	comment: z.string().optional().describe('Summary of the edit'),
 	section: z
-		.union([z.number().int().nonnegative(), z.literal('new')])
+		.union([unquoteNumber(z.number().int().nonnegative()), z.literal('new')])
 		.optional()
 		.describe(
 			"Section to edit: 0 (lead), 1..N (existing heading sections), or 'new' to append a new heading section.",

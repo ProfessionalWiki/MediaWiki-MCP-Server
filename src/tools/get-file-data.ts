@@ -3,6 +3,7 @@ import type { CallToolResult, ImageContent, TextContent } from '@modelcontextpro
 import type { ApiPage, ImageInfo } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
+import { unquoteNumber } from '../runtime/numericArg.ts';
 
 const DEFAULT_IMAGE_WIDTH = 1024;
 const DEFAULT_TEXT_WIDTH = 512;
@@ -27,10 +28,7 @@ function resolveFileDataMaxBytes(): number {
 
 const inputSchema = {
 	title: z.string().describe('File title (with or without the "File:" prefix)'),
-	width: z
-		.number()
-		.int()
-		.positive()
+	width: unquoteNumber(z.number().int().positive())
 		.optional()
 		.describe(
 			'Pixel width of the scaled rendition. A quality/detail knob: in image mode the model caps image tokens regardless of size, so larger mainly means more detail. Defaults to 1024 (512 when format is "text"); values above 1568 are clamped.',
