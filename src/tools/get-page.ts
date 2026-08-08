@@ -5,6 +5,7 @@ import type { ToolContext } from '../runtime/context.ts';
 import { buildPageUrl } from '../wikis/utils.ts';
 import { ContentFormat } from '../results/contentFormat.ts';
 import { truncateByBytes, type TruncationInfo } from '../results/truncation.ts';
+import { toOutlineLines } from '../services/sectionService.ts';
 
 const inputSchema = {
 	title: z.string().describe('Wiki page title'),
@@ -92,7 +93,7 @@ export const getPage: Tool<typeof inputSchema> = {
 			const rev = page.revisions?.[0];
 
 			if (metadata) {
-				sections = await ctx.sections.list(mwn, title);
+				sections = toOutlineLines(await ctx.sections.list(mwn, title));
 			}
 
 			if (metadata || content === ContentFormat.none) {
@@ -115,7 +116,7 @@ export const getPage: Tool<typeof inputSchema> = {
 				payload.source = truncated.text;
 				if (truncated.truncated) {
 					if (sections === undefined) {
-						sections = await ctx.sections.list(mwn, title);
+						sections = toOutlineLines(await ctx.sections.list(mwn, title));
 					}
 					payload.truncation = {
 						reason: 'content-truncated',
@@ -158,7 +159,7 @@ export const getPage: Tool<typeof inputSchema> = {
 
 				if (truncated.truncated) {
 					if (sections === undefined) {
-						sections = await ctx.sections.list(mwn, title);
+						sections = toOutlineLines(await ctx.sections.list(mwn, title));
 					}
 					payload.truncation = {
 						reason: 'content-truncated',

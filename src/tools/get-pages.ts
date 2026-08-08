@@ -5,6 +5,7 @@ import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { buildPageUrl } from '../wikis/utils.ts';
 import { truncateByBytes, type TruncationInfo } from '../results/truncation.ts';
+import { toOutlineLines } from '../services/sectionService.ts';
 
 const MAX_TITLES = 50;
 
@@ -221,7 +222,9 @@ async function applyTruncations(
 	if (pending.length === 0) {
 		return;
 	}
-	const sectionLists = await Promise.all(pending.map((p) => ctx.sections.list(mwn, p.title)));
+	const sectionLists = await Promise.all(
+		pending.map(async (p) => toOutlineLines(await ctx.sections.list(mwn, p.title))),
+	);
 	pending.forEach((p, i) => {
 		entries[p.entryIndex].truncation = {
 			reason: 'content-truncated',
