@@ -72,7 +72,10 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 			inspect: throws('wikiProbe.inspect') as never,
 			invalidate: throws('wikiProbe.invalidate') as never,
 		},
-		sections: { list: throws('sections.list') as never },
+		sections: {
+			list: throws('sections.list') as never,
+			listInSource: throws('sections.listInSource') as never,
+		},
 		edit: {
 			submit: throws('edit.submit') as never,
 			submitUpload: throws('edit.submitUpload') as never,
