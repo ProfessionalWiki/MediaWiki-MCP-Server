@@ -11,6 +11,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `update-page` no longer creates sections: `section='new'` and `sectionTitle` are removed. Add a section with `mode='append'` and a source that begins with the heading, as in `"\n\n== History ==\n\nBody."`. A call still sending `section='new'` is refused with a message naming the replacement.
 - `update-page` now refuses a `section=N` replace whose source would delete the subsections nested under that section, which MediaWiki replaces along with it. Include the subsections in `source` to keep them, or pass `removeSubsections: true` to remove them deliberately. Appends, full-page replaces, and sections with no subsections are unaffected.
 
+### Fixed
+
+- `update-page` no longer advertises itself as idempotent: in `mode='append'` and `mode='prepend'` it never was, so a client replaying a call whose result never arrived adds the content a second time. A replace resends the same content rather than adding to it.
+
 ## [0.16.0] - 2026-07-30
 
 ### Security
