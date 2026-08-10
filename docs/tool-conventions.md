@@ -169,6 +169,7 @@ Semantics (from the MCP 2025-11-25 spec):
 - Pure read-only tools: `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: true` (for tools that read from the wiki).
 - Write tools that delete, overwrite, or remove: `readOnlyHint: false`, `destructiveHint: true`.
 - Write tools that only add (create, append, upload-new): `readOnlyHint: false`, `destructiveHint: false`.
+- If idempotency depends on which parameters a call uses (an `update-page` full-page replace is idempotent; `mode='append'` is not), declare the weakest case: `idempotentHint: false`.
 - If the tool does not make network calls and only mutates server-local state (e.g. `add-wiki` / `remove-wiki` editing the wiki registry), `openWorldHint: false`.
 
 #### Tool titles
