@@ -146,14 +146,14 @@ describe('utils.fetchCore (via makeApiRequest / fetchPageHtml)', () => {
 		vi.mocked(fetch).mockResolvedValueOnce(
 			new Response(null, {
 				status: 302,
-				headers: { Location: 'http://169.254.169.254/latest/meta-data/' },
+				headers: { Location: 'https://169.254.169.254/latest/meta-data/' },
 			}),
 		);
 		vi.mocked(assertPublicDestination)
 			.mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }])
 			.mockRejectedValueOnce(
 				new Error(
-					'Refusing to fetch URL resolving to non-public address 169.254.169.254 (linkLocal): http://169.254.169.254/latest/meta-data/',
+					'Refusing to fetch URL resolving to non-public address 169.254.169.254 (linkLocal): https://169.254.169.254/latest/meta-data/',
 				),
 			);
 

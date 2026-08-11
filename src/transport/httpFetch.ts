@@ -3,8 +3,19 @@ import fetch, { Response, FetchError } from 'node-fetch';
 import { USER_AGENT } from '../runtime/constants.ts';
 import { isErrnoException } from '../errors/isErrnoException.ts';
 import { assertPublicDestination, buildPinnedAgent, SsrfValidationError } from './ssrfGuard.ts';
+import {
+	firstRequest,
+	nextHop,
+	type FetchSpec,
+	type HopRequest,
+	type HopResponse,
+} from './requestChain.ts';
 
-const MAX_REDIRECTS = 5;
+/** The request, plus its cancellation. */
+type FetchOptions = FetchSpec & { signal?: AbortSignal };
+
+/** A failing source's explanation is worth reporting; its length is the source's choice. */
+const MAX_ERROR_BODY_BYTES = 8 * 1024;
 
 // Node syscall error codes that mean "the server could not reach the source"
 // (DNS failure, connection refused/reset, unreachable/timed-out). These should
@@ -68,82 +79,82 @@ export class FileTooLargeError extends Error {
 	}
 }
 
-async function fetchCore(
-	baseUrl: string,
-	options?: {
-		params?: Record<string, string>;
-		headers?: Record<string, string>;
-		method?: string;
-		body?: string;
-		signal?: AbortSignal;
-	},
-): Promise<Response> {
-	let url = baseUrl;
-
-	if (url.startsWith('//')) {
-		url = 'https:' + url;
+/**
+ * Drives a request through its redirect chain, performing the I/O `nextHop` asks
+ * for. Every response that is not delivered leaves through one place, which is
+ * what keeps an abandoned body from stranding its connection.
+ */
+async function fetchCore(baseUrl: string, options?: FetchOptions): Promise<Response> {
+	let request = firstRequest(baseUrl, options);
+	for (;;) {
+		const response = await sendHop(request, options?.signal);
+		const decision = nextHop(request, readHop(response));
+		if (decision.kind === 'deliver') {
+			return await delivered(response);
+		}
+		destroyBody(response);
+		if (decision.kind === 'refuse') {
+			throw decision.error;
+		}
+		request = decision.request;
 	}
+}
 
-	if (options?.params) {
-		const queryString = new URLSearchParams(options.params).toString();
-		if (queryString) {
-			url = `${url}?${queryString}`;
+/** One hop, through the SSRF guard and an agent pinned to what it resolved. */
+async function sendHop(request: HopRequest, signal?: AbortSignal): Promise<Response> {
+	const addresses = await assertPublicDestination(request.url);
+	const agent = buildPinnedAgent(request.url, addresses);
+	// Handed a body and a signal that is already aborted, node-fetch destroys
+	// the body stream before anything subscribes to it, and the unhandled
+	// 'error' event takes the process down. The DNS lookup above is a window
+	// wide enough for a cancellation to land in, once per hop, so refuse the
+	// request here instead. Throwing the signal's own reason keeps the
+	// AbortError callers classify on.
+	signal?.throwIfAborted();
+	return await fetch(request.url, {
+		headers: { 'User-Agent': USER_AGENT, ...request.headers },
+		method: request.method,
+		...(request.body === undefined ? {} : { body: request.body }),
+		redirect: 'manual',
+		agent,
+		signal,
+	});
+}
+
+/** The two fields the decision reads. */
+function readHop(response: Response): HopResponse {
+	return { status: response.status, location: response.headers.get('location') };
+}
+
+/** A 2xx passes through; anything else becomes the source's own diagnostics. */
+async function delivered(response: Response): Promise<Response> {
+	if (response.ok) {
+		return response;
+	}
+	const errorBody = await readTruncated(response, MAX_ERROR_BODY_BYTES).catch(() => '');
+	throw new HttpStatusError(response.status, response.url, errorBody);
+}
+
+/**
+ * Reads at most `maxBytes` and abandons the rest. Truncating rather than
+ * refusing: a cap that threw would replace the failure being reported with
+ * nothing.
+ */
+async function readTruncated(response: Response, maxBytes: number): Promise<string> {
+	const chunks: Buffer[] = [];
+	let total = 0;
+	if (response.body !== null) {
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- node-fetch v3 body is always a Node.js Readable; narrowing to AsyncIterable<Buffer> is safe at this boundary
+		for await (const chunk of response.body as AsyncIterable<Buffer>) {
+			chunks.push(chunk);
+			total += chunk.length;
+			if (total >= maxBytes) {
+				break;
+			}
 		}
 	}
-
-	const requestHeaders: Record<string, string> = {
-		'User-Agent': USER_AGENT,
-	};
-
-	if (options?.headers) {
-		Object.assign(requestHeaders, options.headers);
-	}
-
-	let currentUrl = url;
-	let response: Response | undefined;
-	for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-		const addresses = await assertPublicDestination(currentUrl);
-		const agent = buildPinnedAgent(currentUrl, addresses);
-		// Handed a body and a signal that is already aborted, node-fetch destroys
-		// the body stream before anything subscribes to it, and the unhandled
-		// 'error' event takes the process down. The DNS lookup above is a window
-		// wide enough for a cancellation to land in, once per hop, so refuse the
-		// request here instead. Throwing the signal's own reason keeps the
-		// AbortError callers classify on.
-		options?.signal?.throwIfAborted();
-		response = await fetch(currentUrl, {
-			headers: requestHeaders,
-			method: options?.method || 'GET',
-			...(options?.body !== undefined ? { body: options.body } : {}),
-			redirect: 'manual',
-			agent,
-			signal: options?.signal,
-		});
-
-		if (response.status < 300 || response.status >= 400) {
-			break;
-		}
-
-		const location = response.headers.get('location');
-		if (!location) {
-			break;
-		}
-
-		if (hop === MAX_REDIRECTS) {
-			throw new Error(`Too many redirects (>${MAX_REDIRECTS}) starting from ${url}`);
-		}
-
-		currentUrl = new URL(location, currentUrl).toString();
-	}
-
-	// response is always assigned inside the loop (loop runs at least once).
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- definite-assignment via the loop's at-least-once invariant; TS can't prove it
-	const finalResponse = response as Response;
-	if (!finalResponse.ok) {
-		const errorBody = await finalResponse.text().catch(() => '');
-		throw new HttpStatusError(finalResponse.status, finalResponse.url, errorBody);
-	}
-	return finalResponse;
+	destroyBody(response);
+	return Buffer.concat(chunks).toString('utf8').slice(0, maxBytes);
 }
 
 export async function makeApiRequest<T>(
@@ -179,7 +190,6 @@ export async function postForm(
 	options?: { headers?: Record<string, string>; signal?: AbortSignal; maxBytes?: number },
 ): Promise<string> {
 	const response = await fetchCore(url, {
-		method: 'POST',
 		body: new URLSearchParams(form).toString(),
 		headers: { ...options?.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
 		signal: options?.signal,

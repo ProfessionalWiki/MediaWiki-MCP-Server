@@ -22,16 +22,17 @@ vi.mock('../../src/transport/ssrfGuard.ts', async () => {
 import { createServer, type Server } from 'node:http';
 import type { Socket } from 'node:net';
 import { fetchFileBytes, postForm, FileTooLargeError } from '../../src/transport/httpFetch.ts';
+import { RedirectDropsBodyError } from '../../src/transport/requestChain.ts';
 
 let server: Server;
 let origin: string;
 let openSockets: Set<Socket>;
-let servingSocket: Socket | undefined;
+let servedSockets: Socket[] = [];
 
 beforeAll(async () => {
 	openSockets = new Set();
 	server = createServer((req, res) => {
-		servingSocket = req.socket;
+		servedSockets.push(req.socket);
 		if (req.url === '/small') {
 			res.writeHead(200, { 'Content-Length': '7' });
 			res.end('results');
@@ -52,6 +53,24 @@ beforeAll(async () => {
 			res.write('x'.repeat(64));
 			return;
 		}
+		// A stalling body on a redirect that is refused.
+		if (req.url === '/redirect-and-stall') {
+			res.writeHead(301, {
+				Location: '/small',
+				'Content-Length': String(50 * 1024 * 1024),
+			});
+			res.write('x');
+			return;
+		}
+		// The same, on a redirect that is followed.
+		if (req.url === '/followed-and-stall') {
+			res.writeHead(307, {
+				Location: '/small',
+				'Content-Length': String(50 * 1024 * 1024),
+			});
+			res.write('x');
+			return;
+		}
 		// Anything else is a test asking for a route that does not exist. Refusing
 		// it keeps a mistyped path from quietly getting a different route's answer.
 		res.writeHead(404);
@@ -69,7 +88,7 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
-	servingSocket = undefined;
+	servedSockets = [];
 });
 
 afterAll(async () => {
@@ -80,15 +99,18 @@ afterAll(async () => {
 });
 
 /**
- * Whether the server's end of the connection goes away once the client is done
- * with it. No recorded socket means the request never reached the server, so
- * there is nothing to observe: say so, rather than read a socket an earlier test
- * left behind and report its closure as this one's.
+ * Whether every connection the server served goes away. An empty list means no
+ * request reached it, so there is nothing to observe: say so rather than pass.
  */
-async function connectionClosed(socket: Socket | undefined, withinMs = 1000): Promise<boolean> {
-	if (socket === undefined) {
+async function connectionsClosed(sockets: Socket[], withinMs = 1000): Promise<boolean> {
+	if (sockets.length === 0) {
 		throw new Error('The server served no request, so no connection was observed.');
 	}
+	const closed = await Promise.all(sockets.map((socket) => connectionClosed(socket, withinMs)));
+	return closed.every(Boolean);
+}
+
+async function connectionClosed(socket: Socket, withinMs: number): Promise<boolean> {
 	if (socket.destroyed) {
 		return true;
 	}
@@ -108,7 +130,7 @@ describe('an over-cap body refused against a real server', () => {
 		}).catch((error: unknown) => error);
 
 		expect(failure).toBeInstanceOf(FileTooLargeError);
-		expect(await connectionClosed(servingSocket)).toBe(true);
+		expect(await connectionsClosed(servedSockets)).toBe(true);
 	});
 
 	it('closes the connection when the streamed body passes the cap', async () => {
@@ -117,7 +139,29 @@ describe('an over-cap body refused against a real server', () => {
 		);
 
 		expect(failure).toBeInstanceOf(FileTooLargeError);
-		expect(await connectionClosed(servingSocket)).toBe(true);
+		expect(await connectionsClosed(servedSockets)).toBe(true);
+	});
+
+	// The followed hop's own body is never read, so only the driver releases it.
+	it('closes the connection behind a redirect it follows', async () => {
+		const body = await postForm(`${origin}/followed-and-stall`, {
+			query: 'SELECT ?x WHERE {}',
+		});
+
+		expect(body).toBe('results');
+		expect(servedSockets).toHaveLength(2);
+		// The final response is read to completion and this file stubs the pinned
+		// agent away, so its socket is pooled rather than closed, by design.
+		expect(await connectionsClosed(servedSockets.slice(0, 1))).toBe(true);
+	});
+
+	it('closes the connection behind a redirect it refuses to follow', async () => {
+		const failure = await postForm(`${origin}/redirect-and-stall`, {
+			query: 'SELECT ?x WHERE {}',
+		}).catch((error: unknown) => error);
+
+		expect(failure).toBeInstanceOf(RedirectDropsBodyError);
+		expect(await connectionsClosed(servedSockets)).toBe(true);
 	});
 
 	it('closes the connection when a capped postForm refuses the body', async () => {
@@ -128,7 +172,7 @@ describe('an over-cap body refused against a real server', () => {
 		).catch((error: unknown) => error);
 
 		expect(failure).toBeInstanceOf(FileTooLargeError);
-		expect(await connectionClosed(servingSocket)).toBe(true);
+		expect(await connectionsClosed(servedSockets)).toBe(true);
 	});
 
 	it('still returns a body that fits the cap', async () => {
