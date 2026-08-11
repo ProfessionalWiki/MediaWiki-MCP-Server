@@ -115,6 +115,20 @@ describe('redirected requests', () => {
 		expect(target().headers['content-length']).toBeUndefined();
 	});
 
+	it("drops the caller's other body-describing headers across a downgrade", async () => {
+		await postForm(`${origin}/redirect/303/sparql`, FORM, {
+			headers: {
+				'Content-Encoding': 'identity',
+				'Content-Language': 'en',
+				'Content-Location': '/sparql',
+			},
+		});
+
+		expect(target().headers['content-encoding']).toBeUndefined();
+		expect(target().headers['content-language']).toBeUndefined();
+		expect(target().headers['content-location']).toBeUndefined();
+	});
+
 	it('keeps the form content type on a hop that still sends the body', async () => {
 		await postForm(`${origin}/redirect/307/sparql`, FORM);
 
