@@ -12,6 +12,7 @@ import {
 	FileTooLargeError,
 	HttpStatusError,
 	postForm,
+	RedirectDropsBodyError,
 } from '../../../../src/transport/httpFetch.ts';
 import { runSparqlQuery, SparqlError } from '../../../../src/tools/extensions/wikibase/sparql.ts';
 import { withRequestFields } from '../../../../src/runtime/requestContext.ts';
@@ -267,6 +268,34 @@ describe('runSparqlQuery', () => {
 		vi.mocked(postForm).mockRejectedValue(new FileTooLargeError(20_000_000, 10_485_760));
 
 		expect((await failureOf(runSparqlQuery(ENDPOINT, CATS, MANY_ROWS))).message).toContain('10 MB');
+	});
+
+	it('says which setting to change when the query service redirects the query', async () => {
+		vi.mocked(postForm).mockRejectedValue(
+			new RedirectDropsBodyError(303, 'https://elsewhere.example.org/sparql'),
+		);
+
+		const error = await failureOf(runSparqlQuery(ENDPOINT, CATS, MANY_ROWS));
+
+		expect(error.category).toBe('upstream_failure');
+		expect(error.message).toContain('303');
+		expect(error.message).toContain('wikibase-sparql');
+	});
+
+	// A redirect target derived from the endpoint inherits its credentials, and
+	// differing in scheme it is not a substring the endpoint substitution finds.
+	// Scheme and host are what identifies the redirect and carry no token.
+	it('names the redirect target by scheme and host only, not by its path or query', async () => {
+		const secret = 'http://query.example.org/sparql?token=hunter2';
+		vi.mocked(postForm).mockRejectedValue(
+			new RedirectDropsBodyError(301, 'https://query.example.org/sparql?token=hunter2'),
+		);
+
+		const error = await failureOf(runSparqlQuery(secret, CATS, MANY_ROWS));
+
+		expect(error.message).toContain('https://query.example.org');
+		expect(error.message).not.toContain('hunter2');
+		expect(error.message).not.toContain('/sparql');
 	});
 
 	// The endpoint is the operator's to know, and it can carry a token in its path

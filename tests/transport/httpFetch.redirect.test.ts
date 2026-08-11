@@ -18,7 +18,12 @@ vi.mock('../../src/transport/ssrfGuard.ts', async () => {
 });
 
 import { createServer, type IncomingHttpHeaders, type Server } from 'node:http';
-import { makeApiRequest, postForm } from '../../src/transport/httpFetch.ts';
+import {
+	makeApiRequest,
+	postForm,
+	HttpStatusError,
+	RedirectDropsBodyError,
+} from '../../src/transport/httpFetch.ts';
 
 type ServedRequest = {
 	method: string;
@@ -50,6 +55,19 @@ beforeAll(async () => {
 				body: Buffer.concat(chunks).toString('utf8'),
 				headers: req.headers,
 			});
+			// A 3xx with no Location at all, which is not a redirect to follow.
+			if (req.url === '/locationless') {
+				res.writeHead(302);
+				res.end('going nowhere');
+				return;
+			}
+			// A target carrying a credential, which a query-service URL can do and
+			// the refusal must keep out of its message.
+			if (req.url === '/redirect-to-token') {
+				res.writeHead(301, { Location: '/sparql?token=hunter2' });
+				res.end('redirect notice');
+				return;
+			}
 			const hop = /^\/redirect\/(\d{3})\/(.+)$/.exec(req.url ?? '');
 			if (hop) {
 				res.writeHead(Number(hop[1]), { Location: `/${hop[2]}` });
@@ -81,19 +99,47 @@ function target(): ServedRequest {
 	return served[served.length - 1];
 }
 
+async function refusalFrom(url: string): Promise<RedirectDropsBodyError> {
+	const error = await postForm(url, FORM).catch((err: unknown) => err);
+	expect(error).toBeInstanceOf(RedirectDropsBodyError);
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pinned by the assertion above
+	return error as RedirectDropsBodyError;
+}
+
 describe('redirected requests', () => {
 	it.each([301, 302, 303])(
-		'sends a bodyless GET to the target of a %i redirect',
+		'refuses a %i redirect of a request that carries a body',
 		async (status) => {
-			const result = await postForm(`${origin}/redirect/${status}/sparql`, FORM);
+			const error = await refusalFrom(`${origin}/redirect/${status}/sparql`);
 
-			expect(result).toBe('{"ok":true}');
-			expect(methodsAndBodies()).toEqual([
-				{ method: 'POST', body: ENCODED_FORM },
-				{ method: 'GET', body: '' },
-			]);
+			expect(error.status).toBe(status);
+			// The first hop went out whole; the target was never contacted, so the
+			// refusal is not a request that quietly lost what it was carrying.
+			expect(methodsAndBodies()).toEqual([{ method: 'POST', body: ENCODED_FORM }]);
 		},
 	);
+
+	it('names the redirect target it refused to follow, resolved absolutely', async () => {
+		const error = await refusalFrom(`${origin}/redirect/301/sparql`);
+
+		expect(error.target).toBe(`${origin}/sparql`);
+	});
+
+	it('keeps the refused target out of the message, which reaches the caller and the logs', async () => {
+		const error = await refusalFrom(`${origin}/redirect-to-token`);
+
+		expect(error.target).toBe(`${origin}/sparql?token=hunter2`);
+		expect(error.message).not.toContain('hunter2');
+		expect(error.message).not.toContain(origin);
+		expect(error.message).toContain('301');
+	});
+
+	it('reports a 3xx carrying no Location as the status it is, not as a refusal', async () => {
+		const error = await postForm(`${origin}/locationless`, FORM).catch((err: unknown) => err);
+
+		expect(error).toBeInstanceOf(HttpStatusError);
+		expect(error).not.toBeInstanceOf(RedirectDropsBodyError);
+	});
 
 	it.each([307, 308])(
 		're-sends the POST and its body to the target of a %i redirect',
@@ -108,30 +154,26 @@ describe('redirected requests', () => {
 		},
 	);
 
-	it('stops describing a body the downgraded request no longer carries', async () => {
-		await postForm(`${origin}/redirect/303/sparql`, FORM);
+	it('re-sends the body across a chain of preserving hops', async () => {
+		const result = await postForm(`${origin}/redirect/307/redirect/308/sparql`, FORM);
 
-		expect(target().headers['content-type']).toBeUndefined();
-		expect(target().headers['content-length']).toBeUndefined();
+		expect(result).toBe('{"ok":true}');
+		expect(methodsAndBodies()).toEqual([
+			{ method: 'POST', body: ENCODED_FORM },
+			{ method: 'POST', body: ENCODED_FORM },
+			{ method: 'POST', body: ENCODED_FORM },
+		]);
 	});
 
-	it("drops the caller's other body-describing headers across a downgrade", async () => {
-		await postForm(`${origin}/redirect/303/sparql`, FORM, {
-			headers: {
-				'Content-Encoding': 'identity',
-				'Content-Language': 'en',
-				// node-fetch recomputes Content-Length only for a request that has
-				// a body, so a caller's value reaches the downgraded GET unless the
-				// downgrade removes it.
-				'Content-Length': '25',
-				'Content-Location': '/sparql',
-			},
-		});
+	it('refuses at the hop that would drop the body, after the earlier hops were re-sent', async () => {
+		const error = await refusalFrom(`${origin}/redirect/307/redirect/302/sparql`);
 
-		expect(target().headers['content-encoding']).toBeUndefined();
-		expect(target().headers['content-language']).toBeUndefined();
-		expect(target().headers['content-length']).toBeUndefined();
-		expect(target().headers['content-location']).toBeUndefined();
+		expect(error.status).toBe(302);
+		expect(error.target).toBe(`${origin}/sparql`);
+		expect(methodsAndBodies()).toEqual([
+			{ method: 'POST', body: ENCODED_FORM },
+			{ method: 'POST', body: ENCODED_FORM },
+		]);
 	});
 
 	it('keeps the form content type on a hop that still sends the body', async () => {
@@ -140,32 +182,12 @@ describe('redirected requests', () => {
 		expect(target().headers['content-type']).toBe('application/x-www-form-urlencoded');
 	});
 
-	it('keeps a caller header unrelated to the body across a downgrade', async () => {
-		await postForm(`${origin}/redirect/303/sparql`, FORM, {
+	it('keeps a caller header on a hop that re-sends the body', async () => {
+		await postForm(`${origin}/redirect/307/sparql`, FORM, {
 			headers: { Accept: 'application/sparql-results+json' },
 		});
 
 		expect(target().headers.accept).toBe('application/sparql-results+json');
-	});
-
-	it('does not resurrect the body when a later hop preserves the method', async () => {
-		await postForm(`${origin}/redirect/302/redirect/307/sparql`, FORM);
-
-		expect(methodsAndBodies()).toEqual([
-			{ method: 'POST', body: ENCODED_FORM },
-			{ method: 'GET', body: '' },
-			{ method: 'GET', body: '' },
-		]);
-	});
-
-	it('downgrades a preserved POST at the hop that asks for it', async () => {
-		await postForm(`${origin}/redirect/307/redirect/302/sparql`, FORM);
-
-		expect(methodsAndBodies()).toEqual([
-			{ method: 'POST', body: ENCODED_FORM },
-			{ method: 'POST', body: ENCODED_FORM },
-			{ method: 'GET', body: '' },
-		]);
 	});
 
 	it('leaves a redirected GET a GET, query string and all', async () => {
@@ -179,5 +201,19 @@ describe('redirected requests', () => {
 			{ method: 'GET', body: '' },
 		]);
 		expect(target().url).toBe('/w/api.php?action=query');
+	});
+
+	it('follows a multi-hop redirect of a bodyless request to the target', async () => {
+		const result = await makeApiRequest<{ ok: boolean }>(
+			`${origin}/redirect/301/redirect/303/w/api.php`,
+			{ action: 'query' },
+		);
+
+		expect(result).toEqual({ ok: true });
+		expect(methodsAndBodies()).toEqual([
+			{ method: 'GET', body: '' },
+			{ method: 'GET', body: '' },
+			{ method: 'GET', body: '' },
+		]);
 	});
 });

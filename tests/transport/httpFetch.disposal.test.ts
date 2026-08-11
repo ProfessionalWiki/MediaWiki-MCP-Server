@@ -21,7 +21,12 @@ vi.mock('../../src/transport/ssrfGuard.ts', async () => {
 
 import { createServer, type Server } from 'node:http';
 import type { Socket } from 'node:net';
-import { fetchFileBytes, postForm, FileTooLargeError } from '../../src/transport/httpFetch.ts';
+import {
+	fetchFileBytes,
+	postForm,
+	FileTooLargeError,
+	RedirectDropsBodyError,
+} from '../../src/transport/httpFetch.ts';
 
 let server: Server;
 let origin: string;
@@ -50,6 +55,16 @@ beforeAll(async () => {
 		if (req.url === '/streams-too-much') {
 			res.writeHead(200, { 'Transfer-Encoding': 'chunked' });
 			res.write('x'.repeat(64));
+			return;
+		}
+		// A redirect whose own body stalls the same way, for the refusal that
+		// declines to re-send a request body across it.
+		if (req.url === '/redirect-and-stall') {
+			res.writeHead(301, {
+				Location: '/small',
+				'Content-Length': String(50 * 1024 * 1024),
+			});
+			res.write('x');
 			return;
 		}
 		// Anything else is a test asking for a route that does not exist. Refusing
@@ -117,6 +132,15 @@ describe('an over-cap body refused against a real server', () => {
 		);
 
 		expect(failure).toBeInstanceOf(FileTooLargeError);
+		expect(await connectionClosed(servingSocket)).toBe(true);
+	});
+
+	it('closes the connection behind a redirect it refuses to follow', async () => {
+		const failure = await postForm(`${origin}/redirect-and-stall`, {
+			query: 'SELECT ?x WHERE {}',
+		}).catch((error: unknown) => error);
+
+		expect(failure).toBeInstanceOf(RedirectDropsBodyError);
 		expect(await connectionClosed(servingSocket)).toBe(true);
 	});
 

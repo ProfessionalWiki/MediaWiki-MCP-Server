@@ -41,6 +41,23 @@ function resolveUploadMaxBytes(): number {
 	return parsed;
 }
 
+/**
+ * A redirect asked for the request to be re-sent without its body. `target` is
+ * the absolute URL that was not followed; it is kept off the message, because a
+ * URL derived from a configured endpoint can carry that endpoint's credentials,
+ * and the message reaches both the caller and the logs.
+ */
+export class RedirectDropsBodyError extends Error {
+	public readonly status: number;
+	public readonly target: string;
+	public constructor(status: number, target: string) {
+		super(`Refusing to follow an HTTP ${status} redirect: it would drop the request body.`);
+		this.name = 'RedirectDropsBodyError';
+		this.status = status;
+		this.target = target;
+	}
+}
+
 /** A fetched URL responded with a non-2xx status: the source was reachable but rejected the request. */
 export class HttpStatusError extends Error {
 	public readonly status: number;
@@ -71,33 +88,16 @@ export class FileTooLargeError extends Error {
 // Only 307 and 308 ask for the original method and body again. RFC 9110 defines
 // a 303 as a GET on another resource, and browsers and every mainstream client
 // treat 301 and 302 the same way, which the Fetch standard writes down as a
-// rule. The requests this module sends are GET and POST, for which every status
-// but those two means GET; a caller sending PUT or DELETE would need the status
-// paired with the method, since 301 and 302 redirect only a POST.
+// rule: re-send as a GET, with no body.
+//
+// A body is the whole request for the one caller that sends one — a SPARQL query
+// travels in it — so following such a redirect would send a request that cannot
+// answer, and report whatever the target said about it instead of the redirect.
+// This module refuses that hop rather than performing it. Every other request it
+// sends is already a bodyless GET, which a redirect of any of these statuses
+// leaves unchanged; a caller that sent a bodyless POST would need the method
+// downgrade this deliberately does not implement.
 const METHOD_PRESERVING_REDIRECTS = new Set([307, 308]);
-
-function downgradesToGet(status: number): boolean {
-	return !METHOD_PRESERVING_REDIRECTS.has(status);
-}
-
-// Headers that describe a request body go when the body goes: a bodyless GET
-// announcing a Content-Type describes something it is not sending. Fetch leaves
-// Content-Length out of this list because there the fetch layer always owns it;
-// node-fetch recomputes it only for a request that has a body, so a value a
-// caller set survives onto the bodyless GET unless it goes here too.
-const BODY_HEADERS = new Set([
-	'content-encoding',
-	'content-language',
-	'content-length',
-	'content-location',
-	'content-type',
-]);
-
-function withoutBodyHeaders(headers: Record<string, string>): Record<string, string> {
-	return Object.fromEntries(
-		Object.entries(headers).filter(([name]) => !BODY_HEADERS.has(name.toLowerCase())),
-	);
-}
 
 async function fetchCore(
 	baseUrl: string,
@@ -122,7 +122,7 @@ async function fetchCore(
 		}
 	}
 
-	let requestHeaders: Record<string, string> = {
+	const requestHeaders: Record<string, string> = {
 		'User-Agent': USER_AGENT,
 	};
 
@@ -131,8 +131,6 @@ async function fetchCore(
 	}
 
 	let currentUrl = url;
-	let currentMethod = options?.method || 'GET';
-	let currentBody = options?.body;
 	let response: Response | undefined;
 	for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
 		const addresses = await assertPublicDestination(currentUrl);
@@ -146,8 +144,8 @@ async function fetchCore(
 		options?.signal?.throwIfAborted();
 		response = await fetch(currentUrl, {
 			headers: requestHeaders,
-			method: currentMethod,
-			...(currentBody !== undefined ? { body: currentBody } : {}),
+			method: options?.method || 'GET',
+			...(options?.body !== undefined ? { body: options.body } : {}),
 			redirect: 'manual',
 			agent,
 			signal: options?.signal,
@@ -167,12 +165,11 @@ async function fetchCore(
 		}
 
 		currentUrl = new URL(location, currentUrl).toString();
-		// A downgrade holds for the rest of the chain: once the request is a
-		// bodyless GET, a later 307 has a bodyless GET to preserve.
-		if (downgradesToGet(response.status)) {
-			currentMethod = 'GET';
-			currentBody = undefined;
-			requestHeaders = withoutBodyHeaders(requestHeaders);
+		// Checked every hop, not just the first: a 307 that preserves the body can
+		// be followed by a 303 that would drop it.
+		if (options?.body !== undefined && !METHOD_PRESERVING_REDIRECTS.has(response.status)) {
+			destroyBody(response);
+			throw new RedirectDropsBodyError(response.status, currentUrl);
 		}
 	}
 

@@ -1,5 +1,10 @@
 import type { ErrorCategory } from '../../../errors/classifyError.ts';
-import { FileTooLargeError, HttpStatusError, postForm } from '../../../transport/httpFetch.ts';
+import {
+	FileTooLargeError,
+	HttpStatusError,
+	postForm,
+	RedirectDropsBodyError,
+} from '../../../transport/httpFetch.ts';
 import { getRequestSignal } from '../../../runtime/requestContext.ts';
 
 /** Matches the query timeout most Wikibase query services enforce themselves. */
@@ -134,6 +139,12 @@ function renderRow(binding: unknown, columns: string[]): string {
 }
 
 function classifyQueryFailure(err: unknown, endpoint: string): SparqlError {
+	if (err instanceof RedirectDropsBodyError) {
+		return new SparqlError(
+			'upstream_failure',
+			`The query service redirected the query to ${originOf(err.target)} instead of answering it (HTTP ${err.status}), and a SPARQL query cannot survive that redirect. The wiki advertises this endpoint in its siteinfo as \`wikibase-sparql\`, so its operator has to point that at an address which answers directly.`,
+		);
+	}
 	if (err instanceof HttpStatusError) {
 		return new SparqlError(categoryForStatus(err.status), serviceMessage(err, endpoint));
 	}
@@ -151,6 +162,17 @@ function classifyQueryFailure(err: unknown, endpoint: string): SparqlError {
 	}
 	const message = err instanceof Error ? err.message : String(err);
 	return new SparqlError('upstream_failure', withoutEndpoint(message, endpoint));
+}
+
+/**
+ * Scheme and host of a redirect target, without its path or query. A target
+ * derived from the endpoint inherits whatever the endpoint carries, and differing
+ * in scheme it is not a substring `withoutEndpoint` can find — so the parts that
+ * can hold a token are dropped rather than substituted. Scheme and host are what
+ * an operator needs to recognise the redirect, and hold no credentials.
+ */
+function originOf(target: string): string {
+	return new URL(target).origin;
 }
 
 /**
