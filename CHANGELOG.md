@@ -21,7 +21,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Fixed
 
-- A redirected `POST` now continues the way the redirect status asks: a `301`, `302` or `303` becomes a GET with no body, where every hop used to re-send the original method and body and the target rejected it. This is reachable through a configured `sparqlEndpoint` that redirects, such as an `http` URL or a bare host. A `307` or `308` still re-sends the method and body.
 - `update-page` no longer advertises itself as idempotent: in `mode='append'` and `mode='prepend'` it never was, so a client replaying a call whose result never arrived adds the content a second time. A replace resends the same content rather than adding to it.
 
 ## [0.16.0] - 2026-07-30
