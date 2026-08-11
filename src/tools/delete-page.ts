@@ -4,7 +4,7 @@ import type { ApiDeleteResponse } from 'mwn';
 import type { ApiDeleteParams } from 'types-mediawiki-api';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
-import { formatEditComment } from '../wikis/utils.ts';
+import { formatEditComment, type PageWrites } from '../wikis/utils.ts';
 
 const inputSchema = {
 	title: z.string().describe('Wiki page title'),
@@ -27,7 +27,7 @@ export const deletePage: Tool<typeof inputSchema> = {
 	target: (a) => a.title,
 
 	async handle({ title, comment }, ctx: ToolContext): Promise<CallToolResult> {
-		const mwn = await ctx.mwn();
+		const mwn: PageWrites = await ctx.mwn();
 		const options = ctx.edit.applyTags<ApiDeleteParams>({});
 		const data: ApiDeleteResponse & { logid?: number } = await mwn.delete(
 			title,

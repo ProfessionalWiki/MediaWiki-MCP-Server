@@ -58,12 +58,13 @@ export const wikibaseEditEntity: Tool<typeof inputSchema> = {
 		ctx: ToolContext,
 	): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
+		const summary = formatEditComment(ctx, 'wikibase-edit-entity', comment);
 		const params: Record<string, string | number | boolean> = {
 			action: 'wbeditentity',
 			...(entityId !== undefined ? { id: entityId.toUpperCase() } : { new: entityType }),
 			data: JSON.stringify(data),
 			...(clear === true ? { clear: true } : {}),
-			summary: formatEditComment(ctx, 'wikibase-edit-entity', comment),
+			...(summary !== undefined ? { summary } : {}),
 		};
 
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- wbeditentity response shape; trusted at this boundary

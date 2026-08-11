@@ -44,9 +44,9 @@ describe('formatEditComment', () => {
 		expect(result).toBe('Fix typo');
 	});
 
-	it('returns an empty summary when attribution is off and no comment is given', () => {
+	it('returns no summary when attribution is off and no comment is given', () => {
 		const result = formatEditComment(ctxWithAttribution(false), 'update-page');
-		expect(result).toBe('');
+		expect(result).toBeUndefined();
 	});
 
 	it('treats an empty-string comment like a missing one when attribution is on', () => {
@@ -54,8 +54,8 @@ describe('formatEditComment', () => {
 		expect(result).toBe('Automated edit (via update-page on MediaWiki MCP Server)');
 	});
 
-	it('returns an empty summary for an empty-string comment when attribution is off', () => {
+	it('returns no summary for an empty-string comment when attribution is off', () => {
 		const result = formatEditComment(ctxWithAttribution(false), 'update-page', '');
-		expect(result).toBe('');
+		expect(result).toBeUndefined();
 	});
 });

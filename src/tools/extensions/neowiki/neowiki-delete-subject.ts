@@ -3,7 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
-import { attributedComment } from './editComment.ts';
+import { formatEditComment } from '../../../wikis/utils.ts';
 
 const inputSchema = {
 	id: z
@@ -30,7 +30,7 @@ export const neowikiDeleteSubject: Tool<typeof inputSchema> = {
 
 	async handle({ id, comment }, ctx: ToolContext): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
-		const editComment = attributedComment(ctx, 'neowiki-delete-subject', comment);
+		const editComment = formatEditComment(ctx, 'neowiki-delete-subject', comment);
 		try {
 			// The endpoint returns an empty 200 body on success; ignore it.
 			await neowikiRequest(mwn, {

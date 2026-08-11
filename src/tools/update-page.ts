@@ -76,10 +76,11 @@ function buildEditParams(
 ): Record<string, string | number | boolean> {
 	const sourceField =
 		mode === 'append' ? 'appendtext' : mode === 'prepend' ? 'prependtext' : 'text';
+	const summary = formatEditComment(ctx, 'update-page', comment);
 	return {
 		action: 'edit',
 		title,
-		summary: formatEditComment(ctx, 'update-page', comment),
+		...(summary !== undefined ? { summary } : {}),
 		nocreate: true,
 		[sourceField]: source,
 		...(latestId !== undefined ? { baserevid: latestId } : {}),
