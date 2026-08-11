@@ -24,6 +24,6 @@ export const wikibasePack: ExtensionPack = {
 		tools: [wikibaseQuery.name],
 		isSatisfied: (wiki) => (wiki.sparqlEndpoint ?? '').trim() !== '',
 		refusal: (wikiKey) =>
-			`Wiki "${wikiKey}" has no query service: set sparqlEndpoint in its configuration to the SPARQL endpoint URL.`,
+			`Wiki "${wikiKey}" has no query service: set sparqlEndpoint in its configuration to the SPARQL endpoint URL. Use list-wikis to see which wikis have one.`,
 	},
 };

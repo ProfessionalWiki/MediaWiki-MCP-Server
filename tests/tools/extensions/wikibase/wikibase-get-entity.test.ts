@@ -162,6 +162,20 @@ describe('wikibase-get-entity', () => {
 		]);
 	});
 
+	it('requests every entity field the rendering reads', async () => {
+		const mock = routedMwn(Q42);
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		await wikibaseGetEntity.handle(toolArgs(wikibaseGetEntity, { entityId: 'Q42' }), ctx);
+
+		expect(mock.request.mock.calls[0][0]).toMatchObject({
+			props: 'labels|descriptions|aliases|claims|datatype',
+			languages: 'en',
+			languagefallback: 1,
+			formatversion: '2',
+		});
+	});
+
 	it('requests the entity in the wiki content language with fallback', async () => {
 		const mock = routedMwn(Q42);
 		const ctx = fakeContext({ mwn: async () => mock as never });
@@ -323,31 +337,104 @@ describe('wikibase-get-entity', () => {
 		expect(assertStructuredData(result).redirectedFrom).toBeUndefined();
 	});
 
-	it('falls back to a term in another language when the requested one has none', async () => {
+	// An uppercased code is refused by the schema, so the runtime check answers
+	// for the codes that are shaped like one and still name no language.
+	it('refuses a language code the wiki did not recognise', async () => {
+		const mock = routedMwn(everyLanguage());
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		const result = await wikibaseGetEntity.handle(
+			toolArgs(wikibaseGetEntity, { entityId: 'Q42', language: 'english' }),
+			ctx,
+		);
+
+		const { message } = assertStructuredError(result, 'invalid_input');
+		expect(message).toContain('english');
+		expect(message).toContain('language');
+	});
+
+	it('refuses an uppercased language code before it reaches the wiki', () => {
+		expect(() => toolArgs(wikibaseGetEntity, { entityId: 'Q42', language: 'en-US' })).toThrow(
+			/lowercase language code/,
+		);
+	});
+
+	// The response to an unrecognised code carries every language the entity has,
+	// and a label batch asking for the same code multiplies that by fifty ids.
+	it('spends no label lookup on a language code the wiki did not recognise', async () => {
+		const mock = routedMwn(everyLanguage());
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		await wikibaseGetEntity.handle(
+			toolArgs(wikibaseGetEntity, { entityId: 'Q42', language: 'english' }),
+			ctx,
+		);
+
+		expect(mock.request).toHaveBeenCalledTimes(1);
+	});
+
+	it('reports no term for an entity the requested language reaches nothing of', async () => {
 		const mock = routedMwn({
 			entities: {
-				Q42: {
-					type: 'item',
-					id: 'Q42',
-					labels: { de: { language: 'de', value: 'Douglas Adams' } },
-					descriptions: { de: { language: 'de', value: 'britischer Schriftsteller' } },
+				Q93822343: { type: 'item', id: 'Q93822343', labels: {}, descriptions: {}, aliases: {} },
+			},
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		const result = await wikibaseGetEntity.handle(
+			toolArgs(wikibaseGetEntity, { entityId: 'Q93822343' }),
+			ctx,
+		);
+
+		const data = assertStructuredData(result);
+		expect(data.label).toBeUndefined();
+		expect(data.description).toBeUndefined();
+		expect(data.aliases).toBeUndefined();
+	});
+
+	it('renders the statements of a lexeme', async () => {
+		const mock = routedMwn({
+			entities: {
+				L1: {
+					type: 'lexeme',
+					id: 'L1',
+					lemmas: { 'sux-latn': { language: 'sux-latn', value: 'ama' } },
+					claims: { P31: [{ mainsnak: itemSnak('P31', 'Q5'), rank: 'normal' }] },
 				},
 			},
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
 		const result = await wikibaseGetEntity.handle(
-			toolArgs(wikibaseGetEntity, { entityId: 'Q42' }),
+			toolArgs(wikibaseGetEntity, { entityId: 'L1' }),
 			ctx,
 		);
 
 		const data = assertStructuredData(result);
-		expect(data.label).toBe('Douglas Adams');
-		expect(data.description).toBe('britischer Schriftsteller');
+		expect(data.entityId).toBe('L1');
+		expect(data.statements).toEqual(['P31 (instance of): Q5 (human)']);
 	});
 
 	it('rejects a language list where one language code belongs', () => {
 		expect(() => toolArgs(wikibaseGetEntity, { entityId: 'Q42', language: 'en|de|fr' })).toThrow();
+	});
+
+	it('rejects an entity id of a type it cannot read, naming the ones it can', () => {
+		expect(() => toolArgs(wikibaseGetEntity, { entityId: 'M12017177' })).toThrow(
+			/Item, property or lexeme ID/,
+		);
+	});
+
+	it('accepts a lowercase item id', async () => {
+		const mock = routedMwn(Q42);
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		const result = await wikibaseGetEntity.handle(
+			toolArgs(wikibaseGetEntity, { entityId: 'q42' }),
+			ctx,
+		);
+
+		expect(assertStructuredData(result).entityId).toBe('Q42');
 	});
 
 	it('spends no label lookup on values the per-property cap hides', async () => {
@@ -466,8 +553,8 @@ describe('wikibase-get-entity', () => {
 			ctx,
 		);
 
-		expect(String(assertStructuredData(result).truncation.remedyHint)).toContain(
-			'The entity has 60 properties; 50 were rendered before the byte cap',
+		expect(String(assertStructuredData(result).truncation.remedyHint)).toBe(
+			'The entity has 60 properties; 50 were rendered before the byte cap. To read one property in full, call wikibase-get-entity again with property=<P-id>.',
 		);
 	});
 
@@ -481,8 +568,38 @@ describe('wikibase-get-entity', () => {
 			ctx,
 		);
 
-		expect(String(assertStructuredData(result).truncation.remedyHint)).toContain(
-			'P1082 shows 10 of 45 values',
+		expect(String(assertStructuredData(result).truncation.remedyHint)).toBe(
+			'P1082 shows 10 of 45 values. To read one property in full, call wikibase-get-entity again with property=P1082.',
+		);
+	});
+
+	it('states both count caps in one remedy when the byte cap fires as well', async () => {
+		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '80');
+		const mock = routedMwn(entityWithProperties(60, 12), { entities: {} });
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		const result = await wikibaseGetEntity.handle(
+			toolArgs(wikibaseGetEntity, { entityId: 'Q42' }),
+			ctx,
+		);
+
+		expect(String(assertStructuredData(result).truncation.remedyHint)).toBe(
+			'The entity has 60 properties; 50 were rendered before the byte cap; 50 properties have more values than shown; the largest, P1, shows 10 of 12. To read one property in full, call wikibase-get-entity again with property=<P-id>.',
+		);
+	});
+
+	it('states that nothing reaches the rest when the byte cap cuts the filtered property', async () => {
+		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '40');
+		const mock = routedMwn(entityWithValues(45), { entities: {} });
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		const result = await wikibaseGetEntity.handle(
+			toolArgs(wikibaseGetEntity, { entityId: 'Q64', property: 'p1082' }),
+			ctx,
+		);
+
+		expect(String(assertStructuredData(result).truncation.remedyHint)).toBe(
+			'The byte budget cut the values of P1082, and no parameter of this tool reaches the rest.',
 		);
 	});
 
@@ -501,6 +618,29 @@ describe('wikibase-get-entity', () => {
 		);
 	});
 });
+
+// What the wiki answers when it does not recognise the languages value: a
+// warning, and the terms of every language the entity has.
+function everyLanguage(): unknown {
+	return {
+		entities: {
+			Q42: {
+				type: 'item',
+				id: 'Q42',
+				labels: {
+					ar: { language: 'ar', value: 'دوغلاس آدمز' },
+					en: { language: 'en', value: 'Douglas Adams' },
+				},
+				descriptions: {
+					ar: { language: 'ar', value: 'كاتب بريطاني' },
+					en: { language: 'en', value: 'British science fiction writer' },
+				},
+				aliases: { en: [{ language: 'en', value: 'Douglas Noel Adams' }] },
+				claims: { P31: [{ mainsnak: itemSnak('P31', 'Q5'), rank: 'normal' }] },
+			},
+		},
+	};
+}
 
 // One property carrying more values than the per-property cap shows.
 function entityWithValues(count: number): unknown {

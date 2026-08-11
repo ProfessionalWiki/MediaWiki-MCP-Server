@@ -6,9 +6,15 @@ import type { ToolContext } from '../../../runtime/context.ts';
 const inputSchema = {
 	entityId: z
 		.string()
-		.regex(/^[A-Za-z]+\d+$/, 'Entity ID, such as Q42 or P31')
+		// `data` is entity JSON keyed on `claims`, which is how items, properties and
+		// lexemes serialise their statements. Excluded are the entity types that key
+		// them under something else: WikibaseMediaInfo uses `statements`, so the
+		// payload this tool documents does not describe an M-id.
+		.regex(/^[QqPpLl]\d+$/, 'Item, property or lexeme ID, such as Q42, P31 or L1')
 		.optional()
-		.describe('The entity to write to. Omit to create a new one.'),
+		.describe(
+			'The item, property or lexeme to write to. Omit to create a new item or property. Other entity types, such as MediaInfo M-ids, are not supported.',
+		),
 	entityType: z
 		.enum(['item', 'property'])
 		.default('item')
@@ -34,7 +40,7 @@ interface EditEntityResponse {
 export const wikibaseEditEntity: Tool<typeof inputSchema> = {
 	name: 'wikibase-edit-entity',
 	description:
-		'Creates or changes a Wikibase entity from a JSON description of the change, and returns the entity ID and new revision ID. Enabled only when the wiki is a Wikibase repository. Omit entityId to create a new entity, or name one to edit it. Requires the edit right.\n\ndata is merged into the entity: terms and statements it does not mention are left alone, and a term given for a language replaces that language\'s term. clear=true empties the entity first, so anything absent from data is deleted.\n\nExample data, setting an English label and adding one statement:\n{"labels":{"en":{"language":"en","value":"Berlin"}},"claims":[{"mainsnak":{"snaktype":"value","property":"P31","datavalue":{"type":"wikibase-entityid","value":{"entity-type":"item","id":"Q515"}}},"type":"statement","rank":"normal"}]}\n\nCreating a property requires datatype in data, which is fixed once the property exists, and sitelinks apply to items only. A statement\'s datavalue shape follows its property\'s datatype (read it with wikibase-get-entity on the property). For a single statement with an item, string, external-id or url value, wikibase-add-statement builds the JSON instead.',
+		'Creates or changes a Wikibase entity from a JSON description of the change, and returns the entity ID and new revision ID. Enabled only when the wiki is a Wikibase repository. Omit entityId to create a new item or property, or name an item, property or lexeme to edit it. Requires the edit right.\n\ndata is merged into the entity: terms and statements it does not mention are left alone, and a term given for a language replaces that language\'s term. clear=true empties the entity first, so anything absent from data is deleted.\n\nExample data, setting an English label and adding one statement:\n{"labels":{"en":{"language":"en","value":"Berlin"}},"claims":[{"mainsnak":{"snaktype":"value","property":"P31","datavalue":{"type":"wikibase-entityid","value":{"entity-type":"item","id":"Q515"}}},"type":"statement","rank":"normal"}]}\n\nCreating a property requires datatype in data, which is fixed once the property exists, and sitelinks apply to items only. A lexeme names its terms lemmas rather than labels, so its data uses that key. A statement\'s datavalue shape follows its property\'s datatype (read it with wikibase-get-entity on the property). For a single statement with an item, string, external-id or url value, wikibase-add-statement builds the JSON instead.',
 	inputSchema,
 	annotations: {
 		title: 'Edit Wikibase entity',

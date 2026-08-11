@@ -22,10 +22,10 @@ const inputSchema = {
 		.describe('Which kind of entity to look for.'),
 	language: z
 		.string()
-		.regex(LANGUAGE_CODE, 'A single language code, such as en or pt-br')
+		.regex(LANGUAGE_CODE, 'A single lowercase language code, such as en or pt-br')
 		.optional()
 		.describe(
-			'Language code the search terms and the returned labels are in. Defaults to the wiki content language.',
+			'Language code the search terms and the returned labels are in. Lowercase, as MediaWiki writes them: en-gb, not en-GB. Defaults to the wiki content language.',
 		),
 	limit: z
 		.number()
@@ -114,11 +114,14 @@ function renderMatch(match: SearchMatch): string {
 	return line;
 }
 
+// The budget counts code points rather than UTF-16 units, so a cut landing
+// inside an astral character such as an emoji does not leave half of one behind.
 function clamp(description: string | undefined): string | undefined {
 	if (description === undefined || description === '') {
 		return undefined;
 	}
-	return description.length > MAX_DESCRIPTION_CHARS
-		? `${description.slice(0, MAX_DESCRIPTION_CHARS)}…`
+	const characters = Array.from(description);
+	return characters.length > MAX_DESCRIPTION_CHARS
+		? `${characters.slice(0, MAX_DESCRIPTION_CHARS).join('')}…`
 		: description;
 }

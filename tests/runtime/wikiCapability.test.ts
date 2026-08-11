@@ -190,6 +190,14 @@ describe('checkWikiCapability — pack wiki gates', () => {
 		expect(message).toContain('bare');
 	});
 
+	it('points a refused caller at the wikis that do satisfy the gate', async () => {
+		const result = await checkWikiCapability('wikibase-query', 'bare', twoWikiCtx());
+
+		expect(JSON.stringify(result?.content)).toContain(
+			'Use list-wikis to see which wikis have one.',
+		);
+	});
+
 	it('allows the same tool on the wiki that satisfies the gate', async () => {
 		expect(await checkWikiCapability('wikibase-query', 'served', twoWikiCtx())).toBeUndefined();
 	});

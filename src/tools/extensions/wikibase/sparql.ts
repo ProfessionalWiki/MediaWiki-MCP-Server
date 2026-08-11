@@ -16,6 +16,9 @@ const MAX_RESULT_BYTES = 10 * 1024 * 1024;
 /** Characters of a query service's own error text passed back to the caller. */
 const MAX_SERVICE_MESSAGE_CHARS = 500;
 
+/** A line break inside a cell, which `GROUP_CONCAT` puts there routinely. */
+const LINE_BREAK = /\r\n|[\r\n]/g;
+
 /** A query service failure already classified into an MCP error category. */
 export class SparqlError extends Error {
 	public constructor(
@@ -74,16 +77,20 @@ function querySignal(): AbortSignal {
 }
 
 function parseResults(body: string, maxRows: number): SparqlResults {
-	let parsed: SparqlJson;
+	let envelope: unknown;
 	try {
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SPARQL results envelope; shape is checked below
-		parsed = JSON.parse(body) as SparqlJson;
+		envelope = JSON.parse(body);
 	} catch {
-		throw new SparqlError(
-			'upstream_failure',
-			'The query service returned a response that is not SPARQL JSON results.',
-		);
+		throw notSparqlResults();
 	}
+	// A body of `null` parses, and reading a property off it throws. This runs
+	// outside the catch that classifies failures, so that TypeError would reach
+	// the caller unclassified.
+	if (typeof envelope !== 'object' || envelope === null) {
+		throw notSparqlResults();
+	}
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SPARQL results envelope; shape is checked below
+	const parsed = envelope as SparqlJson;
 
 	if (typeof parsed.boolean === 'boolean') {
 		return { columns: [], rows: [], totalRows: 0, boolean: parsed.boolean };
@@ -92,10 +99,7 @@ function parseResults(body: string, maxRows: number): SparqlResults {
 	const vars = parsed.head?.vars;
 	const bindings = parsed.results?.bindings;
 	if (!Array.isArray(vars) || !Array.isArray(bindings)) {
-		throw new SparqlError(
-			'upstream_failure',
-			'The query service returned a response that is not SPARQL JSON results.',
-		);
+		throw notSparqlResults();
 	}
 
 	const columns = vars.filter((name): name is string => typeof name === 'string');
@@ -108,26 +112,34 @@ function parseResults(body: string, maxRows: number): SparqlResults {
 	};
 }
 
+function notSparqlResults(): SparqlError {
+	return new SparqlError(
+		'upstream_failure',
+		'The query service returned a response that is not SPARQL JSON results.',
+	);
+}
+
 // Unbound variables keep their column as an empty cell: dropping them would
-// shift every later cell one column left.
+// shift every later cell one column left. Line breaks inside a cell become
+// spaces, since a solution is a line.
 function renderRow(binding: unknown, columns: string[]): string {
 	const cells = typeof binding === 'object' && binding !== null ? binding : {};
 	return columns
 		.map((column) => {
 			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SPARQL binding term; narrowed to read `value`
 			const term = (cells as Record<string, { value?: unknown } | undefined>)[column];
-			return typeof term?.value === 'string' ? term.value : '';
+			return typeof term?.value === 'string' ? term.value.replace(LINE_BREAK, ' ') : '';
 		})
 		.join(' | ');
 }
 
 function classifyQueryFailure(err: unknown, endpoint: string): SparqlError {
 	if (err instanceof HttpStatusError) {
-		return new SparqlError(categoryForStatus(err.status), serviceMessage(err));
+		return new SparqlError(categoryForStatus(err.status), serviceMessage(err, endpoint));
 	}
 	if (err instanceof FileTooLargeError) {
 		return new SparqlError(
-			'upstream_failure',
+			'invalid_input',
 			`The query service returned more than ${MAX_RESULT_BYTES / (1024 * 1024)} MB of results. Add LIMIT to the query, or project fewer variables.`,
 		);
 	}
@@ -143,8 +155,9 @@ function classifyQueryFailure(err: unknown, endpoint: string): SparqlError {
 
 /**
  * The endpoint named rather than quoted. A transport error quotes the URL it
- * failed on, and this one is the operator's to know: it can carry a token in its
- * path or query, and it reaches the caller and the logs from here.
+ * failed on, and a query service echoes the request URI into its own error page.
+ * That URL is the operator's to know: it can carry a token in its path or query,
+ * and it reaches the caller and the logs from here.
  */
 function withoutEndpoint(message: string, endpoint: string): string {
 	return endpoint === '' ? message : message.split(endpoint).join('the configured sparqlEndpoint');
@@ -167,9 +180,10 @@ function categoryForStatus(status: number): ErrorCategory {
 
 // Query services answer a bad query with their engine's own diagnostics, which
 // run to dozens of lines of parser expectations. The leading lines carry the
-// actual complaint.
-function serviceMessage(err: HttpStatusError): string {
-	const body = err.body?.trim() ?? '';
+// actual complaint. The endpoint goes before the cut, so that cutting cannot
+// leave a fragment of it standing.
+function serviceMessage(err: HttpStatusError, endpoint: string): string {
+	const body = withoutEndpoint(err.body?.trim() ?? '', endpoint);
 	if (body === '') {
 		return `The query service rejected the request (HTTP ${err.status}).`;
 	}

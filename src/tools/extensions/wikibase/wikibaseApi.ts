@@ -8,9 +8,13 @@ export const LABEL_CALL_SIZE = 50;
 /**
  * A single language code. The term APIs also accept a pipe-separated list, which
  * multiplies the response by the number of codes for terms nothing here renders.
- * Digits belong: `es-419` is Latin American Spanish.
+ * Digits belong: `es-419` is Latin American Spanish. MediaWiki codes are
+ * lowercase, and `wbgetentities` answers an unrecognised one with every language
+ * the entity has rather than an error, so `en-US` is refused here — the one shape
+ * of invalid code that no response can be checked against, since a lexeme carries
+ * no term maps to check.
  */
-export const LANGUAGE_CODE = /^[a-zA-Z][a-zA-Z0-9-]{1,19}$/;
+export const LANGUAGE_CODE = /^[a-z][a-z0-9-]{1,19}$/;
 
 /**
  * IDs whose labels one rendering resolves, over at most three parallel
@@ -41,22 +45,29 @@ export async function resolveLanguage(ctx: ToolContext, requested?: string): Pro
 	return lang ?? FALLBACK_LANGUAGE;
 }
 
-/** The value in `language`, falling back to any other language the entity has. */
+/** The entity's label in `language`. */
 export function labelOf(entity: EntityLabels | undefined, language: string): string | undefined {
-	const labels = entity?.labels;
-	if (labels === undefined) {
-		return undefined;
-	}
-	const requested = labels[language]?.value;
-	if (typeof requested === 'string') {
-		return requested;
-	}
-	for (const term of Object.values(labels)) {
-		if (typeof term?.value === 'string') {
-			return term.value;
-		}
-	}
-	return undefined;
+	const requested = entity?.labels?.[language]?.value;
+	return typeof requested === 'string' ? requested : undefined;
+}
+
+/**
+ * Whether the wiki knows the code its terms were requested in. `wbgetentities`
+ * does not reject an unrecognised `languages` value: it warns and answers with
+ * every language the entity has. A recognised code under `languagefallback=1`
+ * is always the key its terms come back under, whichever language of the
+ * fallback chain supplied them, and a term the chain reaches nowhere is absent
+ * rather than substituted. So a map holding languages but not the requested one
+ * is the wiki reporting that it never recognised the code.
+ */
+export function languageRecognised(
+	termMaps: readonly (Record<string, unknown> | undefined)[],
+	language: string,
+): boolean {
+	return termMaps.every(
+		(terms) =>
+			terms === undefined || Object.keys(terms).length === 0 || Object.hasOwn(terms, language),
+	);
 }
 
 /**

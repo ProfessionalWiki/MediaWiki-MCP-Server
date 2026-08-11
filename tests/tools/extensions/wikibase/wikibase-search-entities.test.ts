@@ -102,6 +102,65 @@ describe('wikibase-search-entities', () => {
 		expect(assertStructuredSuccess(result)).toContain('(matched alias: Douglas Noel Adams)');
 	});
 
+	it('clamps a description that would dominate its line', async () => {
+		const { ctx } = contextWith({
+			search: [{ id: 'Q42', label: 'Douglas Adams', description: 'x'.repeat(600) }],
+		});
+
+		const result = await wikibaseSearchEntities.handle(
+			toolArgs(wikibaseSearchEntities, { query: 'Douglas Adams' }),
+			ctx,
+		);
+
+		expect(assertStructuredSuccess(result)).toContain(`Q42 — Douglas Adams — ${'x'.repeat(200)}…`);
+	});
+
+	// Cutting UTF-16 units instead of characters leaves half an astral character
+	// behind, which is not text any more.
+	it('clamps a description without splitting a character that straddles the limit', async () => {
+		const { ctx } = contextWith({
+			search: [
+				{
+					id: 'Q42',
+					label: 'Douglas Adams',
+					description: `${'x'.repeat(199)}😀${'y'.repeat(100)}`,
+				},
+			],
+		});
+
+		const result = await wikibaseSearchEntities.handle(
+			toolArgs(wikibaseSearchEntities, { query: 'Douglas Adams' }),
+			ctx,
+		);
+
+		expect(assertStructuredSuccess(result)).toContain(
+			`Q42 — Douglas Adams — ${'x'.repeat(199)}😀…`,
+		);
+	});
+
+	it('asks the wiki for both the search language and the returned label language', async () => {
+		const { mock, ctx } = contextWith(DOUGLAS_ADAMS, 'de');
+
+		await wikibaseSearchEntities.handle(
+			toolArgs(wikibaseSearchEntities, {
+				query: 'Douglas Adams',
+				entityType: 'property',
+				language: 'fr',
+				limit: 5,
+			}),
+			ctx,
+		);
+
+		expect(mock.request.mock.calls[0][0]).toMatchObject({
+			search: 'Douglas Adams',
+			language: 'fr',
+			uselang: 'fr',
+			type: 'property',
+			limit: 5,
+			formatversion: '2',
+		});
+	});
+
 	it('defaults the search language to the wiki content language', async () => {
 		const { mock, ctx } = contextWith(DOUGLAS_ADAMS, 'de');
 

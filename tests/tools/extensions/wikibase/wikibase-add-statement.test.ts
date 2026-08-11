@@ -141,6 +141,33 @@ describe('wikibase-add-statement', () => {
 		expect(assertStructuredError(result, 'not_found').message).toContain('P999');
 	});
 
+	it('reports a property definition without a datatype as upstream_failure', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({ entities: { P31: { id: 'P31', type: 'property' } } }),
+		});
+		const submit = vi.fn();
+		const ctx = fakeContext({ mwn: async () => mock as never, edit: { ...baseEdit, submit } });
+
+		const result = await wikibaseAddStatement.handle(
+			toolArgs(wikibaseAddStatement, { entityId: 'Q42', propertyId: 'P31', value: 'Q5' }),
+			ctx,
+		);
+
+		assertStructuredError(result, 'upstream_failure');
+		expect(submit).not.toHaveBeenCalled();
+	});
+
+	it('reports a write that returned no statement as upstream_failure', async () => {
+		const { ctx } = contextWith('string', vi.fn().mockResolvedValue({ success: 1 }));
+
+		const result = await wikibaseAddStatement.handle(
+			toolArgs(wikibaseAddStatement, { entityId: 'Q42', propertyId: 'P31', value: 'hello' }),
+			ctx,
+		);
+
+		assertStructuredError(result, 'upstream_failure');
+	});
+
 	it('refuses a property ID where an item ID belongs', async () => {
 		const { ctx, submit } = contextWith('wikibase-item');
 
@@ -167,6 +194,27 @@ describe('wikibase-add-statement', () => {
 		);
 
 		expect(submit.mock.calls[0][1]).toMatchObject({ summary: 'from a source' });
+	});
+
+	it('adds a statement to a lexeme, which serialises its statements under claims', async () => {
+		const { ctx, submit } = contextWith('wikibase-item');
+
+		await wikibaseAddStatement.handle(
+			toolArgs(wikibaseAddStatement, { entityId: 'L1', propertyId: 'P31', value: 'Q5' }),
+			ctx,
+		);
+
+		expect(submit.mock.calls[0][1]).toMatchObject({ action: 'wbcreateclaim', entity: 'L1' });
+	});
+
+	it('rejects a MediaInfo id, naming the entity types it can write to', () => {
+		expect(() =>
+			toolArgs(wikibaseAddStatement, {
+				entityId: 'M12017177',
+				propertyId: 'P31',
+				value: 'Q515',
+			}),
+		).toThrow(/Item, property or lexeme ID/);
 	});
 
 	it('is annotated as a write tool so the read-only gate covers it', () => {

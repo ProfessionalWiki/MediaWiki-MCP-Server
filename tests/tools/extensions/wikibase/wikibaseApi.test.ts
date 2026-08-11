@@ -5,6 +5,7 @@ import {
 	LABEL_CALL_SIZE,
 	labelOf,
 	LANGUAGE_CODE,
+	languageRecognised,
 	MAX_LABEL_IDS,
 } from '../../../../src/tools/extensions/wikibase/wikibaseApi.ts';
 
@@ -28,6 +29,14 @@ describe('LANGUAGE_CODE', () => {
 	it('rejects a code that starts with a digit', () => {
 		expect(LANGUAGE_CODE.test('419')).toBe(false);
 	});
+
+	// MediaWiki codes are lowercase, and the API answers an unrecognised one with
+	// every language the entity has rather than an error, so the case a caller is
+	// most likely to guess wrong is worth refusing before the request goes out.
+	it('rejects an uppercased code, which the wiki does not recognise', () => {
+		expect(LANGUAGE_CODE.test('en-US')).toBe(false);
+		expect(LANGUAGE_CODE.test('EN')).toBe(false);
+	});
 });
 
 describe('labelOf', () => {
@@ -39,18 +48,51 @@ describe('labelOf', () => {
 		expect(labelOf(entity, 'de')).toBe('Mensch');
 	});
 
-	// A wiki that has no term in the caller's language still knows the entity by
-	// some name, and a bare Q-id is what the alternative reads as.
-	it('falls back to a label in another language when the requested one has none', () => {
+	// A recognised code is answered with the terms of its own fallback chain, so a
+	// term keyed under another language is not this entity's name in the language
+	// that was asked for.
+	it('returns undefined when the label is in another language', () => {
 		const entity = { labels: { de: { value: 'Mensch' } } };
 
-		expect(labelOf(entity, 'en')).toBe('Mensch');
+		expect(labelOf(entity, 'en')).toBeUndefined();
 	});
 
 	it('returns undefined for an entity with no labels at all', () => {
 		expect(labelOf({ labels: {} }, 'en')).toBeUndefined();
 		expect(labelOf({}, 'en')).toBeUndefined();
 		expect(labelOf(undefined, 'en')).toBeUndefined();
+	});
+});
+
+describe('languageRecognised', () => {
+	it('accepts a code the wiki answered under the key that was asked for', () => {
+		expect(languageRecognised([{ en: { value: 'Douglas Adams' } }], 'en')).toBe(true);
+	});
+
+	it('rejects a code the wiki answered with every language the entity has', () => {
+		const labels = { ar: { value: 'دوغلاس آدمز' }, de: { value: 'Douglas Adams' } };
+
+		expect(languageRecognised([labels], 'en')).toBe(false);
+	});
+
+	it('accepts a code no term of the entity resolved to', () => {
+		expect(languageRecognised([{}, {}], 'en')).toBe(true);
+	});
+
+	it('rejects a code that any one term map answered with other languages', () => {
+		const maps = [{ en: { value: 'Douglas Adams' } }, {}, { de: [{ value: 'Adams' }] }];
+
+		expect(languageRecognised(maps, 'en')).toBe(false);
+	});
+
+	it('accepts a code where the response carries no term map at all', () => {
+		expect(languageRecognised([undefined, undefined], 'en')).toBe(true);
+	});
+
+	// A code naming a member of Object's prototype reads back as an inherited
+	// value rather than as a term the wiki returned.
+	it('rejects a code that only names an inherited member', () => {
+		expect(languageRecognised([{ de: { value: 'Mensch' } }], 'constructor')).toBe(false);
 	});
 });
 

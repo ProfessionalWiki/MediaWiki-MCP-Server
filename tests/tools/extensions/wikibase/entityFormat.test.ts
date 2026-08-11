@@ -15,6 +15,9 @@ function valueSnak(property: string, value: unknown, type: string): Snak {
 
 const noLabels = (): undefined => undefined;
 
+const GREGORIAN = 'http://www.wikidata.org/entity/Q1985727';
+const JULIAN = 'http://www.wikidata.org/entity/Q1985786';
+
 describe('formatSnak', () => {
 	it('renders an item value as id with its resolved label', () => {
 		const snak = valueSnak('P106', { 'entity-type': 'item', id: 'Q36834' }, 'wikibase-entityid');
@@ -30,20 +33,98 @@ describe('formatSnak', () => {
 		expect(formatSnak(snak, noLabels)).toBe('Q36834');
 	});
 
+	it('renders a pre-2015 item value that carries only its numeric id', () => {
+		const snak = valueSnak(
+			'P106',
+			{ 'entity-type': 'item', 'numeric-id': 36834 },
+			'wikibase-entityid',
+		);
+
+		expect(formatSnak(snak, (id) => (id === 'Q36834' ? 'composer' : undefined))).toBe(
+			'Q36834 (composer)',
+		);
+	});
+
+	it('renders a pre-2015 property value that carries only its numeric id', () => {
+		const snak = valueSnak(
+			'P1963',
+			{ 'entity-type': 'property', 'numeric-id': 31 },
+			'wikibase-entityid',
+		);
+
+		expect(formatSnak(snak, (id) => (id === 'P31' ? 'instance of' : undefined))).toBe(
+			'P31 (instance of)',
+		);
+	});
+
 	it('renders a day-precision time as a calendar date', () => {
 		const snak = valueSnak(
 			'P569',
-			{ time: '+1952-03-11T00:00:00Z', precision: 11, calendarmodel: 'x' },
+			{ time: '+1952-03-11T00:00:00Z', precision: 11, calendarmodel: GREGORIAN },
 			'time',
 		);
 
 		expect(formatSnak(snak, noLabels)).toBe('1952-03-11');
 	});
 
+	it('names a calendar that is not the Gregorian one the numbers are read in', () => {
+		const snak = valueSnak(
+			'P569',
+			{ time: '+1542-03-15T00:00:00Z', precision: 11, calendarmodel: JULIAN },
+			'time',
+		);
+
+		expect(formatSnak(snak, (id) => (id === 'Q1985786' ? 'Julian calendar' : undefined))).toBe(
+			'1542-03-15 (Julian calendar)',
+		);
+	});
+
+	it('names an unlabelled non-Gregorian calendar by its id', () => {
+		const snak = valueSnak(
+			'P569',
+			{ time: '+1542-03-15T00:00:00Z', precision: 11, calendarmodel: JULIAN },
+			'time',
+		);
+
+		expect(formatSnak(snak, noLabels)).toBe('1542-03-15 (Q1985786)');
+	});
+
+	// Julian and Gregorian diverge by days, which no rendering coarser than a
+	// month shows, so marking one there would flag most pre-1582 dates for nothing.
+	it('leaves the calendar unsaid when the rendering is too coarse to diverge', () => {
+		const snak = valueSnak(
+			'P569',
+			{ time: '+1542-01-01T00:00:00Z', precision: 9, calendarmodel: JULIAN },
+			'time',
+		);
+
+		expect(formatSnak(snak, noLabels)).toBe('1542');
+	});
+
+	it('leaves the calendar unsaid when a day-precision claim filled in no month', () => {
+		const snak = valueSnak(
+			'P569',
+			{ time: '+1542-00-00T00:00:00Z', precision: 11, calendarmodel: JULIAN },
+			'time',
+		);
+
+		expect(formatSnak(snak, noLabels)).toBe('1542');
+	});
+
+	it('names a calendar uri that is not an entity rather than dropping it', () => {
+		const snak = valueSnak(
+			'P569',
+			{ time: '+1542-03-15T00:00:00Z', precision: 11, calendarmodel: 'http://example.org/cal/x' },
+			'time',
+		);
+
+		expect(formatSnak(snak, noLabels)).toBe('1542-03-15 (http://example.org/cal/x)');
+	});
+
 	it('renders a year-precision time as the year alone', () => {
 		const snak = valueSnak(
 			'P571',
-			{ time: '+1867-01-01T00:00:00Z', precision: 9, calendarmodel: 'x' },
+			{ time: '+1867-01-01T00:00:00Z', precision: 9, calendarmodel: GREGORIAN },
 			'time',
 		);
 
@@ -53,7 +134,7 @@ describe('formatSnak', () => {
 	it('renders a month-precision time as year and month', () => {
 		const snak = valueSnak(
 			'P571',
-			{ time: '+1867-05-01T00:00:00Z', precision: 10, calendarmodel: 'x' },
+			{ time: '+1867-05-01T00:00:00Z', precision: 10, calendarmodel: GREGORIAN },
 			'time',
 		);
 
@@ -99,10 +180,38 @@ describe('formatSnak', () => {
 		expect(formatSnak(snak, noLabels)).toBe('16th century');
 	});
 
+	// The ordinal suffix does not follow from the last digit alone: 11, 12 and 13
+	// take 'th' where 1, 2 and 3 take 'st', 'nd' and 'rd'.
+	it.each([
+		['+0050', '1st century'],
+		['+0150', '2nd century'],
+		['+0250', '3rd century'],
+		['+0350', '4th century'],
+		['+1050', '11th century'],
+		['+1150', '12th century'],
+		['+1250', '13th century'],
+		['+2050', '21st century'],
+		['+2150', '22nd century'],
+		['+2250', '23rd century'],
+	])('renders year %s at century precision as the %s', (year, expected) => {
+		const snak = valueSnak('P571', { time: `${year}-00-00T00:00:00Z`, precision: 7 }, 'time');
+
+		expect(formatSnak(snak, noLabels)).toBe(expected);
+	});
+
 	it('renders a millennium-precision time as an ordinal millennium', () => {
 		const snak = valueSnak('P571', { time: '+1001-00-00T00:00:00Z', precision: 6 }, 'time');
 
 		expect(formatSnak(snak, noLabels)).toBe('2nd millennium');
+	});
+
+	it.each([
+		['+0500', '1st millennium'],
+		['+2500', '3rd millennium'],
+	])('renders year %s at millennium precision as the %s', (year, expected) => {
+		const snak = valueSnak('P571', { time: `${year}-00-00T00:00:00Z`, precision: 6 }, 'time');
+
+		expect(formatSnak(snak, noLabels)).toBe(expected);
 	});
 
 	it('marks a coarse date as approximate rather than naming a year', () => {
@@ -134,7 +243,7 @@ describe('formatSnak', () => {
 	it('keeps the padding of a bce calendar date', () => {
 		const snak = valueSnak(
 			'P570',
-			{ time: '-0044-03-15T00:00:00Z', precision: 11, calendarmodel: 'x' },
+			{ time: '-0044-03-15T00:00:00Z', precision: 11, calendarmodel: GREGORIAN },
 			'time',
 		);
 
@@ -210,6 +319,23 @@ describe('formatSnak', () => {
 		expect(formatSnak(snak, (id) => (id === 'Q111' ? 'Mars' : undefined))).toBe(
 			'-14.5, 175.4 on Q111 (Mars)',
 		);
+	});
+
+	it('names a globe that is not an entity rather than dropping it', () => {
+		const snak = valueSnak(
+			'P625',
+			{ latitude: 18.65, longitude: 226.2, globe: 'http://example.org/globes/mars' },
+			'globecoordinate',
+		);
+
+		expect(formatSnak(snak, noLabels)).toBe('18.65, 226.2 on http://example.org/globes/mars');
+	});
+
+	it('clamps a globe uri that would dominate its line', () => {
+		const globe = `http://example.org/globes/${'m'.repeat(400)}`;
+		const snak = valueSnak('P625', { latitude: 1, longitude: 2, globe }, 'globecoordinate');
+
+		expect(formatSnak(snak, noLabels)).toBe(`1, 2 on ${Array.from(globe).slice(0, 200).join('')}…`);
 	});
 
 	it('clamps a string value that would dominate its line', () => {
@@ -290,6 +416,22 @@ describe('referencedEntityIds', () => {
 		]);
 	});
 
+	it('looks up the label of a pre-2015 value that carries only its numeric id', () => {
+		const claims: Claims = {
+			P106: [
+				{
+					mainsnak: valueSnak(
+						'P106',
+						{ 'entity-type': 'item', 'numeric-id': 36834 },
+						'wikibase-entityid',
+					),
+				},
+			],
+		};
+
+		expect(referencedEntityIds(claims, MAX_VALUES_PER_PROPERTY)).toEqual(['P106', 'Q36834']);
+	});
+
 	it('includes quantity units and de-duplicates repeated ids', () => {
 		const claims: Claims = {
 			P2044: [
@@ -364,6 +506,54 @@ describe('referencedEntityIds', () => {
 		};
 
 		expect(referencedEntityIds(claims, 1)).toEqual(['P1082', 'Q2']);
+	});
+
+	it('looks up the label of a calendar the date has to name', () => {
+		const claims: Claims = {
+			P569: [
+				{
+					mainsnak: valueSnak(
+						'P569',
+						{ time: '+1542-03-15T00:00:00Z', precision: 11, calendarmodel: JULIAN },
+						'time',
+					),
+				},
+			],
+		};
+
+		expect(referencedEntityIds(claims, MAX_VALUES_PER_PROPERTY)).toContain('Q1985786');
+	});
+
+	it('leaves a calendar the date does not name out of the ids to look up', () => {
+		const claims: Claims = {
+			P569: [
+				{
+					mainsnak: valueSnak(
+						'P569',
+						{ time: '+1542-00-00T00:00:00Z', precision: 9, calendarmodel: JULIAN },
+						'time',
+					),
+				},
+			],
+		};
+
+		expect(referencedEntityIds(claims, MAX_VALUES_PER_PROPERTY)).not.toContain('Q1985786');
+	});
+
+	it('leaves a foreign globe uri out of the ids to look up', () => {
+		const claims: Claims = {
+			P625: [
+				{
+					mainsnak: valueSnak(
+						'P625',
+						{ latitude: 18.65, longitude: 226.2, globe: 'http://example.org/globes/mars' },
+						'globecoordinate',
+					),
+				},
+			],
+		};
+
+		expect(referencedEntityIds(claims, MAX_VALUES_PER_PROPERTY)).toEqual(['P625']);
 	});
 
 	it('includes the globe of a coordinate away from Earth', () => {

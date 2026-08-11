@@ -11,8 +11,10 @@ const TEXT_DATATYPES: ReadonlySet<string> = new Set(['string', 'external-id', 'u
 const inputSchema = {
 	entityId: z
 		.string()
-		.regex(/^[A-Za-z]+\d+$/, 'Entity ID, such as Q42')
-		.describe('The entity the statement is added to.'),
+		.regex(/^[QqPpLl]\d+$/, 'Item, property or lexeme ID, such as Q42, P31 or L1')
+		.describe(
+			'The item, property or lexeme the statement is added to. Other entity types, such as MediaInfo M-ids, are not supported.',
+		),
 	propertyId: z
 		.string()
 		.regex(/^[Pp]\d+$/, 'Property ID, such as P31')
@@ -39,7 +41,7 @@ interface CreateClaimResponse {
 export const wikibaseAddStatement: Tool<typeof inputSchema> = {
 	name: 'wikibase-add-statement',
 	description:
-		"Adds one statement to a Wikibase entity and returns the new statement ID. Enabled only when the wiki is a Wikibase repository. Requires the edit right.\n\nThe value is given as text and interpreted by the property's datatype, which is read from the wiki first: an item ID such as Q515 for a wikibase-item property, and the literal text for a string, external-id or url property. A property of any other datatype is rejected, naming it; those statements go through wikibase-edit-entity, which takes the full statement JSON and also writes qualifiers, references and several statements at once.\n\nExisting statements are left in place, so calling twice with the same value leaves the entity holding it twice.",
+		"Adds one statement to a Wikibase item, property or lexeme and returns the new statement ID. Enabled only when the wiki is a Wikibase repository. Requires the edit right.\n\nThe value is given as text and interpreted by the property's datatype, which is read from the wiki first: an item ID such as Q515 for a wikibase-item property, and the literal text for a string, external-id or url property. A property of any other datatype is rejected, naming it; those statements go through wikibase-edit-entity, which takes the full statement JSON and also writes qualifiers, references and several statements at once.\n\nExisting statements are left in place, so calling twice with the same value leaves the entity holding it twice.",
 	inputSchema,
 	annotations: {
 		title: 'Add Wikibase statement',

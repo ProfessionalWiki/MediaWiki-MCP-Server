@@ -23,7 +23,7 @@ const inputSchema = {
 
 export const wikibaseQuery: Tool<typeof inputSchema> = {
 	name: 'wikibase-query',
-	description: `Runs a SPARQL query against the targeted wiki's query service and returns the solutions as rows, one line per solution with the cells joined by \` | \` in column order; a cell containing that separator is not escaped. Enabled only when the wiki is a Wikibase repository with a query service configured.\n\nThe answer to a question about many entities at once, or about which entities have a given statement — for one known entity, wikibase-get-entity is a single request. Property and entity IDs are wiki-specific and the prefixes are too (Wikidata's \`wd:\`/\`wdt:\` are not universal), so ground both with wikibase-search-entities first.\n\nExample against a Wikidata-style prefix scheme:\n  SELECT ?item ?itemLabel WHERE { ?item wdt:P31 wd:Q146 } LIMIT 10\n\nA malformed query returns the query service's own parser message. Long-running queries are cut off after 60 seconds. Up to ${HARD_LIMIT} rows per call, and the response body is truncated at 50000 bytes by default; add LIMIT and OFFSET to the query to page beyond that.`,
+	description: `Runs a SPARQL query against the targeted wiki's query service and returns the solutions as rows, one line per solution with the cells joined by \` | \` in column order; a line break inside a cell becomes a space, and a cell containing that separator is not escaped. Enabled only when the wiki is a Wikibase repository with a query service configured.\n\nThe answer to a question about many entities at once, or about which entities have a given statement — for one known entity, wikibase-get-entity is a single request. Property and entity IDs are wiki-specific and the prefixes are too (Wikidata's \`wd:\`/\`wdt:\` are not universal), so ground both with wikibase-search-entities first.\n\nExample against a Wikidata-style prefix scheme:\n  SELECT ?item ?itemLabel WHERE { ?item wdt:P31 wd:Q146 } LIMIT 10\n\nA malformed query returns the query service's own parser message. Long-running queries are cut off after 60 seconds. Up to ${HARD_LIMIT} rows per call, and the response body is truncated at 50000 bytes by default; add LIMIT and OFFSET to the query to page beyond that.`,
 	inputSchema,
 	annotations: {
 		title: 'Run SPARQL query',
@@ -83,7 +83,7 @@ function truncationOf(
 				// told only about the bytes believing the rest is one page away.
 				remedyHint:
 					totalRows > limit
-						? `The query matched ${totalRows} rows; ${capped.lines.length} were delivered before the byte cap — narrow the projection or page with LIMIT and OFFSET.`
+						? `To read the rest of the ${totalRows} rows the query matched (${capped.lines.length} delivered before the byte cap), narrow the projection or page with LIMIT and OFFSET.`
 						: 'To read the rest, narrow the projection or page with LIMIT and OFFSET.',
 			},
 		};

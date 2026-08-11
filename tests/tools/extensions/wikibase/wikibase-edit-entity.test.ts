@@ -22,6 +22,16 @@ function contextWith(submit = vi.fn().mockResolvedValue(SAVED)) {
 
 const LABEL_DATA = { labels: { en: { language: 'en', value: 'Berlin' } } };
 
+const CLAIM_DATA = {
+	claims: [
+		{
+			mainsnak: { snaktype: 'value', property: 'P31' },
+			type: 'statement',
+			rank: 'normal',
+		},
+	],
+};
+
 describe('wikibase-edit-entity', () => {
 	it('creates a new entity of the requested type when no entityId is given', async () => {
 		const { ctx, submit } = contextWith();
@@ -126,6 +136,26 @@ describe('wikibase-edit-entity', () => {
 		)(toolArgs(wikibaseEditEntity, { entityId: 'Q1234', data: LABEL_DATA }));
 
 		assertStructuredError(result, 'authentication');
+	});
+
+	it('edits a lexeme, which serialises its statements under claims', async () => {
+		const { ctx, submit } = contextWith();
+
+		await wikibaseEditEntity.handle(
+			toolArgs(wikibaseEditEntity, { entityId: 'L1', data: CLAIM_DATA }),
+			ctx,
+		);
+
+		expect(submit.mock.calls[0][1]).toMatchObject({
+			id: 'L1',
+			data: JSON.stringify(CLAIM_DATA),
+		});
+	});
+
+	it('rejects a MediaInfo id, naming the entity types its payload describes', () => {
+		expect(() => toolArgs(wikibaseEditEntity, { entityId: 'M12017177', data: LABEL_DATA })).toThrow(
+			/Item, property or lexeme ID/,
+		);
 	});
 
 	it('is annotated as a write tool so the read-only gate covers it', () => {

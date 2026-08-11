@@ -46,6 +46,9 @@ const EARTH = 'Q2';
 /** What Wikibase writes for a month or day the statement does not actually know. */
 const UNKNOWN_PART = '00';
 
+/** The calendar the dates of a Wikibase are read in unless a statement says otherwise. */
+const GREGORIAN = 'Q1985727';
+
 // Rank says which statements the community holds to be current: a property whose
 // values changed over time keeps every one, with the preferred rank on the value
 // that applies now. Wikibase returns them in edit order, so the current value is
@@ -59,7 +62,7 @@ const RANK_ORDER: Readonly<Record<string, number>> = { preferred: 0, normal: 1, 
  */
 export function capProperties(
 	claims: Claims,
-	maxProperties: number = MAX_PROPERTIES,
+	maxProperties: number,
 ): { claims: Claims; totalProperties: number } {
 	const properties = Object.keys(claims);
 	if (properties.length <= maxProperties) {
@@ -160,7 +163,7 @@ export function formatSnak(snak: Snak, labelFor: LabelLookup): string {
 		case 'wikibase-entityid':
 			return formatEntityIdValue(value, labelFor);
 		case 'time':
-			return formatTimeValue(value);
+			return formatTimeValue(value, labelFor);
 		case 'quantity':
 			return formatQuantityValue(value, labelFor);
 		case 'monolingualtext':
@@ -205,7 +208,25 @@ function valueEntityId(snak: Snak): string | undefined {
 	if (type === 'globecoordinate' && isRecord(value)) {
 		return globeEntityId(value);
 	}
+	if (type === 'time' && isRecord(value)) {
+		return calendarEntityId(value);
+	}
 	return undefined;
+}
+
+/** The calendar ID a rendering of this time will show, when one is worth a label. */
+function calendarEntityId(value: Record<string, unknown>): string | undefined {
+	if (typeof value.time !== 'string') {
+		return undefined;
+	}
+	const parts = /^([+-])(\d+)-(\d{2})-(\d{2})T/.exec(value.time);
+	if (parts === null) {
+		return undefined;
+	}
+	const precision = typeof value.precision === 'number' ? value.precision : 11;
+	const model = calendarModelOf(value, parts[3], precision);
+	// A raw URI renders as itself, so it has no label to spend a lookup slot on.
+	return model !== undefined && /^[A-Za-z]+\d+$/.test(model) ? model : undefined;
 }
 
 function formatEntityIdValue(value: unknown, labelFor: LabelLookup): string {
@@ -257,7 +278,7 @@ function globeEntityId(value: Record<string, unknown>): string | undefined {
 	return id === EARTH ? undefined : id;
 }
 
-function formatTimeValue(value: unknown): string {
+function formatTimeValue(value: unknown, labelFor: LabelLookup): string {
 	if (!isRecord(value) || typeof value.time !== 'string') {
 		return compactJson(value);
 	}
@@ -268,7 +289,41 @@ function formatTimeValue(value: unknown): string {
 	const [, sign, year, month, day] = parts;
 	const precision = typeof value.precision === 'number' ? value.precision : 11;
 	const date = formatTimePeriod(year, month, day, precision);
-	return sign === '-' ? `${date} BCE` : date;
+	const dated = sign === '-' ? `${date} BCE` : date;
+	const calendar = calendarModelOf(value, month, precision);
+	if (calendar === undefined) {
+		return dated;
+	}
+	return `${dated} (${labelFor(calendar) ?? calendar})`;
+}
+
+/**
+ * The calendar a rendered date has to name, or undefined when it does not.
+ *
+ * Julian and Gregorian dates diverge by up to thirteen days, so the same
+ * statement means a different day under each. That only shows once a month is
+ * rendered; at year precision and coarser the two agree on everything printed,
+ * and naming the calendar there would mark most pre-1582 dates for nothing.
+ * Gregorian is left unsaid, as the calendar the numbers are read in by default.
+ */
+function calendarModelOf(
+	value: Record<string, unknown>,
+	month: string,
+	precision: number,
+): string | undefined {
+	if (precision < 10 || month === UNKNOWN_PART) {
+		return undefined;
+	}
+	if (typeof value.calendarmodel !== 'string' || value.calendarmodel === '') {
+		return undefined;
+	}
+	const id = conceptUriId(value.calendarmodel);
+	if (id === GREGORIAN) {
+		return undefined;
+	}
+	// A calendar URI from another vocabulary carries no entity ID. Naming it raw
+	// beats dropping it, which would leave the date reading as Gregorian.
+	return id ?? clamp(value.calendarmodel);
 }
 
 // Wikibase records how far a date is actually known, and everything below year
@@ -351,11 +406,19 @@ function formatCoordinateValue(value: unknown, labelFor: LabelLookup): string {
 		return compactJson(value);
 	}
 	const coordinates = `${value.latitude}, ${value.longitude}`;
-	const globe = globeEntityId(value);
 	// Earth is left unsaid; anything else changes what the numbers mean.
-	return globe === undefined
-		? coordinates
-		: `${coordinates} on ${withLabel(globe, labelFor(globe))}`;
+	if (typeof value.globe !== 'string' || value.globe === '') {
+		return coordinates;
+	}
+	const globeId = conceptUriId(value.globe);
+	if (globeId === EARTH) {
+		return coordinates;
+	}
+	// A globe URI from another vocabulary carries no entity ID. Naming it raw
+	// beats dropping it, which would leave the coordinate reading as terrestrial.
+	return globeId === undefined
+		? `${coordinates} on ${clamp(value.globe)}`
+		: `${coordinates} on ${withLabel(globeId, labelFor(globeId))}`;
 }
 
 function withLabel(id: string, label: string | undefined): string {

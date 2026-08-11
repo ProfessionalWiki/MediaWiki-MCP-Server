@@ -83,6 +83,43 @@ describe('runSparqlQuery', () => {
 		expect((await runSparqlQuery(ENDPOINT, CATS, MANY_ROWS)).rows).toEqual(['urn:x | ']);
 	});
 
+	it('leaves a term without a string value as an empty cell', async () => {
+		vi.mocked(postForm).mockResolvedValue(
+			selectResults([{ item: { type: 'uri' }, itemLabel: { value: 42 } }], ['item', 'itemLabel']),
+		);
+
+		expect((await runSparqlQuery(ENDPOINT, CATS, MANY_ROWS)).rows).toEqual([' | ']);
+	});
+
+	// GROUP_CONCAT with a newline separator is standard SPARQL, and a cell holding
+	// one would otherwise break the one-line-per-solution contract.
+	it('collapses line breaks inside a cell so one solution stays one line', async () => {
+		vi.mocked(postForm).mockResolvedValue(
+			selectResults([{ item: { type: 'literal', value: 'Gli\nRoma\r\nMuseo\rDoria' } }]),
+		);
+
+		expect((await runSparqlQuery(ENDPOINT, CATS, MANY_ROWS)).rows).toEqual([
+			'Gli Roma Museo Doria',
+		]);
+	});
+
+	it('collapses line breaks in every cell, not only the first one it meets', async () => {
+		vi.mocked(postForm).mockResolvedValue(
+			selectResults(
+				[
+					{ item: { type: 'literal', value: 'a\nb' }, other: { type: 'literal', value: 'c\nd' } },
+					{ item: { type: 'literal', value: 'e\nf' }, other: { type: 'literal', value: 'g\nh' } },
+				],
+				['item', 'other'],
+			),
+		);
+
+		expect((await runSparqlQuery(ENDPOINT, CATS, MANY_ROWS)).rows).toEqual([
+			'a b | c d',
+			'e f | g h',
+		]);
+	});
+
 	it('renders only the rows the caller asked for, and reports how many matched', async () => {
 		vi.mocked(postForm).mockResolvedValue(selectResults(rowBindings(500)));
 
@@ -109,6 +146,29 @@ describe('runSparqlQuery', () => {
 		const signal = vi.mocked(postForm).mock.calls[0][2]?.signal;
 		expect(signal?.aborted).toBe(false);
 		controller.abort();
+		expect(signal?.aborted).toBe(true);
+	});
+
+	// A service that accepts the connection and then never answers rejects
+	// nothing, so the timeout leg is the only thing that ends the call — and it
+	// has to survive being composed with the request's own signal.
+	it('cancels a query the service accepts and never answers', async () => {
+		vi.mocked(postForm).mockResolvedValue(selectResults([]));
+		const timeout = new AbortController();
+		const armed = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(timeout.signal);
+		const request = new AbortController();
+
+		try {
+			await withRequestFields({ signal: request.signal }, async () => {
+				await runSparqlQuery(ENDPOINT, CATS, MANY_ROWS);
+			});
+		} finally {
+			armed.mockRestore();
+		}
+
+		const signal = vi.mocked(postForm).mock.calls[0][2]?.signal;
+		expect(signal?.aborted).toBe(false);
+		timeout.abort();
 		expect(signal?.aborted).toBe(true);
 	});
 
@@ -197,7 +257,9 @@ describe('runSparqlQuery', () => {
 
 		const error = await failureOf(runSparqlQuery(ENDPOINT, CATS, MANY_ROWS));
 
-		expect(error.category).toBe('upstream_failure');
+		// A caller query with no LIMIT is a client mistake, and only
+		// upstream_failure is logged at level=error.
+		expect(error.category).toBe('invalid_input');
 		expect(error.message).toContain('LIMIT');
 	});
 
@@ -216,6 +278,32 @@ describe('runSparqlQuery', () => {
 		const error = await failureOf(runSparqlQuery(secret, CATS, MANY_ROWS));
 
 		expect(error.message).toBe('request to the configured sparqlEndpoint failed');
+	});
+
+	// A query service that echoes the request URI into its error page hands the
+	// token straight back, and the service message reaches the caller and the logs.
+	it('names the endpoint rather than quoting it back in a service message', async () => {
+		const secret = 'https://query.example.org/sparql?token=hunter2';
+		vi.mocked(postForm).mockRejectedValue(
+			new HttpStatusError(400, secret, `Bad Request: ${secret} rejected the query`),
+		);
+
+		const error = await failureOf(runSparqlQuery(secret, CATS, MANY_ROWS));
+
+		expect(error.message).toBe('Bad Request: the configured sparqlEndpoint rejected the query');
+	});
+
+	// The padding puts the token inside the first five hundred characters and the
+	// rest of the URL past them, so cutting before naming leaves half a token.
+	it('names the endpoint before cutting the service message, not after', async () => {
+		const secret = 'https://query.example.org/sparql?token=hunter2&format=json';
+		vi.mocked(postForm).mockRejectedValue(
+			new HttpStatusError(400, secret, `${'e'.repeat(450)} ${secret}`),
+		);
+
+		const error = await failureOf(runSparqlQuery(secret, CATS, MANY_ROWS));
+
+		expect(error.message).toBe(`${'e'.repeat(450)} the configured sparqlEndpoint`);
 	});
 
 	it('summarises a multi-line service message at its first five lines', async () => {
@@ -245,6 +333,36 @@ describe('runSparqlQuery', () => {
 
 	it('reports JSON that is not a SPARQL result set as upstream_failure', async () => {
 		vi.mocked(postForm).mockResolvedValue(JSON.stringify({ status: 'queued' }));
+
+		expect((await failureOf(runSparqlQuery(ENDPOINT, CATS, MANY_ROWS))).category).toBe(
+			'upstream_failure',
+		);
+	});
+
+	// The envelope is parsed outside the classifying catch, so anything it throws
+	// that is not a SparqlError reaches the caller unclassified.
+	it('reports a JSON body that is not an object as upstream_failure', async () => {
+		vi.mocked(postForm).mockResolvedValue('null');
+
+		expect((await failureOf(runSparqlQuery(ENDPOINT, CATS, MANY_ROWS))).category).toBe(
+			'upstream_failure',
+		);
+	});
+
+	it('reports an envelope whose head vars are not an array as upstream_failure', async () => {
+		vi.mocked(postForm).mockResolvedValue(
+			JSON.stringify({ head: { vars: 'item' }, results: { bindings: [] } }),
+		);
+
+		expect((await failureOf(runSparqlQuery(ENDPOINT, CATS, MANY_ROWS))).category).toBe(
+			'upstream_failure',
+		);
+	});
+
+	it('reports an envelope whose bindings are not an array as upstream_failure', async () => {
+		vi.mocked(postForm).mockResolvedValue(
+			JSON.stringify({ head: { vars: ['item'] }, results: { bindings: { item: {} } } }),
+		);
 
 		expect((await failureOf(runSparqlQuery(ENDPOINT, CATS, MANY_ROWS))).category).toBe(
 			'upstream_failure',

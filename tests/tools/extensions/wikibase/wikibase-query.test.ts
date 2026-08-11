@@ -89,6 +89,33 @@ describe('wikibase-query', () => {
 		});
 	});
 
+	// Documented in the tool description: a cell holding the separator is handed
+	// back as it stands, so a caller splitting on ` | ` sees an extra column.
+	it('hands back a cell containing the row separator unescaped', async () => {
+		vi.mocked(postForm).mockResolvedValue(
+			selectResults(
+				[{ item: { type: 'literal', value: 'a | b' }, itemLabel: { type: 'literal', value: 'c' } }],
+				['item', 'itemLabel'],
+			),
+		);
+		const ctx = contextWithEndpoint();
+
+		const result = await wikibaseQuery.handle(toolArgs(wikibaseQuery, { query: CATS }), ctx);
+
+		expect(assertStructuredData(result).rows).toEqual(['a | b | c']);
+	});
+
+	it('keeps a solution on one line when a cell contains a newline', async () => {
+		vi.mocked(postForm).mockResolvedValue(
+			selectResults([{ item: { type: 'literal', value: 'Gli\nRoma' } }]),
+		);
+		const ctx = contextWithEndpoint();
+
+		const result = await wikibaseQuery.handle(toolArgs(wikibaseQuery, { query: CATS }), ctx);
+
+		expect(assertStructuredData(result).rows).toEqual(['Gli Roma']);
+	});
+
 	it('reports a true ASK result as a boolean', async () => {
 		vi.mocked(postForm).mockResolvedValue(JSON.stringify({ head: {}, boolean: true }));
 		const ctx = contextWithEndpoint();
@@ -189,9 +216,9 @@ describe('wikibase-query', () => {
 			ctx,
 		);
 
-		const hint = String(assertStructuredData(result).truncation.remedyHint);
-		expect(hint).toContain('matched 20 rows');
-		expect(hint).toContain('LIMIT and OFFSET');
+		expect(String(assertStructuredData(result).truncation.remedyHint)).toBe(
+			'To read the rest of the 20 rows the query matched (1 delivered before the byte cap), narrow the projection or page with LIMIT and OFFSET.',
+		);
 	});
 
 	it('leaves the byte-cap remedy alone when every matching row was requested', async () => {

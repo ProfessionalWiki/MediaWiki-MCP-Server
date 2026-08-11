@@ -13,19 +13,32 @@ import {
 	renderClaims,
 } from './entityFormat.ts';
 import { capLinesByBytes } from '../../../results/truncation.ts';
-import { fetchLabels, LANGUAGE_CODE, labelOf, resolveLanguage } from './wikibaseApi.ts';
+import {
+	fetchLabels,
+	LANGUAGE_CODE,
+	labelOf,
+	languageRecognised,
+	resolveLanguage,
+} from './wikibaseApi.ts';
 
 const inputSchema = {
 	entityId: z
 		.string()
-		.regex(/^[A-Za-z]+\d+$/, 'Entity ID, such as Q42 or P31')
-		.describe('The entity to read, e.g. Q42 for an item or P31 for a property.'),
+		// WikibaseMediaInfo keys its statements under `statements`, not the
+		// `claims` this rendering reads, so an M-id accepted here would report an
+		// entity with no statements at all. Lexeme forms and senses do use
+		// `claims`, but are addressed by a hyphenated ID (L1-F1) this pattern
+		// does not match.
+		.regex(/^[QqPpLl]\d+$/, 'Item, property or lexeme ID, such as Q42, P31 or L1')
+		.describe(
+			'The item, property or lexeme to read, e.g. Q42 for an item, P31 for a property or L1 for a lexeme. Other entity types, such as MediaInfo M-ids, are not supported.',
+		),
 	language: z
 		.string()
-		.regex(LANGUAGE_CODE, 'A single language code, such as en or pt-br')
+		.regex(LANGUAGE_CODE, 'A single lowercase language code, such as en or pt-br')
 		.optional()
 		.describe(
-			'Language code the label, description and aliases are returned in, with fallback to the languages the wiki configures. Defaults to the wiki content language.',
+			'Language code the label, description and aliases are returned in, with fallback to the languages the wiki configures. Lowercase, as MediaWiki writes them: en-gb, not en-GB. Defaults to the wiki content language.',
 		),
 	property: z
 		.string()
@@ -53,7 +66,7 @@ interface EntityResponse {
 
 export const wikibaseGetEntity: Tool<typeof inputSchema> = {
 	name: 'wikibase-get-entity',
-	description: `Returns one Wikibase entity as compact text: its label, description and aliases, then its statements, one line per property in the form \`P106 (occupation): Q36834 (composer)\`. Enabled only when the wiki is a Wikibase repository. A property entity also reports its datatype.\n\nReferenced property and item IDs carry their labels, so values read as names rather than as bare Q-ids; on a heavily-described entity, an ID past the label-lookup budget appears bare. Qualifiers and references are summarised by count, not listed. Statements are ordered preferred rank first; deprecated ones are marked.\n\nEntities on a large Wikibase carry hundreds of statements, so the statement list is capped at ${MAX_PROPERTIES} properties and ${MAX_VALUES_PER_PROPERTY} values per property, and the response body is truncated at 50000 bytes by default; set property to read one property in full. To find an entity's ID, use wikibase-search-entities.`,
+	description: `Returns one Wikibase item, property or lexeme as compact text: its label, description and aliases, then its statements, one line per property in the form \`P106 (occupation): Q36834 (composer)\`. Enabled only when the wiki is a Wikibase repository. A property also reports its datatype; a lexeme carries lemmas rather than terms, none of which this tool renders, so a lexeme comes back as its statements alone. Other entity types, such as MediaInfo M-ids, are refused.\n\nReferenced property and item IDs carry their labels, so values read as names rather than as bare Q-ids; on a heavily-described entity, an ID past the label-lookup budget appears bare. Qualifiers and references are summarised by count, not listed. Statements are ordered preferred rank first; deprecated ones are marked.\n\nEntities on a large Wikibase carry hundreds of statements, so the statement list is capped at ${MAX_PROPERTIES} properties, whichever the wiki lists first rather than the most used, and ${MAX_VALUES_PER_PROPERTY} values per property, and the response body is truncated at 50000 bytes by default; set property to read one property in full. To find an entity's ID, use wikibase-search-entities.`,
 	inputSchema,
 	annotations: {
 		title: 'Get Wikibase entity',
@@ -87,10 +100,19 @@ export const wikibaseGetEntity: Tool<typeof inputSchema> = {
 			return ctx.format.notFound(`Entity "${id}" not found`);
 		}
 
+		if (!languageRecognised([entity.labels, entity.descriptions, entity.aliases], termLanguage)) {
+			return ctx.format.invalidInput(
+				`The wiki does not recognise the language code "${termLanguage}". Pass language as a lowercase MediaWiki code, such as en, en-gb or pt-br.`,
+			);
+		}
+
 		// Naming one property is a request to read it in full, so only the shared
 		// byte budget bounds it.
 		const maxValues = property === undefined ? MAX_VALUES_PER_PROPERTY : Number.POSITIVE_INFINITY;
-		const { claims, totalProperties } = capProperties(selectClaims(entity.claims ?? {}, property));
+		const { claims, totalProperties } = capProperties(
+			selectClaims(entity.claims ?? {}, property),
+			MAX_PROPERTIES,
+		);
 		const labels = await resolveLabels(ctx, mwn, claims, maxValues, termLanguage);
 		const rendered = renderClaims(claims, (referenced) => labels.get(referenced), maxValues);
 		const capped = capLinesByBytes(rendered.lines);
@@ -107,7 +129,7 @@ export const wikibaseGetEntity: Tool<typeof inputSchema> = {
 				? { aliases: aliasesOf(entity, termLanguage) }
 				: {}),
 			statements: capped.lines,
-			...truncationOf(capped, rendered, totalProperties),
+			...truncationOf(capped, rendered, totalProperties, property),
 		});
 	},
 };
@@ -142,6 +164,7 @@ function truncationOf(
 	capped: { lines: string[]; returnedBytes: number; totalBytes: number; truncated: boolean },
 	rendered: RenderedClaims,
 	totalProperties: number,
+	property: string | undefined,
 ): { truncation?: TruncationInfo } {
 	const renderedProperties = rendered.lines.length;
 	if (capped.truncated) {
@@ -152,7 +175,7 @@ function truncationOf(
 				totalBytes: capped.totalBytes,
 				itemNoun: 'statements',
 				toolName: 'wikibase-get-entity',
-				remedyHint: byteCapRemedy(rendered.hidden, totalProperties, renderedProperties),
+				remedyHint: byteCapRemedy(rendered.hidden, totalProperties, renderedProperties, property),
 			},
 		};
 	}
@@ -199,7 +222,15 @@ function byteCapRemedy(
 	hidden: HiddenValues[],
 	totalProperties: number,
 	renderedProperties: number,
+	property: string | undefined,
 ): string {
+	// A filtered read has already applied the only narrowing the schema offers,
+	// so what the byte budget cut here is the property's own values, and nothing
+	// the caller can pass returns the rest.
+	if (property !== undefined) {
+		return `The byte budget cut the values of ${property.toUpperCase()}, and no parameter of this tool reaches the rest.`;
+	}
+
 	const alsoCapped: string[] = [];
 	if (renderedProperties < totalProperties) {
 		alsoCapped.push(
@@ -209,9 +240,11 @@ function byteCapRemedy(
 	if (hidden.length > 0) {
 		alsoCapped.push(hiddenValuesPhrase(hidden));
 	}
-	return alsoCapped.length === 0
-		? 'To read one property in full, call wikibase-get-entity again with property=<P-id>.'
-		: `${alsoCapped.join('; ')} — call wikibase-get-entity with property=<P-id> to read one in full.`;
+	// One capped property can be named, so the caller reads back the property that
+	// actually lost values rather than choosing one from the response.
+	const target = hidden.length === 1 ? hidden[0].propertyId : '<P-id>';
+	const readOneProperty = `To read one property in full, call wikibase-get-entity again with property=${target}.`;
+	return alsoCapped.length === 0 ? readOneProperty : `${alsoCapped.join('; ')}. ${readOneProperty}`;
 }
 
 /**
@@ -234,15 +267,7 @@ function termOf(
 	language: string,
 ): string | undefined {
 	const requested = terms?.[language]?.value;
-	if (typeof requested === 'string') {
-		return requested;
-	}
-	for (const term of Object.values(terms ?? {})) {
-		if (typeof term?.value === 'string') {
-			return term.value;
-		}
-	}
-	return undefined;
+	return typeof requested === 'string' ? requested : undefined;
 }
 
 function aliasesOf(entity: EntityResponse, language: string): string[] {
