@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
+import { attributedComment } from './editComment.ts';
 import { resolvePageId, hasOnePageRef } from './pageId.ts';
 
 // A statement keyed by property name. The write API reads `propertyType` (NOT
@@ -83,6 +84,7 @@ export const neowikiCreateSubject: Tool<typeof inputSchema> = {
 		}
 
 		const mwn = await ctx.mwn();
+		const editComment = attributedComment(ctx, 'neowiki-create-subject', comment);
 		try {
 			const resolvedPageId = await resolvePageId(mwn, { title, pageId });
 			if (resolvedPageId === null) {
@@ -95,7 +97,12 @@ export const neowikiCreateSubject: Tool<typeof inputSchema> = {
 				method: 'POST',
 				path: `/page/${resolvedPageId}/${segment}`,
 				csrf: true,
-				body: { label, schema, statements, ...(comment !== undefined ? { comment } : {}) },
+				body: {
+					label,
+					schema,
+					statements,
+					...(editComment !== undefined ? { comment: editComment } : {}),
+				},
 			})) as CreateResponse;
 
 			// Upstream returns HTTP 201 with { status: "error" } when a main subject
