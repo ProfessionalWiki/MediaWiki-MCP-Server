@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
+import { attributedComment } from './editComment.ts';
 import { resolvePageId, hasOnePageRef } from './pageId.ts';
 
 const inputSchema = {
@@ -48,6 +49,7 @@ export const neowikiSetMainSubject: Tool<typeof inputSchema> = {
 		}
 
 		const mwn = await ctx.mwn();
+		const editComment = attributedComment(ctx, 'neowiki-set-main-subject', comment);
 		try {
 			const resolvedPageId = await resolvePageId(mwn, { title, pageId });
 			if (resolvedPageId === null) {
@@ -61,7 +63,7 @@ export const neowikiSetMainSubject: Tool<typeof inputSchema> = {
 				method: 'PUT',
 				path: `/page/${resolvedPageId}/mainSubject`,
 				csrf: true,
-				body: { subjectId, ...(comment !== undefined ? { comment } : {}) },
+				body: { subjectId, ...(editComment !== undefined ? { comment: editComment } : {}) },
 			})) as SetMainResponse;
 
 			return ctx.format.ok({ pageId: resolvedPageId, status: data.status ?? 'changed' });
