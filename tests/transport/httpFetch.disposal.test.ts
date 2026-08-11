@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterAll } from 'vitest';
 
 /**
  * What an over-cap refusal does to the connection is only visible against a
@@ -26,7 +26,7 @@ import { fetchFileBytes, postForm, FileTooLargeError } from '../../src/transport
 let server: Server;
 let origin: string;
 let openSockets: Set<Socket>;
-let servingSocket: Socket;
+let servingSocket: Socket | undefined;
 
 beforeAll(async () => {
 	openSockets = new Set();
@@ -47,8 +47,15 @@ beforeAll(async () => {
 			res.write('x');
 			return;
 		}
-		res.writeHead(200, { 'Transfer-Encoding': 'chunked' });
-		res.write('x'.repeat(64));
+		if (req.url === '/streams-too-much') {
+			res.writeHead(200, { 'Transfer-Encoding': 'chunked' });
+			res.write('x'.repeat(64));
+			return;
+		}
+		// Anything else is a test asking for a route that does not exist. Refusing
+		// it keeps a mistyped path from quietly getting a different route's answer.
+		res.writeHead(404);
+		res.end();
 	});
 	// A client destroying its socket reaches the server as a reset.
 	server.on('connection', (socket) => {
@@ -61,6 +68,10 @@ beforeAll(async () => {
 	origin = `http://127.0.0.1:${typeof address === 'object' && address !== null ? address.port : 0}`;
 });
 
+beforeEach(() => {
+	servingSocket = undefined;
+});
+
 afterAll(async () => {
 	for (const socket of openSockets) {
 		socket.destroy();
@@ -68,8 +79,16 @@ afterAll(async () => {
 	await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
-/** Whether the server's end of the connection goes away once the client is done with it. */
-async function connectionClosed(socket: Socket, withinMs = 1000): Promise<boolean> {
+/**
+ * Whether the server's end of the connection goes away once the client is done
+ * with it. No recorded socket means the request never reached the server, so
+ * there is nothing to observe: say so, rather than read a socket an earlier test
+ * left behind and report its closure as this one's.
+ */
+async function connectionClosed(socket: Socket | undefined, withinMs = 1000): Promise<boolean> {
+	if (socket === undefined) {
+		throw new Error('The server served no request, so no connection was observed.');
+	}
 	if (socket.destroyed) {
 		return true;
 	}
