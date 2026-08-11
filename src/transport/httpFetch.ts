@@ -67,6 +67,27 @@ export class FileTooLargeError extends Error {
 	}
 }
 
+// Only 307 and 308 ask for the original method and body again: RFC 9110 makes a
+// 303 a bodyless GET, and 301 and 302 are treated the same way. The requests
+// this module sends are GET and POST, for which every other status means GET; a
+// caller sending PUT or DELETE would need the status paired with the method.
+const METHOD_PRESERVING_REDIRECTS = new Set([307, 308]);
+
+// Headers that describe a request body go when the body goes: a bodyless GET
+// announcing a Content-Type describes something it is not sending.
+const BODY_HEADERS = new Set([
+	'content-encoding',
+	'content-language',
+	'content-location',
+	'content-type',
+]);
+
+function withoutBodyHeaders(headers: Record<string, string>): Record<string, string> {
+	return Object.fromEntries(
+		Object.entries(headers).filter(([name]) => !BODY_HEADERS.has(name.toLowerCase())),
+	);
+}
+
 async function fetchCore(
 	baseUrl: string,
 	options?: {
@@ -90,7 +111,7 @@ async function fetchCore(
 		}
 	}
 
-	const requestHeaders: Record<string, string> = {
+	let requestHeaders: Record<string, string> = {
 		'User-Agent': USER_AGENT,
 	};
 
@@ -99,6 +120,8 @@ async function fetchCore(
 	}
 
 	let currentUrl = url;
+	let currentMethod = options?.method || 'GET';
+	let currentBody = options?.body;
 	let response: Response | undefined;
 	for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
 		const addresses = await assertPublicDestination(currentUrl);
@@ -112,8 +135,8 @@ async function fetchCore(
 		options?.signal?.throwIfAborted();
 		response = await fetch(currentUrl, {
 			headers: requestHeaders,
-			method: options?.method || 'GET',
-			...(options?.body !== undefined ? { body: options.body } : {}),
+			method: currentMethod,
+			...(currentBody !== undefined ? { body: currentBody } : {}),
 			redirect: 'manual',
 			agent,
 			signal: options?.signal,
@@ -133,6 +156,13 @@ async function fetchCore(
 		}
 
 		currentUrl = new URL(location, currentUrl).toString();
+		// A downgrade holds for the rest of the chain: once the request is a
+		// bodyless GET, a later 307 has a bodyless GET to preserve.
+		if (!METHOD_PRESERVING_REDIRECTS.has(response.status)) {
+			currentMethod = 'GET';
+			currentBody = undefined;
+			requestHeaders = withoutBodyHeaders(requestHeaders);
+		}
 	}
 
 	// response is always assigned inside the loop (loop runs at least once).
