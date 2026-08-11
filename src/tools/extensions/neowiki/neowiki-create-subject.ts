@@ -84,6 +84,7 @@ export const neowikiCreateSubject: Tool<typeof inputSchema> = {
 		}
 
 		const mwn = await ctx.mwn();
+		const editComment = attributedComment(ctx, 'neowiki-create-subject', comment);
 		try {
 			const resolvedPageId = await resolvePageId(mwn, { title, pageId });
 			if (resolvedPageId === null) {
@@ -91,7 +92,6 @@ export const neowikiCreateSubject: Tool<typeof inputSchema> = {
 			}
 
 			const segment = isMain === true ? 'mainSubject' : 'childSubjects';
-			const editComment = attributedComment(ctx, 'neowiki-create-subject', comment);
 			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki create response shape; trusted at this boundary
 			const data = (await neowikiRequest(mwn, {
 				method: 'POST',

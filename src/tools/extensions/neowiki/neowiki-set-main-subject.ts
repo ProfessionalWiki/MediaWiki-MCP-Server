@@ -49,13 +49,13 @@ export const neowikiSetMainSubject: Tool<typeof inputSchema> = {
 		}
 
 		const mwn = await ctx.mwn();
+		const editComment = attributedComment(ctx, 'neowiki-set-main-subject', comment);
 		try {
 			const resolvedPageId = await resolvePageId(mwn, { title, pageId });
 			if (resolvedPageId === null) {
 				return ctx.format.notFound(`Page "${title}" not found`);
 			}
 
-			const editComment = attributedComment(ctx, 'neowiki-set-main-subject', comment);
 			// Always send the subjectId key: omitting it is a 400 upstream, whereas
 			// an explicit null is the documented way to clear the Main Subject.
 			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki set-main response shape; trusted at this boundary
