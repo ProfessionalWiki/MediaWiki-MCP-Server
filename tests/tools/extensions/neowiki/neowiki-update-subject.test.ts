@@ -59,7 +59,9 @@ describe('neowiki-update-subject', () => {
 			ctx,
 		);
 
-		expect(sentBody(mock)).toMatchObject({
+		expect(sentBody(mock)).toEqual({
+			label: 'ACME',
+			statements: stmts,
 			comment: 'tidy (via neowiki-update-subject on MediaWiki MCP Server)',
 		});
 	});

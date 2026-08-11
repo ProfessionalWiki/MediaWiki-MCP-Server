@@ -60,7 +60,8 @@ describe('neowiki-set-main-subject', () => {
 			ctx,
 		);
 
-		expect(sentBody(mock)).toMatchObject({
+		expect(sentBody(mock)).toEqual({
+			subjectId: 's1demo',
 			comment: 'promote Berlin (via neowiki-set-main-subject on MediaWiki MCP Server)',
 		});
 	});

@@ -113,7 +113,10 @@ describe('neowiki-create-subject', () => {
 			ctx,
 		);
 
-		expect(sentBody(mock)).toMatchObject({
+		expect(sentBody(mock)).toEqual({
+			label: 'X',
+			schema: 'City',
+			statements: stmts,
 			comment: 'seed the city (via neowiki-create-subject on MediaWiki MCP Server)',
 		});
 	});
