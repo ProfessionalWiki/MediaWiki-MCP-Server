@@ -70,7 +70,12 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 			// extension-pack tools; default to "present" so plain tool tests aren't
 			// blocked. Tests that exercise the guard override this explicitly.
 			hasAnyExtension: (async () => true) as never,
-			inspect: throws('wikiProbe.inspect') as never,
+			// reconcile's wiki-gate rule inspects every wiki; default to a reachable
+			// wiki that advertises nothing, so a gated tool stays hidden unless a
+			// test says otherwise. Deliberately more restrictive than the
+			// hasAnyExtension default above: a test that exercises gating has to
+			// stub both, since the two answer from the same probe in production.
+			inspect: (async () => ({ reachable: true, extensions: new Set<string>() })) as never,
 			invalidate: throws('wikiProbe.invalidate') as never,
 		},
 		sections: {

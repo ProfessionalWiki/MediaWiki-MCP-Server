@@ -22,11 +22,12 @@ export const wikibasePack: ExtensionPack = {
 	errorCodes: WIKIBASE_ERROR_CODES,
 	errorCodePrefixes: WIKIBASE_ERROR_CODE_PREFIXES,
 	// The query service is a separate deployment from the wiki, so the extension
-	// gate alone does not imply one exists: each wiki names its own or has none.
+	// gate alone does not imply one exists. A repository that has one publishes
+	// it in siteinfo, which the probe reads.
 	wikiGate: {
 		tools: [wikibaseQuery.name],
-		isSatisfied: (wiki) => (wiki.sparqlEndpoint ?? '').trim() !== '',
+		isSatisfied: (identity) => (identity.sparqlEndpoint ?? '').trim() !== '',
 		refusal: (wikiKey) =>
-			`Wiki "${wikiKey}" has no query service: set sparqlEndpoint in its configuration to the SPARQL endpoint URL. Use list-wikis to see which wikis have one.`,
+			`Wiki "${wikiKey}" advertises no query service, so SPARQL cannot be run against it. Use list-wikis to see which wikis have one.`,
 	},
 };

@@ -137,17 +137,22 @@ function assertAddressIsUnicast(address: string, urlString: string): void {
 
 	const range = parsed.range();
 	if (range !== 'unicast') {
-		throw new SsrfValidationError(
-			`Refusing to fetch URL resolving to non-public address ${address} (${range}): ${urlString}`,
-		);
+		throw new SsrfValidationError(nonPublicAddressMessage(address, range, urlString));
 	}
 
 	if (parsed.kind() === 'ipv6') {
 		const extraMatch = ipaddr.subnetMatch(parsed, EXTRA_BLOCKED_V6, 'unicast');
 		if (extraMatch !== 'unicast') {
-			throw new SsrfValidationError(
-				`Refusing to fetch URL resolving to non-public address ${address} (${extraMatch}): ${urlString}`,
-			);
+			throw new SsrfValidationError(nonPublicAddressMessage(address, extraMatch, urlString));
 		}
 	}
+}
+
+// Names the remedy because this reaches tool output as well as the operator's
+// logs: only the operator can lift the refusal, and no tool argument can.
+function nonPublicAddressMessage(address: string, range: string, urlString: string): string {
+	return (
+		`Refusing to fetch URL resolving to non-public address ${address} (${range}); ` +
+		`the server operator must add the host to MCP_TRUSTED_HOSTS to allow it: ${urlString}`
+	);
 }

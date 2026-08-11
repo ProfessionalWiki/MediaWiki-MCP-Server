@@ -45,8 +45,9 @@ export const listWikis: Tool<Record<string, never>> = {
 				// Discovery reads only the anonymous probe — no credential
 				// resolution or login. The probe reports the wiki's live public
 				// server; fall back to the configured server when it is unreachable.
-				const { reachable, extensions, server } = await ctx.wikiProbe.inspect(key);
-				const publicServer = server ?? config.server;
+				const identity = await ctx.wikiProbe.inspect(key);
+				const { reachable, extensions } = identity;
+				const publicServer = identity.server ?? config.server;
 				const extensionTools: string[] = [];
 				for (const pack of extensionPacks) {
 					if (pack.extensionNames.some((name) => extensions.has(name))) {
@@ -54,7 +55,7 @@ export const listWikis: Tool<Record<string, never>> = {
 						// satisfies it, matching what the per-call guard would allow.
 						const gate = pack.wikiGate;
 						const withheld =
-							gate === undefined || gate.isSatisfied(config)
+							gate === undefined || gate.isSatisfied(identity)
 								? new Set<string>()
 								: new Set(gate.tools);
 						for (const tool of pack.tools) {

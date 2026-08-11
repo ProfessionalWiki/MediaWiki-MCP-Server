@@ -160,10 +160,10 @@ describe('checkWikiCapability', () => {
 // These run against the real wikibase pack rather than a synthetic one, since
 // what they assert is that a declared gate needs nothing from the handler.
 describe('checkWikiCapability — pack wiki gates', () => {
-	const withService: WikiConfig = { ...rwWiki, sparqlEndpoint: 'https://query.example/sparql' };
-
+	// Only `served` publishes a query service in its siteinfo; both are Wikibase
+	// repositories, so the extension check passes for each.
 	function twoWikiCtx() {
-		const wikis: Record<string, WikiConfig> = { served: withService, bare: rwWiki };
+		const wikis: Record<string, WikiConfig> = { served: rwWiki, bare: rwWiki };
 		return fakeContext({
 			wikis: {
 				getAll: () => wikis,
@@ -176,7 +176,11 @@ describe('checkWikiCapability — pack wiki gates', () => {
 				hasExtension: async () => true,
 				hasAnyExtension: async () => true,
 				invalidate: () => {},
-				inspect: async () => ({ reachable: true, extensions: new Set<string>() }),
+				inspect: async (key: string) => ({
+					reachable: true,
+					extensions: new Set<string>(['WikibaseRepository']),
+					...(key === 'served' ? { sparqlEndpoint: 'https://query.example/sparql' } : {}),
+				}),
 			},
 		});
 	}
@@ -186,7 +190,7 @@ describe('checkWikiCapability — pack wiki gates', () => {
 
 		expect(result?.isError).toBe(true);
 		const message = JSON.stringify(result?.content);
-		expect(message).toContain('sparqlEndpoint');
+		expect(message).toContain('advertises no query service');
 		expect(message).toContain('bare');
 	});
 

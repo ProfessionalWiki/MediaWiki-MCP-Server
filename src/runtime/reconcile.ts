@@ -84,7 +84,7 @@ function buildExtensionRules(packs: readonly ExtensionPack[]): readonly ToolGati
 	]);
 }
 
-// A pack whose tools need a configured wiki capability on top of the extension
+// A pack whose tools need a further wiki capability on top of the extension
 // declares it, rather than reconcile knowing about that pack.
 function wikiGateRule(pack: ExtensionPack): ToolGatingRule[] {
 	const gate = pack.wikiGate;
@@ -95,7 +95,23 @@ function wikiGateRule(pack: ExtensionPack): ToolGatingRule[] {
 		{
 			name: `${pack.id}-wiki-gate`,
 			affects: gate.tools,
-			isAllowed: (c) => Object.values(c.allWikis).some((w) => gate.isSatisfied(w)),
+			// Conjoined per wiki, not across the fleet: the gate is a condition on
+			// top of the extension, so a gated tool is offered only while some ONE
+			// wiki has both. Reducing each half to its own fleet-wide boolean would
+			// offer the tool when one wiki has the extension and a different one
+			// satisfies the gate, which no wiki can serve.
+			isAllowed: async (c: ReconcileContext) => {
+				const results = await Promise.all(
+					Object.keys(c.allWikis).map(async (key) => {
+						const identity = await c.wikiProbe.inspect(key);
+						return (
+							pack.extensionNames.some((name) => identity.extensions.has(name)) &&
+							gate.isSatisfied(identity)
+						);
+					}),
+				);
+				return results.some((r) => r);
+			},
 		},
 	];
 }

@@ -114,7 +114,18 @@ function makeMocks({
 	return { registry, activeWiki };
 }
 
-function makeFakeProbe(answers: Record<string, boolean> = {}): WikiProbe {
+// `answers` is keyed `<wikiKey>:<extensionName>`; `endpoints` gives the query
+// service endpoint a wiki's siteinfo publishes, keyed by wiki key.
+function makeFakeProbe(
+	answers: Record<string, boolean> = {},
+	endpoints: Record<string, string | undefined> = {},
+): WikiProbe {
+	const extensionsOf = (wikiKey: string): Set<string> =>
+		new Set(
+			Object.entries(answers)
+				.filter(([key, present]) => present && key.startsWith(`${wikiKey}:`))
+				.map(([key]) => key.slice(wikiKey.length + 1)),
+		);
 	return {
 		hasExtension: vi.fn(
 			async (wikiKey: string, name: string) => answers[`${wikiKey}:${name}`] ?? false,
@@ -122,7 +133,11 @@ function makeFakeProbe(answers: Record<string, boolean> = {}): WikiProbe {
 		hasAnyExtension: vi.fn(async (wikiKey: string, names: readonly string[]) =>
 			names.some((name) => answers[`${wikiKey}:${name}`] ?? false),
 		),
-		inspect: vi.fn(async () => ({ reachable: true, extensions: new Set<string>() })),
+		inspect: vi.fn(async (wikiKey: string) => ({
+			reachable: true,
+			extensions: extensionsOf(wikiKey),
+			...(endpoints[wikiKey] !== undefined ? { sparqlEndpoint: endpoints[wikiKey] } : {}),
+		})),
 		invalidate: vi.fn(),
 	};
 }
@@ -1076,25 +1091,36 @@ describe('reconcileTools — wikiGateRule', () => {
 	const UNGATED_TOOL = 'gated-pack-read';
 	const GATED_PACK = makeFakePack('gated', ['GatedExtension'], [UNGATED_TOOL, GATED_TOOL], {
 		tools: [GATED_TOOL],
-		isSatisfied: (wiki) => (wiki.sparqlEndpoint ?? '').trim() !== '',
+		isSatisfied: (identity) => (identity.sparqlEndpoint ?? '').trim() !== '',
 		refusal: (wikiKey) => `Wiki "${wikiKey}" has no query service.`,
 	});
-	const SATISFIED: WikiConfig = { ...baseWiki, sparqlEndpoint: 'https://query.example/sparql' };
+	const ENDPOINT = 'https://query.example/sparql';
+
+	// What the probe reports for one wiki: whether it has the pack's extension,
+	// and the endpoint its siteinfo publishes, if any.
+	interface ProbedWiki {
+		extension: boolean;
+		endpoint?: string;
+	}
 
 	async function reconcileWith(
 		tools: Map<string, RegisteredTool>,
-		wikis: Record<string, WikiConfig>,
+		fleet: Record<string, ProbedWiki>,
 	): Promise<void> {
-		const { registry } = makeMocks({
-			activeWikiConfig: Object.values(wikis)[0],
-			wikis,
-			allowManagement: true,
-		});
+		const wikis = Object.fromEntries(Object.keys(fleet).map((key) => [key, baseWiki]));
+		const { registry } = makeMocks({ activeWikiConfig: baseWiki, wikis, allowManagement: true });
 		await reconcileTools(tools, {
 			wikiRegistry: registry,
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(
-				Object.fromEntries(Object.keys(wikis).map((key) => [`${key}:GatedExtension`, true])),
+				Object.fromEntries(
+					Object.entries(fleet).map(([key, wiki]) => [`${key}:GatedExtension`, wiki.extension]),
+				),
+				Object.fromEntries(
+					Object.entries(fleet)
+						.filter(([, wiki]) => wiki.endpoint !== undefined)
+						.map(([key, wiki]) => [key, wiki.endpoint]),
+				),
 			),
 			extensionPacks: [GATED_PACK],
 		});
@@ -1103,7 +1129,7 @@ describe('reconcileTools — wikiGateRule', () => {
 	it('hides the gated tool when no wiki satisfies the gate', async () => {
 		const { tools, mocks } = makeToolMapOf([UNGATED_TOOL, GATED_TOOL], true);
 
-		await reconcileWith(tools, { a: baseWiki });
+		await reconcileWith(tools, { a: { extension: true } });
 
 		expect(mocks.get(GATED_TOOL)!.disable).toHaveBeenCalledTimes(1);
 		expect(mocks.get(UNGATED_TOOL)!.disable).not.toHaveBeenCalled();
@@ -1112,15 +1138,16 @@ describe('reconcileTools — wikiGateRule', () => {
 	it('offers the gated tool once a wiki satisfies the gate', async () => {
 		const { tools, mocks } = makeToolMapOf([UNGATED_TOOL, GATED_TOOL], false);
 
-		await reconcileWith(tools, { a: SATISFIED });
+		await reconcileWith(tools, { a: { extension: true, endpoint: ENDPOINT } });
 
 		expect(mocks.get(GATED_TOOL)!.enable).toHaveBeenCalledTimes(1);
+		expect(mocks.get(UNGATED_TOOL)!.enable).toHaveBeenCalledTimes(1);
 	});
 
-	it('treats a blank configured value as not satisfying the gate', async () => {
+	it('treats a blank published value as not satisfying the gate', async () => {
 		const { tools, mocks } = makeToolMapOf([UNGATED_TOOL, GATED_TOOL], true);
 
-		await reconcileWith(tools, { a: { ...baseWiki, sparqlEndpoint: '   ' } });
+		await reconcileWith(tools, { a: { extension: true, endpoint: '   ' } });
 
 		expect(mocks.get(GATED_TOOL)!.disable).toHaveBeenCalledTimes(1);
 	});
@@ -1130,7 +1157,10 @@ describe('reconcileTools — wikiGateRule', () => {
 	it('keeps the gated tool offered when only a non-default wiki satisfies the gate', async () => {
 		const { tools, mocks } = makeToolMapOf([UNGATED_TOOL, GATED_TOOL], false);
 
-		await reconcileWith(tools, { def: baseWiki, other: SATISFIED });
+		await reconcileWith(tools, {
+			def: { extension: true },
+			other: { extension: true, endpoint: ENDPOINT },
+		});
 
 		expect(mocks.get(GATED_TOOL)!.enable).toHaveBeenCalledTimes(1);
 	});
@@ -1138,9 +1168,24 @@ describe('reconcileTools — wikiGateRule', () => {
 	it('hides the gated tool only when no wiki of several satisfies the gate', async () => {
 		const { tools, mocks } = makeToolMapOf([UNGATED_TOOL, GATED_TOOL], true);
 
-		await reconcileWith(tools, { def: baseWiki, other: baseWiki });
+		await reconcileWith(tools, { def: { extension: true }, other: { extension: true } });
 
 		expect(mocks.get(GATED_TOOL)!.disable).toHaveBeenCalledTimes(1);
+	});
+
+	// The gate is a condition on top of the extension, so satisfying it on a wiki
+	// that lacks the extension buys nothing: no wiki can run the tool. The pack's
+	// other tools stay offered, since one wiki does have the extension.
+	it('hides the gated tool when the extension and the gate are met by different wikis', async () => {
+		const { tools, mocks } = makeToolMapOf([UNGATED_TOOL, GATED_TOOL], true);
+
+		await reconcileWith(tools, {
+			withExtension: { extension: true },
+			withEndpoint: { extension: false, endpoint: ENDPOINT },
+		});
+
+		expect(mocks.get(GATED_TOOL)!.disable).toHaveBeenCalledTimes(1);
+		expect(mocks.get(UNGATED_TOOL)!.disable).not.toHaveBeenCalled();
 	});
 
 	it('leaves a pack with no gate alone', async () => {

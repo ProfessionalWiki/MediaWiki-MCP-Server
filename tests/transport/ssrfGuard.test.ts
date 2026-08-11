@@ -10,6 +10,15 @@ import { lookup } from 'node:dns/promises';
 import { assertPublicDestination, buildPinnedAgent } from '../../src/transport/ssrfGuard.ts';
 import { mockedLookupAll } from '../helpers/mockDnsLookup.ts';
 
+async function refusalMessage(urlString: string): Promise<string> {
+	try {
+		await assertPublicDestination(urlString);
+	} catch (error) {
+		return (error as Error).message;
+	}
+	throw new Error(`Expected ${urlString} to be refused`);
+}
+
 describe('ssrfGuard.assertPublicDestination', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -110,6 +119,36 @@ describe('ssrfGuard.assertPublicDestination', () => {
 		mockedLookupAll().mockResolvedValue([]);
 		await expect(assertPublicDestination('https://empty.example/')).rejects.toThrow(
 			/no addresses/i,
+		);
+	});
+
+	it('names MCP_TRUSTED_HOSTS as the operator remedy when an address is in a non-public range', async () => {
+		mockedLookupAll().mockResolvedValue([{ address: '127.0.0.1', family: 4 }]);
+
+		expect(await refusalMessage('http://127.0.0.1/')).toBe(
+			'Refusing to fetch URL resolving to non-public address 127.0.0.1 (loopback); the server operator must add the host to MCP_TRUSTED_HOSTS to allow it: http://127.0.0.1/',
+		);
+	});
+
+	it('names MCP_TRUSTED_HOSTS as the operator remedy for a deprecated IPv6 block', async () => {
+		mockedLookupAll().mockResolvedValue([{ address: 'fec0::1', family: 6 }]);
+
+		expect(await refusalMessage('https://sitelocal.example/')).toBe(
+			'Refusing to fetch URL resolving to non-public address fec0::1 (deprecatedSiteLocal); the server operator must add the host to MCP_TRUSTED_HOSTS to allow it: https://sitelocal.example/',
+		);
+	});
+
+	it('does not offer MCP_TRUSTED_HOSTS for an unsupported scheme', async () => {
+		expect(await refusalMessage('file:///etc/passwd')).toBe(
+			'Refusing to fetch URL with unsupported scheme "file:": file:///etc/passwd',
+		);
+	});
+
+	it('does not offer MCP_TRUSTED_HOSTS when DNS returns no addresses', async () => {
+		mockedLookupAll().mockResolvedValue([]);
+
+		expect(await refusalMessage('https://empty.example/')).toBe(
+			'DNS lookup for "empty.example" returned no addresses: https://empty.example/',
 		);
 	});
 

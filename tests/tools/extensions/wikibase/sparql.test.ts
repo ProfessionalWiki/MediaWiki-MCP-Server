@@ -277,7 +277,7 @@ describe('runSparqlQuery', () => {
 
 		const error = await failureOf(runSparqlQuery(secret, CATS, MANY_ROWS));
 
-		expect(error.message).toBe('request to the configured sparqlEndpoint failed');
+		expect(error.message).toBe("request to the wiki's query service failed");
 	});
 
 	// A query service that echoes the request URI into its error page hands the
@@ -290,7 +290,7 @@ describe('runSparqlQuery', () => {
 
 		const error = await failureOf(runSparqlQuery(secret, CATS, MANY_ROWS));
 
-		expect(error.message).toBe('Bad Request: the configured sparqlEndpoint rejected the query');
+		expect(error.message).toBe("Bad Request: the wiki's query service rejected the query");
 	});
 
 	// The padding puts the token inside the first five hundred characters and the
@@ -303,7 +303,7 @@ describe('runSparqlQuery', () => {
 
 		const error = await failureOf(runSparqlQuery(secret, CATS, MANY_ROWS));
 
-		expect(error.message).toBe(`${'e'.repeat(450)} the configured sparqlEndpoint`);
+		expect(error.message).toBe(`${'e'.repeat(450)} the wiki's query service`);
 	});
 
 	it('summarises a multi-line service message at its first five lines', async () => {

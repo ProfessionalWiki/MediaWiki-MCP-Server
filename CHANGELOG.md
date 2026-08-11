@@ -13,8 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Added
 
-- Five tools for wikis running [Wikibase](https://www.mediawiki.org/wiki/Extension:Wikibase_Repository): `wikibase-search-entities` finds items and properties by label or alias, `wikibase-get-entity` reads one entity's terms and statements, `wikibase-query` runs SPARQL against the wiki's query service, and `wikibase-edit-entity` and `wikibase-add-statement` write. Auto-detected from `siteinfo`; only registered on wikis that are a Wikibase repository. Entities are returned as compact text with referenced IDs resolved to labels, never as raw entity JSON, and the statement list is capped at 50 properties and 10 values per property per call.
-- Per-wiki `sparqlEndpoint` configuration field, naming the SPARQL endpoint of the query service backing a Wikibase repository. `wikibase-query` is offered only for a wiki that sets it, since a query service is a separate deployment from the wiki and cannot be detected.
+- Five tools for wikis running [Wikibase](https://www.mediawiki.org/wiki/Extension:Wikibase_Repository): `wikibase-search-entities` finds items and properties by label or alias, `wikibase-get-entity` reads one entity's terms and statements, `wikibase-query` runs SPARQL against the wiki's query service, and `wikibase-edit-entity` and `wikibase-add-statement` write. Auto-detected from `siteinfo`: registered on wikis that are a Wikibase repository, with `wikibase-query` limited to a repository that also publishes a query service endpoint. Entities are returned as compact text with referenced IDs resolved to labels, never as raw entity JSON, and the statement list is capped at 50 properties and 10 values per property per call.
 
 ### Fixed
 

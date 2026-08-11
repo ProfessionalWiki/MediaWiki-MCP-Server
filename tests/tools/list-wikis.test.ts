@@ -24,6 +24,7 @@ function ctxWith(
 	unreachable: Set<string> = new Set(),
 	wikis: Record<string, unknown> = { 'test-wiki': wikiConfig, 'cargo.wiki': wikiConfig },
 	serverByWiki: Record<string, string> = {},
+	sparqlByWiki: Record<string, string> = {},
 ) {
 	return fakeContext({
 		wikis: {
@@ -48,6 +49,7 @@ function ctxWith(
 				reachable: !unreachable.has(k),
 				extensions: extByWiki[k] ?? new Set<string>(),
 				...(serverByWiki[k] !== undefined ? { server: serverByWiki[k] } : {}),
+				...(sparqlByWiki[k] !== undefined ? { sparqlEndpoint: sparqlByWiki[k] } : {}),
 			})) as never,
 		},
 	});
@@ -98,23 +100,28 @@ describe('list-wikis', () => {
 		expect(wiki.extensionTools).toContain('wikibase-get-entity');
 	});
 
-	it('withholds the query tool from a Wikibase wiki with no query service configured', async () => {
+	it('withholds the query tool from a Wikibase wiki that publishes no query service', async () => {
 		const ctx = ctxWith({ 'test-wiki': new Set(['WikibaseRepository']) });
 		const result = await dispatch(listWikis, ctx)({} as never);
 		const wiki = wikisOf(result).find((w) => w.key === 'test-wiki')!;
 		expect(wiki.extensionTools).not.toContain('wikibase-query');
 	});
 
-	it('reports the query tool once the wiki configures a query service', async () => {
-		const ctx = ctxWith({ 'sparql.wiki': new Set(['WikibaseRepository']) }, new Set(), {
-			'sparql.wiki': {
-				sitename: 'Wikibase',
-				server: 'https://sparql.wiki',
-				articlepath: '/wiki',
-				scriptpath: '/w',
-				sparqlEndpoint: 'https://query.sparql.wiki/sparql',
+	it('reports the query tool for a wiki whose siteinfo publishes a query service', async () => {
+		const ctx = ctxWith(
+			{ 'sparql.wiki': new Set(['WikibaseRepository']) },
+			new Set(),
+			{
+				'sparql.wiki': {
+					sitename: 'Wikibase',
+					server: 'https://sparql.wiki',
+					articlepath: '/wiki',
+					scriptpath: '/w',
+				},
 			},
-		});
+			{},
+			{ 'sparql.wiki': 'https://query.sparql.wiki/sparql' },
+		);
 		const result = await dispatch(listWikis, ctx)({} as never);
 		const wiki = wikisOf(result).find((w) => w.key === 'sparql.wiki')!;
 		expect(wiki.extensionTools).toContain('wikibase-query');

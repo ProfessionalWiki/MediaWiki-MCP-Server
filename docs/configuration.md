@@ -29,7 +29,6 @@ Covers configuration topics beyond the basic `config.json` shape documented in [
 | `password` | No | Bot password (fallback when OAuth2 is not available) |
 | `private` | No | Whether the wiki requires authentication to read (default: `false`) |
 | `readOnly` | No | When `true`, hides the 🔐 write tools from `tools/list` while this wiki is active. Pairs with `allowWikiManagement: false` for a [hosted read-only endpoint](deployment.md). Default: `false` |
-| `sparqlEndpoint` | No | SPARQL endpoint URL of the query service backing this wiki's Wikibase repository (e.g. `https://query.wikidata.org/sparql`). A query service is a separate deployment, so it is configured rather than detected: without this field the `wikibase-query` tool is not offered for the wiki. The endpoint is fetched through the same guard as the wiki itself, so an endpoint on a private address needs `MCP_TRUSTED_HOSTS` — see [deployment.md — outbound SSRF guard](deployment.md#outbound-ssrf-guard). |
 | `tags` | No | Change tag(s) to apply to every write (string or array). The tag must exist and be active at `Special:Tags` — see [change tags](#change-tags-tags) for details. |
 | `attributeEdits` | No | Whether page and file writes carry the `(via <tool> on MediaWiki MCP Server)` suffix in their edit summary. Default: `true`. See [edit attribution](#edit-attribution-attributeedits). |
 

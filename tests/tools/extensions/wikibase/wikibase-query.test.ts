@@ -16,22 +16,29 @@ import { assertStructuredData, assertStructuredError } from '../../../helpers/st
 const ENDPOINT = 'https://query.example.org/sparql';
 const CATS = 'SELECT ?item WHERE { ?item wdt:P31 wd:Q146 } LIMIT 3';
 
-// A wiki with no endpoint never reaches the handler: the pack's wikiGate refuses
-// it centrally, which tests/runtime/wikiCapability.test.ts covers.
-function contextWithEndpoint(sparqlEndpoint: string = ENDPOINT) {
-	const config = {
-		sitename: 'Test',
+// The endpoint comes from the wiki's own siteinfo. A wiki publishing none never
+// reaches the handler: the pack's wikiGate refuses it centrally, which
+// tests/runtime/wikiCapability.test.ts covers.
+function contextWithSiteInfo(siteInfo: Record<string, string>) {
+	return fakeContext({
+		siteInfoCache: {
+			get: () => siteInfo,
+			set: () => {},
+			delete: () => {},
+		} as never,
+	});
+}
+
+function contextWithEndpoint() {
+	return contextWithSiteInfo({
 		server: 'https://test.wiki',
 		articlepath: '/wiki',
-		scriptpath: '/w',
-		sparqlEndpoint,
-	};
-	return fakeContext({
-		activeWiki: {
-			get: () => ({ key: 'test-wiki', config: config as never }),
-			getDefaultKey: () => 'test-wiki',
-		},
+		sparqlEndpoint: ENDPOINT,
 	});
+}
+
+function contextWithoutEndpoint() {
+	return contextWithSiteInfo({ server: 'https://test.wiki', articlepath: '/wiki' });
 }
 
 function selectResults(bindings: unknown[], vars: string[] = ['item']): string {
@@ -57,7 +64,7 @@ describe('wikibase-query', () => {
 		vi.unstubAllEnvs();
 	});
 
-	it('posts the query to the wiki query service', async () => {
+	it('posts the query to the query service the wiki publishes', async () => {
 		vi.mocked(postForm).mockResolvedValue(ONE_CAT);
 		const ctx = contextWithEndpoint();
 
@@ -65,6 +72,18 @@ describe('wikibase-query', () => {
 
 		expect(vi.mocked(postForm).mock.calls[0][0]).toBe(ENDPOINT);
 		expect(vi.mocked(postForm).mock.calls[0][1]).toEqual({ query: CATS });
+	});
+
+	// Defensive: the pack's wikiGate refuses such a wiki before dispatch.
+	it('refuses without querying when the wiki advertises no query service', async () => {
+		const ctx = contextWithoutEndpoint();
+
+		const result = await wikibaseQuery.handle(toolArgs(wikibaseQuery, { query: CATS }), ctx);
+
+		expect(assertStructuredError(result, 'invalid_input').message).toBe(
+			'Wiki "test-wiki" advertises no query service, so SPARQL cannot be run against it. Use list-wikis to see which wikis have one.',
+		);
+		expect(vi.mocked(postForm)).not.toHaveBeenCalled();
 	});
 
 	it('returns the columns and rows of a SELECT', async () => {

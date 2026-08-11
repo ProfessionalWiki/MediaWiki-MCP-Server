@@ -86,13 +86,6 @@ export interface WikiConfig {
 	 */
 	readOnly?: boolean;
 	/**
-	 * SPARQL endpoint URL of the query service backing this wiki's Wikibase
-	 * repository (e.g. https://query.wikidata.org/sparql). The query service is
-	 * a separate deployment, so it is configured rather than discovered: without
-	 * it the `wikibase-query` tool is not offered for this wiki.
-	 */
-	sparqlEndpoint?: string;
-	/**
 	 * Change tag(s) applied to every write action made through this MCP
 	 * server. The tag(s) must be registered and active on the wiki (see
 	 * Special:Tags on the target wiki). If the tag is not applicable to
@@ -341,51 +334,8 @@ function resolveWiki(raw: unknown, wikiKey: string): WikiConfig {
 	if (resolved.readOnly !== undefined && typeof resolved.readOnly !== 'boolean') {
 		throw new Error(`Config error: wikis.${wikiKey}.readOnly must be a boolean`);
 	}
-	if (resolved.sparqlEndpoint !== undefined) {
-		assertSparqlEndpoint(resolved.sparqlEndpoint, wikiKey);
-	}
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; ajv-validated WikiConfig parsing is a separate follow-up
 	return resolved as unknown as WikiConfig;
-}
-
-/**
- * The endpoint is fetched verbatim and its failures are reported to the caller,
- * so a value that is not a URL only fails at the first query, and credentials in
- * one reach tool output and telemetry. Blank means "no query service", as it does
- * everywhere else.
- */
-function assertSparqlEndpoint(value: unknown, wikiKey: string): void {
-	if (typeof value !== 'string') {
-		throw new Error(`Config error: wikis.${wikiKey}.sparqlEndpoint must be a string`);
-	}
-	if (value.trim() === '') {
-		return;
-	}
-	// Substitution leaves an unset variable as written, and `${HOST}` is legal in
-	// a URL's host, so an unresolved reference otherwise parses and is only found
-	// by the first query failing.
-	const unresolved = /\$\{([^}]+)\}/.exec(value);
-	if (unresolved) {
-		throw new Error(
-			`Config error: environment variable "${unresolved[1]}" referenced by wikis.${wikiKey}.sparqlEndpoint is not set`,
-		);
-	}
-	let url: URL;
-	try {
-		url = new URL(value);
-	} catch {
-		throw new Error(`Config error: wikis.${wikiKey}.sparqlEndpoint must be a URL`);
-	}
-	if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-		throw new Error(
-			`Config error: wikis.${wikiKey}.sparqlEndpoint must be an http or https URL, not "${url.protocol}"`,
-		);
-	}
-	if (url.username !== '' || url.password !== '') {
-		throw new Error(
-			`Config error: wikis.${wikiKey}.sparqlEndpoint must not carry credentials in the URL`,
-		);
-	}
 }
 
 function resolveConfig(parsed: unknown): Config {

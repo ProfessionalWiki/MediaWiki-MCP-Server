@@ -160,7 +160,7 @@ function classifyQueryFailure(err: unknown, endpoint: string): SparqlError {
  * and it reaches the caller and the logs from here.
  */
 function withoutEndpoint(message: string, endpoint: string): string {
-	return endpoint === '' ? message : message.split(endpoint).join('the configured sparqlEndpoint');
+	return endpoint === '' ? message : message.split(endpoint).join("the wiki's query service");
 }
 
 function categoryForStatus(status: number): ErrorCategory {

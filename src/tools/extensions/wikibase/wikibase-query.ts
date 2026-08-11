@@ -5,6 +5,7 @@ import type { ToolContext } from '../../../runtime/context.ts';
 import type { TruncationInfo } from '../../../results/truncation.ts';
 import { capLinesByBytes } from '../../../results/truncation.ts';
 import { runSparqlQuery, SparqlError } from './sparql.ts';
+import { resolveSiteInfo } from '../../../wikis/siteInfo.ts';
 
 const HARD_LIMIT = 1000;
 
@@ -23,7 +24,7 @@ const inputSchema = {
 
 export const wikibaseQuery: Tool<typeof inputSchema> = {
 	name: 'wikibase-query',
-	description: `Runs a SPARQL query against the targeted wiki's query service and returns the solutions as rows, one line per solution with the cells joined by \` | \` in column order; a line break inside a cell becomes a space, and a cell containing that separator is not escaped. Enabled only when the wiki is a Wikibase repository with a query service configured.\n\nThe answer to a question about many entities at once, or about which entities have a given statement — for one known entity, wikibase-get-entity is a single request. Property and entity IDs are wiki-specific and the prefixes are too (Wikidata's \`wd:\`/\`wdt:\` are not universal), so ground both with wikibase-search-entities first.\n\nExample against a Wikidata-style prefix scheme:\n  SELECT ?item ?itemLabel WHERE { ?item wdt:P31 wd:Q146 } LIMIT 10\n\nA malformed query returns the query service's own parser message. Long-running queries are cut off after 60 seconds. Up to ${HARD_LIMIT} rows per call, and the response body is truncated at 50000 bytes by default; add LIMIT and OFFSET to the query to page beyond that.`,
+	description: `Runs a SPARQL query against the targeted wiki's query service and returns the solutions as rows, one line per solution with the cells joined by \` | \` in column order; a line break inside a cell becomes a space, and a cell containing that separator is not escaped. Enabled only when the wiki is a Wikibase repository that publishes a query service.\n\nThe answer to a question about many entities at once, or about which entities have a given statement — for one known entity, wikibase-get-entity is a single request. Property and entity IDs are wiki-specific and the prefixes are too (Wikidata's \`wd:\`/\`wdt:\` are not universal), so ground both with wikibase-search-entities first.\n\nExample against a Wikidata-style prefix scheme:\n  SELECT ?item ?itemLabel WHERE { ?item wdt:P31 wd:Q146 } LIMIT 10\n\nA malformed query returns the query service's own parser message. Long-running queries are cut off after 60 seconds. Up to ${HARD_LIMIT} rows per call, and the response body is truncated at 50000 bytes by default; add LIMIT and OFFSET to the query to page beyond that.`,
 	inputSchema,
 	annotations: {
 		title: 'Run SPARQL query',
@@ -36,10 +37,14 @@ export const wikibaseQuery: Tool<typeof inputSchema> = {
 	target: (a) => a.query,
 
 	async handle({ query, limit }, ctx: ToolContext): Promise<CallToolResult> {
-		// A wiki with no endpoint never reaches here: the pack's wikiGate is what
-		// refuses it, centrally, for every gated tool.
-		const { config } = ctx.activeWiki.get();
-		const endpoint = (config.sparqlEndpoint ?? '').trim();
+		const { key } = ctx.activeWiki.get();
+		const endpoint = ((await resolveSiteInfo(ctx, key)).sparqlEndpoint ?? '').trim();
+		if (endpoint === '') {
+			// The pack's wikiGate refuses such a wiki centrally, before dispatch.
+			return ctx.format.invalidInput(
+				`Wiki "${key}" advertises no query service, so SPARQL cannot be run against it. Use list-wikis to see which wikis have one.`,
+			);
+		}
 
 		const effectiveLimit = limit ?? HARD_LIMIT;
 		let results;

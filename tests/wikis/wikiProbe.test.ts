@@ -294,6 +294,33 @@ describe('WikiProbeImpl', () => {
 			});
 		});
 
+		it('inspect surfaces the query service endpoint a Wikibase repository publishes', async () => {
+			vi.mocked(makeApiRequest).mockResolvedValueOnce({
+				query: {
+					extensions: [{ name: 'WikibaseRepository' }],
+					general: {
+						server: 'https://www.wikidata.org',
+						'wikibase-sparql': 'https://query.wikidata.org/sparql',
+					},
+				},
+			});
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
+
+			expect((await probe.inspect('a')).sparqlEndpoint).toBe('https://query.wikidata.org/sparql');
+		});
+
+		it('omits the query service endpoint when siteinfo does not publish one', async () => {
+			vi.mocked(makeApiRequest).mockResolvedValueOnce({
+				query: {
+					extensions: [{ name: 'WikibaseRepository' }],
+					general: { server: 'https://repo.example' },
+				},
+			});
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
+
+			expect((await probe.inspect('a')).sparqlEndpoint).toBeUndefined();
+		});
+
 		it('normalizes a protocol-relative server to https', async () => {
 			vi.mocked(makeApiRequest).mockResolvedValueOnce({
 				query: { extensions: [], general: { server: '//public.example' } },
