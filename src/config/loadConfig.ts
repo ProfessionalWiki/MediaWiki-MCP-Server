@@ -342,16 +342,18 @@ const KIND_PREDICATES: Record<FieldKind, (value: unknown) => boolean> = {
 };
 
 /**
- * The declared type of each config field, mirroring `Config` and `WikiConfig`.
- * The credential fields are absent because `resolveSecretField` parses them,
- * and `uploadDirs` because `resolveUploadDirs` does.
+ * The declared type of each config field. Keyed off `Config` and `WikiConfig`
+ * so that a field added to either without an entry here is a compile error
+ * rather than a field that quietly stops being validated. The credential
+ * fields are excluded because `resolveSecretField` parses them, and
+ * `uploadDirs` and `wikis` because `resolveUploadDirs` and `resolveWiki` do.
  */
-const CONFIG_FIELD_TYPES: Record<string, FieldType> = {
+const CONFIG_FIELD_TYPES: Record<Exclude<keyof Config, 'wikis' | 'uploadDirs'>, FieldType> = {
 	defaultWiki: { kind: 'string' },
 	allowWikiManagement: { kind: 'boolean' },
 };
 
-const WIKI_FIELD_TYPES: Record<string, FieldType> = {
+const WIKI_FIELD_TYPES: Record<Exclude<keyof WikiConfig, SecretFieldName>, FieldType> = {
 	sitename: { kind: 'string' },
 	server: { kind: 'string' },
 	articlepath: { kind: 'string' },
@@ -395,8 +397,14 @@ function assertFieldTypes(
 			typeof value === 'string' && (type.kind === 'boolean' || type.kind === 'number')
 				? ' Remove the quotes.'
 				: '';
+		// An array reaching a field that accepts one is an array of the wrong
+		// contents, which "an array" would not tell the reader.
+		const actual =
+			type.kind === 'stringOrStringArray' && Array.isArray(value)
+				? 'an array with a non-string entry'
+				: describeValue(value);
 		throw new Error(
-			`Config error: ${pathPrefix}${field} must be ${KIND_DESCRIPTIONS[type.kind]}, but is ${describeValue(value)}.${quoting}`,
+			`Config error: ${pathPrefix}${field} must be ${KIND_DESCRIPTIONS[type.kind]}, but is ${actual}.${quoting}`,
 		);
 	}
 }
@@ -435,7 +443,7 @@ function resolveWiki(raw: unknown, wikiKey: string): WikiConfig {
 		}
 	}
 	assertFieldTypes(resolved, WIKI_FIELD_TYPES, `wikis.${wikiKey}.`);
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; the declared field types are checked above
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; the type of each field present is checked above, its presence is not
 	return resolved as unknown as WikiConfig;
 }
 

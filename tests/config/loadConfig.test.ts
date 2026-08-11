@@ -198,7 +198,15 @@ describe('loadConfigFromFile', () => {
 
 		it('throws when tags holds a non-string entry', async () => {
 			const load = await loadWikiWith('tags', ['mcp', 7]);
-			expect(load).toThrow('Config error: wikis.w.tags must be a string or an array of strings');
+			expect(load).toThrow(
+				'Config error: wikis.w.tags must be a string or an array of strings, but is an array with a non-string entry.',
+			);
+		});
+
+		it('throws when a boolean field is given as an env var reference', async () => {
+			vi.stubEnv('MCP_READ_ONLY', 'true');
+			const load = await loadWikiWith('readOnly', '${MCP_READ_ONLY}');
+			expect(load).toThrow('Config error: wikis.w.readOnly must be a boolean');
 		});
 
 		it('accepts tags as an array of strings', async () => {

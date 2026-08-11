@@ -63,6 +63,9 @@ If a referenced variable is not set:
 - **Secret fields** (`token`, `username`, `password`): the server exits at startup with an error naming the wiki, the field, and the missing variable.
 - **Non-secret fields**: the `${VAR_NAME}` text is kept as-is.
 
+Substitution produces a string, so it cannot supply a boolean or numeric field. `"readOnly": "${MCP_READ_ONLY}"`
+is refused at startup; write `true` or `false` in the file.
+
 ## Secret sources
 
 Secret fields can also run an external command and use its output as the secret. This lets you fetch credentials from a password manager, keyring, or secret store without writing them to disk:
