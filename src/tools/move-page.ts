@@ -4,7 +4,8 @@ import type { ApiMoveResponse } from 'mwn';
 import type { ApiMoveParams } from 'types-mediawiki-api';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
-import { buildPageUrl, formatEditComment, type PageWrites } from '../wikis/utils.ts';
+import { buildPageUrl, formatEditComment } from '../wikis/utils.ts';
+import type { PageWrites } from '../wikis/pageWrites.ts';
 
 const inputSchema = {
 	fromTitle: z.string().describe('Current title of the wiki page to move'),

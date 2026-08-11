@@ -112,6 +112,8 @@ describe('delete-page', () => {
 
 		await deletePage.handle({ title: 'X' }, ctx);
 
-		expect(mock.delete).toHaveBeenCalledWith('X', expect.any(String), { tags: 'mcp-edit' });
+		expect(mock.delete).toHaveBeenCalledWith('X', expect.stringContaining('Automated edit'), {
+			tags: 'mcp-edit',
+		});
 	});
 });

@@ -4,7 +4,8 @@ import type { ApiDeleteResponse } from 'mwn';
 import type { ApiDeleteParams } from 'types-mediawiki-api';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
-import { formatEditComment, type PageWrites } from '../wikis/utils.ts';
+import { formatEditComment } from '../wikis/utils.ts';
+import type { PageWrites } from '../wikis/pageWrites.ts';
 
 const inputSchema = {
 	title: z.string().describe('Wiki page title'),

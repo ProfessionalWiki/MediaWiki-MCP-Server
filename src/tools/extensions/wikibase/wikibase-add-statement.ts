@@ -92,6 +92,7 @@ export const wikibaseAddStatement: Tool<typeof inputSchema> = {
 			);
 		}
 
+		const summary = formatEditComment(ctx, 'wikibase-add-statement', comment);
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- wbcreateclaim response shape; trusted at this boundary
 		const response = (await ctx.edit.submit(mwn, {
 			action: 'wbcreateclaim',
@@ -99,7 +100,7 @@ export const wikibaseAddStatement: Tool<typeof inputSchema> = {
 			property,
 			snaktype: 'value',
 			value: snakValue,
-			summary: formatEditComment(ctx, 'wikibase-add-statement', comment),
+			...(summary !== undefined ? { summary } : {}),
 		})) as CreateClaimResponse | undefined;
 
 		const statementId = response?.claim?.id;

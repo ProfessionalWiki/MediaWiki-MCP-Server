@@ -1,5 +1,3 @@
-import type { ApiDeleteResponse, ApiMoveResponse, ApiUndeleteResponse } from 'mwn';
-import type { ApiDeleteParams, ApiMoveParams, ApiUndeleteParams } from 'types-mediawiki-api';
 import type { ToolContext } from '../runtime/context.ts';
 import { resolveSiteInfo } from './siteInfo.ts';
 
@@ -25,39 +23,14 @@ export function formatEditComment(
 	tool: string,
 	comment?: string,
 ): string | undefined {
+	// An empty comment is no comment.
+	const given = comment === '' ? undefined : comment;
 	if (ctx.activeWiki.get().config.attributeEdits === false) {
-		return comment === '' ? undefined : comment;
+		return given;
 	}
 	const suffix = `(via ${tool} on MediaWiki MCP Server)`;
-	if (!comment) {
+	if (given === undefined) {
 		return `Automated edit ${suffix}`;
 	}
-	return `${comment} ${suffix}`;
-}
-
-/**
- * mwn's page-write methods, with the reason typed as mwn actually treats it.
- * Each forwards the argument into the action API's `reason` parameter and drops
- * the parameter when the value is `undefined`, which is the only way to send no
- * reason at all; mwn's own documentation marks the argument optional while its
- * type declaration does not. Assign an `Mwn` to this to omit a reason without
- * asserting away the `undefined` that has to survive.
- */
-export interface PageWrites {
-	delete(
-		title: string,
-		reason: string | undefined,
-		options?: ApiDeleteParams,
-	): Promise<ApiDeleteResponse>;
-	undelete(
-		title: string,
-		reason: string | undefined,
-		options?: ApiUndeleteParams,
-	): Promise<ApiUndeleteResponse>;
-	move(
-		fromTitle: string,
-		toTitle: string,
-		reason: string | undefined,
-		options?: ApiMoveParams,
-	): Promise<ApiMoveResponse>;
+	return `${given} ${suffix}`;
 }
