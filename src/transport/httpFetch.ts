@@ -1,3 +1,4 @@
+import type { Readable } from 'node:stream';
 import fetch, { Response, FetchError } from 'node-fetch';
 import { USER_AGENT } from '../runtime/constants.ts';
 import { isErrnoException } from '../errors/isErrnoException.ts';
@@ -193,30 +194,49 @@ export async function postForm(
  * Reads a response body into memory under a byte cap, checked twice: the
  * declared content-length rejects an over-cap body before a byte is read, and
  * the running total catches one that under-declares or declares nothing.
+ *
+ * Either refusal disposes of the body first: the connection is held for as long
+ * as the body stream is neither consumed nor destroyed, so a body left unread
+ * strands a socket for the life of the process.
  */
 async function readCapped(
 	response: Response,
 	maxBytes: number,
 	limitName?: string,
 ): Promise<Buffer> {
-	const declared = Number(response.headers.get('content-length'));
-	if (Number.isFinite(declared) && declared > maxBytes) {
-		throw new FileTooLargeError(declared, maxBytes, limitName);
-	}
-	const chunks: Buffer[] = [];
-	let total = 0;
-	if (response.body !== null) {
-		// node-fetch v3 exposes the body as a Node Readable (async-iterable).
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- node-fetch v3 body is always a Node.js Readable; narrowing to AsyncIterable<Buffer> is safe at this boundary
-		for await (const chunk of response.body as AsyncIterable<Buffer>) {
-			total += chunk.length;
-			if (total > maxBytes) {
-				throw new FileTooLargeError(total, maxBytes, limitName);
-			}
-			chunks.push(chunk);
+	try {
+		const declared = Number(response.headers.get('content-length'));
+		if (Number.isFinite(declared) && declared > maxBytes) {
+			throw new FileTooLargeError(declared, maxBytes, limitName);
 		}
+		const chunks: Buffer[] = [];
+		let total = 0;
+		if (response.body !== null) {
+			// node-fetch v3 exposes the body as a Node Readable (async-iterable).
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- node-fetch v3 body is always a Node.js Readable; narrowing to AsyncIterable<Buffer> is safe at this boundary
+			for await (const chunk of response.body as AsyncIterable<Buffer>) {
+				total += chunk.length;
+				if (total > maxBytes) {
+					throw new FileTooLargeError(total, maxBytes, limitName);
+				}
+				chunks.push(chunk);
+			}
+		}
+		return Buffer.concat(chunks);
+	} catch (error) {
+		destroyBody(response);
+		throw error;
 	}
-	return Buffer.concat(chunks);
+}
+
+/**
+ * Releases the connection behind a response body that will not be read. Leaving
+ * the read loop above destroys the stream on its way out, but a refusal that
+ * never subscribes to it has to do this itself.
+ */
+function destroyBody(response: Response): void {
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- node-fetch v3 body is always a Node.js Readable; the published type narrows it to ReadableStream, which omits destroy()
+	(response.body as Readable | null)?.destroy();
 }
 
 export async function fetchPageHtml(url: string): Promise<string | null> {

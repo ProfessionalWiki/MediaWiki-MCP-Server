@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Fixed
 
 - `update-page` no longer advertises itself as idempotent: in `mode='append'` and `mode='prepend'` it never was, so a client replaying a call whose result never arrived adds the content a second time. A replace resends the same content rather than adding to it.
+- A source URL whose declared size is over `MCP_UPLOAD_MAX_BYTES` no longer leaves its connection open once the fetch is refused. `upload-file-from-url` and `update-file-from-url` held one socket per such URL for as long as the server ran, and an over-cap query result in `wikibase-query` did the same.
 
 ## [0.16.0] - 2026-07-30
 
