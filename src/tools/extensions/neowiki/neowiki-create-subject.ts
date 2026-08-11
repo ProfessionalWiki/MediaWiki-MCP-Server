@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
+import { attributedComment } from './editComment.ts';
 import { resolvePageId, hasOnePageRef } from './pageId.ts';
 
 // A statement keyed by property name. The write API reads `propertyType` (NOT
@@ -90,12 +91,18 @@ export const neowikiCreateSubject: Tool<typeof inputSchema> = {
 			}
 
 			const segment = isMain === true ? 'mainSubject' : 'childSubjects';
+			const editComment = attributedComment(ctx, 'neowiki-create-subject', comment);
 			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki create response shape; trusted at this boundary
 			const data = (await neowikiRequest(mwn, {
 				method: 'POST',
 				path: `/page/${resolvedPageId}/${segment}`,
 				csrf: true,
-				body: { label, schema, statements, ...(comment !== undefined ? { comment } : {}) },
+				body: {
+					label,
+					schema,
+					statements,
+					...(editComment !== undefined ? { comment: editComment } : {}),
+				},
 			})) as CreateResponse;
 
 			// Upstream returns HTTP 201 with { status: "error" } when a main subject

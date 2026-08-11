@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Fixed
 
+- NeoWiki subject writes now carry the `(via <tool> on MediaWiki MCP Server)` edit-summary suffix and honour a wiki's `attributeEdits: false` setting, which they previously ignored.
 - `update-page` no longer advertises itself as idempotent: in `mode='append'` and `mode='prepend'` it never was, so a client replaying a call whose result never arrived adds the content a second time. A replace resends the same content rather than adding to it.
 
 ## [0.16.0] - 2026-07-30
