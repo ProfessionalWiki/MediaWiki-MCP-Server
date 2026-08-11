@@ -67,17 +67,27 @@ export class FileTooLargeError extends Error {
 	}
 }
 
-// Only 307 and 308 ask for the original method and body again: RFC 9110 makes a
-// 303 a bodyless GET, and 301 and 302 are treated the same way. The requests
-// this module sends are GET and POST, for which every other status means GET; a
-// caller sending PUT or DELETE would need the status paired with the method.
+// Only 307 and 308 ask for the original method and body again. RFC 9110 defines
+// a 303 as a GET on another resource, and browsers and every mainstream client
+// treat 301 and 302 the same way, which the Fetch standard writes down as a
+// rule. The requests this module sends are GET and POST, for which every status
+// but those two means GET; a caller sending PUT or DELETE would need the status
+// paired with the method, since 301 and 302 redirect only a POST.
 const METHOD_PRESERVING_REDIRECTS = new Set([307, 308]);
 
+function downgradesToGet(status: number): boolean {
+	return !METHOD_PRESERVING_REDIRECTS.has(status);
+}
+
 // Headers that describe a request body go when the body goes: a bodyless GET
-// announcing a Content-Type describes something it is not sending.
+// announcing a Content-Type describes something it is not sending. Fetch leaves
+// Content-Length out of this list because there the fetch layer always owns it;
+// node-fetch recomputes it only for a request that has a body, so a value a
+// caller set survives onto the bodyless GET unless it goes here too.
 const BODY_HEADERS = new Set([
 	'content-encoding',
 	'content-language',
+	'content-length',
 	'content-location',
 	'content-type',
 ]);
@@ -158,7 +168,7 @@ async function fetchCore(
 		currentUrl = new URL(location, currentUrl).toString();
 		// A downgrade holds for the rest of the chain: once the request is a
 		// bodyless GET, a later 307 has a bodyless GET to preserve.
-		if (!METHOD_PRESERVING_REDIRECTS.has(response.status)) {
+		if (downgradesToGet(response.status)) {
 			currentMethod = 'GET';
 			currentBody = undefined;
 			requestHeaders = withoutBodyHeaders(requestHeaders);

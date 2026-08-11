@@ -120,12 +120,17 @@ describe('redirected requests', () => {
 			headers: {
 				'Content-Encoding': 'identity',
 				'Content-Language': 'en',
+				// node-fetch recomputes Content-Length only for a request that has
+				// a body, so a caller's value reaches the downgraded GET unless the
+				// downgrade removes it.
+				'Content-Length': '25',
 				'Content-Location': '/sparql',
 			},
 		});
 
 		expect(target().headers['content-encoding']).toBeUndefined();
 		expect(target().headers['content-language']).toBeUndefined();
+		expect(target().headers['content-length']).toBeUndefined();
 		expect(target().headers['content-location']).toBeUndefined();
 	});
 
