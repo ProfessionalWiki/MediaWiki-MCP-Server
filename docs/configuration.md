@@ -30,7 +30,7 @@ Covers configuration topics beyond the basic `config.json` shape documented in [
 | `private` | No | Whether the wiki requires authentication to read (default: `false`) |
 | `readOnly` | No | When `true`, hides the 🔐 write tools from `tools/list` while this wiki is active. Pairs with `allowWikiManagement: false` for a [hosted read-only endpoint](deployment.md). Default: `false` |
 | `tags` | No | Change tag(s) to apply to every write (string or array). The tag must exist and be active at `Special:Tags` — see [change tags](#change-tags-tags) for details. |
-| `attributeEdits` | No | Whether page and file writes carry the `(via <tool> on MediaWiki MCP Server)` suffix in their edit summary. Default: `true`. See [edit attribution](#edit-attribution-attributeedits). |
+| `attributeEdits` | No | Whether page, file and Wikibase entity writes carry the `(via <tool> on MediaWiki MCP Server)` suffix in their edit summary. Default: `true`. See [edit attribution](#edit-attribution-attributeedits). |
 
 URLs returned to the caller — page links, and the `server` field in `list-wikis` and `mcp://wikis` resources — are built from the wiki's public address, so an internal `server` hostname does not leak into links. If the wiki cannot be reached, they fall back to the configured `server`.
 
@@ -122,7 +122,7 @@ Accepts a string or an array of strings:
 
 ## Edit attribution (`attributeEdits`)
 
-Every write (create, update, delete, undelete, move, upload) appends `(via <tool> on MediaWiki MCP Server)` to its edit summary — for example `Fix typo (via update-page on MediaWiki MCP Server)`. With no caller comment, the summary is `Automated edit (via <tool> on MediaWiki MCP Server)`. This is the default (`true`).
+Page and file writes (create, update, delete, undelete, move, upload) and Wikibase entity writes append `(via <tool> on MediaWiki MCP Server)` to their edit summary — for example `Fix typo (via update-page on MediaWiki MCP Server)`. With no caller comment, the summary is `Automated edit (via <tool> on MediaWiki MCP Server)`. This is the default (`true`). Wikibase composes its own structured autocomment ahead of the summary, so an entity edit reads `/* wbeditentity-update:0| */ Fix typo (via wikibase-edit-entity on MediaWiki MCP Server)`.
 
 Set `attributeEdits` to `false` to drop the suffix. The write then carries only the caller's comment, or an empty summary when none was given:
 
