@@ -25,6 +25,12 @@ export interface WikiIdentity {
 	articlepath?: string;
 	/** Content license from rightsinfo; absent unless both url and title exist. */
 	license?: LicenseInfo;
+	/**
+	 * SPARQL endpoint of the query service backing this wiki's Wikibase
+	 * repository. Published in siteinfo as `wikibase-sparql` by a repository
+	 * whose `sparqlEndpoint` setting is set; absent on every other wiki.
+	 */
+	sparqlEndpoint?: string;
 }
 
 /**
@@ -57,7 +63,7 @@ export interface WikiProbe {
 interface SiteInfoResponse {
 	query?: {
 		extensions?: { name?: string }[];
-		general?: { server?: string; articlepath?: string };
+		general?: { server?: string; articlepath?: string; 'wikibase-sparql'?: string };
 		rightsinfo?: { url?: string; text?: string };
 	};
 }
@@ -112,6 +118,7 @@ export class WikiProbeImpl implements WikiProbe {
 			...(entry.server !== undefined ? { server: entry.server } : {}),
 			...(entry.articlepath !== undefined ? { articlepath: entry.articlepath } : {}),
 			...(entry.license !== undefined ? { license: entry.license } : {}),
+			...(entry.sparqlEndpoint !== undefined ? { sparqlEndpoint: entry.sparqlEndpoint } : {}),
 		};
 	}
 
@@ -183,6 +190,10 @@ export class WikiProbeImpl implements WikiProbe {
 				typeof general?.articlepath === 'string'
 					? general.articlepath.replace('/$1', '')
 					: undefined;
+			const sparqlEndpoint =
+				typeof general?.['wikibase-sparql'] === 'string' && general['wikibase-sparql'] !== ''
+					? general['wikibase-sparql']
+					: undefined;
 			const rights = data.query?.rightsinfo;
 			const license: LicenseInfo | undefined =
 				rights?.url && rights.text ? { url: rights.url, title: rights.text } : undefined;
@@ -194,6 +205,7 @@ export class WikiProbeImpl implements WikiProbe {
 				...(server !== undefined ? { server } : {}),
 				...(articlepath !== undefined ? { articlepath } : {}),
 				...(license !== undefined ? { license } : {}),
+				...(sparqlEndpoint !== undefined ? { sparqlEndpoint } : {}),
 			};
 			this.cache.set(wikiKey, entry);
 			return entry;

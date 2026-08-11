@@ -3,7 +3,14 @@ export type LicenseInfo = { url: string; title: string };
 export type SiteInfo = {
 	server: string;
 	articlepath: string;
+	/** The wiki's content language ($wgLanguageCode); absent when siteinfo omitted it. */
+	lang?: string;
 	license?: LicenseInfo;
+	/**
+	 * SPARQL endpoint of the query service backing this wiki's Wikibase
+	 * repository, as published in siteinfo; absent on a wiki that publishes none.
+	 */
+	sparqlEndpoint?: string;
 };
 
 export interface SiteInfoCache {

@@ -72,6 +72,11 @@ describe('classifyError', () => {
 		});
 	});
 
+	it('leaves an extension code unclassified when no pack declares it', () => {
+		const err = createMockMwnError('no-such-entity');
+		expect(classifyError(err)).toEqual({ category: 'upstream_failure' });
+	});
+
 	it('falls back to upstream_failure for unknown codes', () => {
 		const err = createMockMwnError('somethingnew', 'A new kind of error');
 		expect(classifyError(err)).toEqual({ category: 'upstream_failure' });

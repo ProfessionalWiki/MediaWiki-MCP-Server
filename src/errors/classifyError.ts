@@ -72,6 +72,12 @@ const MW_CODE_TO_CATEGORY: Record<string, ErrorCategory> = {
 	readonly: 'upstream_failure',
 };
 
+// Code families the wiki numbers per case, matched by prefix rather than by
+// exact value.
+const CODE_PREFIX_PATTERNS: readonly (readonly [RegExp, ErrorCategory])[] = [
+	[/^internal_api_error_/, 'upstream_failure'],
+];
+
 // mwn sometimes surfaces codes only inside the error message, not on .code.
 // These patterns infer a canonical code from the message, which then routes
 // through MW_CODE_TO_CATEGORY.
@@ -83,19 +89,37 @@ const MESSAGE_FALLBACK_PATTERNS: readonly (readonly [RegExp, string])[] = [
 	[/\bratelimited\b/i, 'ratelimited'],
 ];
 
-export function classifyError(err: unknown): { category: ErrorCategory; code?: string } {
+/**
+ * Error codes an extension adds to the action API's vocabulary, supplied by the
+ * packs rather than listed here, so a pack owns the codes only it can produce.
+ */
+export interface ExtensionErrorVocabulary {
+	codes: Readonly<Record<string, ErrorCategory>>;
+	prefixes: readonly (readonly [RegExp, ErrorCategory])[];
+}
+
+const NO_EXTENSION_CODES: ExtensionErrorVocabulary = { codes: {}, prefixes: [] };
+
+export function classifyError(
+	err: unknown,
+	extensions: ExtensionErrorVocabulary = NO_EXTENSION_CODES,
+): { category: ErrorCategory; code?: string } {
 	if (err instanceof CredentialResolutionError) {
 		return { category: 'authentication' };
 	}
 	if (err !== null && typeof err === 'object') {
 		const code = (err as { code?: unknown }).code;
 		if (typeof code === 'string') {
-			const mapped = MW_CODE_TO_CATEGORY[code];
+			// Core first: a pack cannot reinterpret a code the wiki already defines,
+			// and registration rejects an overlap before it could try.
+			const mapped = MW_CODE_TO_CATEGORY[code] ?? extensions.codes[code];
 			if (mapped) {
 				return { category: mapped, code };
 			}
-			if (/^internal_api_error_/.test(code)) {
-				return { category: 'upstream_failure', code };
+			for (const [pattern, category] of [...CODE_PREFIX_PATTERNS, ...extensions.prefixes]) {
+				if (pattern.test(code)) {
+					return { category, code };
+				}
 			}
 		}
 		const message = (err as { message?: unknown }).message;
@@ -114,7 +138,14 @@ export function classifyError(err: unknown): { category: ErrorCategory; code?: s
 }
 
 export class ErrorClassifierImpl implements ErrorClassifier {
+	public constructor(private readonly extensions: ExtensionErrorVocabulary = NO_EXTENSION_CODES) {}
+
 	public classify(err: unknown): { category: ErrorCategory; code?: string } {
-		return classifyError(err);
+		return classifyError(err, this.extensions);
 	}
+}
+
+/** The core vocabulary, for the registration check that keeps packs out of it. */
+export function coreErrorCodes(): Readonly<Record<string, ErrorCategory>> {
+	return MW_CODE_TO_CATEGORY;
 }

@@ -5,7 +5,12 @@ import { withoutRequestSignal } from '../runtime/requestContext.ts';
 
 interface SiteInfoApiResponse {
 	query?: {
-		general?: { server?: string; articlepath?: string };
+		general?: {
+			server?: string;
+			articlepath?: string;
+			lang?: string;
+			'wikibase-sparql'?: string;
+		};
 		rightsinfo?: { url?: string; text?: string };
 	};
 }
@@ -56,6 +61,10 @@ async function fetchSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInf
 				typeof general.articlepath === 'string'
 					? general.articlepath.replace('/$1', '')
 					: fallback.articlepath,
+			...(typeof general.lang === 'string' && general.lang !== '' ? { lang: general.lang } : {}),
+			...(typeof general['wikibase-sparql'] === 'string' && general['wikibase-sparql'] !== ''
+				? { sparqlEndpoint: general['wikibase-sparql'] }
+				: {}),
 			...(license ? { license } : {}),
 		};
 		ctx.siteInfoCache.set(wikiKey, resolved);

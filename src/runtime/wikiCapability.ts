@@ -112,6 +112,10 @@ export async function checkWikiCapability(
 				: `Wiki "${wikiKey}" could not be reached to check for the ${pack.extensionNames[0]} extension.`;
 			return ctx.format.invalidInput(`${reason} Use list-wikis to see which wikis support it.`);
 		}
+		const refusal = await wikiGateRefusal(pack, toolName, wikiKey, ctx);
+		if (refusal !== undefined) {
+			return ctx.format.invalidInput(refusal);
+		}
 	}
 	if (WRITE_TOOL_SET.has(toolName)) {
 		const config = ctx.wikis.get(wikiKey);
@@ -120,4 +124,28 @@ export async function checkWikiCapability(
 		}
 	}
 	return undefined;
+}
+
+/**
+ * Why a gated pack tool cannot run against this wiki, or undefined when it can.
+ * Enforced here rather than in each handler: the tool stays offered while any
+ * one wiki satisfies the gate, so every call to a wiki that does not has to be
+ * refused — including from a pack that adds a gated tool later and does not
+ * think to check.
+ */
+async function wikiGateRefusal(
+	pack: ExtensionPack,
+	toolName: string,
+	wikiKey: string,
+	ctx: ToolContext,
+): Promise<string | undefined> {
+	const gate = pack.wikiGate;
+	if (gate === undefined || !gate.tools.includes(toolName)) {
+		return undefined;
+	}
+	// The same cached siteinfo snapshot the extension check above read.
+	if (gate.isSatisfied(await ctx.wikiProbe.inspect(wikiKey))) {
+		return undefined;
+	}
+	return gate.refusal(wikiKey);
 }

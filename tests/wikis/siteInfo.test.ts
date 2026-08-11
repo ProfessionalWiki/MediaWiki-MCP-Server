@@ -49,6 +49,72 @@ describe('resolveSiteInfo', () => {
 		expect(mock.request).toHaveBeenCalledTimes(1);
 	});
 
+	it('reports the wiki content language', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				query: {
+					general: { server: 'https://public.example', articlepath: '/wiki/$1', lang: 'de' },
+				},
+			}),
+		});
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			siteInfoCache: emptyCache() as never,
+		});
+
+		expect((await resolveSiteInfo(ctx, 'test-wiki')).lang).toBe('de');
+	});
+
+	it('omits the content language when siteinfo does not report one', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				query: { general: { server: 'https://public.example', articlepath: '/wiki/$1' } },
+			}),
+		});
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			siteInfoCache: emptyCache() as never,
+		});
+
+		expect(await resolveSiteInfo(ctx, 'test-wiki')).not.toHaveProperty('lang');
+	});
+
+	it('reports the query service endpoint a Wikibase repository publishes', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				query: {
+					general: {
+						server: 'https://www.wikidata.org',
+						articlepath: '/wiki/$1',
+						'wikibase-sparql': 'https://query.wikidata.org/sparql',
+					},
+				},
+			}),
+		});
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			siteInfoCache: emptyCache() as never,
+		});
+
+		expect((await resolveSiteInfo(ctx, 'test-wiki')).sparqlEndpoint).toBe(
+			'https://query.wikidata.org/sparql',
+		);
+	});
+
+	it('omits the query service endpoint when siteinfo does not publish one', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				query: { general: { server: 'https://public.example', articlepath: '/wiki/$1' } },
+			}),
+		});
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			siteInfoCache: emptyCache() as never,
+		});
+
+		expect(await resolveSiteInfo(ctx, 'test-wiki')).not.toHaveProperty('sparqlEndpoint');
+	});
+
 	it('normalizes a protocol-relative server to https', async () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({

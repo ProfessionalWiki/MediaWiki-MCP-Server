@@ -99,6 +99,16 @@ Each pack's tools register only on wikis where its extension is installed.
 | `cargo-describe-table` | List a Cargo table's fields with their types and list-flags. |
 | `cargo-query` | Run a Cargo SQL-style query. |
 
+**[Wikibase](https://www.mediawiki.org/wiki/Extension:Wikibase_Repository)**
+
+| Name | Description |
+|---|---|
+| `wikibase-search-entities` | Find items and properties by label or alias. |
+| `wikibase-get-entity` | Read one entity's terms and statements, with referenced IDs resolved to labels. |
+| `wikibase-query` | Run a SPARQL query against the wiki's query service. Offered only for a repository whose siteinfo publishes one. |
+| `wikibase-edit-entity` | Create or change an entity from Wikibase entity JSON. Requires the `edit` right. |
+| `wikibase-add-statement` | Add one statement with an item, string, external-id or url value. Requires the `edit` right. |
+
 ### Resources
 
 **`mcp://wikis/{wikiKey}`** — per-wiki resource exposing `sitename`, `server` (the wiki's public address), `articlepath`, `scriptpath`, and the `private` and `readOnly` flags.
@@ -130,7 +140,7 @@ The variables below are relevant to any setup. Variables that only apply when se
 | `CONFIG` | Path to your configuration file | `config.json` |
 | `MCP_TRANSPORT` | Type of MCP server transport (`stdio` or `http`) | `stdio` |
 | `MCP_LOG_LEVEL` | Minimum severity for logger output. One of `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`, or `silent`. | `debug` |
-| `MCP_CONTENT_MAX_BYTES` | Byte cap for content bodies (wikitext, rendered HTML, diffs). Tune to the target LLM client's tool-response budget. | `50000` |
+| `MCP_CONTENT_MAX_BYTES` | Byte cap for the content bodies and result blocks tools return (wikitext, rendered HTML, diffs, statement and row listings). Tune to the target LLM client's tool-response budget. | `50000` |
 | `MCP_FILE_DATA_MAX_BYTES` | Hard cap on the base64-encoded size of a `get-file-data` response. A transport/safety backstop; tune the actual size per call with the tool's `width`. Over-cap calls error rather than truncate. | `1000000` |
 | `MCP_UPLOAD_MAX_BYTES` | Memory cap on the server-side fetch used by `upload-file-from-url` / `update-file-from-url`. Files larger than this are handed to the wiki's own copy-upload instead of being buffered by the server. Guards this server's memory, not the wiki's `$wgMaxUploadSize`. | `104857600` |
 | `MCP_OAUTH_CREDENTIALS_FILE` | Override the default credentials store path. Default: `~/.config/mediawiki-mcp/credentials.json` (Linux/macOS) or `%APPDATA%\mediawiki-mcp\credentials.json` (Windows). | `unset` |

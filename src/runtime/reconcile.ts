@@ -64,19 +64,56 @@ const STATIC_RULES: readonly ToolGatingRule[] = [
 ];
 
 function buildExtensionRules(packs: readonly ExtensionPack[]): readonly ToolGatingRule[] {
-	return packs.map((pack) => ({
-		name: `${pack.id}-extension`,
-		affects: pack.tools.map((t) => t.name),
-		// Union gating: the pack's tools are offered if ANY configured wiki has
-		// the extension. The per-call capability guard rejects a call to a wiki
-		// that lacks it.
-		isAllowed: async (c) => {
-			const results = await Promise.all(
-				Object.keys(c.allWikis).map((key) => c.wikiProbe.hasAnyExtension(key, pack.extensionNames)),
-			);
-			return results.some((r) => r);
+	return packs.flatMap((pack) => [
+		{
+			name: `${pack.id}-extension`,
+			affects: pack.tools.map((t) => t.name),
+			// Union gating: the pack's tools are offered if ANY configured wiki has
+			// the extension. The per-call capability guard rejects a call to a wiki
+			// that lacks it.
+			isAllowed: async (c: ReconcileContext) => {
+				const results = await Promise.all(
+					Object.keys(c.allWikis).map((key) =>
+						c.wikiProbe.hasAnyExtension(key, pack.extensionNames),
+					),
+				);
+				return results.some((r) => r);
+			},
 		},
-	}));
+		...wikiGateRule(pack),
+	]);
+}
+
+// A pack whose tools need a further wiki capability on top of the extension
+// declares it, rather than reconcile knowing about that pack.
+function wikiGateRule(pack: ExtensionPack): ToolGatingRule[] {
+	const gate = pack.wikiGate;
+	if (gate === undefined) {
+		return [];
+	}
+	return [
+		{
+			name: `${pack.id}-wiki-gate`,
+			affects: gate.tools,
+			// Conjoined per wiki, not across the fleet: the gate is a condition on
+			// top of the extension, so a gated tool is offered only while some ONE
+			// wiki has both. Reducing each half to its own fleet-wide boolean would
+			// offer the tool when one wiki has the extension and a different one
+			// satisfies the gate, which no wiki can serve.
+			isAllowed: async (c: ReconcileContext) => {
+				const results = await Promise.all(
+					Object.keys(c.allWikis).map(async (key) => {
+						const identity = await c.wikiProbe.inspect(key);
+						return (
+							pack.extensionNames.some((name) => identity.extensions.has(name)) &&
+							gate.isSatisfied(identity)
+						);
+					}),
+				);
+				return results.some((r) => r);
+			},
+		},
+	];
 }
 
 function buildContext(deps: ReconcileDeps): ReconcileContext {

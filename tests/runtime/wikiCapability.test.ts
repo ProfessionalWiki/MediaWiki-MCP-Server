@@ -155,6 +155,62 @@ describe('checkWikiCapability', () => {
 	});
 });
 
+// A pack's wikiGate is union-gated, so the tool stays offered while one wiki
+// satisfies it and every call to a wiki that does not has to be refused here.
+// These run against the real wikibase pack rather than a synthetic one, since
+// what they assert is that a declared gate needs nothing from the handler.
+describe('checkWikiCapability — pack wiki gates', () => {
+	// Only `served` publishes a query service in its siteinfo; both are Wikibase
+	// repositories, so the extension check passes for each.
+	function twoWikiCtx() {
+		const wikis: Record<string, WikiConfig> = { served: rwWiki, bare: rwWiki };
+		return fakeContext({
+			wikis: {
+				getAll: () => wikis,
+				get: (key: string) => wikis[key],
+				add: () => {},
+				remove: () => {},
+				isManagementAllowed: () => true,
+			},
+			wikiProbe: {
+				hasExtension: async () => true,
+				hasAnyExtension: async () => true,
+				invalidate: () => {},
+				inspect: async (key: string) => ({
+					reachable: true,
+					extensions: new Set<string>(['WikibaseRepository']),
+					...(key === 'served' ? { sparqlEndpoint: 'https://query.example/sparql' } : {}),
+				}),
+			},
+		});
+	}
+
+	it('refuses a gated tool on a wiki that does not satisfy the gate', async () => {
+		const result = await checkWikiCapability('wikibase-query', 'bare', twoWikiCtx());
+
+		expect(result?.isError).toBe(true);
+		const message = JSON.stringify(result?.content);
+		expect(message).toContain('advertises no query service');
+		expect(message).toContain('bare');
+	});
+
+	it('points a refused caller at the wikis that do satisfy the gate', async () => {
+		const result = await checkWikiCapability('wikibase-query', 'bare', twoWikiCtx());
+
+		expect(JSON.stringify(result?.content)).toContain(
+			'Use list-wikis to see which wikis have one.',
+		);
+	});
+
+	it('allows the same tool on the wiki that satisfies the gate', async () => {
+		expect(await checkWikiCapability('wikibase-query', 'served', twoWikiCtx())).toBeUndefined();
+	});
+
+	it('leaves the pack’s ungated tools alone on the unsatisfied wiki', async () => {
+		expect(await checkWikiCapability('wikibase-get-entity', 'bare', twoWikiCtx())).toBeUndefined();
+	});
+});
+
 describe('WRITE_TOOL_NAMES', () => {
 	it('includes the core write tools', () => {
 		for (const name of [
@@ -178,6 +234,8 @@ describe('WRITE_TOOL_NAMES', () => {
 			'neowiki-update-subject',
 			'neowiki-delete-subject',
 			'neowiki-set-main-subject',
+			'wikibase-edit-entity',
+			'wikibase-add-statement',
 		]) {
 			expect(WRITE_TOOL_NAMES).toContain(name);
 		}
@@ -190,6 +248,8 @@ describe('WRITE_TOOL_NAMES', () => {
 			'smw-query',
 			'cargo-query',
 			'bucket-query',
+			'wikibase-get-entity',
+			'wikibase-query',
 		]) {
 			expect(WRITE_TOOL_NAMES).not.toContain(name);
 		}

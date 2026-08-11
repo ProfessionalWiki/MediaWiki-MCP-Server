@@ -139,9 +139,11 @@ Tools that return variable-size result sets or content bodies have a per-call ca
 - **Without continuation** (the only remedy is a narrower query): `"Result capped at N <items>. Additional <items> may exist — <narrow-hint>."`
 - **Content truncated** (the response body exceeded the byte budget): `"Content truncated at N of M bytes. [Available sections: 0 (Lead), 1 (<heading>), ....] <remedy>"` where `<remedy>` is a full sentence of the form `"To <purpose>, <action>."` (e.g. `"To read a specific section, call get-page again with section=N."`), matching the connector-phrase pattern used by the `more-available` shape.
 
+Where the narrowing a parameter offers is exhausted — the call already names the single item the response can be narrowed to, so naming it again returns the same response — no action remains, and the `<remedy>` says so instead. A parameter that still has somewhere to go is repeated as normal: `get-page` truncating one oversize section still points at `section=N`, because the other sections remain.
+
 Descriptions state the default cap with a "by default" qualifier (e.g., "truncated at 50000 bytes by default"). The qualifier is load-bearing because operators can override `DEFAULT_CONTENT_MAX_BYTES` via `MCP_CONTENT_MAX_BYTES`; without it, descriptions misrepresent customised deployments. If continuation is supported, descriptions reference the continuation parameter by name so the LLM can pick the right parameter without inspecting the schema.
 
-The byte budget for content bodies is centrally resolved via `resolveContentMaxBytes()` in `src/results/truncation.ts` — it reads the `MCP_CONTENT_MAX_BYTES` environment variable and falls back to `DEFAULT_CONTENT_MAX_BYTES` (50000). Tools do not invent their own limits. Section-aware tools (`get-page`, `get-pages`) include a section list in the marker so the caller can navigate without a follow-up "list sections" call.
+The byte budget for content bodies is centrally resolved via `contentMaxBytes()` in `src/results/truncation.ts` — it reads the `MCP_CONTENT_MAX_BYTES` environment variable and falls back to `DEFAULT_CONTENT_MAX_BYTES` (50000). Tools do not invent their own limits. Section-aware tools (`get-page`, `get-pages`) include a section list in the marker so the caller can navigate without a follow-up "list sections" call.
 
 This convention doesn't apply to tools that reject oversize input (e.g. `get-pages`' 50-title cap): those return an error, not a truncation marker.
 

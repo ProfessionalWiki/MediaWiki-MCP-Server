@@ -2,6 +2,7 @@ import { vi } from 'vitest';
 import type { ToolContext, ManagementContext } from '../../src/runtime/context.ts';
 import { ResponseFormatterImpl } from '../../src/results/response.ts';
 import { ErrorClassifierImpl } from '../../src/errors/classifyError.ts';
+import { extensionErrorVocabulary, extensionPacks } from '../../src/tools/extensions/index.ts';
 import { RevisionNormalizerImpl } from '../../src/services/revisionNormalize.ts';
 import { getRequestWiki } from '../../src/runtime/requestContext.ts';
 import { fakeLogger } from './fakeLogger.ts';
@@ -69,7 +70,12 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 			// extension-pack tools; default to "present" so plain tool tests aren't
 			// blocked. Tests that exercise the guard override this explicitly.
 			hasAnyExtension: (async () => true) as never,
-			inspect: throws('wikiProbe.inspect') as never,
+			// reconcile's wiki-gate rule inspects every wiki; default to a reachable
+			// wiki that advertises nothing, so a gated tool stays hidden unless a
+			// test says otherwise. Deliberately more restrictive than the
+			// hasAnyExtension default above: a test that exercises gating has to
+			// stub both, since the two answer from the same probe in production.
+			inspect: (async () => ({ reachable: true, extensions: new Set<string>() })) as never,
 			invalidate: throws('wikiProbe.invalidate') as never,
 		},
 		sections: {
@@ -85,7 +91,7 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 		},
 		revision: new RevisionNormalizerImpl(),
 		format: new ResponseFormatterImpl(),
-		errors: new ErrorClassifierImpl(),
+		errors: new ErrorClassifierImpl(extensionErrorVocabulary(extensionPacks)),
 		logger: fakeLogger(),
 		transport: 'stdio' as const,
 		...overrides,
@@ -96,4 +102,18 @@ export function fakeManagementContext(
 	overrides: Partial<ManagementContext> = {},
 ): ManagementContext {
 	return { ...fakeContext(overrides), reconcile: vi.fn(), ...overrides };
+}
+
+/** The same context, for a wiki that has turned edit attribution off. */
+export function withoutEditAttribution(ctx: ToolContext): ToolContext {
+	return {
+		...ctx,
+		activeWiki: {
+			...ctx.activeWiki,
+			get: () => {
+				const { key, config } = ctx.activeWiki.get();
+				return { key, config: { ...config, attributeEdits: false } };
+			},
+		},
+	};
 }
