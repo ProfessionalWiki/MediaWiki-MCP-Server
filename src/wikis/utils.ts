@@ -11,13 +11,25 @@ export async function buildPageUrl(ctx: ToolContext, title: string): Promise<str
 	return `${server}${articlepath}/${encodeURI(title.replace(/ /g, '_'))}`;
 }
 
-export function formatEditComment(ctx: ToolContext, tool: string, comment?: string): string {
+/**
+ * The edit summary a write should carry, attributed to the tool making it, or
+ * `undefined` when there is none: a wiki that has turned attribution off and a
+ * caller that gave no comment. An absent summary is not an empty one — MediaWiki
+ * writes its own deletion reason only when the parameter arrives absent — so the
+ * two cases must stay distinct all the way to the wire.
+ */
+export function formatEditComment(
+	ctx: ToolContext,
+	tool: string,
+	comment?: string,
+): string | undefined {
+	const given = comment === '' ? undefined : comment;
 	if (ctx.activeWiki.get().config.attributeEdits === false) {
-		return comment ?? '';
+		return given;
 	}
 	const suffix = `(via ${tool} on MediaWiki MCP Server)`;
-	if (!comment) {
+	if (given === undefined) {
 		return `Automated edit ${suffix}`;
 	}
-	return `${comment} ${suffix}`;
+	return `${given} ${suffix}`;
 }

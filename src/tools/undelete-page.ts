@@ -5,6 +5,7 @@ import type { ApiUndeleteParams } from 'types-mediawiki-api';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { formatEditComment } from '../wikis/utils.ts';
+import type { PageWrites } from '../wikis/pageWrites.ts';
 
 const inputSchema = {
 	title: z.string().describe('Wiki page title'),
@@ -27,7 +28,7 @@ export const undeletePage: Tool<typeof inputSchema> = {
 	target: (a) => a.title,
 
 	async handle({ title, comment }, ctx: ToolContext): Promise<CallToolResult> {
-		const mwn = await ctx.mwn();
+		const mwn: PageWrites = await ctx.mwn();
 		const options = ctx.edit.applyTags<ApiUndeleteParams>({});
 		const data: ApiUndeleteResponse & { revisions?: number } = await mwn.undelete(
 			title,

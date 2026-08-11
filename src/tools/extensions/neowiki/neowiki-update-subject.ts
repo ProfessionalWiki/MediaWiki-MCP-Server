@@ -3,7 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
-import { attributedComment } from './editComment.ts';
+import { formatEditComment } from '../../../wikis/utils.ts';
 
 const statementSchema = z.object({
 	propertyType: z
@@ -53,7 +53,7 @@ export const neowikiUpdateSubject: Tool<typeof inputSchema> = {
 
 	async handle({ id, label, statements, comment }, ctx: ToolContext): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
-		const editComment = attributedComment(ctx, 'neowiki-update-subject', comment);
+		const editComment = formatEditComment(ctx, 'neowiki-update-subject', comment);
 		try {
 			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki replace response shape; trusted at this boundary
 			const data = (await neowikiRequest(mwn, {

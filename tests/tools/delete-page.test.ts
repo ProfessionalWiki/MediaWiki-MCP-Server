@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
 import { createMockMwnError } from '../helpers/mock-mwn-error.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { fakeContext, withoutEditAttribution } from '../helpers/fakeContext.ts';
 import { deletePage } from '../../src/tools/delete-page.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { formatPayload } from '../../src/results/format.ts';
@@ -73,6 +73,31 @@ describe('delete-page', () => {
 		assertStructuredError(result, 'permission_denied', 'permissiondenied');
 	});
 
+	// An empty reason is not an absent one: ApiDelete autogenerates its
+	// "content was: …" reason only when the parameter arrives as null, so
+	// sending it empty leaves the deletion log entry blank.
+	it('sends no reason at all when a wiki opts out and the caller gave no comment', async () => {
+		const mock = createMockMwn({
+			delete: vi.fn().mockResolvedValue({ title: 'X' }),
+		});
+		const ctx = withoutEditAttribution(fakeContext({ mwn: async () => mock as never }));
+
+		await deletePage.handle({ title: 'X' }, ctx);
+
+		expect(mock.delete).toHaveBeenCalledWith('X', undefined, expect.any(Object));
+	});
+
+	it('sends the caller comment as the reason when a wiki opts out', async () => {
+		const mock = createMockMwn({
+			delete: vi.fn().mockResolvedValue({ title: 'X' }),
+		});
+		const ctx = withoutEditAttribution(fakeContext({ mwn: async () => mock as never }));
+
+		await deletePage.handle({ title: 'X', comment: 'spam' }, ctx);
+
+		expect(mock.delete).toHaveBeenCalledWith('X', 'spam', expect.any(Object));
+	});
+
 	it('injects tags from selection when configured', async () => {
 		const mock = createMockMwn({
 			delete: vi.fn().mockResolvedValue({ title: 'X' }),
@@ -87,6 +112,8 @@ describe('delete-page', () => {
 
 		await deletePage.handle({ title: 'X' }, ctx);
 
-		expect(mock.delete).toHaveBeenCalledWith('X', expect.any(String), { tags: 'mcp-edit' });
+		expect(mock.delete).toHaveBeenCalledWith('X', expect.stringContaining('Automated edit'), {
+			tags: 'mcp-edit',
+		});
 	});
 });

@@ -88,6 +88,8 @@ describe('undelete-page', () => {
 
 		await undeletePage.handle({ title: 'X' }, ctx);
 
-		expect(mock.undelete).toHaveBeenCalledWith('X', expect.any(String), { tags: 'mcp-edit' });
+		expect(mock.undelete).toHaveBeenCalledWith('X', expect.stringContaining('Automated edit'), {
+			tags: 'mcp-edit',
+		});
 	});
 });

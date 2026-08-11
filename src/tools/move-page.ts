@@ -5,6 +5,7 @@ import type { ApiMoveParams } from 'types-mediawiki-api';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { buildPageUrl, formatEditComment } from '../wikis/utils.ts';
+import type { PageWrites } from '../wikis/pageWrites.ts';
 
 const inputSchema = {
 	fromTitle: z.string().describe('Current title of the wiki page to move'),
@@ -50,7 +51,7 @@ export const movePage: Tool<typeof inputSchema> = {
 		const leaveRedirect = args.leaveRedirect ?? true;
 		const ignoreWarnings = args.ignoreWarnings ?? false;
 
-		const mwn = await ctx.mwn();
+		const mwn: PageWrites = await ctx.mwn();
 		// mwn.move hard-defaults movetalk:true internally before spreading
 		// options, so we always pass movetalk explicitly to stay in control.
 		const options = ctx.edit.applyTags<ApiMoveParams>({
