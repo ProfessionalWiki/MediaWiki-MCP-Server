@@ -20,6 +20,12 @@ const SETTINGS = {
 	anonymousBurst: 2,
 };
 
+// The limiter refills from the clock it is handed, so on the real clock a drained
+// bucket earns a token back while the next supertest round-trip is in flight, and
+// a request these tests expect to be refused is served. Nothing here exercises
+// refill: the bucket must stay exactly as drained as the requests left it.
+const frozenClock = () => 1_000_000;
+
 function makeDeps(calls: { count: number }): BuildAppDeps {
 	return {
 		state: createAppState({
@@ -58,7 +64,7 @@ function makeDeps(calls: { count: number }): BuildAppDeps {
 		allowedHosts: undefined,
 		allowedOrigins: [],
 		maxRequestBody: '1mb',
-		rateLimiter: createRateLimiter(SETTINGS),
+		rateLimiter: createRateLimiter(SETTINGS, frozenClock),
 	};
 }
 

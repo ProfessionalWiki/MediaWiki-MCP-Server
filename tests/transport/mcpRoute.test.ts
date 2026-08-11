@@ -213,6 +213,12 @@ describe('bearer threading through the route', () => {
 	});
 });
 
+// The limiter refills from the clock it is handed, so on the real clock a drained
+// bucket earns a token back while the next supertest round-trip is in flight, and
+// a request these tests expect to be refused is served. No rate-limit test below
+// exercises refill: the bucket must stay exactly as drained as the requests left it.
+const frozenClock = () => 1_000_000;
+
 describe('rate limiting on /mcp', () => {
 	const SETTINGS = {
 		ratePerSecond: 1,
@@ -239,7 +245,7 @@ describe('rate limiting on /mcp', () => {
 		app.post(
 			'/mcp',
 			createMcpRouteHandler(fakeHandler, {
-				rateLimiter: createRateLimiter(SETTINGS),
+				rateLimiter: createRateLimiter(SETTINGS, frozenClock),
 				...options,
 			}),
 		);
@@ -406,7 +412,10 @@ describe('rate limiting cannot be bypassed by request shape', () => {
 			},
 			{ legacy: 'stateless' },
 		);
-		app.post('/mcp', createMcpRouteHandler(handler, { rateLimiter: createRateLimiter(SETTINGS) }));
+		app.post(
+			'/mcp',
+			createMcpRouteHandler(handler, { rateLimiter: createRateLimiter(SETTINGS, frozenClock) }),
+		);
 		return app;
 	}
 
