@@ -1,38 +1,22 @@
 /**
- * The rules for following a redirect, as one pure decision.
+ * The Fetch standard's HTTP-redirect fetch as one pure decision, departing from
+ * the standard twice because the URLs here are a caller's to choose. It re-sends
+ * a 301, 302 or 303 as a bodyless GET; this refuses that hop, since the one
+ * caller that sends a body sends the whole request in it. It follows an `https`
+ * to `http` hop with the credentials stripped; this refuses that too.
  *
- * This module owns no sockets, no DNS and no clock: `nextHop` reads what was
- * sent and the status and Location that came back, and says whether to deliver
- * the response, send another request, or refuse. The transport drives it and
- * performs whatever the decision asks for, so each rule below is a value
- * assertion in a test rather than something only observable through a server.
- *
- * It follows the Fetch standard's HTTP-redirect fetch, with two deliberate
- * departures, both of which exist because this server fetches URLs a caller
- * chose:
- *
- * 1. A hop that would drop the request body is refused rather than performed.
- *    The standard re-sends a 301, 302 or 303 as a bodyless GET, but the one
- *    caller here that sends a body sends a SPARQL query in it, so that GET
- *    reaches the target with nothing to run and the target's answer describes a
- *    request nobody made. The published endpoint URL having moved is the fault
- *    worth reporting.
- * 2. A hop that drops from `https` to `http` is refused. The standard follows
- *    it, having only stripped the credentials.
- *
- * Credential headers are dropped across any change of origin, which is stricter
- * than node-fetch: it keeps them for a subdomain of the current host and ignores
- * the port, so a host that hands its tenants subdomains would forward one
- * tenant's credentials to another.
+ * Credentials go on any change of origin. node-fetch keeps them across a
+ * subdomain and ignores the port, which on a host that gives its tenants
+ * subdomains would hand one tenant's credentials to another.
  */
 
-/** Redirects this server follows. Every other 3xx is delivered as the status it is. */
+/** Every other 3xx is delivered as the status it is. */
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 /** The two that ask for the original method and body again. */
 const BODY_PRESERVING_STATUSES = new Set([307, 308]);
 
-/** Headers that authenticate the request they are sent on, and so belong to one origin. */
+/** Headers that authenticate a request, and so belong to one origin. */
 const CREDENTIAL_HEADERS = new Set(['authorization', 'www-authenticate', 'cookie', 'cookie2']);
 
 /** Hops followed before the chain is refused. */
@@ -40,9 +24,8 @@ export const MAX_REDIRECTS = 5;
 
 /**
  * A redirect asked for the request to be re-sent without its body. `target` is
- * the absolute URL that was not followed; it is kept off the message, because a
- * URL derived from a configured endpoint can carry that endpoint's credentials,
- * and the message reaches both the caller and the logs.
+ * kept off the message: a URL derived from a configured endpoint can carry that
+ * endpoint's credentials, and the message reaches the caller and the logs.
  */
 export class RedirectDropsBodyError extends Error {
 	public readonly status: number;
@@ -55,11 +38,7 @@ export class RedirectDropsBodyError extends Error {
 	}
 }
 
-/**
- * A redirect pointed from `https` to `http`. Following it would put the rest of
- * the exchange, including anything already sent, on the wire in clear text.
- * `target` is withheld from the message for the same reason as above.
- */
+/** A redirect pointed from `https` to `http`. `target` is withheld as above. */
 export class InsecureRedirectError extends Error {
 	public readonly status: number;
 	public readonly target: string;
@@ -98,7 +77,7 @@ export type RedirectRefusal =
 	| UnusableLocationError
 	| TooManyRedirectsError;
 
-/** What a caller asks for, before any of it reaches a socket. */
+/** What a caller asks for. */
 export interface FetchSpec {
 	params?: Record<string, string>;
 	headers?: Record<string, string>;
@@ -106,7 +85,7 @@ export interface FetchSpec {
 	body?: string;
 }
 
-/** One request in a chain: what to send, and where it sits in the chain. */
+/** One request in a chain: what to send, and where it sits. */
 export interface HopRequest {
 	/** Absolute, with `params` already applied. */
 	readonly url: string;
@@ -129,7 +108,7 @@ export type HopDecision =
 	| { readonly kind: 'follow'; readonly request: HopRequest }
 	| { readonly kind: 'refuse'; readonly error: RedirectRefusal };
 
-/** The first request of a chain, from what the caller asked for. */
+/** The first request of a chain. */
 export function firstRequest(baseUrl: string, spec?: FetchSpec): HopRequest {
 	const url = withParams(absolute(baseUrl), spec?.params);
 	return {
@@ -143,13 +122,9 @@ export function firstRequest(baseUrl: string, spec?: FetchSpec): HopRequest {
 }
 
 /**
- * What to do with the response to `sent`. Guard clauses in the order the rules
- * apply: a non-redirect is delivered, then the cap, then the Location has to
- * parse, then the two refusals, then the hop is followed.
- *
- * These rules all precede the transport's own per-hop address check, since they
- * cost nothing and it costs a DNS lookup. So a hop that is both insecure and
- * bound for a private address is reported as the insecure one; both refuse it.
+ * These rules run before the transport's per-hop address check, which costs a DNS
+ * lookup, so a hop that is both insecure and bound for a private address is
+ * reported as insecure. Both refuse it.
  */
 export function nextHop(sent: HopRequest, received: HopResponse): HopDecision {
 	if (!REDIRECT_STATUSES.has(received.status) || received.location === null) {
@@ -183,8 +158,7 @@ function refusalFor(sent: HopRequest, status: number, target: URL): RedirectRefu
 function followRequest(sent: HopRequest, target: URL): HopRequest {
 	const sameOrigin = new URL(sent.url).origin === target.origin;
 	const headers = sameOrigin ? { ...sent.headers } : withoutCredentials(sent.headers);
-	// A body only survives a 307 or 308, and a hop that would drop one was
-	// refused above, so the method and body carry over untouched.
+	// A hop that would drop the body was refused above, so both carry over.
 	return {
 		url: target.toString(),
 		method: sent.method,
@@ -209,8 +183,7 @@ function resolveLocation(location: string, base: string): URL | undefined {
 	}
 }
 
-// A protocol-relative URL is what a wiki's own configuration hands us for a
-// server address, and it means https here.
+// A wiki's own configuration hands us these for a server address.
 function absolute(baseUrl: string): string {
 	return baseUrl.startsWith('//') ? `https:${baseUrl}` : baseUrl;
 }

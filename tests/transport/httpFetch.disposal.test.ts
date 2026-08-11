@@ -53,8 +53,7 @@ beforeAll(async () => {
 			res.write('x'.repeat(64));
 			return;
 		}
-		// A redirect whose own body stalls the same way, for the refusal that
-		// declines to re-send a request body across it.
+		// A stalling body on a redirect that is refused.
 		if (req.url === '/redirect-and-stall') {
 			res.writeHead(301, {
 				Location: '/small',
@@ -63,8 +62,7 @@ beforeAll(async () => {
 			res.write('x');
 			return;
 		}
-		// The same stalling body on a redirect that IS followed, so the hop's own
-		// connection is observable after the chain has moved past it.
+		// The same, on a redirect that is followed.
 		if (req.url === '/followed-and-stall') {
 			res.writeHead(307, {
 				Location: '/small',
@@ -101,9 +99,8 @@ afterAll(async () => {
 });
 
 /**
- * Whether the server's end of every connection it served goes away once the
- * client is done with them. An empty list means no request reached the server, so
- * there is nothing to observe: say so, rather than pass vacuously.
+ * Whether every connection the server served goes away. An empty list means no
+ * request reached it, so there is nothing to observe: say so rather than pass.
  */
 async function connectionsClosed(sockets: Socket[], withinMs = 1000): Promise<boolean> {
 	if (sockets.length === 0) {
@@ -145,9 +142,7 @@ describe('an over-cap body refused against a real server', () => {
 		expect(await connectionsClosed(servedSockets)).toBe(true);
 	});
 
-	// The hop is followed and its own response body is never read, so nothing but
-	// the driver's disposal releases it. Two connections are served here; asserting
-	// on both is the point, since the followed hop's is the one that used to leak.
+	// The followed hop's own body is never read, so only the driver releases it.
 	it('closes the connection behind a redirect it follows', async () => {
 		const body = await postForm(`${origin}/followed-and-stall`, {
 			query: 'SELECT ?x WHERE {}',
@@ -155,10 +150,8 @@ describe('an over-cap body refused against a real server', () => {
 
 		expect(body).toBe('results');
 		expect(servedSockets).toHaveLength(2);
-		// Only the redirect hop's connection is the subject. The final response is
-		// read to completion, and this file stubs the pinned agent away, so its
-		// socket goes back to the keep-alive pool instead of closing — which is
-		// what should happen to a connection someone might reuse.
+		// The final response is read to completion and this file stubs the pinned
+		// agent away, so its socket is pooled rather than closed, by design.
 		expect(await connectionsClosed(servedSockets.slice(0, 1))).toBe(true);
 	});
 

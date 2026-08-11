@@ -11,13 +11,10 @@ import {
 	type HopResponse,
 } from './requestChain.ts';
 
-/** What a caller passes to `fetchCore`: the request itself, plus its cancellation. */
+/** The request, plus its cancellation. */
 type FetchOptions = FetchSpec & { signal?: AbortSignal };
 
-/**
- * A failing source's own explanation is worth reporting, and its length is the
- * source's choice, so this much of it is read and the rest abandoned.
- */
+/** A failing source's explanation is worth reporting; its length is the source's choice. */
 const MAX_ERROR_BODY_BYTES = 8 * 1024;
 
 // Node syscall error codes that mean "the server could not reach the source"
@@ -83,11 +80,9 @@ export class FileTooLargeError extends Error {
 }
 
 /**
- * Drives a request through its redirect chain. Every rule about which hops to
- * follow lives in `nextHop`; this performs the I/O each decision asks for. A
- * response that is not delivered leaves through one place, which is what keeps
- * every abandoned body — followed hop, refusal and cap alike — from stranding
- * its connection.
+ * Drives a request through its redirect chain, performing the I/O `nextHop` asks
+ * for. Every response that is not delivered leaves through one place, which is
+ * what keeps an abandoned body from stranding its connection.
  */
 async function fetchCore(baseUrl: string, options?: FetchOptions): Promise<Response> {
 	let request = firstRequest(baseUrl, options);
@@ -105,7 +100,7 @@ async function fetchCore(baseUrl: string, options?: FetchOptions): Promise<Respo
 	}
 }
 
-/** Sends one hop, through the SSRF guard and an agent pinned to what it resolved. */
+/** One hop, through the SSRF guard and an agent pinned to what it resolved. */
 async function sendHop(request: HopRequest, signal?: AbortSignal): Promise<Response> {
 	const addresses = await assertPublicDestination(request.url);
 	const agent = buildPinnedAgent(request.url, addresses);
@@ -126,7 +121,7 @@ async function sendHop(request: HopRequest, signal?: AbortSignal): Promise<Respo
 	});
 }
 
-/** The two fields the redirect decision reads, and nothing else. */
+/** The two fields the decision reads. */
 function readHop(response: Response): HopResponse {
 	return { status: response.status, location: response.headers.get('location') };
 }
@@ -141,10 +136,9 @@ async function delivered(response: Response): Promise<Response> {
 }
 
 /**
- * Reads at most `maxBytes` of a body and abandons the rest. Truncating rather
- * than refusing, because this reads the diagnostics of a failure that is already
- * being reported: a cap that threw would replace the source's explanation with
- * nothing, on a body whose size the source chooses.
+ * Reads at most `maxBytes` and abandons the rest. Truncating rather than
+ * refusing: a cap that threw would replace the failure being reported with
+ * nothing.
  */
 async function readTruncated(response: Response, maxBytes: number): Promise<string> {
 	const chunks: Buffer[] = [];

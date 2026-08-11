@@ -10,11 +10,6 @@ import {
 	type HopRequest,
 } from '../../src/transport/requestChain.ts';
 
-/**
- * The redirect rules are a pure function of what was sent and what came back, so
- * every case here is a value assertion. No server, no socket, no mock.
- */
-
 const START = 'https://wiki.example/w/api.php';
 
 function sent(overrides: Partial<HopRequest> = {}): HopRequest {
@@ -65,8 +60,7 @@ describe('which statuses are a redirect', () => {
 		expect(nextHop(sent(), got(status)).kind).toBe('follow');
 	});
 
-	// 300 offers a choice, 305 names a proxy, 304 and 306 are not redirects at
-	// all: following any of them as though it were a destination is wrong.
+	// 300 offers a choice and 305 names a proxy: neither is a destination.
 	it.each([300, 304, 305, 306, 309])('delivers a %i even when it carries a Location', (status) => {
 		expect(nextHop(sent(), got(status)).kind).toBe('deliver');
 	});
@@ -99,8 +93,7 @@ describe('the request the next hop sends', () => {
 		});
 	});
 
-	// Later in a chain the current hop and the start are different URLs, and a
-	// relative Location belongs to the hop that sent it.
+	// A relative Location belongs to the hop that sent it, not to the start.
 	it('resolves a path-only Location against the current hop, not the start of the chain', () => {
 		const secondHop = sent({
 			url: 'https://moved.example/a/b',
@@ -167,8 +160,7 @@ describe('credential headers across a hop', () => {
 		expect(headers).not.toHaveProperty('WWW-Authenticate');
 	});
 
-	// A tenant of a host that hands out subdomains is a different tenant, and
-	// node-fetch's own rule would forward the credentials to it.
+	// node-fetch's own rule would forward the credentials to a subdomain.
 	it('drops them on a hop to a subdomain of the same host', () => {
 		const decision = nextHop(withCredentials(), got(302, 'https://tenant.wiki.example/x'));
 
@@ -253,8 +245,7 @@ describe('the hops it refuses', () => {
 		expect(nextHop(sent({ redirectsFollowed: MAX_REDIRECTS - 1 }), got(302)).kind).toBe('follow');
 	});
 
-	// The cap is reached before anything about the target is read, so a chain that
-	// runs long is reported as long rather than as whatever its next hop would be.
+	// The cap is read before the target, so a long chain is reported as long.
 	it('reports the cap ahead of a body-dropping hop', () => {
 		const withBody = sent({
 			...firstRequest(START, { body: 'query=x' }),
@@ -268,8 +259,7 @@ describe('the hops it refuses', () => {
 });
 
 describe('what a refusal keeps out of its message', () => {
-	// Any of these URLs can carry a credential in its path or query, and a message
-	// reaches both the caller and the logs.
+	// These URLs can carry a credential, and a message reaches the caller and the logs.
 	it.each([
 		new RedirectDropsBodyError(303, 'https://q.example/sparql?token=hunter2'),
 		new InsecureRedirectError(302, 'http://q.example/sparql?token=hunter2'),
