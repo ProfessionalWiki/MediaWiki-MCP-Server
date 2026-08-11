@@ -1,4 +1,4 @@
-import type { Readable } from 'node:stream';
+import { Readable } from 'node:stream';
 import fetch, { Response, FetchError } from 'node-fetch';
 import { USER_AGENT } from '../runtime/constants.ts';
 import { isErrnoException } from '../errors/isErrnoException.ts';
@@ -197,7 +197,8 @@ export async function postForm(
  *
  * Either refusal disposes of the body first: the connection is held for as long
  * as the body stream is neither consumed nor destroyed, so a body left unread
- * strands a socket for the life of the process.
+ * strands a socket until something aborts the request — which, on the upload
+ * path, nothing does.
  */
 async function readCapped(
 	response: Response,
@@ -235,8 +236,13 @@ async function readCapped(
  * never subscribes to it has to do this itself.
  */
 function destroyBody(response: Response): void {
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- node-fetch v3 body is always a Node.js Readable; the published type narrows it to ReadableStream, which omits destroy()
-	(response.body as Readable | null)?.destroy();
+	// node-fetch v3 hands back a Node Readable, but declares it as the wider
+	// NodeJS.ReadableStream, which has no destroy(). Narrowing by instanceof
+	// rather than asserting means a body that is not a Node stream is left
+	// alone instead of throwing over the refusal being reported.
+	if (response.body instanceof Readable) {
+		response.body.destroy();
+	}
 }
 
 export async function fetchPageHtml(url: string): Promise<string | null> {
