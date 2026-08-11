@@ -124,7 +124,7 @@ Accepts a string or an array of strings:
 
 Every write appends `(via <tool> on MediaWiki MCP Server)` to its edit summary — for example `Fix typo (via update-page on MediaWiki MCP Server)`. With no caller comment, the summary is `Automated edit (via <tool> on MediaWiki MCP Server)`. This is the default (`true`).
 
-Set `attributeEdits` to `false` to drop the suffix. The write then carries only the caller's comment, or the wiki's own default summary when none was given:
+Set `attributeEdits` to `false` to drop the suffix. The write then carries the caller's comment alone, and no summary from the server when none was given:
 
 ```json
 {
