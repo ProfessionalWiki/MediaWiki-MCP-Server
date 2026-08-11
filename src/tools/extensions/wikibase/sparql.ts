@@ -1,10 +1,6 @@
 import type { ErrorCategory } from '../../../errors/classifyError.ts';
-import {
-	FileTooLargeError,
-	HttpStatusError,
-	postForm,
-	RedirectDropsBodyError,
-} from '../../../transport/httpFetch.ts';
+import { FileTooLargeError, HttpStatusError, postForm } from '../../../transport/httpFetch.ts';
+import { RedirectDropsBodyError } from '../../../transport/requestChain.ts';
 import { getRequestSignal } from '../../../runtime/requestContext.ts';
 
 /** Matches the query timeout most Wikibase query services enforce themselves. */

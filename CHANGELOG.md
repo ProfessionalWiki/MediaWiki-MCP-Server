@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Fixed
 
+- Following a redirect no longer holds a connection open for every hop it followed, no longer drops from `https` to `http` without saying so, and no longer treats a `300` or a `305` as an address to follow. This affects the siteinfo probe, wiki discovery and the `*-from-url` tools; a wiki whose published URL redirects to an `http` address is now reported rather than quietly used.
 - NeoWiki subject writes now carry the `(via <tool> on MediaWiki MCP Server)` edit-summary suffix, as every other write already did. A wiki that sets `attributeEdits: false` sees no change.
 - `update-page` no longer advertises itself as idempotent: in `mode='append'` and `mode='prepend'` it never was, so a client replaying a call whose result never arrived adds the content a second time. A replace resends the same content rather than adding to it.
 - `upload-file-from-url` and `update-file-from-url` no longer leak a connection when they refuse a source URL whose declared size is over `MCP_UPLOAD_MAX_BYTES`. Each refused call held one connection open for as long as the server ran.

@@ -12,8 +12,8 @@ import {
 	FileTooLargeError,
 	HttpStatusError,
 	postForm,
-	RedirectDropsBodyError,
 } from '../../../../src/transport/httpFetch.ts';
+import { RedirectDropsBodyError } from '../../../../src/transport/requestChain.ts';
 import { runSparqlQuery, SparqlError } from '../../../../src/tools/extensions/wikibase/sparql.ts';
 import { withRequestFields } from '../../../../src/runtime/requestContext.ts';
 

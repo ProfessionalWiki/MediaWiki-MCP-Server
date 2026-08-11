@@ -3,8 +3,22 @@ import fetch, { Response, FetchError } from 'node-fetch';
 import { USER_AGENT } from '../runtime/constants.ts';
 import { isErrnoException } from '../errors/isErrnoException.ts';
 import { assertPublicDestination, buildPinnedAgent, SsrfValidationError } from './ssrfGuard.ts';
+import {
+	firstRequest,
+	nextHop,
+	type FetchSpec,
+	type HopRequest,
+	type HopResponse,
+} from './requestChain.ts';
 
-const MAX_REDIRECTS = 5;
+/** What a caller passes to `fetchCore`: the request itself, plus its cancellation. */
+type FetchOptions = FetchSpec & { signal?: AbortSignal };
+
+/**
+ * A failing source's own explanation is worth reporting, and its length is the
+ * source's choice, so this much of it is read and the rest abandoned.
+ */
+const MAX_ERROR_BODY_BYTES = 8 * 1024;
 
 // Node syscall error codes that mean "the server could not reach the source"
 // (DNS failure, connection refused/reset, unreachable/timed-out). These should
@@ -41,23 +55,6 @@ function resolveUploadMaxBytes(): number {
 	return parsed;
 }
 
-/**
- * A redirect asked for the request to be re-sent without its body. `target` is
- * the absolute URL that was not followed; it is kept off the message, because a
- * URL derived from a configured endpoint can carry that endpoint's credentials,
- * and the message reaches both the caller and the logs.
- */
-export class RedirectDropsBodyError extends Error {
-	public readonly status: number;
-	public readonly target: string;
-	public constructor(status: number, target: string) {
-		super(`Refusing to follow an HTTP ${status} redirect: it would drop the request body.`);
-		this.name = 'RedirectDropsBodyError';
-		this.status = status;
-		this.target = target;
-	}
-}
-
 /** A fetched URL responded with a non-2xx status: the source was reachable but rejected the request. */
 export class HttpStatusError extends Error {
 	public readonly status: number;
@@ -85,102 +82,85 @@ export class FileTooLargeError extends Error {
 	}
 }
 
-// Only 307 and 308 ask for the original method and body again. RFC 9110 defines
-// a 303 as a GET on another resource, and browsers and every mainstream client
-// treat 301 and 302 the same way, which the Fetch standard writes down as a
-// rule: re-send as a GET, with no body.
-//
-// A body is the whole request for the one caller that sends one — a SPARQL query
-// travels in it — so following such a redirect would send a request that cannot
-// answer, and report whatever the target said about it instead of the redirect.
-// This module refuses that hop rather than performing it. Every other request it
-// sends is already a bodyless GET, which a redirect of any of these statuses
-// leaves unchanged; a caller that sent a bodyless POST would need the method
-// downgrade this deliberately does not implement.
-const METHOD_PRESERVING_REDIRECTS = new Set([307, 308]);
-
-async function fetchCore(
-	baseUrl: string,
-	options?: {
-		params?: Record<string, string>;
-		headers?: Record<string, string>;
-		method?: string;
-		body?: string;
-		signal?: AbortSignal;
-	},
-): Promise<Response> {
-	let url = baseUrl;
-
-	if (url.startsWith('//')) {
-		url = 'https:' + url;
+/**
+ * Drives a request through its redirect chain. Every rule about which hops to
+ * follow lives in `nextHop`; this performs the I/O each decision asks for. A
+ * response that is not delivered leaves through one place, which is what keeps
+ * every abandoned body — followed hop, refusal and cap alike — from stranding
+ * its connection.
+ */
+async function fetchCore(baseUrl: string, options?: FetchOptions): Promise<Response> {
+	let request = firstRequest(baseUrl, options);
+	for (;;) {
+		const response = await sendHop(request, options?.signal);
+		const decision = nextHop(request, readHop(response));
+		if (decision.kind === 'deliver') {
+			return await delivered(response);
+		}
+		destroyBody(response);
+		if (decision.kind === 'refuse') {
+			throw decision.error;
+		}
+		request = decision.request;
 	}
+}
 
-	if (options?.params) {
-		const queryString = new URLSearchParams(options.params).toString();
-		if (queryString) {
-			url = `${url}?${queryString}`;
+/** Sends one hop, through the SSRF guard and an agent pinned to what it resolved. */
+async function sendHop(request: HopRequest, signal?: AbortSignal): Promise<Response> {
+	const addresses = await assertPublicDestination(request.url);
+	const agent = buildPinnedAgent(request.url, addresses);
+	// Handed a body and a signal that is already aborted, node-fetch destroys
+	// the body stream before anything subscribes to it, and the unhandled
+	// 'error' event takes the process down. The DNS lookup above is a window
+	// wide enough for a cancellation to land in, once per hop, so refuse the
+	// request here instead. Throwing the signal's own reason keeps the
+	// AbortError callers classify on.
+	signal?.throwIfAborted();
+	return await fetch(request.url, {
+		headers: { 'User-Agent': USER_AGENT, ...request.headers },
+		method: request.method,
+		...(request.body === undefined ? {} : { body: request.body }),
+		redirect: 'manual',
+		agent,
+		signal,
+	});
+}
+
+/** The two fields the redirect decision reads, and nothing else. */
+function readHop(response: Response): HopResponse {
+	return { status: response.status, location: response.headers.get('location') };
+}
+
+/** A 2xx passes through; anything else becomes the source's own diagnostics. */
+async function delivered(response: Response): Promise<Response> {
+	if (response.ok) {
+		return response;
+	}
+	const errorBody = await readTruncated(response, MAX_ERROR_BODY_BYTES).catch(() => '');
+	throw new HttpStatusError(response.status, response.url, errorBody);
+}
+
+/**
+ * Reads at most `maxBytes` of a body and abandons the rest. Truncating rather
+ * than refusing, because this reads the diagnostics of a failure that is already
+ * being reported: a cap that threw would replace the source's explanation with
+ * nothing, on a body whose size the source chooses.
+ */
+async function readTruncated(response: Response, maxBytes: number): Promise<string> {
+	const chunks: Buffer[] = [];
+	let total = 0;
+	if (response.body !== null) {
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- node-fetch v3 body is always a Node.js Readable; narrowing to AsyncIterable<Buffer> is safe at this boundary
+		for await (const chunk of response.body as AsyncIterable<Buffer>) {
+			chunks.push(chunk);
+			total += chunk.length;
+			if (total >= maxBytes) {
+				break;
+			}
 		}
 	}
-
-	const requestHeaders: Record<string, string> = {
-		'User-Agent': USER_AGENT,
-	};
-
-	if (options?.headers) {
-		Object.assign(requestHeaders, options.headers);
-	}
-
-	let currentUrl = url;
-	let response: Response | undefined;
-	for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-		const addresses = await assertPublicDestination(currentUrl);
-		const agent = buildPinnedAgent(currentUrl, addresses);
-		// Handed a body and a signal that is already aborted, node-fetch destroys
-		// the body stream before anything subscribes to it, and the unhandled
-		// 'error' event takes the process down. The DNS lookup above is a window
-		// wide enough for a cancellation to land in, once per hop, so refuse the
-		// request here instead. Throwing the signal's own reason keeps the
-		// AbortError callers classify on.
-		options?.signal?.throwIfAborted();
-		response = await fetch(currentUrl, {
-			headers: requestHeaders,
-			method: options?.method || 'GET',
-			...(options?.body !== undefined ? { body: options.body } : {}),
-			redirect: 'manual',
-			agent,
-			signal: options?.signal,
-		});
-
-		if (response.status < 300 || response.status >= 400) {
-			break;
-		}
-
-		const location = response.headers.get('location');
-		if (!location) {
-			break;
-		}
-
-		if (hop === MAX_REDIRECTS) {
-			throw new Error(`Too many redirects (>${MAX_REDIRECTS}) starting from ${url}`);
-		}
-
-		currentUrl = new URL(location, currentUrl).toString();
-		// Checked every hop, not just the first: a 307 that preserves the body can
-		// be followed by a 303 that would drop it.
-		if (options?.body !== undefined && !METHOD_PRESERVING_REDIRECTS.has(response.status)) {
-			destroyBody(response);
-			throw new RedirectDropsBodyError(response.status, currentUrl);
-		}
-	}
-
-	// response is always assigned inside the loop (loop runs at least once).
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- definite-assignment via the loop's at-least-once invariant; TS can't prove it
-	const finalResponse = response as Response;
-	if (!finalResponse.ok) {
-		const errorBody = await finalResponse.text().catch(() => '');
-		throw new HttpStatusError(finalResponse.status, finalResponse.url, errorBody);
-	}
-	return finalResponse;
+	destroyBody(response);
+	return Buffer.concat(chunks).toString('utf8').slice(0, maxBytes);
 }
 
 export async function makeApiRequest<T>(
@@ -216,7 +196,6 @@ export async function postForm(
 	options?: { headers?: Record<string, string>; signal?: AbortSignal; maxBytes?: number },
 ): Promise<string> {
 	const response = await fetchCore(url, {
-		method: 'POST',
 		body: new URLSearchParams(form).toString(),
 		headers: { ...options?.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
 		signal: options?.signal,

@@ -18,12 +18,8 @@ vi.mock('../../src/transport/ssrfGuard.ts', async () => {
 });
 
 import { createServer, type IncomingHttpHeaders, type Server } from 'node:http';
-import {
-	makeApiRequest,
-	postForm,
-	HttpStatusError,
-	RedirectDropsBodyError,
-} from '../../src/transport/httpFetch.ts';
+import { makeApiRequest, postForm, HttpStatusError } from '../../src/transport/httpFetch.ts';
+import { RedirectDropsBodyError } from '../../src/transport/requestChain.ts';
 
 type ServedRequest = {
 	method: string;
