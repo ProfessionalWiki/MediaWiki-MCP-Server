@@ -163,6 +163,84 @@ describe('loadConfigFromFile', () => {
 		});
 	});
 
+	describe('field types', () => {
+		const loadWikiWith = async (field: string, value: unknown) => {
+			setConfigFile({
+				defaultWiki: 'w',
+				wikis: { w: { ...baseWiki, [field]: value } },
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
+			return loadConfigFromFile;
+		};
+
+		it.each(['private', 'readOnly', 'attributeEdits'])(
+			'throws when %s is a quoted boolean',
+			async (field) => {
+				const load = await loadWikiWith(field, 'true');
+				expect(load).toThrow(`Config error: wikis.w.${field} must be a boolean`);
+			},
+		);
+
+		it('points at the quoting when a boolean is quoted', async () => {
+			const load = await loadWikiWith('readOnly', 'true');
+			expect(load).toThrow('Remove the quotes');
+		});
+
+		it('throws when a string field holds a number', async () => {
+			const load = await loadWikiWith('server', 42);
+			expect(load).toThrow('Config error: wikis.w.server must be a string');
+		});
+
+		it('throws when oauth2CallbackPort is a quoted number', async () => {
+			const load = await loadWikiWith('oauth2CallbackPort', '8080');
+			expect(load).toThrow('Config error: wikis.w.oauth2CallbackPort must be a number');
+		});
+
+		it('throws when tags holds a non-string entry', async () => {
+			const load = await loadWikiWith('tags', ['mcp', 7]);
+			expect(load).toThrow('Config error: wikis.w.tags must be a string or an array of strings');
+		});
+
+		it('accepts tags as an array of strings', async () => {
+			const load = await loadWikiWith('tags', ['mcp', 'automated']);
+			expect(load().wikis.w.tags).toEqual(['mcp', 'automated']);
+		});
+
+		it('throws when a boolean field is null', async () => {
+			const load = await loadWikiWith('readOnly', null);
+			expect(load).toThrow('Config error: wikis.w.readOnly must be a boolean');
+		});
+
+		it('accepts null in a field whose declared type allows it', async () => {
+			const load = await loadWikiWith('publicServer', null);
+			const wiki = load().wikis.w;
+			expect(wiki.sitename).toBe('Test Wiki');
+			expect(wiki.publicServer).toBeNull();
+		});
+
+		it('throws when allowWikiManagement is a quoted boolean', async () => {
+			setConfigFile({
+				allowWikiManagement: 'false',
+				defaultWiki: 'w',
+				wikis: { w: baseWiki },
+			});
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
+			expect(loadConfigFromFile).toThrow('Config error: allowWikiManagement must be a boolean');
+		});
+
+		it('throws when defaultWiki is not a string', async () => {
+			setConfigFile({ defaultWiki: 7, wikis: { w: baseWiki } });
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
+			expect(loadConfigFromFile).toThrow('Config error: defaultWiki must be a string');
+		});
+
+		it('throws when wikis is not an object', async () => {
+			setConfigFile({ defaultWiki: 'w', wikis: [baseWiki] });
+			const { loadConfigFromFile } = await import('../../src/config/loadConfig.ts');
+			expect(loadConfigFromFile).toThrow('Config error: wikis must be an object');
+		});
+	});
+
 	describe('wiki keys', () => {
 		// Percent-encoding carries these through to a reachable resource URI.
 		it.each(['a/b', 'a?b', 'a#b', 'my wiki'])('accepts a wiki key containing %j', async (key) => {

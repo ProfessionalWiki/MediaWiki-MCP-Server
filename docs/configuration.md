@@ -4,6 +4,9 @@ Covers configuration topics beyond the basic `config.json` shape documented in [
 
 ## Configuration fields
 
+A field written with the wrong type stops the server at startup with an error naming it. Booleans and numbers are
+written unquoted: `"readOnly": true`, not `"readOnly": "true"`.
+
 ### Top-level fields
 
 | Field | Description |

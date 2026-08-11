@@ -249,12 +249,12 @@ function parseExecSecret(raw: unknown, fieldPath: string): ExecSecret {
 	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
 		throw new Error(`Config error: ${fieldPath} must be a string, null, or an {exec: …} object`);
 	}
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; ajv-validated WikiConfig parsing is a separate follow-up
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary
 	const src = raw as { exec?: unknown };
 	if (typeof src.exec !== 'object' || src.exec === null || Array.isArray(src.exec)) {
 		throw new Error(`Config error: ${fieldPath} must be a string, null, or an {exec: …} object`);
 	}
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; ajv-validated WikiConfig parsing is a separate follow-up
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary
 	const exec = src.exec as { command?: unknown; args?: unknown };
 	if (typeof exec.command !== 'string' || exec.command === '') {
 		throw new Error(`Config error: ${fieldPath}.exec.command must be a non-empty string`);
@@ -265,7 +265,7 @@ function parseExecSecret(raw: unknown, fieldPath: string): ExecSecret {
 	) {
 		throw new Error(`Config error: ${fieldPath}.exec.args must be an array of strings`);
 	}
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; ajv-validated WikiConfig parsing is a separate follow-up
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary
 	return { exec: { command: exec.command, args: (exec.args as string[]) ?? [] } };
 }
 
@@ -317,11 +317,114 @@ function resolveUploadDirs(rawFromConfig: unknown): readonly string[] {
 	return canonicalised;
 }
 
+type FieldKind = 'string' | 'boolean' | 'number' | 'stringOrStringArray';
+
+interface FieldType {
+	kind: FieldKind;
+	/** True for the fields whose declared type includes `null`. */
+	nullable?: boolean;
+}
+
+const KIND_DESCRIPTIONS: Record<FieldKind, string> = {
+	string: 'a string',
+	boolean: 'a boolean',
+	number: 'a number',
+	stringOrStringArray: 'a string or an array of strings',
+};
+
+const KIND_PREDICATES: Record<FieldKind, (value: unknown) => boolean> = {
+	string: (value) => typeof value === 'string',
+	boolean: (value) => typeof value === 'boolean',
+	number: (value) => typeof value === 'number',
+	stringOrStringArray: (value) =>
+		typeof value === 'string' ||
+		(Array.isArray(value) && value.every((entry) => typeof entry === 'string')),
+};
+
+/**
+ * The declared type of each config field, mirroring `Config` and `WikiConfig`.
+ * The credential fields are absent because `resolveSecretField` parses them,
+ * and `uploadDirs` because `resolveUploadDirs` does.
+ */
+const CONFIG_FIELD_TYPES: Record<string, FieldType> = {
+	defaultWiki: { kind: 'string' },
+	allowWikiManagement: { kind: 'boolean' },
+};
+
+const WIKI_FIELD_TYPES: Record<string, FieldType> = {
+	sitename: { kind: 'string' },
+	server: { kind: 'string' },
+	articlepath: { kind: 'string' },
+	scriptpath: { kind: 'string' },
+	publicServer: { kind: 'string', nullable: true },
+	oauth2ClientId: { kind: 'string', nullable: true },
+	oauth2ClientSecret: { kind: 'string', nullable: true },
+	oauth2CallbackPort: { kind: 'number', nullable: true },
+	private: { kind: 'boolean' },
+	readOnly: { kind: 'boolean' },
+	attributeEdits: { kind: 'boolean' },
+	tags: { kind: 'stringOrStringArray', nullable: true },
+};
+
+/**
+ * Refuses a field whose value does not have its declared type. TypeScript
+ * erases the declarations, so without this a `"true"` written for a boolean
+ * reaches the strict comparisons that read it, matches neither `true` nor
+ * `false`, and leaves the field at its default — which for `readOnly` and
+ * `private` leaves a deployment the operator meant to lock down open. Coercing
+ * instead of refusing would answer `"false"` with `true`, so refusing is the
+ * only reading that cannot be wrong.
+ *
+ * `pathPrefix` names the object being checked and ends in a dot, or is empty
+ * for the top level.
+ */
+function assertFieldTypes(
+	source: Record<string, unknown>,
+	types: Record<string, FieldType>,
+	pathPrefix: string,
+): void {
+	for (const [field, type] of Object.entries(types)) {
+		const value = source[field];
+		if (value === undefined || (value === null && type.nullable === true)) {
+			continue;
+		}
+		if (KIND_PREDICATES[type.kind](value)) {
+			continue;
+		}
+		const quoting =
+			typeof value === 'string' && (type.kind === 'boolean' || type.kind === 'number')
+				? ' Remove the quotes.'
+				: '';
+		throw new Error(
+			`Config error: ${pathPrefix}${field} must be ${KIND_DESCRIPTIONS[type.kind]}, but is ${describeValue(value)}.${quoting}`,
+		);
+	}
+}
+
+function describeValue(value: unknown): string {
+	if (value === null) {
+		return 'null';
+	}
+	if (Array.isArray(value)) {
+		return 'an array';
+	}
+	switch (typeof value) {
+		case 'string':
+			return 'a string';
+		case 'number':
+			return 'a number';
+		case 'boolean':
+			return 'a boolean';
+		default:
+			return 'an object';
+	}
+}
+
 function resolveWiki(raw: unknown, wikiKey: string): WikiConfig {
 	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
 		throw new Error(`Config error: wikis.${wikiKey} must be an object`);
 	}
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; ajv-validated WikiConfig parsing is a separate follow-up
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary
 	const src = raw as Record<string, unknown>;
 	const resolved: Record<string, unknown> = {};
 	for (const [fieldKey, fieldValue] of Object.entries(src)) {
@@ -331,10 +434,8 @@ function resolveWiki(raw: unknown, wikiKey: string): WikiConfig {
 			resolved[fieldKey] = replaceEnvVarsInObject(fieldValue);
 		}
 	}
-	if (resolved.readOnly !== undefined && typeof resolved.readOnly !== 'boolean') {
-		throw new Error(`Config error: wikis.${wikiKey}.readOnly must be a boolean`);
-	}
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; ajv-validated WikiConfig parsing is a separate follow-up
+	assertFieldTypes(resolved, WIKI_FIELD_TYPES, `wikis.${wikiKey}.`);
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; the declared field types are checked above
 	return resolved as unknown as WikiConfig;
 }
 
@@ -342,15 +443,19 @@ function resolveConfig(parsed: unknown): Config {
 	if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
 		throw new Error('Config error: config.json must be an object');
 	}
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; ajv-validated WikiConfig parsing is a separate follow-up
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary
 	const p = parsed as Record<string, unknown>;
+	assertFieldTypes(p, CONFIG_FIELD_TYPES, '');
 	const defaultWiki = typeof p.defaultWiki === 'string' ? replaceEnvVars(p.defaultWiki) : '';
 	const allowWikiManagement =
 		typeof p.allowWikiManagement === 'boolean' ? p.allowWikiManagement : undefined;
 	const uploadDirs = resolveUploadDirs(p.uploadDirs);
 	const rawWikis = p.wikis;
-	if (typeof rawWikis !== 'object' || rawWikis === null || Array.isArray(rawWikis)) {
+	if (rawWikis === undefined) {
 		return { defaultWiki, wikis: {}, allowWikiManagement, uploadDirs };
+	}
+	if (typeof rawWikis !== 'object' || rawWikis === null || Array.isArray(rawWikis)) {
+		throw new Error(`Config error: wikis must be an object, but is ${describeValue(rawWikis)}.`);
 	}
 	const wikis: Record<string, WikiConfig> = {};
 	for (const [key, rawWiki] of Object.entries(rawWikis)) {
