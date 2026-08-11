@@ -8,10 +8,16 @@ import type { ApiDeleteParams, ApiMoveParams, ApiUndeleteParams } from 'types-me
  * reason at all; mwn's own documentation marks the argument optional while its
  * type declaration does not. Assign an `Mwn` to this to omit a reason without
  * asserting away the `undefined` that has to survive.
+ *
+ * The members are declared with method syntax because TypeScript checks method
+ * parameters bivariantly, which is what admits the widened reason; the same
+ * members written as arrow properties are rejected. The compiler therefore
+ * permits the widening rather than confirming it, and `tests/wikis/pageWrites.test.ts`
+ * is what holds mwn to it.
  */
 export interface PageWrites {
 	delete(
-		title: string,
+		title: string | number,
 		reason: string | undefined,
 		options?: ApiDeleteParams,
 	): Promise<ApiDeleteResponse>;

@@ -23,7 +23,6 @@ export function formatEditComment(
 	tool: string,
 	comment?: string,
 ): string | undefined {
-	// An empty comment is no comment.
 	const given = comment === '' ? undefined : comment;
 	if (ctx.activeWiki.get().config.attributeEdits === false) {
 		return given;

@@ -17,11 +17,15 @@ function recordingWrites(): { writes: PageWrites; sent: () => URLSearchParams } 
 }
 
 describe('PageWrites', () => {
+	// Each case asserts a parameter that must be present alongside the one that
+	// must be absent. Without it the absence assertion also passes for a body
+	// that is not a query string at all, which is how the seam would go quiet.
 	it('sends no reason parameter when delete is given none', async () => {
 		const { writes, sent } = recordingWrites();
 
 		await writes.delete('Some Page', undefined, {});
 
+		expect(sent().get('action')).toBe('delete');
 		expect(sent().has('reason')).toBe(false);
 	});
 
@@ -39,14 +43,19 @@ describe('PageWrites', () => {
 
 		await writes.undelete('Some Page', undefined, {});
 
+		expect(sent().get('action')).toBe('undelete');
 		expect(sent().has('reason')).toBe(false);
 	});
 
+	// move is the one member whose argument order the interface could state
+	// wrongly, so this pins where each title lands as well.
 	it('sends no reason parameter when move is given none', async () => {
 		const { writes, sent } = recordingWrites();
 
 		await writes.move('Some Page', 'Other Page', undefined, {});
 
+		expect(sent().get('from')).toBe('Some Page');
+		expect(sent().get('to')).toBe('Other Page');
 		expect(sent().has('reason')).toBe(false);
 	});
 });
