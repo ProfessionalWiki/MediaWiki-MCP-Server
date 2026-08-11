@@ -1,5 +1,6 @@
 import type { Tool } from '../../runtime/tool.ts';
 import type { WikiConfig } from '../../config/loadConfig.ts';
+import type { ErrorCategory } from '../../errors/classifyError.ts';
 
 /**
  * A condition some of a pack's tools need beyond the extension itself, for a
@@ -41,4 +42,26 @@ export interface ExtensionPack {
 	 *  extension gate: the tools are offered while any configured wiki satisfies
 	 *  it, and the pack refuses a call to one that does not. */
 	readonly wikiGate?: WikiGate;
+
+	/**
+	 * Error codes this pack's extension adds to the action API's vocabulary,
+	 * mapped to the category a caller should read them as.
+	 *
+	 * A pack whose tools reach the wiki through mwn never sees its own errors:
+	 * mwn throws, and the dispatcher classifies centrally. Declaring the codes
+	 * here keeps that one dispatch point while leaving the vocabulary with the
+	 * pack that knows it, so removing a pack removes its codes. A pack with its
+	 * own transport classifies its own failures instead and needs none of this.
+	 *
+	 * Codes are checked against the core vocabulary and each other at startup, so
+	 * a pack cannot quietly reinterpret a code another one already owns.
+	 */
+	readonly errorCodes?: Readonly<Record<string, ErrorCategory>>;
+
+	/**
+	 * The same, for code families the extension numbers per case and so cannot
+	 * list exactly — Wikibase answers an unreadable JSON value with
+	 * `not-recognized-<shape>`, one code per shape it expected.
+	 */
+	readonly errorCodePrefixes?: readonly (readonly [RegExp, ErrorCategory])[];
 }

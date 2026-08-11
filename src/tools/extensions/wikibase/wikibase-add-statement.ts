@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
+import { formatEditComment } from '../../../wikis/utils.ts';
 
 // Datatypes whose value this tool can build from a plain string. Everything
 // else (time, quantity, coordinates, monolingual text) needs a structured
@@ -98,7 +99,7 @@ export const wikibaseAddStatement: Tool<typeof inputSchema> = {
 			property,
 			snaktype: 'value',
 			value: snakValue,
-			...(comment !== undefined ? { summary: comment } : {}),
+			summary: formatEditComment(ctx, 'wikibase-add-statement', comment),
 		})) as CreateClaimResponse | undefined;
 
 		const statementId = response?.claim?.id;

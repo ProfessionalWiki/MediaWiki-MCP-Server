@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { fakeContext, withoutEditAttribution } from '../../../helpers/fakeContext.ts';
 import { toolArgs } from '../../../helpers/toolArgs.ts';
 import { wikibaseEditEntity } from '../../../../src/tools/extensions/wikibase/wikibase-edit-entity.ts';
 import { dispatch } from '../../../../src/runtime/dispatcher.ts';
@@ -92,12 +92,38 @@ describe('wikibase-edit-entity', () => {
 		expect(submit.mock.calls[1][1]).toMatchObject({ clear: true });
 	});
 
-	it('passes the caller comment through as the edit summary', async () => {
+	it('attributes the edit to the tool that made it, after the caller comment', async () => {
 		const { ctx, submit } = contextWith();
 
 		await wikibaseEditEntity.handle(
 			toolArgs(wikibaseEditEntity, { entityId: 'Q1234', data: LABEL_DATA, comment: 'add label' }),
 			ctx,
+		);
+
+		expect(submit.mock.calls[0][1]).toMatchObject({
+			summary: 'add label (via wikibase-edit-entity on MediaWiki MCP Server)',
+		});
+	});
+
+	it('attributes an edit the caller gave no comment for', async () => {
+		const { ctx, submit } = contextWith();
+
+		await wikibaseEditEntity.handle(
+			toolArgs(wikibaseEditEntity, { entityId: 'Q1234', data: LABEL_DATA }),
+			ctx,
+		);
+
+		expect(submit.mock.calls[0][1]).toMatchObject({
+			summary: 'Automated edit (via wikibase-edit-entity on MediaWiki MCP Server)',
+		});
+	});
+
+	it('drops the attribution for a wiki that opts out of it', async () => {
+		const { ctx, submit } = contextWith();
+
+		await wikibaseEditEntity.handle(
+			toolArgs(wikibaseEditEntity, { entityId: 'Q1234', data: LABEL_DATA, comment: 'add label' }),
+			withoutEditAttribution(ctx),
 		);
 
 		expect(submit.mock.calls[0][1]).toMatchObject({ summary: 'add label' });

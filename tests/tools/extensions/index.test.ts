@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
 	assertWikiGatesNameOwnTools,
+	extensionErrorVocabulary,
 	extensionPacks,
 } from '../../../src/tools/extensions/index.ts';
+import type { ErrorCategory } from '../../../src/errors/classifyError.ts';
 import type { ExtensionPack } from '../../../src/tools/extensions/types.ts';
 import type { Tool } from '../../../src/runtime/tool.ts';
 
@@ -129,5 +131,39 @@ describe('assertWikiGatesNameOwnTools', () => {
 
 	it('accepts a gate over the pack’s own tools', () => {
 		expect(() => assertWikiGatesNameOwnTools([gatedPack(['demo-query'])])).not.toThrow();
+	});
+
+	function codePack(id: string, codes: Record<string, ErrorCategory>): ExtensionPack {
+		return { id, extensionNames: ['Demo'], tools: [tool(`${id}-read`)], errorCodes: codes };
+	}
+
+	it('merges the codes each pack declares', () => {
+		const merged = extensionErrorVocabulary([
+			codePack('one', { 'one-broke': 'invalid_input' }),
+			codePack('two', { 'two-broke': 'not_found' }),
+		]);
+
+		expect(merged.codes).toEqual({ 'one-broke': 'invalid_input', 'two-broke': 'not_found' });
+	});
+
+	// Either overlap would let one pack silently change how another pack's, or the
+	// wiki's own, failure reads.
+	it('rejects a code two packs both claim', () => {
+		expect(() =>
+			extensionErrorVocabulary([
+				codePack('one', { 'both-broke': 'invalid_input' }),
+				codePack('two', { 'both-broke': 'not_found' }),
+			]),
+		).toThrow(/both-broke/);
+	});
+
+	it('rejects a code MediaWiki itself defines', () => {
+		expect(() =>
+			extensionErrorVocabulary([codePack('one', { badtoken: 'invalid_input' })]),
+		).toThrow(/badtoken/);
+	});
+
+	it('accepts the packs the server actually ships', () => {
+		expect(() => extensionErrorVocabulary(extensionPacks)).not.toThrow();
 	});
 });

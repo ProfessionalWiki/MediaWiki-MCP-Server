@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { fakeContext, withoutEditAttribution } from '../../../helpers/fakeContext.ts';
 import { toolArgs } from '../../../helpers/toolArgs.ts';
 import { wikibaseAddStatement } from '../../../../src/tools/extensions/wikibase/wikibase-add-statement.ts';
 import { assertStructuredData, assertStructuredError } from '../../../helpers/structuredResult.ts';
@@ -180,7 +180,7 @@ describe('wikibase-add-statement', () => {
 		expect(submit).not.toHaveBeenCalled();
 	});
 
-	it('passes the caller comment through as the edit summary', async () => {
+	it('attributes the edit to the tool that made it, after the caller comment', async () => {
 		const { ctx, submit } = contextWith('string');
 
 		await wikibaseAddStatement.handle(
@@ -191,6 +191,37 @@ describe('wikibase-add-statement', () => {
 				comment: 'from a source',
 			}),
 			ctx,
+		);
+
+		expect(submit.mock.calls[0][1]).toMatchObject({
+			summary: 'from a source (via wikibase-add-statement on MediaWiki MCP Server)',
+		});
+	});
+
+	it('attributes an edit the caller gave no comment for', async () => {
+		const { ctx, submit } = contextWith('string');
+
+		await wikibaseAddStatement.handle(
+			toolArgs(wikibaseAddStatement, { entityId: 'Q42', propertyId: 'P31', value: 'hello' }),
+			ctx,
+		);
+
+		expect(submit.mock.calls[0][1]).toMatchObject({
+			summary: 'Automated edit (via wikibase-add-statement on MediaWiki MCP Server)',
+		});
+	});
+
+	it('drops the attribution for a wiki that opts out of it', async () => {
+		const { ctx, submit } = contextWith('string');
+
+		await wikibaseAddStatement.handle(
+			toolArgs(wikibaseAddStatement, {
+				entityId: 'Q42',
+				propertyId: 'P31',
+				value: 'hello',
+				comment: 'from a source',
+			}),
+			withoutEditAttribution(ctx),
 		);
 
 		expect(submit.mock.calls[0][1]).toMatchObject({ summary: 'from a source' });

@@ -4,6 +4,7 @@ import { wikibaseGetEntity } from './wikibase-get-entity.ts';
 import { wikibaseQuery } from './wikibase-query.ts';
 import { wikibaseEditEntity } from './wikibase-edit-entity.ts';
 import { wikibaseAddStatement } from './wikibase-add-statement.ts';
+import { WIKIBASE_ERROR_CODES, WIKIBASE_ERROR_CODE_PREFIXES } from './errorCodes.ts';
 
 export const wikibasePack: ExtensionPack = {
 	id: 'wikibase',
@@ -18,6 +19,8 @@ export const wikibasePack: ExtensionPack = {
 		wikibaseEditEntity,
 		wikibaseAddStatement,
 	],
+	errorCodes: WIKIBASE_ERROR_CODES,
+	errorCodePrefixes: WIKIBASE_ERROR_CODE_PREFIXES,
 	// The query service is a separate deployment from the wiki, so the extension
 	// gate alone does not imply one exists: each wiki names its own or has none.
 	wikiGate: {

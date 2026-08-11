@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
+import { formatEditComment } from '../../../wikis/utils.ts';
 
 const inputSchema = {
 	entityId: z
@@ -62,7 +63,7 @@ export const wikibaseEditEntity: Tool<typeof inputSchema> = {
 			...(entityId !== undefined ? { id: entityId.toUpperCase() } : { new: entityType }),
 			data: JSON.stringify(data),
 			...(clear === true ? { clear: true } : {}),
-			...(comment !== undefined ? { summary: comment } : {}),
+			summary: formatEditComment(ctx, 'wikibase-edit-entity', comment),
 		};
 
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- wbeditentity response shape; trusted at this boundary

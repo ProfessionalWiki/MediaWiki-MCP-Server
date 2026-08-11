@@ -8,6 +8,7 @@ import { EditServiceImpl } from '../services/editService.ts';
 import { RevisionNormalizerImpl } from '../services/revisionNormalize.ts';
 import { ResponseFormatterImpl } from '../results/response.ts';
 import { ErrorClassifierImpl } from '../errors/classifyError.ts';
+import { extensionErrorVocabulary, extensionPacks } from '../tools/extensions/index.ts';
 import { withAbortSignal } from '../wikis/abortableMwn.ts';
 import { getRequestSignal } from './requestContext.ts';
 
@@ -37,7 +38,7 @@ export function createToolContext(deps: {
 		edit: new EditServiceImpl(state.activeWiki),
 		revision: new RevisionNormalizerImpl(),
 		format: new ResponseFormatterImpl(),
-		errors: new ErrorClassifierImpl(),
+		errors: new ErrorClassifierImpl(extensionErrorVocabulary(extensionPacks)),
 		logger,
 		transport,
 		getProxyConfig,

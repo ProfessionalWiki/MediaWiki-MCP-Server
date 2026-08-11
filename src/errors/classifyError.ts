@@ -19,8 +19,6 @@ const MW_CODE_TO_CATEGORY: Record<string, ErrorCategory> = {
 	nosuchrevid: 'not_found',
 	nosuchsection: 'not_found',
 	nofile: 'not_found',
-	// Wikibase: the requested entity ID does not exist on the wiki.
-	'no-such-entity': 'not_found',
 	// permission_denied
 	permissiondenied: 'permission_denied',
 	protectedpage: 'permission_denied',
@@ -52,27 +50,6 @@ const MW_CODE_TO_CATEGORY: Record<string, ErrorCategory> = {
 	immobilenamespace: 'invalid_input',
 	nonfilenamespace: 'invalid_input',
 	filetypemismatch: 'invalid_input',
-	// Wikibase: the ID is not in the wiki's entity-ID format.
-	'invalid-entity-id': 'invalid_input',
-	// Wikibase writes: a parameter is missing, malformed, or names something the
-	// entity does not hold. `modification-failed` covers a change the entity
-	// itself refuses, such as a duplicate term or a statement that already exists.
-	'param-illegal': 'invalid_input',
-	'param-missing': 'invalid_input',
-	'invalid-snak': 'invalid_input',
-	'no-such-claim': 'invalid_input',
-	'not-recognized': 'invalid_input',
-	'modification-failed': 'invalid_input',
-	// Wikibase writes: the request describes a change the entity cannot apply.
-	// The data is absent, a value is malformed, or a payload field contradicts
-	// the parameter sent alongside it.
-	'inconsistent-language': 'invalid_input',
-	'inconsistent-site': 'invalid_input',
-	'no-data': 'invalid_input',
-	'param-invalid': 'invalid_input',
-	'invalid-guid': 'invalid_input',
-	'tags-invalid': 'invalid_input',
-	'failed-modify': 'invalid_input',
 	// conflict
 	editconflict: 'conflict',
 	articleexists: 'conflict',
@@ -96,11 +73,9 @@ const MW_CODE_TO_CATEGORY: Record<string, ErrorCategory> = {
 };
 
 // Code families the wiki numbers per case, matched by prefix rather than by
-// exact value. Wikibase reports a caller-supplied JSON value it cannot read as
-// `not-recognized-<shape>`, one code per shape it expected.
+// exact value.
 const CODE_PREFIX_PATTERNS: readonly (readonly [RegExp, ErrorCategory])[] = [
 	[/^internal_api_error_/, 'upstream_failure'],
-	[/^not-recognized-/, 'invalid_input'],
 ];
 
 // mwn sometimes surfaces codes only inside the error message, not on .code.
@@ -114,18 +89,34 @@ const MESSAGE_FALLBACK_PATTERNS: readonly (readonly [RegExp, string])[] = [
 	[/\bratelimited\b/i, 'ratelimited'],
 ];
 
-export function classifyError(err: unknown): { category: ErrorCategory; code?: string } {
+/**
+ * Error codes an extension adds to the action API's vocabulary, supplied by the
+ * packs rather than listed here, so a pack owns the codes only it can produce.
+ */
+export interface ExtensionErrorVocabulary {
+	codes: Readonly<Record<string, ErrorCategory>>;
+	prefixes: readonly (readonly [RegExp, ErrorCategory])[];
+}
+
+const NO_EXTENSION_CODES: ExtensionErrorVocabulary = { codes: {}, prefixes: [] };
+
+export function classifyError(
+	err: unknown,
+	extensions: ExtensionErrorVocabulary = NO_EXTENSION_CODES,
+): { category: ErrorCategory; code?: string } {
 	if (err instanceof CredentialResolutionError) {
 		return { category: 'authentication' };
 	}
 	if (err !== null && typeof err === 'object') {
 		const code = (err as { code?: unknown }).code;
 		if (typeof code === 'string') {
-			const mapped = MW_CODE_TO_CATEGORY[code];
+			// Core first: a pack cannot reinterpret a code the wiki already defines,
+			// and registration rejects an overlap before it could try.
+			const mapped = MW_CODE_TO_CATEGORY[code] ?? extensions.codes[code];
 			if (mapped) {
 				return { category: mapped, code };
 			}
-			for (const [pattern, category] of CODE_PREFIX_PATTERNS) {
+			for (const [pattern, category] of [...CODE_PREFIX_PATTERNS, ...extensions.prefixes]) {
 				if (pattern.test(code)) {
 					return { category, code };
 				}
@@ -147,7 +138,14 @@ export function classifyError(err: unknown): { category: ErrorCategory; code?: s
 }
 
 export class ErrorClassifierImpl implements ErrorClassifier {
+	public constructor(private readonly extensions: ExtensionErrorVocabulary = NO_EXTENSION_CODES) {}
+
 	public classify(err: unknown): { category: ErrorCategory; code?: string } {
-		return classifyError(err);
+		return classifyError(err, this.extensions);
 	}
+}
+
+/** The core vocabulary, for the registration check that keeps packs out of it. */
+export function coreErrorCodes(): Readonly<Record<string, ErrorCategory>> {
+	return MW_CODE_TO_CATEGORY;
 }
