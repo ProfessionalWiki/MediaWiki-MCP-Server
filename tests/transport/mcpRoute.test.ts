@@ -213,12 +213,10 @@ describe('bearer threading through the route', () => {
 	});
 });
 
-// The limiter refills from the clock it is handed, so any wall-clock advance of
-// about a second between two of these requests earns a drained bucket a token
-// back and serves a request the test expects to be refused. A slow round-trip
-// does it; so does a Date.now() that steps, which a virtualised host can do
-// while the requests themselves take milliseconds. No rate-limit test below
-// exercises refill: the bucket must stay exactly as drained as the requests left it.
+// A real advance of about a second between two of these requests would earn a
+// drained bucket a token back and serve one the test expects to be refused, and
+// a slow round-trip is enough to do it. No rate-limit test below exercises
+// refill: the bucket must stay exactly as drained as the requests left it.
 const frozenClock = () => 1_000_000;
 
 describe('rate limiting on /mcp', () => {

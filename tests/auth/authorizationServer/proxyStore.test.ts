@@ -1,5 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { InMemoryProxyStore } from '../../../src/auth/authorizationServer/proxyStore.ts';
+import { monotonicNow } from '../../../src/runtime/clock.ts';
+
+afterEach(() => {
+	vi.useRealTimers();
+});
 
 describe('InMemoryProxyStore stats', () => {
 	it('reports upstream-token and client counts', () => {
@@ -26,7 +31,7 @@ describe('InMemoryProxyStore', () => {
 	});
 	it('caps the clients map with FIFO eviction (oldest gone, size held)', () => {
 		const MAX = 3;
-		const s = new InMemoryProxyStore(Date.now, MAX);
+		const s = new InMemoryProxyStore(monotonicNow, MAX);
 		const ids: string[] = [];
 		// Register one more than the cap allows.
 		for (let i = 0; i < MAX + 1; i++) {
@@ -60,6 +65,44 @@ describe('InMemoryProxyStore', () => {
 		expect(s.consumeCode('code-1')?.upstreamTokenId).toBe('t1');
 		expect(s.consumeCode('code-1')).toBeUndefined();
 	});
+	it('measures a TTL monotonically, so a wall-clock jump does not expire a transaction', () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		const s = new InMemoryProxyStore();
+		s.putTransaction(
+			'txn-1',
+			{
+				clientId: 'c',
+				clientRedirectUri: 'r',
+				clientState: 's',
+				clientCodeChallenge: 'x',
+				clientCodeChallengeMethod: 'S256',
+				scopes: [],
+				proxyVerifier: 'v',
+			},
+			60_000,
+		);
+
+		vi.setSystemTime(Date.now() + 3_600_000);
+
+		// The sign-in is a minute old at most; only the clock moved.
+		expect(s.getTransaction('txn-1')).toBeDefined();
+	});
+
+	it('stamps a registration in wall-clock time, which is what it publishes as issued-at', () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(1_700_000_000_000);
+		const s = new InMemoryProxyStore();
+
+		const client = s.putClient({
+			redirectUris: ['http://127.0.0.1:9000/callback'],
+			scopes: [],
+			name: 'Claude Code',
+		});
+
+		// Published as client_id_issued_at, so it cannot come from the elapsed clock.
+		expect(client.createdAt).toBe(1_700_000_000_000);
+	});
+
 	it('expires a transaction past its TTL', () => {
 		let now = 1000;
 		const s = new InMemoryProxyStore(() => now);
@@ -158,10 +201,10 @@ describe('InMemoryProxyStore durable snapshot', () => {
 	});
 
 	it('preserves FIFO eviction order across a snapshot restore', () => {
-		const a = new InMemoryProxyStore(Date.now, 2); // client cap of 2
+		const a = new InMemoryProxyStore(monotonicNow, 2); // client cap of 2
 		const c1 = a.putClient({ redirectUris: ['r1'], scopes: [], name: 'c1' });
 		a.putClient({ redirectUris: ['r2'], scopes: [], name: 'c2' });
-		const b = new InMemoryProxyStore(Date.now, 2);
+		const b = new InMemoryProxyStore(monotonicNow, 2);
 		b.restoreDurable(a.snapshotDurable());
 		// Adding a third client must evict the OLDEST (c1), proving insertion order survived.
 		b.putClient({ redirectUris: ['r3'], scopes: [], name: 'c3' });

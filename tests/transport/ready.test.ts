@@ -125,6 +125,19 @@ describe('/ready', () => {
 		expect(mockRequest).toHaveBeenCalledTimes(2);
 	});
 
+	it('measures the cache TTL monotonically, so a wall-clock jump does not re-probe', async () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		mockRequest.mockResolvedValue({ query: { general: {} } });
+		const app = makeApp();
+
+		await request(app).get('/ready');
+		// An hour of wall clock, well past the 5-second TTL, but no running time.
+		vi.setSystemTime(Date.now() + 3_600_000);
+		await request(app).get('/ready');
+
+		expect(mockRequest).toHaveBeenCalledTimes(1);
+	});
+
 	it('times the probe out at 3 seconds', async () => {
 		vi.useFakeTimers();
 		mockRequest.mockReturnValue(new Promise(() => undefined));

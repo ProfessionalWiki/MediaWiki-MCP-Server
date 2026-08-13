@@ -15,6 +15,7 @@ import {
 import { acquireToken } from '../auth/acquireToken.ts';
 import { structuredResult } from '../results/response.ts';
 import { checkWikiCapability } from './wikiCapability.ts';
+import { monotonicNow } from './clock.ts';
 
 // Tools that operate on server-local state (the wiki registry, the OAuth token
 // store) rather than a wiki's API. They must not be blocked by an OAuth gate
@@ -100,7 +101,7 @@ async function runDispatchInner<TSchema extends ZodRawShape, TCtx extends ToolCo
 	args: z.infer<z.ZodObject<TSchema>>,
 	resolvedKey?: string,
 ): Promise<CallToolResult> {
-	const started = performance.now();
+	const started = monotonicNow();
 	let outcome: ToolOutcome = 'success';
 	let errorText: string | undefined;
 	let upstreamStatus: number | undefined;

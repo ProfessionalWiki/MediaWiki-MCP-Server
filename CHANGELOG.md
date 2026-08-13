@@ -26,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `delete-page` no longer sends an empty deletion reason when the wiki sets `attributeEdits: false` and the call gave no comment. MediaWiki recorded that empty reason verbatim, leaving a blank deletion log entry; with no reason sent at all it can autogenerate its own `content was: …` reason instead.
 - `update-page` no longer advertises itself as idempotent: in `mode='append'` and `mode='prepend'` it never was, so a client replaying a call whose result never arrived adds the content a second time. A replace resends the same content rather than adding to it.
 - `upload-file-from-url` and `update-file-from-url` no longer leak a connection when they refuse a source URL whose declared size is over `MCP_UPLOAD_MAX_BYTES`. Each refused call held one connection open for as long as the server ran.
+- A host correcting its clock no longer changes what the server does with elapsed time: rate-limit allowances, the shutdown grace window, the readiness and extension-detection caches, and the window a hosted sign-in has to finish. Measured against the wall clock, a backwards NTP step could refuse a caller that had barely touched its rate-limit allowance with a `Retry-After` of up to an hour, and a forwards step could end a graceful shutdown early, aborting the tool calls it was waiting for.
 
 ## [0.16.0] - 2026-07-30
 

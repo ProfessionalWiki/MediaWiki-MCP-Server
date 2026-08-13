@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { monotonicNow } from '../../runtime/clock.ts';
 
 export interface ClientRecord {
 	clientId: string;
@@ -99,12 +100,14 @@ export class InMemoryProxyStore implements ProxyStore {
 	private refreshing = new Set<string>();
 
 	public constructor(
-		private now: () => number = Date.now,
+		private elapsedNow: () => number = monotonicNow,
 		private maxClients: number = DEFAULT_MAX_CLIENTS,
 	) {}
 
 	public putClient(c: Omit<ClientRecord, 'clientId' | 'createdAt'>): ClientRecord {
-		const rec: ClientRecord = { ...c, clientId: `mcp-${randomUUID()}`, createdAt: this.now() };
+		// Not elapsedNow(): register.ts publishes createdAt as client_id_issued_at,
+		// which a client reads as a Unix timestamp.
+		const rec: ClientRecord = { ...c, clientId: `mcp-${randomUUID()}`, createdAt: Date.now() };
 		// FIFO eviction: drop the oldest registration before exceeding the cap.
 		// Map preserves insertion order, so the first key is the oldest.
 		while (this.clients.size >= this.maxClients) {
@@ -127,7 +130,7 @@ export class InMemoryProxyStore implements ProxyStore {
 	}
 
 	public putTransaction(id: string, t: TransactionRecord, ttlMs = TXN_TTL_MS): void {
-		this.txns.set(id, { value: t, expiresAt: this.now() + ttlMs });
+		this.txns.set(id, { value: t, expiresAt: this.elapsedNow() + ttlMs });
 	}
 
 	public getTransaction(id: string): TransactionRecord | undefined {
@@ -135,7 +138,7 @@ export class InMemoryProxyStore implements ProxyStore {
 		if (!e) {
 			return undefined;
 		}
-		if (e.expiresAt < this.now()) {
+		if (e.expiresAt < this.elapsedNow()) {
 			this.txns.delete(id);
 			return undefined;
 		}
@@ -147,13 +150,13 @@ export class InMemoryProxyStore implements ProxyStore {
 	}
 
 	public putCode(code: string, r: CodeRecord, ttlMs = CODE_TTL_MS): void {
-		this.codes.set(code, { value: r, expiresAt: this.now() + ttlMs });
+		this.codes.set(code, { value: r, expiresAt: this.elapsedNow() + ttlMs });
 	}
 
 	public consumeCode(code: string): CodeRecord | undefined {
 		const e = this.codes.get(code);
 		this.codes.delete(code); // one-time regardless of expiry
-		if (!e || e.expiresAt < this.now()) {
+		if (!e || e.expiresAt < this.elapsedNow()) {
 			return undefined;
 		}
 		return e.value;

@@ -6,6 +6,8 @@
 // X-Forwarded-For) there is nothing honest to key on, so that bucket is a flood
 // backstop for the wiki, not fairness between anonymous callers.
 
+import { monotonicNow } from '../runtime/clock.ts';
+
 export interface RateLimitSettings {
 	// Sustained tools/call per second per authenticated caller.
 	ratePerSecond: number;
@@ -46,8 +48,11 @@ const MAX_TRACKED_KEYS = 10_000;
 const MAX_RETRY_AFTER_SECONDS = 3600;
 
 function refill(bucket: Bucket, ratePerSecond: number, burst: number, now: number): void {
-	bucket.tokens = Math.min(burst, bucket.tokens + ((now - bucket.last) / 1000) * ratePerSecond);
-	bucket.last = now;
+	// An injected clock may step backwards: a refill only ever adds, and the
+	// reference point only ever moves forwards.
+	const elapsedMs = Math.max(0, now - bucket.last);
+	bucket.tokens = Math.min(burst, bucket.tokens + (elapsedMs / 1000) * ratePerSecond);
+	bucket.last = Math.max(bucket.last, now);
 }
 
 function retryAfterFor(deficit: number, ratePerSecond: number): number {
@@ -83,7 +88,7 @@ function takeFrom(
 
 export function createRateLimiter(
 	settings: RateLimitSettings,
-	now: () => number = Date.now,
+	now: () => number = monotonicNow,
 ): RateLimiter {
 	const { ratePerSecond, burst, anonymousRatePerSecond, anonymousBurst } = settings;
 	const buckets = new Map<string, Bucket>();

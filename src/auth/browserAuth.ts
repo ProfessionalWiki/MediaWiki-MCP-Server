@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import open from 'open';
 import { logger } from '../runtime/logger.ts';
+import { monotonicNow } from '../runtime/clock.ts';
 import { fetchMetadata } from './metadata.ts';
 import type { WikiSlice } from './metadata.ts';
 import { randomVerifier, s256 } from './pkce.ts';
@@ -67,7 +68,7 @@ export function browserAuth(wikiKey: string, ctx: BrowserAuthCtx): Promise<strin
 }
 
 async function doBrowserAuth(wikiKey: string, ctx: BrowserAuthCtx): Promise<string> {
-	const started = Date.now();
+	const started = monotonicNow();
 	const timeoutMs = ctx.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
 	const metadata = await fetchMetadata(wikiKey, ctx.wiki);
@@ -144,7 +145,7 @@ async function doBrowserAuth(wikiKey: string, ctx: BrowserAuthCtx): Promise<stri
 			event: 'oauth_login_failed',
 			wiki: wikiKey,
 			reason,
-			duration_ms: Date.now() - started,
+			duration_ms: Math.round(monotonicNow() - started),
 		});
 		if (err instanceof OAuthFlowError) {
 			throw new BrowserAuthError(reason, err.message);
@@ -170,7 +171,7 @@ async function doBrowserAuth(wikiKey: string, ctx: BrowserAuthCtx): Promise<stri
 	logger.info('', {
 		event: 'oauth_login_completed',
 		wiki: wikiKey,
-		duration_ms: Date.now() - started,
+		duration_ms: Math.round(monotonicNow() - started),
 	});
 
 	return tok.access_token;

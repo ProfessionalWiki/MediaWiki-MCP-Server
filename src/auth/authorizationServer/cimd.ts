@@ -1,5 +1,6 @@
 import type { ClientRecord } from './proxyStore.ts';
 import { isLoopbackHost } from './redirectPolicy.ts';
+import { monotonicNow } from '../../runtime/clock.ts';
 
 export class CimdValidationError extends Error {
 	public constructor(message: string) {
@@ -219,7 +220,7 @@ export class CimdResolver {
 	public constructor(
 		private isHostAllowed: (host: string) => boolean,
 		private fetcher: (url: string) => Promise<CimdFetchResult>,
-		private now: () => number = Date.now,
+		private now: () => number = monotonicNow,
 		private maxEntries: number = CIMD_CACHE_MAX_ENTRIES,
 	) {}
 

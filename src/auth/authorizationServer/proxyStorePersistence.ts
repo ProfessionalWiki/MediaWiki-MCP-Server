@@ -1,11 +1,11 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
-import { performance } from 'node:perf_hooks';
 import { isErrnoException } from '../../errors/isErrnoException.ts';
 import { recordStoreFlush, recordStoreFlushFailure } from '../../runtime/metrics.ts';
 import { getProxyStorePath } from '../paths.ts';
 import type { ProxyConfig } from './proxyConfig.ts';
 import { deriveKey, decrypt, encrypt } from './proxyStoreCrypto.ts';
+import { monotonicNow } from '../../runtime/clock.ts';
 import {
 	InMemoryProxyStore,
 	type ClientRecord,
@@ -184,7 +184,7 @@ export class PersistentProxyStore implements ProxyStore {
 	}
 
 	private flushSync(): void {
-		const start = performance.now();
+		const start = monotonicNow();
 		try {
 			const json = JSON.stringify(this.inner.snapshotDurable());
 			const blob = encrypt(this.key, Buffer.from(json, 'utf8'));
@@ -193,7 +193,7 @@ export class PersistentProxyStore implements ProxyStore {
 			writeFileSync(tmp, blob, { mode: 0o600 });
 			renameSync(tmp, this.file);
 			this.dirty = false;
-			recordStoreFlush(performance.now() - start);
+			recordStoreFlush(monotonicNow() - start);
 		} catch (err: unknown) {
 			// Best-effort durability: a disk failure must not break the live request. The
 			// record stays valid in memory; persistence is re-attempted by the next

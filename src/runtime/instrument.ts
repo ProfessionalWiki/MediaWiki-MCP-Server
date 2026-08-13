@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import { emitTelemetryEvent } from './logger.ts';
 import { recordToolCall } from './metrics.ts';
+import { monotonicNow } from './clock.ts';
 import type { ErrorCategory } from '../errors/classifyError.ts';
 
 // `cancelled` sits alongside ErrorCategory rather than inside it: the caller
@@ -126,7 +127,7 @@ export function emitToolCall<TArgs>(opts: EmitToolCallOptions<TArgs>): void {
 	const level = levelFor(opts.outcome);
 	const targetValue = safeTarget(opts.target, opts.args);
 	const truncated = opts.outcome === 'success' ? detectTruncation(opts.result) : false;
-	const durationMs = Math.round(performance.now() - opts.started);
+	const durationMs = Math.round(monotonicNow() - opts.started);
 	// Snake-case keys are required by the structured log schema.
 	const data: Record<string, unknown> = {
 		event: 'tool_call',
