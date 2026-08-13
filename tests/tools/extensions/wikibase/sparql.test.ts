@@ -309,6 +309,123 @@ describe('runSparqlQuery', () => {
 		expect(error.message).toBe("request to the wiki's query service failed");
 	});
 
+	// A 307 or 308 is followed, and a relative Location keeps the endpoint's path,
+	// so the hop after it fails on a URL that carries the same token and is not a
+	// substring the endpoint substitution can find.
+	it('names a redirect-derived URL as the endpoint in an unclassified failure', async () => {
+		const endpoint = 'https://query.example.org/hunter2/sparql';
+		vi.mocked(postForm).mockRejectedValue(
+			new FetchError(
+				'request to https://query.example.org/hunter2/results failed, reason: socket hang up',
+				'system',
+			),
+		);
+
+		const error = await failureOf(runSparqlQuery(endpoint, CATS, MANY_ROWS));
+
+		expect(error.message).toBe(
+			"request to the wiki's query service failed, reason: socket hang up",
+		);
+	});
+
+	// A Location that resolves to the endpoint plus something derives a URL the
+	// endpoint is a prefix of, which a substitution takes the front off rather than
+	// missing outright — leaving what the redirect appended standing.
+	it('names a redirect-derived URL that extends the endpoint', async () => {
+		const endpoint = 'https://query.example.org/hunter2/sparql';
+		vi.mocked(postForm).mockRejectedValue(
+			new FetchError(
+				'request to https://query.example.org/hunter2/sparql?sig=hunter3 failed, reason: socket hang up',
+				'system',
+			),
+		);
+
+		const error = await failureOf(runSparqlQuery(endpoint, CATS, MANY_ROWS));
+
+		expect(error.message).toBe(
+			"request to the wiki's query service failed, reason: socket hang up",
+		);
+	});
+
+	it('cuts back every URL in a message, not only the first one it meets', async () => {
+		const endpoint = 'https://query.example.org/hunter2/sparql';
+		vi.mocked(postForm).mockRejectedValue(
+			new Error(
+				'request to https://query.example.org/hunter2/a failed after https://query.example.org/hunter2/b',
+			),
+		);
+
+		const error = await failureOf(runSparqlQuery(endpoint, CATS, MANY_ROWS));
+
+		expect(error.message).toBe(
+			"request to the wiki's query service failed after the wiki's query service",
+		);
+	});
+
+	// A wiki names a server it answers under either scheme without a scheme of its
+	// own, and the transport reads that as `https`.
+	it('names a URL from a protocol-relative endpoint as the endpoint', async () => {
+		vi.mocked(postForm).mockRejectedValue(
+			new Error('request to https://query.example.org/hunter2/results failed'),
+		);
+
+		const error = await failureOf(
+			runSparqlQuery('//query.example.org/hunter2/sparql', CATS, MANY_ROWS),
+		);
+
+		expect(error.message).toBe("request to the wiki's query service failed");
+	});
+
+	// An endpoint that will not parse leaves nothing to compare a URL against, and
+	// that must cost the other URLs in the message their host, not spread the
+	// endpoint's name over hosts that are not it.
+	it('keeps a foreign host when the wiki publishes an endpoint that is not a URL', async () => {
+		vi.mocked(postForm).mockRejectedValue(
+			new Error('Refusing to fetch URL: https://backend.internal/hunter2/results'),
+		);
+
+		const error = await failureOf(runSparqlQuery('/query/sparql', CATS, MANY_ROWS));
+
+		expect(error.message).toBe('Refusing to fetch URL: https://backend.internal');
+	});
+
+	it('names what it cannot read as a URL rather than passing it through', async () => {
+		const endpoint = 'https://query.example.org/hunter2/sparql';
+		vi.mocked(postForm).mockRejectedValue(new Error('request to https://[hunter2/results failed'));
+
+		const error = await failureOf(runSparqlQuery(endpoint, CATS, MANY_ROWS));
+
+		expect(error.message).toBe("request to the wiki's query service failed");
+	});
+
+	// A hop to another host is refused by address before it is sent, and only the
+	// host names what the operator has to allow.
+	it('keeps the host of a URL from outside the endpoint, without its path', async () => {
+		const endpoint = 'https://query.example.org/hunter2/sparql';
+		vi.mocked(postForm).mockRejectedValue(
+			new Error(
+				'Refusing to fetch URL resolving to non-public address 10.0.0.1 (private); the server operator must add the host to MCP_TRUSTED_HOSTS to allow it: https://backend.internal/hunter2/results',
+			),
+		);
+
+		const error = await failureOf(runSparqlQuery(endpoint, CATS, MANY_ROWS));
+
+		expect(error.message).toContain('https://backend.internal');
+		expect(error.message).toContain('MCP_TRUSTED_HOSTS');
+		expect(error.message).not.toContain('hunter2');
+	});
+
+	// A parser message is the caller's own query quoted back, so the IRIs in it are
+	// the complaint rather than something to hide.
+	it('leaves the IRIs of the query alone in a service message', async () => {
+		const body = 'Encountered "<http://example.org/p>" at line 1, column 30.';
+		vi.mocked(postForm).mockRejectedValue(new HttpStatusError(400, ENDPOINT, body));
+
+		const error = await failureOf(runSparqlQuery(ENDPOINT, CATS, MANY_ROWS));
+
+		expect(error.message).toBe(body);
+	});
+
 	// A query service that echoes the request URI into its error page hands the
 	// token straight back, and the service message reaches the caller and the logs.
 	it('names the endpoint rather than quoting it back in a service message', async () => {
