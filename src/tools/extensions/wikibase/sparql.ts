@@ -20,6 +20,15 @@ const MAX_SERVICE_MESSAGE_CHARS = 500;
 /** A line break inside a cell, which `GROUP_CONCAT` puts there routinely. */
 const LINE_BREAK = /\r\n|[\r\n]/g;
 
+/** An absolute URL sitting in a message, running to the first space. */
+const ABSOLUTE_URL = /https?:\/\/\S+/g;
+
+/**
+ * What a URL is called once the parts that can hold a token are gone. Reads as
+ * the subject of the sentence a transport error puts it in.
+ */
+const QUERY_SERVICE = "the wiki's query service";
+
 /** A query service failure already classified into an MCP error category. */
 export class SparqlError extends Error {
 	public constructor(
@@ -157,7 +166,7 @@ function classifyQueryFailure(err: unknown, endpoint: string): SparqlError {
 		);
 	}
 	const message = err instanceof Error ? err.message : String(err);
-	return new SparqlError('upstream_failure', withoutEndpoint(message, endpoint));
+	return new SparqlError('upstream_failure', transportMessage(message, endpoint));
 }
 
 /**
@@ -172,13 +181,58 @@ function originOf(target: string): string {
 }
 
 /**
- * The endpoint named rather than quoted. A transport error quotes the URL it
- * failed on, and a query service echoes the request URI into its own error page.
- * That URL is the operator's to know: it can carry a token in its path or query,
- * and it reaches the caller and the logs from here.
+ * A message this server wrote about a request it made itself, with every URL in
+ * it cut back. Substituting the endpoint would reach only the endpoint: a 307 or
+ * 308 is followed, and a relative Location resolves against the endpoint's path,
+ * so the hop after it fails on a URL that carries the endpoint's token under a
+ * spelling no substitution finds. Reading each URL for what it is catches the
+ * endpoint too, so the substitution has no work left to do here.
+ *
+ * Only this server's own messages come through here. A query service's
+ * diagnostics are the caller's IRIs quoted back, and cutting those back would
+ * answer a malformed query by deleting the term it complained about.
+ */
+function transportMessage(message: string, endpoint: string): string {
+	const service = endpointOrigin(endpoint);
+	return message.replace(ABSOLUTE_URL, (url) => urlAsRead(url, service));
+}
+
+/**
+ * The origin the endpoint's own URLs carry, or nothing when the wiki published an
+ * address that is not one. Read the way the transport reads it, since a wiki
+ * names a server it answers under either scheme without a scheme of its own.
+ */
+function endpointOrigin(endpoint: string): string | undefined {
+	try {
+		return originOf(endpoint.startsWith('//') ? `https:${endpoint}` : endpoint);
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * A URL from the endpoint's own origin is the endpoint reached by another path,
+ * and is named as one. Any other keeps its origin, which is how an operator sees
+ * the host a redirect went to, or the host to add to `MCP_TRUSTED_HOSTS`. What
+ * does not parse cannot be cut back, so it goes entirely.
+ */
+function urlAsRead(url: string, service: string | undefined): string {
+	try {
+		const origin = originOf(url);
+		return origin === service ? QUERY_SERVICE : origin;
+	} catch {
+		return QUERY_SERVICE;
+	}
+}
+
+/**
+ * The endpoint named rather than quoted, for the query service's own error page,
+ * which echoes the request URI into it. That URL is the operator's to know: it
+ * can carry a token in its path or query, and it reaches the caller and the logs
+ * from here.
  */
 function withoutEndpoint(message: string, endpoint: string): string {
-	return endpoint === '' ? message : message.split(endpoint).join("the wiki's query service");
+	return endpoint === '' ? message : message.split(endpoint).join(QUERY_SERVICE);
 }
 
 function categoryForStatus(status: number): ErrorCategory {
