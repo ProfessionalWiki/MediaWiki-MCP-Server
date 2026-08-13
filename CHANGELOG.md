@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-08-13
+
 ### Breaking changes
 
 - `update-page` no longer creates sections: `section='new'` and `sectionTitle` are removed. Add a section with `mode='append'` and a source that begins with the heading, as in `"\n\n== History ==\n\nBody."`. A call still sending `section='new'` is refused with a message naming the replacement.
@@ -338,7 +340,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - Smithery integration.
 
-[Unreleased]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.13.1...v0.14.0
