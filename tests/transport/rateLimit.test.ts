@@ -131,12 +131,19 @@ describe('createRateLimiter', () => {
 		expect(limiter.take('user:a')).toMatchObject({ allowed: false });
 	});
 
-	it('measures elapsed time monotonically, so a wall-clock correction locks nobody out', () => {
-		vi.useFakeTimers({ toFake: ['Date'] });
-		const limiter = createRateLimiter({ ...SETTINGS, ratePerSecond: 0.01, burst: 2 });
-		expect(limiter.take('user:a')).toEqual({ allowed: true });
-		vi.setSystemTime(Date.now() - 3_600_000);
-		expect(limiter.take('user:a')).toEqual({ allowed: true });
+	it('earns nothing from a clock that steps back and then returns', () => {
+		const clock = makeClock();
+		const limiter = createRateLimiter({ ...SETTINGS, burst: 2 }, clock.now);
+		limiter.take('user:a');
+		limiter.take('user:a');
+		expect(limiter.take('user:a')).toMatchObject({ allowed: false });
+		// A correction backwards, a request arriving during the excursion, then the
+		// re-sync that undoes it. No time passed, so the drained bucket has earned
+		// nothing.
+		clock.stepBack(10_000);
+		expect(limiter.take('user:a')).toMatchObject({ allowed: false });
+		clock.advance(10_000);
+		expect(limiter.take('user:a')).toMatchObject({ allowed: false });
 	});
 
 	it('shares one bucket across all anonymous callers', () => {
