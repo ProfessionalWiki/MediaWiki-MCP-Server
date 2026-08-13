@@ -48,9 +48,8 @@ const MAX_TRACKED_KEYS = 10_000;
 const MAX_RETRY_AFTER_SECONDS = 3600;
 
 function refill(bucket: Bucket, ratePerSecond: number, burst: number, now: number): void {
-	// An injected clock may step backwards. A refill only ever adds, and the
-	// reference point only ever moves forwards, so an excursion below it neither
-	// drains the bucket on the way out nor pays for itself twice on the way back.
+	// An injected clock may step backwards: a refill only ever adds, and the
+	// reference point only ever moves forwards.
 	const elapsedMs = Math.max(0, now - bucket.last);
 	bucket.tokens = Math.min(burst, bucket.tokens + (elapsedMs / 1000) * ratePerSecond);
 	bucket.last = Math.max(bucket.last, now);

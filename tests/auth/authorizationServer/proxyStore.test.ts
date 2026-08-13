@@ -84,8 +84,7 @@ describe('InMemoryProxyStore', () => {
 
 		vi.setSystemTime(Date.now() + 3_600_000);
 
-		// The sign-in this transaction belongs to is a minute old at most, however
-		// the host has since decided to renumber its clock.
+		// The sign-in is a minute old at most; only the clock moved.
 		expect(s.getTransaction('txn-1')).toBeDefined();
 	});
 
@@ -100,8 +99,7 @@ describe('InMemoryProxyStore', () => {
 			name: 'Claude Code',
 		});
 
-		// register.ts publishes this as client_id_issued_at, a Unix timestamp the
-		// client reads, so it cannot come from the elapsed-time clock.
+		// Published as client_id_issued_at, so it cannot come from the elapsed clock.
 		expect(client.createdAt).toBe(1_700_000_000_000);
 	});
 

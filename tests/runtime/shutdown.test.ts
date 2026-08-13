@@ -178,7 +178,7 @@ describe('registerShutdownHandlers (http)', () => {
 			in_flight_drained: 2,
 			grace_exceeded: false,
 		});
-		expect(typeof done[0].duration_ms).toBe('number');
+		expect(Number.isInteger(done[0].duration_ms)).toBe(true);
 	});
 
 	it('measures the grace window monotonically, so a wall-clock jump cannot cut the drain short', async () => {
@@ -187,8 +187,8 @@ describe('registerShutdownHandlers (http)', () => {
 			const { proc, handlerCloseCountAt, inFlight } = setup({ inFlight: 2, graceMs: 2_000 });
 			proc.signals.get('SIGTERM')!();
 			await new Promise((r) => setImmediate(r));
-			// An hour of wall clock passes inside the grace window. The requests
-			// still in flight have had milliseconds, and are owed the rest.
+			// An hour of wall clock inside the grace window. The in-flight requests
+			// have had milliseconds of it, and are owed the rest.
 			vi.setSystemTime(Date.now() + 3_600_000);
 			await new Promise((r) => setTimeout(r, 20));
 			inFlight.drain();

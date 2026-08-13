@@ -131,8 +131,7 @@ describe('/ready', () => {
 		const app = makeApp();
 
 		await request(app).get('/ready');
-		// An hour of wall clock, well past the 5-second TTL, without an hour of
-		// running time: the cached answer is only as stale as the clock claims.
+		// An hour of wall clock, well past the 5-second TTL, but no running time.
 		vi.setSystemTime(Date.now() + 3_600_000);
 		await request(app).get('/ready');
 

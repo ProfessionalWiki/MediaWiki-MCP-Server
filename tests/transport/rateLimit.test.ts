@@ -20,8 +20,7 @@ function makeClock(start = 0): {
 		advance: (ms: number) => {
 			t += ms;
 		},
-		// A host correcting its wall clock moves it backwards, which no amount of
-		// waiting undoes.
+		// A wall clock can be corrected backwards.
 		stepBack: (ms: number) => {
 			t -= ms;
 		},
@@ -100,9 +99,8 @@ describe('createRateLimiter', () => {
 		for (let i = 0; i < 3; i++) {
 			expect(limiter.take('user:a')).toEqual({ allowed: true });
 		}
-		// Eleven seconds of backwards step is far more traffic, at 10/s, than this
-		// caller has spent: charging it would lock out a caller that has barely
-		// started.
+		// At 10/s, an 11-second step is more traffic than this caller has spent, so
+		// charging it would lock out a caller that has barely started.
 		clock.stepBack(11_000);
 		for (let i = 0; i < SETTINGS.burst - 3; i++) {
 			expect(limiter.take('user:a')).toEqual({ allowed: true });
@@ -122,8 +120,8 @@ describe('createRateLimiter', () => {
 
 	it('measures elapsed time monotonically, so a wall-clock jump earns no tokens', () => {
 		vi.useFakeTimers({ toFake: ['Date'] });
-		// 0.01/s puts a refilled token 100 seconds of real time away, so only a
-		// clock jump could produce one within this test.
+		// 0.01/s puts the next token 100 seconds of real time away, so only a clock
+		// jump could produce one here.
 		const limiter = createRateLimiter({ ...SETTINGS, ratePerSecond: 0.01, burst: 1 });
 		expect(limiter.take('user:a')).toEqual({ allowed: true });
 		expect(limiter.take('user:a')).toMatchObject({ allowed: false });
@@ -137,9 +135,8 @@ describe('createRateLimiter', () => {
 		limiter.take('user:a');
 		limiter.take('user:a');
 		expect(limiter.take('user:a')).toMatchObject({ allowed: false });
-		// A correction backwards, a request arriving during the excursion, then the
-		// re-sync that undoes it. No time passed, so the drained bucket has earned
-		// nothing.
+		// A correction backwards, a request during the excursion, then the re-sync
+		// that undoes it. No time passed, so nothing has been earned.
 		clock.stepBack(10_000);
 		expect(limiter.take('user:a')).toMatchObject({ allowed: false });
 		clock.advance(10_000);

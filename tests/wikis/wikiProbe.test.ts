@@ -62,8 +62,7 @@ describe('WikiProbeImpl', () => {
 		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
 
 		expect(await probe.hasExtension('a', 'SemanticMediaWiki')).toBe(true);
-		// Two hours of wall clock, past the one-hour success TTL, without two
-		// hours of running time.
+		// Two hours of wall clock, past the one-hour TTL, but no running time.
 		vi.setSystemTime(Date.now() + 2 * 60 * 60 * 1000);
 		expect(await probe.hasExtension('a', 'SemanticMediaWiki')).toBe(true);
 
