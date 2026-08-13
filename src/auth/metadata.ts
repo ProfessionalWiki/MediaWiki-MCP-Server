@@ -1,5 +1,6 @@
 // src/auth/metadata.ts
 import { logger } from '../runtime/logger.ts';
+import { monotonicNow } from '../runtime/clock.ts';
 import { mwOauth2AuthorizeEndpoint, mwOauth2TokenEndpoint } from './mwOauth2Endpoints.ts';
 
 // The authorization-server metadata of an upstream wiki, as discovered from its
@@ -56,7 +57,7 @@ export function fetchMetadata(wikiKey: string, wiki: WikiSlice): Promise<Upstrea
 }
 
 async function doFetch(wikiKey: string, wiki: WikiSlice): Promise<UpstreamAsMetadata> {
-	const started = Date.now();
+	const started = monotonicNow();
 	const origin = `${wiki.server}/.well-known/oauth-authorization-server`;
 	const pathed = `${wiki.server}/.well-known/oauth-authorization-server${wiki.scriptpath}/rest.php/oauth2`;
 
@@ -89,7 +90,7 @@ async function doFetch(wikiKey: string, wiki: WikiSlice): Promise<UpstreamAsMeta
 		wiki: wikiKey,
 		outcome: 'success',
 		source: 'synthesized',
-		duration_ms: Date.now() - started,
+		duration_ms: Math.round(monotonicNow() - started),
 	});
 	return synthesized;
 }
@@ -163,7 +164,7 @@ function finalize(
 		wiki: wikiKey,
 		outcome: 'success',
 		source: md.source,
-		duration_ms: Date.now() - started,
+		duration_ms: Math.round(monotonicNow() - started),
 	});
 	return { ...md, issuer };
 }

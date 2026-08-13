@@ -4,6 +4,7 @@ import type { LicenseInfo } from './siteInfoCache.ts';
 import { normalizeServer } from './normalizeServer.ts';
 import { errorMessage } from '../errors/isErrnoException.ts';
 import { logger } from '../runtime/logger.ts';
+import { monotonicNow } from '../runtime/clock.ts';
 
 const TTL_SUCCESS_MS = 60 * 60 * 1000; // 1 hour
 const TTL_FAILURE_MS = 60 * 1000; // 60 seconds
@@ -78,7 +79,7 @@ export class WikiProbeImpl implements WikiProbe {
 
 	public constructor(
 		private readonly wikis: WikiRegistry,
-		private readonly now: () => number = () => Date.now(),
+		private readonly now: () => number = monotonicNow,
 	) {}
 
 	public async hasExtension(wikiKey: string, extensionName: string): Promise<boolean> {

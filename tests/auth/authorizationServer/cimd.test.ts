@@ -203,6 +203,20 @@ describe('CimdResolver', () => {
 		await resolver.resolve(URL_ID);
 		expect(fetcher).toHaveBeenCalledTimes(1);
 	});
+	it('measures its cache TTL monotonically, so a wall-clock jump does not refetch', async () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		try {
+			const fetcher = vi.fn(async () => ({ status: 200, body: doc, cacheControl: 'max-age=3600' }));
+			const resolver = new CimdResolver(allow, fetcher);
+			await resolver.resolve(URL_ID);
+			vi.setSystemTime(Date.now() + 2 * 60 * 60 * 1000);
+			await resolver.resolve(URL_ID);
+			expect(fetcher).toHaveBeenCalledTimes(1);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it('rejects a malformed client_id without fetching', async () => {
 		const fetcher = vi.fn();
 		const r = await new CimdResolver(allow, fetcher).resolve('not-a-url');

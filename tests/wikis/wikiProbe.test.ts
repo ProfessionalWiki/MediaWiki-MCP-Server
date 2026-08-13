@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { WikiProbeImpl } from '../../src/wikis/wikiProbe.ts';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
@@ -31,6 +31,10 @@ beforeEach(() => {
 	vi.mocked(makeApiRequest).mockReset();
 });
 
+afterEach(() => {
+	vi.useRealTimers();
+});
+
 describe('WikiProbeImpl', () => {
 	it('returns true when the named extension is present in siteinfo.extensions', async () => {
 		vi.mocked(makeApiRequest).mockResolvedValueOnce({
@@ -47,6 +51,23 @@ describe('WikiProbeImpl', () => {
 		expect(await probe.hasExtension('a', 'SemanticMediaWiki')).toBe(true);
 		expect(await probe.hasExtension('a', 'OAuth')).toBe(true);
 		expect(await probe.hasExtension('a', 'NonExistent')).toBe(false);
+	});
+
+	it('measures its cache TTL monotonically, so a wall-clock jump does not re-probe', async () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.mocked(makeApiRequest).mockResolvedValue({
+			query: { extensions: [{ name: 'SemanticMediaWiki' }] },
+		});
+		// The production clock, not an injected one.
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
+
+		expect(await probe.hasExtension('a', 'SemanticMediaWiki')).toBe(true);
+		// Two hours of wall clock, past the one-hour success TTL, without two
+		// hours of running time.
+		vi.setSystemTime(Date.now() + 2 * 60 * 60 * 1000);
+		expect(await probe.hasExtension('a', 'SemanticMediaWiki')).toBe(true);
+
+		expect(makeApiRequest).toHaveBeenCalledTimes(1);
 	});
 
 	it('issues exactly one HTTP request for multiple hasExtension() calls within TTL', async () => {

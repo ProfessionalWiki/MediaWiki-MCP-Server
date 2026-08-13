@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { monotonicNow } from '../../runtime/clock.ts';
 
 export interface ClientRecord {
 	clientId: string;
@@ -99,12 +100,15 @@ export class InMemoryProxyStore implements ProxyStore {
 	private refreshing = new Set<string>();
 
 	public constructor(
-		private now: () => number = Date.now,
+		// Transaction and code lifetimes are elapsed time, so they are measured
+		// monotonically. A registration's createdAt is not: it is published as
+		// client_id_issued_at, which a client reads as a Unix timestamp.
+		private now: () => number = monotonicNow,
 		private maxClients: number = DEFAULT_MAX_CLIENTS,
 	) {}
 
 	public putClient(c: Omit<ClientRecord, 'clientId' | 'createdAt'>): ClientRecord {
-		const rec: ClientRecord = { ...c, clientId: `mcp-${randomUUID()}`, createdAt: this.now() };
+		const rec: ClientRecord = { ...c, clientId: `mcp-${randomUUID()}`, createdAt: Date.now() };
 		// FIFO eviction: drop the oldest registration before exceeding the cap.
 		// Map preserves insertion order, so the first key is the oldest.
 		while (this.clients.size >= this.maxClients) {

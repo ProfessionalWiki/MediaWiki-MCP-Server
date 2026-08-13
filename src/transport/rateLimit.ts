@@ -6,6 +6,8 @@
 // X-Forwarded-For) there is nothing honest to key on, so that bucket is a flood
 // backstop for the wiki, not fairness between anonymous callers.
 
+import { monotonicNow } from '../runtime/clock.ts';
+
 export interface RateLimitSettings {
 	// Sustained tools/call per second per authenticated caller.
 	ratePerSecond: number;
@@ -44,16 +46,6 @@ const MAX_TRACKED_KEYS = 10_000;
 // settings object could carry a zero or negative rate, making the deficit
 // division non-finite; clamp rather than emit an unparseable header value.
 const MAX_RETRY_AFTER_SECONDS = 3600;
-
-// A refill measures elapsed time, so it reads a clock that only moves forwards.
-// Date.now steps in both directions when a host corrects its clock: backwards
-// charges a caller for time it never spent, forwards hands it a refill it never
-// waited for. performance.now counts milliseconds from process start and does
-// not advance while the host is suspended, so an allowance refills only over
-// time the server was actually up.
-function monotonicNow(): number {
-	return performance.now();
-}
 
 function refill(bucket: Bucket, ratePerSecond: number, burst: number, now: number): void {
 	// Clamped so that a caller passing its own clock cannot be drained by one that

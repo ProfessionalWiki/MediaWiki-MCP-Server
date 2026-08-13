@@ -1,5 +1,6 @@
 import type express from 'express';
 import { recordReadyFailure } from '../runtime/metrics.ts';
+import { monotonicNow } from '../runtime/clock.ts';
 import type { MwnProvider } from '../wikis/mwnProvider.ts';
 import type { ActiveWiki } from '../wikis/activeWiki.ts';
 
@@ -55,14 +56,14 @@ async function probeDefaultWiki(
 			throw new Error(`probe timeout after ${READY_PROBE_TIMEOUT_MS}ms`);
 		}
 		return {
-			expiresAt: Date.now() + READY_CACHE_TTL_MS,
+			expiresAt: monotonicNow() + READY_CACHE_TTL_MS,
 			payload: { status: 'ready', wiki, checked_at: checkedAt },
 			httpStatus: 200,
 		};
 	} catch (err) {
 		const reason = err instanceof Error ? err.message : String(err);
 		return {
-			expiresAt: Date.now() + READY_CACHE_TTL_MS,
+			expiresAt: monotonicNow() + READY_CACHE_TTL_MS,
 			payload: { status: 'not_ready', wiki, reason, checked_at: checkedAt },
 			httpStatus: 503,
 		};
@@ -86,7 +87,7 @@ export function mountReadyEndpoint(
 ): void {
 	app.get('/ready', async (_req, res) => {
 		let entry = readyCache;
-		if (!entry || Date.now() >= entry.expiresAt) {
+		if (!entry || monotonicNow() >= entry.expiresAt) {
 			if (readyProbeInFlight) {
 				entry = await readyProbeInFlight;
 			} else {

@@ -1,5 +1,6 @@
 import type { Server as HttpServer } from 'node:http';
 import { emitTelemetryEvent, logger } from './logger.ts';
+import { monotonicNow } from './clock.ts';
 
 const DEFAULT_GRACE_MS = 10_000;
 const MAX_GRACE_MS = 600_000;
@@ -78,7 +79,7 @@ async function runDrain(
 	deps: ShutdownDeps,
 	proc: NodeJS.Process,
 ): Promise<void> {
-	const start = Date.now();
+	const start = monotonicNow();
 	const inFlightAtSignal = deps.inFlight?.count() ?? 0;
 
 	emitTelemetryEvent('info', {
@@ -134,7 +135,7 @@ async function runDrain(
 		transport: deps.transport,
 		in_flight_drained: drained,
 		grace_exceeded: graceExceeded,
-		duration_ms: Date.now() - start,
+		duration_ms: Math.round(monotonicNow() - start),
 	});
 
 	proc.exit(graceExceeded ? 1 : 0);
@@ -155,8 +156,8 @@ async function waitForDrain(
 	if (inFlight.count() === 0) {
 		return false;
 	}
-	const deadline = Date.now() + graceMs;
-	while (Date.now() < deadline) {
+	const deadline = monotonicNow() + graceMs;
+	while (monotonicNow() < deadline) {
 		await new Promise((r) => {
 			setTimeout(r, pollMs);
 		});
