@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRateLimiter, type RateLimitSettings } from '../../src/transport/rateLimit.ts';
 
 const SETTINGS: RateLimitSettings = {
@@ -9,15 +9,28 @@ const SETTINGS: RateLimitSettings = {
 };
 
 // A controllable clock: the limiter reads time only through the injected now().
-function makeClock(start = 0): { now: () => number; advance: (ms: number) => void } {
+function makeClock(start = 0): {
+	now: () => number;
+	advance: (ms: number) => void;
+	stepBack: (ms: number) => void;
+} {
 	let t = start;
 	return {
 		now: () => t,
 		advance: (ms: number) => {
 			t += ms;
 		},
+		// A host correcting its wall clock moves it backwards, which no amount of
+		// waiting undoes.
+		stepBack: (ms: number) => {
+			t -= ms;
+		},
 	};
 }
+
+afterEach(() => {
+	vi.useRealTimers();
+});
 
 describe('createRateLimiter', () => {
 	it('allows a burst up to capacity, then refuses', () => {
@@ -79,6 +92,51 @@ describe('createRateLimiter', () => {
 			expect(limiter.take('user:a')).toEqual({ allowed: true });
 		}
 		expect(limiter.take('user:a')).toMatchObject({ allowed: false });
+	});
+
+	it('leaves an allowance untouched when the clock steps backwards', () => {
+		const clock = makeClock();
+		const limiter = createRateLimiter(SETTINGS, clock.now);
+		for (let i = 0; i < 3; i++) {
+			expect(limiter.take('user:a')).toEqual({ allowed: true });
+		}
+		// Eleven seconds of backwards step is far more traffic, at 10/s, than this
+		// caller has spent: charging it would lock out a caller that has barely
+		// started.
+		clock.stepBack(11_000);
+		for (let i = 0; i < SETTINGS.burst - 3; i++) {
+			expect(limiter.take('user:a')).toEqual({ allowed: true });
+		}
+		expect(limiter.take('user:a')).toMatchObject({ allowed: false });
+	});
+
+	it('leaves the shared allowance untouched when the clock steps backwards', () => {
+		const clock = makeClock();
+		const limiter = createRateLimiter({ ...SETTINGS, anonymousBurst: 3 }, clock.now);
+		expect(limiter.take(undefined)).toEqual({ allowed: true });
+		clock.stepBack(60_000);
+		expect(limiter.take(undefined)).toEqual({ allowed: true });
+		expect(limiter.take(undefined)).toEqual({ allowed: true });
+		expect(limiter.take(undefined)).toMatchObject({ allowed: false });
+	});
+
+	it('measures elapsed time monotonically, so a wall-clock jump earns no tokens', () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		// 0.01/s puts a refilled token 100 seconds of real time away, so only a
+		// clock jump could produce one within this test.
+		const limiter = createRateLimiter({ ...SETTINGS, ratePerSecond: 0.01, burst: 1 });
+		expect(limiter.take('user:a')).toEqual({ allowed: true });
+		expect(limiter.take('user:a')).toMatchObject({ allowed: false });
+		vi.setSystemTime(Date.now() + 3_600_000);
+		expect(limiter.take('user:a')).toMatchObject({ allowed: false });
+	});
+
+	it('measures elapsed time monotonically, so a wall-clock correction locks nobody out', () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		const limiter = createRateLimiter({ ...SETTINGS, ratePerSecond: 0.01, burst: 2 });
+		expect(limiter.take('user:a')).toEqual({ allowed: true });
+		vi.setSystemTime(Date.now() - 3_600_000);
+		expect(limiter.take('user:a')).toEqual({ allowed: true });
 	});
 
 	it('shares one bucket across all anonymous callers', () => {
