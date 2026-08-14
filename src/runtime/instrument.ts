@@ -119,6 +119,8 @@ export interface EmitToolCallOptions<TArgs> {
 	readonly outcome: ToolOutcome;
 	readonly upstreamStatus: number | undefined;
 	readonly errorMessage: string | undefined;
+	// Whatever secret identifies the caller — an access token, or an id derived
+	// from caller-supplied credentials. Hashed before it reaches a log line.
 	readonly runtimeToken: string | undefined;
 	readonly wikiKey: string;
 }

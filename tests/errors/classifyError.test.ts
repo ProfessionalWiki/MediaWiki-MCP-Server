@@ -49,6 +49,10 @@ describe('classifyError', () => {
 			['assertuserfailed', 'authentication'],
 			['assertbotfailed', 'authentication'],
 			['mwoauth-invalid-authorization', 'authentication'],
+			// mwn's own login failures: a rejected or incomplete bot password, which
+			// for a caller-supplied one is the caller's to fix.
+			['mwn_failedlogin', 'authentication'],
+			['mwn_nologincredentials', 'authentication'],
 			['ratelimited', 'rate_limited'],
 			['readonly', 'upstream_failure'],
 		];

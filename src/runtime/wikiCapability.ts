@@ -2,8 +2,8 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ToolContext } from './context.ts';
 import type { ExtensionPack } from '../tools/extensions/types.ts';
 import { extensionPacks } from '../tools/extensions/index.ts';
-import { getRuntimeToken } from './requestContext.ts';
-import { bearerPassthroughEnabled, hasStaticCredentials } from './authShape.ts';
+import { isRequestAuthenticated } from './requestContext.ts';
+import { basicAuthEnabled, bearerPassthroughEnabled, hasStaticCredentials } from './authShape.ts';
 
 const CORE_WRITE_TOOL_NAMES: readonly string[] = [
 	'create-page',
@@ -73,7 +73,9 @@ export async function checkWikiCapability(
 			const pc = ctx.getProxyConfig?.() ?? null;
 			const oauthOnly = typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
 			const hasStatic = hasStaticCredentials(cfg);
-			const anonymous = getRuntimeToken() === undefined;
+			// Credentials the caller supplied count as much as a token here: they
+			// authenticate the same user to the same wiki.
+			const anonymous = !isRequestAuthenticated();
 			if (pc) {
 				if (anonymous && WRITE_TOOL_SET.has(toolName)) {
 					return ctx.format.error(
@@ -82,20 +84,7 @@ export async function checkWikiCapability(
 					);
 				}
 			} else if (oauthOnly && !hasStatic && anonymous) {
-				// Two different situations, and the caller can only act on one. With
-				// forwarding opted into, supplying a token works and there is no
-				// discovery document to point at. Without it, nothing the caller sends
-				// is accepted, so the message names the operator's action instead of
-				// asking for a token the transport would refuse.
-				return ctx.format.error(
-					'authentication',
-					bearerPassthroughEnabled()
-						? `Wiki "${wikiKey}" requires an authenticated user. Send an Authorization: Bearer ` +
-								'token obtained from that wiki for this caller.'
-						: `Wiki "${wikiKey}" requires an authenticated user, and this server has no way ` +
-								'to obtain one: hosted OAuth sign-in is not configured. The operator needs to ' +
-								'enable it (MCP_PUBLIC_URL and MCP_OAUTH_JWT_SIGNING_KEY).',
-				);
+				return ctx.format.error('authentication', authenticationHint(wikiKey));
 			}
 		}
 	}
@@ -124,6 +113,31 @@ export async function checkWikiCapability(
 		}
 	}
 	return undefined;
+}
+
+/**
+ * What an anonymous caller can do about a wiki that requires a signed-in user.
+ * Three different situations, and the caller can only act on two of them: what
+ * the transport accepts decides which. Naming a header the transport would
+ * refuse sends the caller in circles, so the last case names the operator's
+ * action instead.
+ */
+function authenticationHint(wikiKey: string): string {
+	const prefix = `Wiki "${wikiKey}" requires an authenticated user.`;
+	if (basicAuthEnabled()) {
+		return (
+			`${prefix} Send an Authorization: Basic header carrying a bot password ` +
+			'(base64 of "username:password") for that wiki.'
+		);
+	}
+	if (bearerPassthroughEnabled()) {
+		return `${prefix} Send an Authorization: Bearer token obtained from that wiki for this caller.`;
+	}
+	return (
+		`${prefix.slice(0, -1)}, and this server has no way to obtain one: hosted OAuth sign-in ` +
+		'is not configured, and neither Basic credentials nor a forwarded token is accepted. ' +
+		'The operator needs to enable one of them.'
+	);
 }
 
 /**

@@ -92,20 +92,22 @@ describe('checkWikiCapability', () => {
 	});
 
 	it('rejects an HTTP call to an OAuth-only wiki with no usable token', async () => {
+		vi.stubEnv('MCP_ALLOW_BASIC_AUTH', 'false');
 		const result = await checkWikiCapability('get-page', 'w', ctx(false, oauthWiki, true, 'http'));
 		expect(result?.isError).toBe(true);
 		const raw = result?.content?.map((c) => (c as { text?: string }).text).join('') ?? '';
 		const message = (JSON.parse(raw) as { message: string }).message;
 		expect(message).toContain('requires an authenticated user');
 		expect(message).toContain('Wiki "w"');
-		// The actionable half, which differs by deployment: with no way to obtain a
-		// token, asking the caller for one would send it at a transport that refuses
-		// it, so the message names the operator's action instead.
+		// The actionable half, which differs by deployment: with nothing the caller
+		// can send accepted, asking it for a credential would send it at a transport
+		// that refuses one, so the message names the operator's action instead.
 		expect(message).toContain('hosted OAuth sign-in is not configured');
 		expect(message).not.toContain('Send an Authorization: Bearer');
 	});
 
 	it('asks the caller for a token instead once forwarding is opted into', async () => {
+		vi.stubEnv('MCP_ALLOW_BASIC_AUTH', 'false');
 		vi.stubEnv('MCP_ALLOW_BEARER_PASSTHROUGH', 'true');
 		const result = await checkWikiCapability('get-page', 'w', ctx(false, oauthWiki, true, 'http'));
 		expect(result?.isError).toBe(true);
@@ -113,6 +115,26 @@ describe('checkWikiCapability', () => {
 		const message = (JSON.parse(raw) as { message: string }).message;
 		expect(message).toContain('Send an Authorization: Bearer');
 		expect(message).not.toContain('hosted OAuth sign-in is not configured');
+	});
+
+	it('asks the caller for a bot password while Basic credentials are accepted', async () => {
+		// The default shape, and the one a caller can act on without the operator
+		// configuring anything — so it is named ahead of both other hints.
+		vi.stubEnv('MCP_ALLOW_BEARER_PASSTHROUGH', 'true');
+		const result = await checkWikiCapability('get-page', 'w', ctx(false, oauthWiki, true, 'http'));
+		expect(result?.isError).toBe(true);
+		const raw = result?.content?.map((c) => (c as { text?: string }).text).join('') ?? '';
+		const message = (JSON.parse(raw) as { message: string }).message;
+		expect(message).toContain('Send an Authorization: Basic header carrying a bot password');
+		expect(message).not.toContain('hosted OAuth sign-in is not configured');
+	});
+
+	it('allows an HTTP call to an OAuth-only wiki authenticated with Basic credentials', async () => {
+		const result = await withRequestFields(
+			{ runtimeCredentials: { username: 'Bot@mcp', password: 'pw' } },
+			() => checkWikiCapability('get-page', 'w', ctx(false, oauthWiki, true, 'http')),
+		);
+		expect(result).toBeUndefined();
 	});
 
 	it('allows an HTTP call to an OAuth-only wiki when a runtime bearer is present', async () => {

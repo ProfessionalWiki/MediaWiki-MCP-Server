@@ -20,7 +20,11 @@ import {
 	originValidation,
 } from '@modelcontextprotocol/express';
 import { evaluateBearerGuard } from './bearerGuard.ts';
-import { bearerPassthroughEnabled, hasStaticCredentials } from '../runtime/authShape.ts';
+import {
+	basicAuthEnabled,
+	bearerPassthroughEnabled,
+	hasStaticCredentials,
+} from '../runtime/authShape.ts';
 import { LOCALHOST_HOSTS, resolveHttpConfig } from './httpConfig.ts';
 import { logger } from '../runtime/logger.ts';
 import {
@@ -648,11 +652,22 @@ export function startHttpServer(): void {
 						'sign-in, which issues this server its own tokens.',
 		);
 	}
+	if (basicAuthEnabled()) {
+		logger.info(
+			'Accepting Authorization: Basic credentials. A caller may send a MediaWiki bot ' +
+				'password (base64 of "username:password") and the server acts as that user for ' +
+				'the request, in preference to any credentials configured for the wiki. Terminate ' +
+				'TLS in front of this server: the credentials are recoverable from the header. ' +
+				'Set MCP_ALLOW_BASIC_AUTH=false to refuse them.',
+		);
+	}
 	// A deployment can now be configured so that nothing it serves can authenticate:
 	// wikis that require OAuth, no hosted sign-in to mint a token, and no opted-in
 	// forwarding to carry one. Nothing a client sends can fix that, so say it here
 	// rather than leaving every call to fail upstream.
-	if (!proxyEnabled && !bearerPassthroughEnabled()) {
+	// Basic credentials are one such way, so a deployment accepting them is never
+	// stranded: whatever the wikis require, a caller can send a bot password.
+	if (!proxyEnabled && !bearerPassthroughEnabled() && !basicAuthEnabled()) {
 		const staticAllowed = process.env.MCP_ALLOW_STATIC_FALLBACK === 'true';
 		const stranded = Object.entries(state.wikiRegistry.getAll())
 			.filter(([key, cfg]) => {
@@ -672,9 +687,10 @@ export function startHttpServer(): void {
 			logger.warning(
 				'No way to authenticate to wiki(s): ' +
 					stranded.join(', ') +
-					'. They require a signed-in user, but the hosted OAuth sign-in is not configured ' +
-					'and forwarding a caller-supplied token is off. Set MCP_PUBLIC_URL and ' +
-					'MCP_OAUTH_JWT_SIGNING_KEY to enable hosted sign-in (see docs/deployment.md).',
+					'. They require a signed-in user, but the hosted OAuth sign-in is not configured, ' +
+					'Basic credentials are refused (MCP_ALLOW_BASIC_AUTH=false) and forwarding a ' +
+					'caller-supplied token is off. Unset MCP_ALLOW_BASIC_AUTH, or set MCP_PUBLIC_URL ' +
+					'and MCP_OAUTH_JWT_SIGNING_KEY to enable hosted sign-in (see docs/deployment.md).',
 			);
 		}
 	}

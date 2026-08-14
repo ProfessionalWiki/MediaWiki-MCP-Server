@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- The HTTP transport accepts a caller's MediaWiki bot password as `Authorization: Basic <base64 of "username:password">` and acts as that user for the request, so a deployment can serve several users without holding any credentials of its own. It takes precedence over the credentials configured for the wiki, applies to every tool including writes, and needs no extension installed on the wiki. A logged-in session is reused across a caller's requests, and `tools/call` is rate limited per bot-password login name. Run it behind TLS: the credentials are recoverable from the header. Set `MCP_ALLOW_BASIC_AUTH=false` to refuse such a request with `401` instead. See [docs/deployment.md — per-request bot password](docs/deployment.md#per-request-bot-password-http-transport).
+
+### Changed
+
+- A tool call refused because the wiki requires a signed-in user now names the `Authorization: Basic` header the caller can retry with, where before it could only name the operator's action or a forwarded bearer.
+
 ## [0.17.0] - 2026-08-13
 
 ### Breaking changes

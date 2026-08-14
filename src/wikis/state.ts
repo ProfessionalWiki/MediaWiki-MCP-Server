@@ -1,5 +1,5 @@
 import type { Config } from '../config/loadConfig.ts';
-import { getRuntimeToken } from '../runtime/requestContext.ts';
+import { getRuntimeCredentials, getRuntimeToken } from '../runtime/requestContext.ts';
 import { WikiRegistryImpl, type WikiRegistry } from './wikiRegistry.ts';
 import { ActiveWikiImpl, type ActiveWiki } from './activeWiki.ts';
 import { UploadDirsImpl, type UploadDirs } from './uploadDirs.ts';
@@ -20,7 +20,12 @@ export function createAppState(config: Config): AppState {
 	const wikiRegistry = new WikiRegistryImpl(config.wikis, config.allowWikiManagement !== false);
 	const activeWiki = new ActiveWikiImpl(config.defaultWiki, wikiRegistry);
 	const uploadDirs = new UploadDirsImpl(config.uploadDirs);
-	const mwnProvider = new MwnProviderImpl(wikiRegistry, activeWiki, getRuntimeToken);
+	const mwnProvider = new MwnProviderImpl(
+		wikiRegistry,
+		activeWiki,
+		getRuntimeToken,
+		getRuntimeCredentials,
+	);
 	const siteInfoCache = new SiteInfoCacheImpl();
 	const wikiProbe = new WikiProbeImpl(wikiRegistry);
 	return { wikiRegistry, activeWiki, uploadDirs, mwnProvider, siteInfoCache, wikiProbe };

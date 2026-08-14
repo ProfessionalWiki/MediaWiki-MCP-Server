@@ -15,17 +15,19 @@ The path is not configurable. Locally the server listens on `http://localhost:30
 
 ## Choose your setup
 
-There are two ways to host the server. Pick the row that matches what you want your users to do.
+There are three ways to host the server. Pick the row that matches what you want your users to do.
 
 | If you want… | Users can | You provide |
 |---|---|---|
 | **A public, read-only endpoint** | Read pages without signing in | A `readOnly` wiki entry + a TLS reverse proxy |
 | **Users to read *and* write as themselves** _(recommended)_ | Read, and write as their own account after a browser sign-in | An OAuth consumer on the wiki + a few proxy environment variables |
+| **Non-interactive clients to act as themselves** | Read and write as the account whose bot password they send on each request | A TLS reverse proxy; each user creates their own bot password |
 
-Both run the HTTP transport (`MCP_TRANSPORT=http`) behind a reverse proxy that terminates TLS, and both finish with the [Security checklist](#security-checklist). The first row serves anonymous reads only; in the second, every write is attributed to the user who made it.
+All three run the HTTP transport (`MCP_TRANSPORT=http`) behind a reverse proxy that terminates TLS, and all three finish with the [Security checklist](#security-checklist). The first row serves anonymous reads only; in the other two, every write is attributed to the user who made it.
 
 - Public, read-only → [Public read-only endpoint](#public-read-only-endpoint)
 - Sign-in with writes → [Hosted OAuth sign-in](#hosted-oauth-sign-in)
+- Credentials on each request → [Per-request bot password](#per-request-bot-password-http-transport)
 
 ## Public read-only endpoint
 
@@ -207,8 +209,9 @@ The `GIT_SHA` build arg populates the image's `org.opencontainers.image.revision
 Defaults are safe for a localhost bind. Before exposing the HTTP transport to others, confirm all of these:
 
 - **Terminate TLS at a reverse proxy; never expose the port directly.** Run it behind Caddy, nginx, or Traefik, or bind it to `127.0.0.1`; never put the raw HTTP port on an untrusted network.
-- **A caller-supplied `Authorization` header is refused, not trusted.** The server no longer forwards one to the wiki, so a caller cannot inject a bearer it would act on. Only enable `MCP_ALLOW_BEARER_PASSTHROUGH` if you have callers holding their own wiki tokens.
-- **Let the `Authorization` header reach the server.** With hosted OAuth sign-in it carries a token this server issued, and with `MCP_ALLOW_BEARER_PASSTHROUGH` set it carries the caller's own; either way `header_up -Authorization`, `proxy_set_header Authorization ""` and a proxy-level basic-auth handler on the MCP route all break sign-in.
+- **A caller-supplied `Authorization: Bearer` token is refused, not trusted.** The server does not forward one to the wiki, so a caller cannot inject a bearer it would act on. Only enable `MCP_ALLOW_BEARER_PASSTHROUGH` if you have callers holding their own wiki tokens.
+- **Decide whether callers may send bot passwords.** `Authorization: Basic` is accepted by default and authenticates the caller to MediaWiki as that user, so every write is attributed to them. The credentials are recoverable from the header, which is why TLS is not optional here. Set `MCP_ALLOW_BASIC_AUTH=false` where callers should only ever sign in through [hosted OAuth](#hosted-oauth-sign-in). See [Per-request bot password](#per-request-bot-password-http-transport).
+- **Let the `Authorization` header reach the server.** It carries whichever credential the caller authenticates with, so `header_up -Authorization`, `proxy_set_header Authorization ""`, and a proxy-level basic-auth handler on the MCP route each break sign-in — the last by consuming the header this server needs to read.
 - **Set `MCP_ALLOWED_HOSTS`** to the hostnames your proxy forwards (e.g. `wiki.example.org`). This engages the SDK's DNS-rebinding check; requests to `/mcp` with a non-matching `Host` get a 403. Unset on a public bind turns the check off (with a startup warning); unset on a localhost bind is safe.
 - **Set `MCP_ALLOWED_ORIGINS`** to the browser origins allowed to call `/mcp` (e.g. `https://app.example.org`). A present-but-unlisted `Origin` gets a 403. The match is on hostname; see [Host and Origin matching](#host-and-origin-matching). Leaving it unset on a public bind refuses every browser request, so set it if you serve one. This is a separate decision from `MCP_ALLOWED_HOSTS`, which names hosts this server answers to rather than origins allowed to script it.
 - **List internal destinations in `MCP_TRUSTED_HOSTS`.** Outbound fetches are SSRF-guarded, so a wiki `server` on a private or Docker-internal address (e.g. `mediawiki.svc`) is refused until you exempt it; otherwise extension tools silently disappear. See [outbound SSRF guard](#outbound-ssrf-guard).
@@ -242,6 +245,7 @@ Set `MCP_TRANSPORT=http` to select this transport (the Docker image defaults to 
 | `MCP_TRUSTED_HOSTS` | unset | Comma-separated **outbound** SSRF-guard exemptions for internal destinations (e.g. `mediawiki.svc`). See [Outbound SSRF guard](#outbound-ssrf-guard). |
 | `MCP_ALLOW_STATIC_FALLBACK` | unset | Allow HTTP startup when a wiki has static credentials, making them a shared fallback identity. See [Security checklist](#security-checklist). |
 | `MCP_ALLOW_BEARER_PASSTHROUGH` | unset | Deprecated. Forward a caller's `Authorization` header to MediaWiki as that caller. Without it such a request is refused with `401`. See [Per-request bearer token](#per-request-bearer-token-http-transport-deprecated). |
+| `MCP_ALLOW_BASIC_AUTH` | `true` | Accept a caller's `Authorization: Basic` bot password and act as that user for the request. Set to `false` to refuse such a request with `401`. See [Per-request bot password](#per-request-bot-password-http-transport). |
 | `MCP_RATE_LIMIT` | `30` | Sustained `tools/call` per second per authenticated caller. `0` disables rate limiting. See [Rate limiting](#rate-limiting). |
 | `MCP_RATE_LIMIT_BURST` | 2 × rate | How far a caller's burst can run ahead of the sustained rate. |
 | `MCP_RATE_LIMIT_ANONYMOUS` | `100` | Sustained `tools/call` per second across **all** anonymous callers combined (burst 2 × the rate, not separately tunable). `0` leaves anonymous traffic unlimited. |
@@ -315,7 +319,7 @@ A request carrying an `Origin` the server cannot parse at all is rejected with a
 
 ### Rate limiting
 
-`tools/call` is rate limited per caller: each authenticated caller gets its own allowance (`MCP_RATE_LIMIT`, burst `MCP_RATE_LIMIT_BURST`), and all anonymous callers share one (`MCP_RATE_LIMIT_ANONYMOUS`). A request over the limit is refused with `429` and a `Retry-After` header, and never reaches the wiki. Only `tools/call` is limited; every other request, including subscription streams, passes untouched.
+`tools/call` is rate limited per caller: each authenticated caller gets its own allowance (`MCP_RATE_LIMIT`, burst `MCP_RATE_LIMIT_BURST`), and all anonymous callers share one (`MCP_RATE_LIMIT_ANONYMOUS`). A caller is identified by its signed-in user, its bot-password login name, or — while `MCP_ALLOW_BEARER_PASSTHROUGH` is set — its forwarded token, which additionally shares one allowance across all such tokens. A request over the limit is refused with `429` and a `Retry-After` header, and never reaches the wiki. Only `tools/call` is limited; every other request, including subscription streams, passes untouched.
 
 The limiter is per-process — replicas each enforce their own allowance — and `mcp_rate_limited_total` on [`/metrics`](operations.md#metrics) counts refusals for tuning.
 
@@ -334,6 +338,29 @@ The proxy persists its sign-in state to a local file so a restart or deploy does
 
 **In Docker, mount a persistent volume at the store path.** The image declares one at `/app/data`, but you must mount a named volume or a writable host path there, or a container restart wipes it. A host-path bind mount must be writable by the container's non-root user; a named volume handles that automatically.
 
+### Per-request bot password (HTTP transport)
+
+For callers that hold their own MediaWiki credentials — a script, a CI job, one client per user — the HTTP transport reads a bot password off each request and acts as that user. No browser flow, no OAuth consumer, and no credentials in `config.json`:
+
+```
+Authorization: Basic <base64 of "username:password">
+```
+
+Each user creates their own pair at `Special:BotPasswords` on the target wiki and grants it the rights the tools they call need. The username is the full bot-password login name (`Alice@mcp`), not the account name. This is MediaWiki's own login, so it needs no extension installed.
+
+A logged-in session is reused across a caller's requests, so only the first costs a login round-trip; a wrong password fails on the request that sent it, with no session kept. `tools/call` is [rate limited](#rate-limiting) per login name, so a caller cannot buy allowance by rotating its password.
+
+Credentials are readable by anything that sees the request, so run this behind TLS and treat a bot password as you would a token: scope it to the rights the caller needs, and revoke it at `Special:BotPasswords` when the caller no longer needs them.
+
+**Precedence:** `Authorization: Basic` → `config.json` `token` → `config.json` `username`/`password` → anonymous. A request carrying credentials never falls back to the deployment's own identity. `Authorization: Bearer` is a separate scheme handled as described below, and hosted OAuth sign-in can stay enabled alongside: the scheme the caller sends decides which applies.
+
+Set `MCP_ALLOW_BASIC_AUTH=false` to refuse this. A request carrying credentials — or one whose `Basic` header cannot be read — is then answered `401` and never reaches the wiki, rather than being served anonymously under an identity the caller does not have.
+
+```sh
+claude mcp add --transport http my-wiki https://wiki.example.org/mcp \
+  --header "Authorization: Basic $(printf '%s' 'Alice@mcp:s3cret' | base64 -w0)"
+```
+
 ### Per-request bearer token (HTTP transport, deprecated)
 
 > **Deprecated.** An MCP server must not accept tokens that were not issued for it, so forwarding a caller's MediaWiki token is off by default and will be removed. Use [Hosted OAuth sign-in](#hosted-oauth-sign-in), which gets this server its own tokens. Set `MCP_ALLOW_BEARER_PASSTHROUGH=true` to keep the old behaviour while you migrate; the server logs a warning at startup while it is set.
@@ -350,7 +377,7 @@ Use a MediaWiki OAuth2 access token obtained from `Special:OAuthConsumerRegistra
 
 No OAuth discovery points at the wikis' authorization servers: the only protected-resource document is the one [Hosted OAuth sign-in](#hosted-oauth-sign-in) publishes, and it names this server. A client cannot discover where to mint a wiki token — obtain it yourself and configure it on the caller. While `MCP_ALLOW_BEARER_PASSTHROUGH=true` is set, a bearer-less request is challenged with `401` when no configured wiki is usable without a token; a deployment mixing OAuth and non-OAuth wikis still serves tokenless clients on the wikis that allow anonymous access.
 
-**Precedence:** request header (only while `MCP_ALLOW_BEARER_PASSTHROUGH=true`; otherwise refused with `401`) → `config.json` `token` → `config.json` `username`/`password` → anonymous. The HTTP transport refuses to start with static credentials in `config.json` unless `MCP_ALLOW_STATIC_FALLBACK=true` is set; see [the Security checklist](#security-checklist) for why.
+**Precedence:** request header (only while `MCP_ALLOW_BEARER_PASSTHROUGH=true`; otherwise refused with `401`) → [`Authorization: Basic`](#per-request-bot-password-http-transport) → `config.json` `token` → `config.json` `username`/`password` → anonymous. The HTTP transport refuses to start with static credentials in `config.json` unless `MCP_ALLOW_STATIC_FALLBACK=true` is set; see [the Security checklist](#security-checklist) for why.
 
 HTTP serving is per-request, following MCP protocol revision 2026-07-28: the server issues no session ids, serves 2026-07-28 clients natively, and serves earlier 2025-era clients statelessly. Each request builds an independent MediaWiki session from the token it carries, so rotation and revocation take effect on the very next request; run the transport behind TLS so bearers stay confidential in transit.
 

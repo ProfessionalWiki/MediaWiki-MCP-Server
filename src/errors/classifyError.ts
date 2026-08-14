@@ -66,6 +66,14 @@ const MW_CODE_TO_CATEGORY: Record<string, ErrorCategory> = {
 	// authentication (not upstream_failure) lets OAuth-aware callers tell a dead
 	// token apart from a genuine upstream fault and start a token refresh.
 	'mwoauth-invalid-authorization': 'authentication',
+	// A bot-password login the wiki rejected, or one attempted with an incomplete
+	// pair. These are mwn's own codes rather than the action API's: the failure
+	// happens while establishing the session, before any tool's request is sent.
+	// The credentials are the caller's own when they arrived as `Authorization:
+	// Basic`, so the category has to say "fix your credentials" rather than blame
+	// the wiki.
+	mwn_failedlogin: 'authentication',
+	mwn_nologincredentials: 'authentication',
 	// rate_limited
 	ratelimited: 'rate_limited',
 	// upstream_failure (explicit; unknown codes also fall through here)

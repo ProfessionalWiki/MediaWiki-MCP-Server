@@ -2,9 +2,14 @@ import { createHash } from 'node:crypto';
 import type { Request, RequestHandler, Response } from 'express';
 import type { McpHttpHandler } from '@modelcontextprotocol/server';
 import { toNodeHandler } from '@modelcontextprotocol/node';
-import { bearerPassthroughEnabled, hasStaticCredentials } from '../runtime/authShape.ts';
+import {
+	basicAuthEnabled,
+	bearerPassthroughEnabled,
+	hasStaticCredentials,
+} from '../runtime/authShape.ts';
 import { recordRateLimited } from '../runtime/metrics.ts';
-import { withRequestContext } from '../runtime/requestContext.ts';
+import { withRequestIdentity } from '../runtime/requestContext.ts';
+import { readBasicAuthHeader } from './basicAuth.ts';
 import type { WikiConfig } from '../config/loadConfig.ts';
 import type { WikiRegistry } from '../wikis/wikiRegistry.ts';
 import { resolvePublicBase } from '../auth/protectedResource.ts';
@@ -115,6 +120,22 @@ function emit401Challenge(req: Request, res: Response, hasMetadata: boolean): vo
 	});
 }
 
+// Refuses a request whose Basic credentials cannot be used: unreadable, or
+// arriving at a deployment that does not accept them. The challenge advertises
+// Basic only when the scheme is actually accepted — inviting a caller to retry
+// with credentials this server would refuse again is a loop, and a browser shown
+// that header pops a login dialog for a sign-in that cannot succeed.
+function emit401Basic(req: Request, res: Response, message: string, advertise: boolean): void {
+	if (advertise) {
+		res.set('WWW-Authenticate', 'Basic realm="MediaWiki MCP Server", charset="UTF-8"');
+	}
+	res.status(401).json({
+		jsonrpc: '2.0',
+		error: { code: AUTHENTICATION_REQUIRED_ERROR_CODE, message },
+		...echoedId(req),
+	});
+}
+
 // Emitted when a proxy JWT is valid but its upstream token could not be refreshed
 // because of a transient upstream failure. Unlike emit401Challenge this carries NO
 // WWW-Authenticate header: the client should retry, not discard its session and
@@ -207,8 +228,8 @@ export interface McpRouteOptions {
 	rateLimiter?: RateLimiter;
 }
 
-// Builds the /mcp route: per-request bearer resolution in front of the SDK's
-// era-routing handler. The handler serves 2026-07-28 traffic per request and
+// Builds the /mcp route: per-request identity resolution — a bearer or the
+// caller's own bot password — in front of the SDK's era-routing handler. The handler serves 2026-07-28 traffic per request and
 // falls back to old-school stateless serving for 2025-era traffic, so this one
 // route covers POST, GET, and DELETE — body-less GET/DELETE classify as legacy
 // session operations and are answered 405 by the stateless fallback.
@@ -225,12 +246,40 @@ export function createMcpRouteHandler(
 		const bearer = extractBearerToken(req);
 		const pc = getProxyConfig?.() ?? null;
 
+		// Bot-password credentials the caller supplied. Read before anything else
+		// looks at the header: a Basic value is not a bearer, so every branch below
+		// would otherwise treat an authenticated caller as anonymous.
+		const basic = readBasicAuthHeader(req);
+		if (basic.kind === 'malformed') {
+			emit401Basic(
+				req,
+				res,
+				`The Authorization: Basic header could not be read: ${basic.reason}.`,
+				basicAuthEnabled(),
+			);
+			return;
+		}
+		if (basic.kind === 'credentials' && !basicAuthEnabled()) {
+			// Refused rather than ignored, for the same reason an unsolicited bearer
+			// is: running the call anonymously would leave the caller believing it
+			// acted as itself.
+			emit401Basic(
+				req,
+				res,
+				'This server does not accept Authorization: Basic credentials (MCP_ALLOW_BASIC_AUTH=false).',
+				false,
+			);
+			return;
+		}
+		const credentials = basic.kind === 'credentials' ? basic.credentials : undefined;
+
 		// A `private` wiki disallows anonymous reads, so the deployment requires
 		// auth for everything: challenge any tokenless request up front — including
 		// `initialize` — so an OAuth-capable client signs in at connect. This
 		// connection-time 401 is the broadly client-compatible trigger.
 		if (
 			!bearer &&
+			!credentials &&
 			defaultWikiKey !== undefined &&
 			wikiRegistry?.get(defaultWikiKey)?.private === true
 		) {
@@ -289,7 +338,7 @@ export function createMcpRouteHandler(
 			// for; the server cannot tell the two apart and must not guess.
 			emit401Challenge(req, res, pc !== null);
 			return;
-		} else if (!bearer && wikiRegistry && bearerPassthroughEnabled()) {
+		} else if (!bearer && !credentials && wikiRegistry && bearerPassthroughEnabled()) {
 			// Only meaningful while forwarding is available: a tokenless request to a
 			// set of wikis that all require OAuth can be answered by the caller
 			// supplying one. Without passthrough there is nothing a client can do, so
@@ -301,6 +350,15 @@ export function createMcpRouteHandler(
 				emit401Challenge(req, res, pc !== null);
 				return;
 			}
+		}
+
+		// Basic callers get a bucket per USERNAME, not per credential pair: a login
+		// name is one caller, and rotating its password must not hand it a fresh
+		// allowance. The password is left out of the digest for that reason. A
+		// resolved proxy identity, being verified, keeps precedence.
+		if (rateLimitKey === undefined && credentials) {
+			const digest = createHash('sha256').update(credentials.username).digest('hex').slice(0, 32);
+			rateLimitKey = `basic:${digest}`;
 		}
 
 		// A bearer that survived to here outside the proxy path is being forwarded
@@ -336,12 +394,14 @@ export function createMcpRouteHandler(
 			}
 		}
 
-		await withRequestContext(resolvedBearer, () =>
-			// express.json() has already drained the request stream, so the parsed
-			// body is handed to the adapter. POST only: the SDK documents
-			// parsedBody as absent for body-less methods, and express.json()
-			// would hand GET/DELETE a spurious `{}`.
-			nodeHandler(req, res, req.method === 'POST' ? req.body : undefined),
+		await withRequestIdentity(
+			{ runtimeToken: resolvedBearer, runtimeCredentials: credentials },
+			() =>
+				// express.json() has already drained the request stream, so the parsed
+				// body is handed to the adapter. POST only: the SDK documents
+				// parsedBody as absent for body-less methods, and express.json()
+				// would hand GET/DELETE a spurious `{}`.
+				nodeHandler(req, res, req.method === 'POST' ? req.body : undefined),
 		);
 	};
 }

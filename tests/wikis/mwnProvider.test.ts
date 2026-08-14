@@ -77,6 +77,110 @@ describe('MwnProviderImpl', () => {
 		expect(mockInit).toHaveBeenCalledTimes(2);
 	});
 
+	describe('caller-supplied credentials', () => {
+		const credentials = { username: 'Alice@mcp', password: 's3cret' };
+
+		it('logs in with the credentials and asserts the session stays a user', async () => {
+			const reg = new WikiRegistryImpl({ a: sample('a') }, true);
+			const sel = new ActiveWikiImpl('a', reg);
+			mockInit.mockImplementation(async (options: unknown) => ({ id: 'login', options }));
+			const provider = new MwnProviderImpl(
+				reg,
+				sel,
+				() => undefined,
+				() => credentials,
+			);
+			await provider.get();
+			expect(mockInit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					username: 'Alice@mcp',
+					password: 's3cret',
+					defaultParams: expect.objectContaining({ assert: 'user' }),
+				}),
+			);
+		});
+
+		it('reuses one logged-in session per credential pair', async () => {
+			const reg = new WikiRegistryImpl({ a: sample('a') }, true);
+			const sel = new ActiveWikiImpl('a', reg);
+			mockInit.mockImplementation(async (options: unknown) => ({ id: 'login', options }));
+			let current = credentials;
+			const provider = new MwnProviderImpl(
+				reg,
+				sel,
+				() => undefined,
+				() => current,
+			);
+			const first = await provider.get();
+			const second = await provider.get();
+			// A bot password costs a login round-trip, unlike a bearer: repeating it
+			// per tool call would double every call's latency.
+			expect(second).toBe(first);
+			expect(mockInit).toHaveBeenCalledTimes(1);
+
+			current = { username: 'Bob@mcp', password: 'other' };
+			const otherCaller = await provider.get();
+			expect(otherCaller).not.toBe(first);
+			expect(mockInit).toHaveBeenCalledTimes(2);
+		});
+
+		it('outranks credentials configured for the wiki', async () => {
+			const reg = new WikiRegistryImpl(
+				{ a: { ...sample('a'), token: 'config-token', username: 'Ops', password: 'ops-pw' } },
+				true,
+			);
+			const sel = new ActiveWikiImpl('a', reg);
+			mockInit.mockImplementation(async (options: unknown) => ({ id: 'login', options }));
+			const provider = new MwnProviderImpl(
+				reg,
+				sel,
+				() => undefined,
+				() => credentials,
+			);
+			await provider.get();
+			// The caller acts as itself; the deployment's own identity is not
+			// consulted, let alone silently mixed in.
+			expect(mockInit).toHaveBeenCalledWith(
+				expect.objectContaining({ username: 'Alice@mcp', password: 's3cret' }),
+			);
+			expect(mockInit).not.toHaveBeenCalledWith(
+				expect.objectContaining({ OAuth2AccessToken: 'config-token' }),
+			);
+		});
+
+		it('does not cache a failed login', async () => {
+			const reg = new WikiRegistryImpl({ a: sample('a') }, true);
+			const sel = new ActiveWikiImpl('a', reg);
+			mockInit.mockRejectedValueOnce(new Error('WrongPass')).mockResolvedValueOnce({ id: 'login' });
+			const provider = new MwnProviderImpl(
+				reg,
+				sel,
+				() => undefined,
+				() => credentials,
+			);
+			await expect(provider.get()).rejects.toThrow(/WrongPass/);
+			await expect(provider.get()).resolves.toBeDefined();
+			expect(mockInit).toHaveBeenCalledTimes(2);
+		});
+
+		it('invalidate drops the credentialed sessions of that wiki only', async () => {
+			const reg = new WikiRegistryImpl({ a: sample('a'), b: sample('b') }, true);
+			const sel = new ActiveWikiImpl('a', reg);
+			mockInit.mockImplementation(async (options: unknown) => ({ id: 'login', options }));
+			const provider = new MwnProviderImpl(
+				reg,
+				sel,
+				() => undefined,
+				() => credentials,
+			);
+			const a1 = await provider.get('a');
+			const b1 = await provider.get('b');
+			provider.invalidate('a');
+			expect(await provider.get('a')).not.toBe(a1);
+			expect(await provider.get('b')).toBe(b1);
+		});
+	});
+
 	it('invalidate clears the cache for one key', async () => {
 		const reg = new WikiRegistryImpl({ a: sample('a'), b: sample('b') }, true);
 		const sel = new ActiveWikiImpl('a', reg);

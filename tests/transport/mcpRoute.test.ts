@@ -14,7 +14,7 @@ import { RATE_LIMITED_ERROR_CODE } from '../../src/transport/errorCodes.ts';
 import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.ts';
 import { mintAccessToken } from '../../src/auth/authorizationServer/jwt.ts';
 import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.ts';
-import { getRuntimeToken } from '../../src/runtime/requestContext.ts';
+import { getRuntimeCredentials, getRuntimeToken } from '../../src/runtime/requestContext.ts';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
 
 afterEach(() => {
@@ -213,6 +213,110 @@ describe('bearer threading through the route', () => {
 	});
 });
 
+describe('Basic credentials through the route', () => {
+	interface CapturedIdentity {
+		token?: string;
+		credentials?: { username: string; password: string };
+		seen: boolean;
+	}
+
+	function buildApp(captured: CapturedIdentity, options: Partial<McpRouteOptions> = {}): Express {
+		const app = express();
+		app.use(express.json());
+		const fakeHandler = {
+			fetch: async (): Promise<Response> => {
+				captured.seen = true;
+				captured.token = getRuntimeToken();
+				captured.credentials = getRuntimeCredentials();
+				return new Response(JSON.stringify({ ok: true }), {
+					status: 200,
+					headers: { 'content-type': 'application/json' },
+				});
+			},
+		};
+		app.post('/mcp', createMcpRouteHandler(fakeHandler, options));
+		return app;
+	}
+
+	const basic = (username: string, password: string): string =>
+		`Basic ${Buffer.from(`${username}:${password}`, 'utf8').toString('base64')}`;
+
+	const listBody = { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} };
+
+	it('threads caller-supplied credentials into the request context', async () => {
+		const captured: CapturedIdentity = { seen: false };
+		const res = await request(buildApp(captured))
+			.post('/mcp')
+			.set('Authorization', basic('Alice@mcp', 's3cret'))
+			.send(listBody);
+		expect(res.status).toBe(200);
+		expect(captured.credentials).toEqual({ username: 'Alice@mcp', password: 's3cret' });
+		// A bot password is not a token: nothing may reach mwn as one.
+		expect(captured.token).toBeUndefined();
+	});
+
+	it('refuses a malformed Basic header and challenges for a well-formed one', async () => {
+		const captured: CapturedIdentity = { seen: false };
+		const res = await request(buildApp(captured))
+			.post('/mcp')
+			.set('Authorization', 'Basic not-base64!')
+			.send(listBody);
+		expect(res.status).toBe(401);
+		expect(res.headers['www-authenticate']).toContain('Basic');
+		// Never served anonymously: the caller meant to act as somebody.
+		expect(captured.seen).toBe(false);
+	});
+
+	it('refuses credentials when the operator turned Basic off, advertising nothing', async () => {
+		vi.stubEnv('MCP_ALLOW_BASIC_AUTH', 'false');
+		const captured: CapturedIdentity = { seen: false };
+		const res = await request(buildApp(captured))
+			.post('/mcp')
+			.set('Authorization', basic('Alice@mcp', 's3cret'))
+			.send(listBody);
+		expect(res.status).toBe(401);
+		// Inviting a retry with credentials this server refuses again is a loop.
+		expect(res.headers['www-authenticate']).toBeUndefined();
+		expect(captured.seen).toBe(false);
+	});
+
+	it('serves a private default wiki once credentials are supplied', async () => {
+		const registry = {
+			getAll: () => ({ w: { private: true } }),
+			get: () => ({ private: true }),
+		} as unknown as WikiRegistry;
+		const captured: CapturedIdentity = { seen: false };
+		const app = buildApp(captured, { wikiRegistry: registry, defaultWikiKey: 'w' });
+
+		// Without credentials the connection-time challenge still fires.
+		const anonymous = await request(app).post('/mcp').send(listBody);
+		expect(anonymous.status).toBe(401);
+
+		const authenticated = await request(app)
+			.post('/mcp')
+			.set('Authorization', basic('Alice@mcp', 's3cret'))
+			.send(listBody);
+		expect(authenticated.status).toBe(200);
+		expect(captured.credentials?.username).toBe('Alice@mcp');
+	});
+
+	it('does not challenge a credentialed request to wikis that all require auth', async () => {
+		vi.stubEnv('MCP_ALLOW_BEARER_PASSTHROUGH', 'true');
+		const registry = {
+			getAll: () => ({ w: { oauth2ClientId: 'CID' } }),
+			get: () => ({ oauth2ClientId: 'CID' }),
+		} as unknown as WikiRegistry;
+		const captured: CapturedIdentity = { seen: false };
+		const res = await request(buildApp(captured, { wikiRegistry: registry }))
+			.post('/mcp')
+			.set('Authorization', basic('Alice@mcp', 's3cret'))
+			.send(listBody);
+		// The 401 exists to ask for a credential the caller has now supplied.
+		expect(res.status).toBe(200);
+		expect(captured.seen).toBe(true);
+	});
+});
+
 // A real advance of about a second between two of these requests would earn a
 // drained bucket a token back and serve one the test expects to be refused, and
 // a slow round-trip is enough to do it. No rate-limit test below exercises
@@ -338,6 +442,26 @@ describe('rate limiting on /mcp', () => {
 			expect((await asBearer('token-a', i)).status).toBe(200);
 		}
 		expect((await asBearer('token-a', 90)).status).toBe(429);
+	});
+
+	it('keys Basic callers by username, so rotating the password buys no allowance', async () => {
+		const captured = { calls: 0 };
+		const app = buildLimitedApp(captured);
+		const asBasic = (username: string, password: string, id: number) =>
+			request(app)
+				.post('/mcp')
+				.set(
+					'Authorization',
+					`Basic ${Buffer.from(`${username}:${password}`, 'utf8').toString('base64')}`,
+				)
+				.send(toolsCall(id));
+
+		// One login name, two password values: one allowance between them.
+		expect((await asBasic('Alice@mcp', 'pw1', 1)).status).toBe(200);
+		expect((await asBasic('Alice@mcp', 'pw2', 2)).status).toBe(200);
+		expect((await asBasic('Alice@mcp', 'pw1', 3)).status).toBe(429);
+		// A different login name is a different caller, and keeps its own.
+		expect((await asBasic('Bob@mcp', 'pw3', 4)).status).toBe(200);
 	});
 
 	it('keys proxy callers by their upstream token id', async () => {

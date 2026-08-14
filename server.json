@@ -24,6 +24,11 @@
           "format": "filepath"
         },
         {
+          "name": "MCP_ALLOW_BASIC_AUTH",
+          "description": "Set to 'false' to refuse an Authorization: Basic bot password from a caller on the HTTP transport. Left unset, such a request authenticates to MediaWiki as that user.",
+          "default": "true"
+        },
+        {
           "name": "MCP_ALLOW_STATIC_FALLBACK",
           "description": "Set to 'true' to allow HTTP startup when config.json has static credentials. Otherwise the server refuses to start, preventing silent shared-identity fallback for unauthenticated requests."
         },
@@ -133,6 +138,11 @@
           "description": "Path to your configuration file",
           "default": "config.json",
           "format": "filepath"
+        },
+        {
+          "name": "MCP_ALLOW_BASIC_AUTH",
+          "description": "Set to 'false' to refuse an Authorization: Basic bot password from a caller on the HTTP transport. Left unset, such a request authenticates to MediaWiki as that user.",
+          "default": "true"
         },
         {
           "name": "MCP_ALLOW_STATIC_FALLBACK",

@@ -4,7 +4,7 @@ import type { Tool } from './tool.ts';
 import type { ToolContext } from './context.ts';
 import { applySpecialCase } from '../errors/specialCases.ts';
 import { errorMessage } from '../errors/isErrnoException.ts';
-import { getRequestSignal, getRuntimeToken, withRequestFields } from './requestContext.ts';
+import { getCallerSecret, getRequestSignal, withRequestFields } from './requestContext.ts';
 import { isWikiScoped, normalizeWikiArg } from './wikiArg.ts';
 import {
 	emitToolCall,
@@ -188,7 +188,10 @@ async function runDispatchInner<TSchema extends ZodRawShape, TCtx extends ToolCo
 		outcome,
 		upstreamStatus,
 		errorMessage: errorText,
-		runtimeToken: getRuntimeToken(),
+		// Not getRuntimeToken(): a caller authenticated with bot-password
+		// credentials has no token, and would otherwise log as `anonymous`
+		// alongside genuinely anonymous traffic.
+		runtimeToken: getCallerSecret(),
 		wikiKey: ctx.activeWiki.get().key,
 	});
 
