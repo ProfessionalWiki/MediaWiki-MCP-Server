@@ -15,6 +15,8 @@ For contributors adding an install channel, editing a plugin manifest, or testin
 
 Every plugin manifest is a wrapper that launches the published npm package with `npx`. The `.mcpb` bundle and the Docker image each ship their own build instead.
 
+The Docker image doubles as the registry entry's `oci` package, which is how the server reaches Docker's MCP catalog — that catalog takes OCI packages and skips npm ones. The registry proves ownership of the image through the `io.modelcontextprotocol.server.name` label in the `Dockerfile`: it must match the server name in `server.json`, and publishing fails without it. The package pins the image by tag rather than declaring a `version`, which the registry rejects on an OCI package.
+
 Commit a manifest for a client only when that client installs plugins from a repository. For any other client, add it to the README install section and commit no file.
 
 ## Plugin layout
@@ -62,7 +64,7 @@ Do not hand-edit a field in that table, because the next release overwrites it. 
 npm run sync-manifests
 ```
 
-Everything else in these files is hand-maintained, including each catalog's top-level `description` and `interface`. In `server.json` the script sets only the top-level pair; the `packages[]` entries are written during the release workflow by `scripts/update-server-json-npm.cjs` and `scripts/update-server-json-mcpb.cjs`.
+Everything else in these files is hand-maintained, including each catalog's top-level `description` and `interface`. In `server.json` the script sets only the top-level pair; the `packages[]` entries are written during the release workflow by `scripts/update-server-json-npm.cjs`, `scripts/update-server-json-mcpb.cjs`, and `scripts/update-server-json-oci.cjs`.
 
 Adding a manifest to the sync takes three edits:
 

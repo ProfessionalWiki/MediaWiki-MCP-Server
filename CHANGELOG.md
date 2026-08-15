@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- The MCP registry entry now offers the published Docker image as a package, which is what gets a server into Docker's MCP catalog and from there into Docker Desktop's MCP Toolkit. The catalog runs the image on stdio, as a local server for one client; `docker run` keeps its HTTP default for deployments.
+
 ## [0.17.0] - 2026-08-13
 
 ### Breaking changes

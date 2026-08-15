@@ -23,6 +23,11 @@ LABEL org.opencontainers.image.title="MediaWiki MCP Server" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.revision="${GIT_SHA}"
 
+# Ownership proof for the MCP registry: publishing the `oci` package in
+# server.json fails unless the image carries this label and it matches the
+# server name there.
+LABEL io.modelcontextprotocol.server.name="io.github.ProfessionalWiki/mediawiki-mcp-server"
+
 WORKDIR /app
 
 # Copy built artifacts
