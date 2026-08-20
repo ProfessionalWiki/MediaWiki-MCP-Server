@@ -229,6 +229,48 @@
           "default": "3000"
         }
       ]
+    },
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/professionalwiki/mediawiki-mcp-server:0.17.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "MCP_TRANSPORT",
+          "description": "Fixed to stdio for this package: the image defaults to the HTTP transport, which serves a deployment rather than one local client.",
+          "value": "stdio"
+        },
+        {
+          "name": "MCP_CONTENT_MAX_BYTES",
+          "description": "Byte cap for the content bodies and result blocks tools return (wikitext, rendered HTML, diffs, statement and row listings). An oversized response is truncated with a trailing marker describing what was left out.",
+          "format": "number",
+          "default": "50000"
+        },
+        {
+          "name": "MCP_FILE_DATA_MAX_BYTES",
+          "description": "Hard cap on the base64-encoded size of a get-file-data response. A transport/safety backstop; callers tune actual size with the tool's width parameter. Over-cap responses error rather than truncate.",
+          "format": "number",
+          "default": "1000000"
+        },
+        {
+          "name": "MCP_LOG_LEVEL",
+          "description": "Minimum severity for logger output (stderr telemetry and sendLoggingMessage broadcast). Invalid values fail loudly on first log call.",
+          "choices": [
+            "debug",
+            "info",
+            "notice",
+            "warning",
+            "error",
+            "critical",
+            "alert",
+            "emergency",
+            "silent"
+          ],
+          "default": "debug"
+        }
+      ]
     }
   ]
 }

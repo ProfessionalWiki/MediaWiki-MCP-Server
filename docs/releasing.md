@@ -40,6 +40,7 @@ git push origin master --follow-tags
 
 The `release` GitHub workflow triggers automatically on the tag and:
 
+- Builds and pushes the [Docker image](https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/pkgs/container/mediawiki-mcp-server), by calling the `publish-image` workflow. The rest of the release waits for it, because the registry resolves the image the `oci` package names while publishing.
 - Builds the `.mcpb` bundle and attaches it to a new [GitHub Release](https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/releases), using the new `CHANGELOG.md` section as the release body.
 - Publishes the package to [NPM](https://www.npmjs.com/package/@professional-wiki/mediawiki-mcp-server).
 - Publishes to the [MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.professionalwiki/mediawiki-mcp-server).

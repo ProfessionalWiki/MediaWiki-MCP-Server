@@ -6,7 +6,16 @@ on:
       - 'v*'
 
 jobs:
+  image:
+    uses: ./.github/workflows/publish-image.yml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+
   build-and-publish:
+    needs: image
     runs-on: ubuntu-latest
     permissions:
       contents: write # For creating release
@@ -37,6 +46,9 @@ jobs:
 
       - name: Update server.json (npm)
         run: node scripts/update-server-json-npm.cjs
+
+      - name: Update server.json (image)
+        run: node scripts/update-server-json-oci.cjs
 
       - name: Commit and push server.json
         run: |

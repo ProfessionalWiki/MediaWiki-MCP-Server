@@ -1,9 +1,12 @@
 name: Publish Image
 
+# The tagged build is not triggered here: the release workflow calls this one so
+# that publishing to the MCP registry, which validates the image the `oci`
+# package in server.json names, cannot run before the image exists.
 on:
   push:
-    tags: ['v*']
     branches: [master]
+  workflow_call:
   workflow_dispatch:
 
 permissions:
