@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { resolveSiteInfo } from '../../src/wikis/siteInfo.ts';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
 import { fakeContext } from '../helpers/fakeContext.ts';
+import { withRequestFields, getRequestDeadline } from '../../src/runtime/requestContext.ts';
+import { callDeadline } from '../../src/runtime/callDeadline.ts';
 import type { SiteInfo } from '../../src/wikis/siteInfoCache.ts';
 
 // A fresh Map-backed cache (the fakeContext default is seeded; tests of the
@@ -20,6 +22,31 @@ function emptyCache() {
 }
 
 describe('resolveSiteInfo', () => {
+	it('gives the shared fetch its own budget, not the starting caller remainder', async () => {
+		const spentBudget = callDeadline(1, 'calling');
+		let budgetDuringFetch: unknown = 'never ran';
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				query: { general: { server: 'https://public.example', articlepath: '/wiki/$1' } },
+			}),
+		});
+		const ctx = fakeContext({
+			// Where the real createContext reads the budget it applies.
+			mwn: async () => {
+				budgetDuringFetch = getRequestDeadline();
+				return mock as never;
+			},
+			siteInfoCache: emptyCache() as never,
+		});
+
+		await withRequestFields({ deadline: spentBudget }, () => resolveSiteInfo(ctx, 'test-wiki'));
+
+		// Handed to every concurrent caller, so a joiner with a full budget must
+		// not be dropped onto the fallback by whatever was left of the starter's.
+		expect(budgetDuringFetch).toBeDefined();
+		expect(budgetDuringFetch).not.toBe(spentBudget);
+	});
+
 	it('fetches and caches server + articlepath + license from siteinfo', async () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({

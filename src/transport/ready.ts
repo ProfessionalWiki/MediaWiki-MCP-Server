@@ -3,6 +3,8 @@ import { recordReadyFailure } from '../runtime/metrics.ts';
 import { monotonicNow } from '../runtime/clock.ts';
 import type { MwnProvider } from '../wikis/mwnProvider.ts';
 import type { ActiveWiki } from '../wikis/activeWiki.ts';
+import { withCallBounds } from '../wikis/abortableMwn.ts';
+import { callDeadline } from '../runtime/callDeadline.ts';
 
 interface ReadyCacheEntry {
 	expiresAt: number;
@@ -28,7 +30,10 @@ export function __resetReadyCacheForTesting(): void {
 // resolving the provider can log in, which alone can outlast the budget.
 async function probeSiteInfo(mwnProvider: MwnProvider): Promise<void> {
 	const mwn = await mwnProvider.get();
-	await mwn.request({
+	// The race below stops the caller waiting; this stops the probe, which would
+	// otherwise keep retrying long after /ready replied and accumulate under
+	// polling.
+	await withCallBounds(mwn, callDeadline(READY_PROBE_TIMEOUT_MS, 'calling')).request({
 		action: 'query',
 		meta: 'siteinfo',
 		format: 'json',

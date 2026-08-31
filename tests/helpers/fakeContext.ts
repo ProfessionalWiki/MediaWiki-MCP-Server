@@ -117,3 +117,27 @@ export function withoutEditAttribution(ctx: ToolContext): ToolContext {
 		},
 	};
 }
+
+// A ctx whose registry and activeWiki agree on one wiki — the dispatcher
+// resolves and validates it before applying the OAuth gate, so a ctx whose two
+// halves disagree passes only by accident.
+export function ctxForWiki(
+	config: Record<string, unknown>,
+	transport: ToolContext['transport'],
+): ToolContext {
+	const registry: Record<string, unknown> = { 'wiki-key': config };
+	return fakeContext({
+		transport,
+		wikis: {
+			getAll: () => registry as never,
+			get: ((key: string) => registry[key]) as never,
+			add: () => {},
+			remove: () => {},
+			isManagementAllowed: () => true,
+		},
+		activeWiki: {
+			get: () => ({ key: getRequestWiki() ?? 'wiki-key', config: config as never }),
+			getDefaultKey: () => 'wiki-key',
+		},
+	});
+}

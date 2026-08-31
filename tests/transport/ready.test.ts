@@ -70,6 +70,42 @@ describe('/ready', () => {
 		vi.useRealTimers();
 	});
 
+	it('stops the probe request itself, not just the wait for it', async () => {
+		const calls: { signal?: AbortSignal }[] = [];
+		interface ProbeBot {
+			rawRequest(options: { url?: string; data?: unknown; signal?: AbortSignal }): Promise<unknown>;
+			request(params: unknown): Promise<unknown>;
+		}
+		const bot: ProbeBot = {
+			async rawRequest(options: { signal?: AbortSignal }): Promise<unknown> {
+				calls.push(options);
+				return { query: { general: { sitename: 'X' } } };
+			},
+
+			async request(this: ProbeBot, params: unknown): Promise<unknown> {
+				return this.rawRequest({ url: 'https://example.org/w/api.php', data: params });
+			},
+		};
+		const app = express();
+		mountReadyEndpoint(app, {
+			activeWiki: mockActiveWiki,
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Mwn has 100+ methods; this probe uses request() and rawRequest().
+			mwnProvider: { get: async () => bot as never, invalidate: () => {} },
+		});
+
+		await request(app).get('/ready');
+
+		// Giving up on the answer is not the same as stopping the request.
+		const probeSignal = calls[0]?.signal;
+		expect(probeSignal).toBeDefined();
+		// And it must be the PROBE's budget: bounded at the per-call one instead,
+		// a probe outlives the race that abandoned it by two orders of magnitude
+		// and a polled endpoint piles them up.
+		expect(probeSignal?.aborted).toBe(false);
+		await new Promise((resolve) => setTimeout(resolve, READY_PROBE_TIMEOUT_MS + 250));
+		expect(probeSignal?.aborted).toBe(true);
+	});
+
 	it('returns 200 ready when the probe succeeds', async () => {
 		mockRequest.mockResolvedValue({ query: { general: { sitename: 'X' } } });
 		const res = await request(makeApp()).get('/ready');

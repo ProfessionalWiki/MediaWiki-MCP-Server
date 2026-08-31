@@ -1,5 +1,7 @@
 import { Mwn, type MwnOptions } from 'mwn';
 import { USER_AGENT } from '../runtime/constants.ts';
+import { callDeadline, WIKI_CONNECT_TIMEOUT_MS } from '../runtime/callDeadline.ts';
+import { withCallBounds } from './abortableMwn.ts';
 import type { ExecSecret, WikiConfig } from '../config/loadConfig.ts';
 import { runExecSecret } from './execSecret.ts';
 import { redactAuthorizationHeader, wrapMwnErrors } from './mwnErrorSanitizer.ts';
@@ -118,24 +120,38 @@ export class MwnProviderImpl implements MwnProvider {
 			apiUrl: `${server}${scriptpath}/api.php`,
 			userAgent: USER_AGENT,
 		};
+		if (effectiveToken) {
+			options.OAuth2AccessToken = effectiveToken;
+		} else if (username && password) {
+			options.username = username;
+			options.password = password;
+			// Force `assert=user` so MediaWiki returns `assertuserfailed` (instead of
+			// silently downgrading to anonymous) once the BotPassword session expires.
+			// mwn already auto-relogs in and retries on that code; without `assert`,
+			// writes would fail with `permissiondenied` and no recovery would occur.
+			options.defaultParams = { ...options.defaultParams, assert: 'user' };
+		}
 
-		let instance: Mwn;
+		const instance = new Mwn(options);
 		try {
+			// `Mwn.init` constructs and signs in in one step, leaving nowhere to
+			// bound three round-trips that each fund a fresh retry ladder. The
+			// branch is ours to make because the provider only ever sets an OAuth 2
+			// token or a bot-password pair. No cancellation: `getInstance` hands
+			// this promise to every concurrent caller — shared work, see
+			// `withSharedWorkScope`.
+			const connecting = withCallBounds(
+				instance,
+				callDeadline(WIKI_CONNECT_TIMEOUT_MS, 'connecting'),
+			);
 			if (effectiveToken) {
-				options.OAuth2AccessToken = effectiveToken;
-				instance = await Mwn.init(options);
+				// Makes no request, so it has no reason to go through the view.
+				instance.initOAuth();
+				await connecting.getTokensAndSiteInfo();
 			} else if (username && password) {
-				options.username = username;
-				options.password = password;
-				// Force `assert=user` so MediaWiki returns `assertuserfailed` (instead of
-				// silently downgrading to anonymous) once the BotPassword session expires.
-				// mwn already auto-relogs in and retries on that code; without `assert`,
-				// writes would fail with `permissiondenied` and no recovery would occur.
-				options.defaultParams = { ...options.defaultParams, assert: 'user' };
-				instance = await Mwn.init(options);
+				await connecting.login();
 			} else {
-				instance = new Mwn(options);
-				await instance.getSiteInfo();
+				await connecting.getSiteInfo();
 			}
 		} catch (error: unknown) {
 			redactAuthorizationHeader(error, effectiveToken);

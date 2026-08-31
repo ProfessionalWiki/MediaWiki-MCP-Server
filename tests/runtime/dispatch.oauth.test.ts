@@ -1,11 +1,9 @@
 // tests/runtime/dispatch.oauth.test.ts
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { WikiConfig } from '../../src/config/loadConfig.ts';
-import type { ToolContext } from '../../src/runtime/context.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import type { Tool } from '../../src/runtime/tool.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { fakeContext, ctxForWiki } from '../helpers/fakeContext.ts';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 import { fakeBrowserDriver } from '../helpers/fakeBrowserDriver.ts';
 import { useTempTokenStore } from '../helpers/tempTokenStore.ts';
@@ -28,27 +26,6 @@ afterEach(async () => {
 	_resetRefreshDedupForTesting();
 	vi.clearAllMocks();
 });
-
-// Builds a ctx whose single wiki (keyed `wiki-key`) carries the given config,
-// with a registry + activeWiki that agree on it — the dispatcher resolves and
-// validates the wiki before applying the OAuth gate.
-function ctxForWiki(config: WikiConfig, transport: ToolContext['transport']): ToolContext {
-	const registry: Record<string, WikiConfig> = { 'wiki-key': config };
-	return fakeContext({
-		transport,
-		wikis: {
-			getAll: () => registry,
-			get: (key: string) => registry[key],
-			add: () => {},
-			remove: () => {},
-			isManagementAllowed: () => true,
-		},
-		activeWiki: {
-			get: () => ({ key: getRequestWiki() ?? 'wiki-key', config }),
-			getDefaultKey: () => 'wiki-key',
-		},
-	});
-}
 
 /** A dummy tool that returns whatever getRuntimeToken() sees at invocation time. */
 const tokenCaptureTool: Tool<Record<string, never>> = {
