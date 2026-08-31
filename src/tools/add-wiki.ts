@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ManagementContext } from '../runtime/context.ts';
 import { discoverWiki } from '../wikis/wikiDiscovery.ts';
+import { callDeadline, WIKI_CONNECT_TIMEOUT_MS } from '../runtime/callDeadline.ts';
 import { SsrfValidationError } from '../transport/ssrfGuard.ts';
 import { DuplicateWikiKeyError } from '../wikis/wikiRegistry.ts';
 
@@ -32,7 +33,7 @@ export const addWiki: Tool<typeof inputSchema, ManagementContext> = {
 	async handle({ wikiUrl }, ctx: ManagementContext): Promise<CallToolResult> {
 		let wikiInfo;
 		try {
-			wikiInfo = await discoverWiki(wikiUrl);
+			wikiInfo = await discoverWiki(wikiUrl, callDeadline(WIKI_CONNECT_TIMEOUT_MS, 'connecting'));
 		} catch (error) {
 			if (error instanceof SsrfValidationError) {
 				return ctx.format.invalidInput(`Failed to add wiki: ${error.message}`);

@@ -255,9 +255,12 @@ function destroyBody(response: Response): void {
 	}
 }
 
-export async function fetchPageHtml(url: string): Promise<string | null> {
+export async function fetchPageHtml(
+	url: string,
+	options?: { signal?: AbortSignal },
+): Promise<string | null> {
 	try {
-		const response = await fetchCore(url);
+		const response = await fetchCore(url, { signal: options?.signal });
 		return await response.text();
 	} catch {
 		return null;
