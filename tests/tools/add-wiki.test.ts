@@ -6,6 +6,8 @@ vi.mock('../../src/wikis/wikiDiscovery.ts', () => ({
 
 import type { RegisteredTool } from '@modelcontextprotocol/server';
 import { discoverWiki } from '../../src/wikis/wikiDiscovery.ts';
+import { WikiTimeoutError } from '../../src/errors/wikiTimeoutError.ts';
+import { WIKI_CONNECT_TIMEOUT_MS } from '../../src/runtime/callDeadline.ts';
 import { SsrfValidationError } from '../../src/transport/ssrfGuard.ts';
 import { DuplicateWikiKeyError, WikiRegistryImpl } from '../../src/wikis/wikiRegistry.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
@@ -208,6 +210,39 @@ describe('add-wiki', () => {
 
 		const envelope = assertStructuredError(result, 'upstream_failure');
 		expect(envelope.message).toMatch(/Failed to add wiki: Connection refused/);
+		expect(reconcile).not.toHaveBeenCalled();
+	});
+
+	it('gives discovery the budget for reaching a wiki the first time', async () => {
+		vi.mocked(discoverWiki).mockResolvedValue(null);
+
+		await dispatch(
+			addWiki,
+			fakeManagementContext({ reconcile: vi.fn() }),
+		)({
+			wikiUrl: 'https://example.org/',
+		});
+
+		// The phase is what keeps the dispatcher's "your change may have been
+		// applied" caveat off this tool, which declares readOnlyHint: false.
+		expect(vi.mocked(discoverWiki).mock.calls[0]?.[1]).toMatchObject({
+			timeoutMs: WIKI_CONNECT_TIMEOUT_MS,
+			phase: 'connecting',
+		});
+	});
+
+	it('names a discovery timeout rather than blaming the URL', async () => {
+		vi.mocked(discoverWiki).mockRejectedValue(new WikiTimeoutError(15_000, 'connecting'));
+
+		const reconcile = vi.fn();
+		const ctx = fakeManagementContext({ reconcile });
+		const result = await dispatch(addWiki, ctx)({ wikiUrl: 'https://example.org/' });
+
+		const envelope = assertStructuredError(result, 'upstream_failure', 'request-timeout');
+		expect(envelope.message).toMatch(/Gave up trying to reach the wiki/);
+		// This tool declares readOnlyHint: false, so the write caveat is gated on
+		// the phase alone — and discovery never reaches a wiki, let alone writes.
+		expect(envelope.message).not.toMatch(/may or may not have been applied/);
 		expect(reconcile).not.toHaveBeenCalled();
 	});
 
