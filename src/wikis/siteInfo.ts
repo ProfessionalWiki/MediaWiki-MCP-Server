@@ -1,7 +1,8 @@
 import type { ToolContext } from '../runtime/context.ts';
 import type { SiteInfo, LicenseInfo, SiteInfoCache } from './siteInfoCache.ts';
 import { normalizeServer } from './normalizeServer.ts';
-import { withoutRequestSignal } from '../runtime/requestContext.ts';
+import { withSharedWorkScope } from '../runtime/requestContext.ts';
+import { callDeadline, WIKI_CONNECT_TIMEOUT_MS } from '../runtime/callDeadline.ts';
 
 interface SiteInfoApiResponse {
 	query?: {
@@ -94,12 +95,12 @@ export async function resolveSiteInfo(ctx: ToolContext, wikiKey: string): Promis
 		return existing;
 	}
 
-	// Detached from the calling request's cancellation: this promise is handed
-	// to every concurrent caller, so honouring the first caller's cancellation
-	// would drop all the others onto the fallback and silently degrade their
-	// page URLs. The extra siteinfo request an abandoned caller leaves behind is
-	// one cheap call, and it populates the cache for everyone.
-	const promise = withoutRequestSignal(() => fetchSiteInfo(ctx, wikiKey)).finally(() => {
+	// Handed to every concurrent caller, so it runs detached from the one that
+	// triggered it and on its own budget — see `withSharedWorkScope`. The extra
+	// request an abandoned caller leaves behind populates the cache anyway.
+	const promise = withSharedWorkScope(callDeadline(WIKI_CONNECT_TIMEOUT_MS, 'connecting'), () =>
+		fetchSiteInfo(ctx, wikiKey),
+	).finally(() => {
 		inflight.delete(wikiKey);
 	});
 	inflight.set(wikiKey, promise);

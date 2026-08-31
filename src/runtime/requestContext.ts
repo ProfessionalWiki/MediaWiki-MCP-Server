@@ -1,9 +1,11 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import type { CallDeadline } from './callDeadline.ts';
 
 interface RequestContext {
 	runtimeToken?: string;
 	wikiKey?: string;
 	signal?: AbortSignal;
+	deadline?: CallDeadline;
 }
 
 export const runtimeTokenStore = new AsyncLocalStorage<RequestContext>();
@@ -16,6 +18,14 @@ export function getRuntimeToken(): string | undefined {
 // request or the connection drops. Undefined outside a request scope.
 export function getRequestSignal(): AbortSignal | undefined {
 	return runtimeTokenStore.getStore()?.signal;
+}
+
+/**
+ * The call's time budget. Kept apart from `signal` so code asking whether the
+ * CALLER walked away cannot read a budget expiry as one.
+ */
+export function getRequestDeadline(): CallDeadline | undefined {
+	return runtimeTokenStore.getStore()?.deadline;
 }
 
 export function getRequestWiki(): string | undefined {
@@ -40,14 +50,13 @@ export function withRequestFields<T>(
 }
 
 /**
- * Runs `fn` with the cancellation signal detached, keeping the rest of the
- * scope (notably the runtime token, which the call still needs to authenticate).
+ * Runs `fn` detached from the caller that happened to trigger it, on `deadline`
+ * rather than that caller's cancellation and remaining time.
  *
- * For work that outlives the request that happened to trigger it: a result
- * shared between concurrent callers must not be torn down because the first
- * caller to arrive walked away, which would hand every other waiter the
- * failure path.
+ * For work shared between concurrent callers: the first caller's cancellation
+ * would fail every other waiter, and its leftover budget is just as arbitrary —
+ * a joiner would inherit it, making its answer depend on an unrelated clock.
  */
-export function withoutRequestSignal<T>(fn: () => Promise<T>): Promise<T> {
-	return withRequestFields({ signal: undefined }, fn);
+export function withSharedWorkScope<T>(deadline: CallDeadline, fn: () => Promise<T>): Promise<T> {
+	return withRequestFields({ signal: undefined, deadline }, fn);
 }

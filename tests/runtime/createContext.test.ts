@@ -3,6 +3,7 @@ import { createToolContext } from '../../src/runtime/createContext.ts';
 import { createAppState, type AppState } from '../../src/wikis/state.ts';
 import { logger } from '../../src/runtime/logger.ts';
 import { withRequestFields } from '../../src/runtime/requestContext.ts';
+import { callDeadline } from '../../src/runtime/callDeadline.ts';
 import type { Config } from '../../src/config/loadConfig.ts';
 
 const testConfig: Config = {
@@ -20,6 +21,25 @@ const testConfig: Config = {
 	},
 	uploadDirs: [],
 };
+
+function contextOverStubbedBot(): {
+	ctx: ReturnType<typeof createToolContext>;
+	calls: { signal?: AbortSignal }[];
+} {
+	const calls: { signal?: AbortSignal }[] = [];
+	const bot = {
+		async rawRequest(options: { signal?: AbortSignal }): Promise<unknown> {
+			calls.push(options);
+			return {};
+		},
+	};
+	const state = {
+		...createAppState(testConfig),
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- stub covering only the surface under test
+		mwnProvider: { get: async (): Promise<unknown> => bot } as unknown as AppState['mwnProvider'],
+	};
+	return { ctx: createToolContext({ logger, state, transport: 'stdio' }), calls };
+}
 
 describe('createToolContext', () => {
 	it('populates all ToolContext fields', () => {
@@ -43,19 +63,7 @@ describe('createToolContext', () => {
 	});
 
 	it('applies the request cancellation signal to the mwn instance it hands out', async () => {
-		const calls: { signal?: AbortSignal }[] = [];
-		const bot = {
-			async rawRequest(options: { signal?: AbortSignal }): Promise<unknown> {
-				calls.push(options);
-				return {};
-			},
-		};
-		const state = {
-			...createAppState(testConfig),
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- stub covering only the surface under test
-			mwnProvider: { get: async (): Promise<unknown> => bot } as unknown as AppState['mwnProvider'],
-		};
-		const ctx = createToolContext({ logger, state, transport: 'stdio' });
+		const { ctx, calls } = contextOverStubbedBot();
 		const controller = new AbortController();
 
 		await withRequestFields({ signal: controller.signal }, async () => {
@@ -63,22 +71,33 @@ describe('createToolContext', () => {
 			await scoped.rawRequest({ url: 'https://test.wiki/w/api.php' });
 		});
 
-		expect(calls[0]?.signal).toBe(controller.signal);
+		expect(calls[0]?.signal?.aborted).toBe(false);
+		controller.abort();
+		expect(calls[0]?.signal?.aborted).toBe(true);
 	});
 
-	it('hands out the bare instance when no request scope is active', async () => {
-		const bot = {
-			async rawRequest(): Promise<unknown> {
-				return {};
-			},
-		};
-		const state = {
-			...createAppState(testConfig),
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- stub covering only the surface under test
-			mwnProvider: { get: async (): Promise<unknown> => bot } as unknown as AppState['mwnProvider'],
-		};
-		const ctx = createToolContext({ logger, state, transport: 'stdio' });
+	it('spends one budget across every acquisition in the same call', async () => {
+		const { ctx, calls } = contextOverStubbedBot();
 
-		expect(await ctx.mwn()).toBe(bot);
+		await withRequestFields({ deadline: callDeadline(20, 'calling') }, async () => {
+			await (await ctx.mwn()).rawRequest({ url: 'https://test.wiki/w/api.php' });
+			await new Promise((resolve) => setTimeout(resolve, 40));
+			await (await ctx.mwn()).rawRequest({ url: 'https://test.wiki/w/api.php' });
+		});
+
+		// Eleven tools acquire the bot twice — once for the work, once to build a
+		// page URL — so a budget armed per acquisition would multiply.
+		expect(calls[0]?.signal?.aborted).toBe(true);
+		expect(calls[1]?.signal?.aborted).toBe(true);
+	});
+
+	it('bounds calls made outside any request scope', async () => {
+		const { ctx, calls } = contextOverStubbedBot();
+
+		await (await ctx.mwn()).rawRequest({ url: 'https://test.wiki/w/api.php' });
+
+		// Startup reconciliation, the wiki resources and the readiness probe reach
+		// the wiki with no MCP request around them.
+		expect(calls[0]?.signal).toBeDefined();
 	});
 });

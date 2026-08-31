@@ -9,8 +9,9 @@ import { RevisionNormalizerImpl } from '../services/revisionNormalize.ts';
 import { ResponseFormatterImpl } from '../results/response.ts';
 import { ErrorClassifierImpl } from '../errors/classifyError.ts';
 import { extensionErrorVocabulary, extensionPacks } from '../tools/extensions/index.ts';
-import { withAbortSignal } from '../wikis/abortableMwn.ts';
-import { getRequestSignal } from './requestContext.ts';
+import { withCallBounds } from '../wikis/abortableMwn.ts';
+import { getRequestDeadline, getRequestSignal } from './requestContext.ts';
+import { callDeadline, WIKI_CALL_TIMEOUT_MS } from './callDeadline.ts';
 
 export function createToolContext(deps: {
 	logger: Logger;
@@ -20,13 +21,13 @@ export function createToolContext(deps: {
 }): ToolContext {
 	const { logger, state, transport, getProxyConfig } = deps;
 	return {
-		// The cached instance is shared across requests, so the caller's
-		// cancellation signal is applied as a per-request view over it rather
-		// than being set on the instance itself.
+		// The cached instance is shared, so bounds go on a per-request view rather
+		// than on the instance. Taking the deadline from the request scope is what
+		// makes a tool that acquires the wiki twice spend one budget, not two.
 		mwn: async (wikiKey?: string) => {
 			const bot = await state.mwnProvider.get(wikiKey);
-			const signal = getRequestSignal();
-			return signal === undefined ? bot : withAbortSignal(bot, signal);
+			const deadline = getRequestDeadline() ?? callDeadline(WIKI_CALL_TIMEOUT_MS, 'calling');
+			return withCallBounds(bot, deadline, getRequestSignal());
 		},
 		wikis: state.wikiRegistry,
 		activeWiki: state.activeWiki,

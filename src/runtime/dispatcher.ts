@@ -5,6 +5,8 @@ import type { ToolContext } from './context.ts';
 import { applySpecialCase } from '../errors/specialCases.ts';
 import { errorMessage } from '../errors/isErrnoException.ts';
 import { getRequestSignal, getRuntimeToken, withRequestFields } from './requestContext.ts';
+import { callDeadline, WIKI_CALL_TIMEOUT_MS } from './callDeadline.ts';
+import { WikiTimeoutError } from '../errors/wikiTimeoutError.ts';
 import { isWikiScoped, normalizeWikiArg } from './wikiArg.ts';
 import {
 	emitToolCall,
@@ -29,6 +31,12 @@ const TOOLS_BYPASSING_ACTIVE_WIKI_AUTH: ReadonlySet<string> = new Set([
 	'oauth-status',
 	'oauth-logout',
 ]);
+
+// The budget can expire before a write is submitted or after it is in flight,
+// and the server cannot tell which. A caller that replays an append assuming it
+// never landed would add the content twice.
+const WRITE_TIMEOUT_CAVEAT =
+	'. The change may or may not have been applied — check the wiki before retrying';
 
 export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext = ToolContext>(
 	tool: Tool<TSchema, TCtx>,
@@ -108,7 +116,12 @@ async function runDispatchInner<TSchema extends ZodRawShape, TCtx extends ToolCo
 	let result: CallToolResult;
 
 	try {
-		result = await tool.handle(args, ctx);
+		// Armed here rather than around the whole of dispatch() so an interactive
+		// OAuth login does not spend the budget before the tool runs.
+		result = await withRequestFields(
+			{ deadline: callDeadline(WIKI_CALL_TIMEOUT_MS, 'calling') },
+			() => tool.handle(args, ctx),
+		);
 		if (result.isError) {
 			const first = result.content[0];
 			const text =
@@ -138,7 +151,14 @@ async function runDispatchInner<TSchema extends ZodRawShape, TCtx extends ToolCo
 		const rawMessage = errorMessage(err);
 		const tailored = overridden.message !== rawMessage;
 		const verb = tool.failureVerb ?? tool.name;
-		const finalMessage = tailored ? overridden.message : `Failed to ${verb}: ${overridden.message}`;
+		let finalMessage = tailored ? overridden.message : `Failed to ${verb}: ${overridden.message}`;
+		if (
+			err instanceof WikiTimeoutError &&
+			err.phase === 'calling' &&
+			tool.annotations.readOnlyHint === false
+		) {
+			finalMessage += WRITE_TIMEOUT_CAVEAT;
+		}
 		errorText = finalMessage;
 
 		// A cancelled call fails on the way down — mwn surfaces the torn-down

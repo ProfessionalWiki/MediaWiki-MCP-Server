@@ -1,15 +1,21 @@
 import { type StderrWriteSpy } from '../helpers/stderrSpy.ts';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+const { mockAcquireToken } = vi.hoisted(() => ({ mockAcquireToken: vi.fn() }));
+vi.mock('../../src/auth/acquireToken.ts', () => ({ acquireToken: mockAcquireToken }));
 import { z } from 'zod';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import type { Tool } from '../../src/runtime/tool.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { fakeContext, ctxForWiki } from '../helpers/fakeContext.ts';
 import { fakeLogger } from '../helpers/fakeLogger.ts';
 import { createMockMwnError } from '../helpers/mock-mwn-error.ts';
 import { CredentialResolutionError } from '../../src/errors/credentialResolutionError.ts';
-import { withRequestFields } from '../../src/runtime/requestContext.ts';
+import { withRequestFields, getRequestDeadline } from '../../src/runtime/requestContext.ts';
+import { WIKI_CALL_TIMEOUT_MS } from '../../src/runtime/callDeadline.ts';
+import { WikiTimeoutError } from '../../src/errors/wikiTimeoutError.ts';
 import { getPage } from '../../src/tools/get-page.ts';
 import { ContentFormat } from '../../src/results/contentFormat.ts';
+import { assertStructuredError } from '../helpers/structuredResult.ts';
 
 const noopTool = (handle: Tool<{ x: z.ZodString }>['handle']): Tool<{ x: z.ZodString }> => ({
 	name: 'get-page',
@@ -93,6 +99,107 @@ describe('dispatcher', () => {
 		const result = await dispatch(tool, ctx)({ x: 'y' });
 		const envelope = JSON.parse((result.content[0] as { text: string }).text);
 		expect(envelope.message).toBe('Failed to update page: boom');
+	});
+
+	it('starts the budget after an interactive sign-in, not before it', async () => {
+		let duringSignIn: unknown = 'unset';
+		mockAcquireToken.mockReset().mockImplementation(async () => {
+			duringSignIn = getRequestDeadline();
+			return 'token';
+		});
+		const ctx = ctxForWiki(
+			{
+				sitename: 'Test',
+				server: 'https://test.wiki',
+				articlepath: '/wiki',
+				scriptpath: '/w',
+				oauth2ClientId: 'client',
+			},
+			'stdio',
+		);
+		let seen: { timeoutMs: number } | undefined;
+		const tool = noopTool(async () => {
+			seen = getRequestDeadline();
+			return ctx.format.ok({ ok: true });
+		});
+
+		await dispatch(tool, ctx)({ x: 'y' });
+
+		// A browser sign-in is minutes of human reaction time.
+		expect(mockAcquireToken).toHaveBeenCalledOnce();
+		expect(duringSignIn).toBeUndefined();
+		expect(seen?.timeoutMs).toBe(WIKI_CALL_TIMEOUT_MS);
+	});
+
+	it('gives the handler a time budget for its wiki calls', async () => {
+		const ctx = fakeContext();
+		let seen: { timeoutMs: number } | undefined;
+		const tool = noopTool(async () => {
+			seen = getRequestDeadline();
+			return ctx.format.ok({ ok: true });
+		});
+
+		await dispatch(tool, ctx)({ x: 'y' });
+
+		expect(seen?.timeoutMs).toBe(WIKI_CALL_TIMEOUT_MS);
+	});
+
+	it('reports an exhausted budget as an upstream failure with a stable code', async () => {
+		const ctx = fakeContext();
+		const tool = noopTool(async () => {
+			throw new WikiTimeoutError(WIKI_CALL_TIMEOUT_MS, 'calling');
+		});
+
+		const result = await dispatch(tool, ctx)({ x: 'y' });
+
+		const envelope = assertStructuredError(result, 'upstream_failure', 'request-timeout');
+		expect(envelope.message).toContain('150 seconds');
+	});
+
+	it('warns that a timed-out write may still have been applied', async () => {
+		const ctx = fakeContext();
+		const tool = {
+			...noopTool(async () => {
+				throw new WikiTimeoutError(WIKI_CALL_TIMEOUT_MS, 'calling');
+			}),
+			annotations: { title: 't', readOnlyHint: false, destructiveHint: false },
+		};
+
+		const result = await dispatch(tool, ctx)({ x: 'y' });
+
+		const envelope = JSON.parse((result.content[0] as { text: string }).text);
+		expect(envelope.message).toContain('may or may not have been applied');
+	});
+
+	it('adds no such warning when the call never got past connecting', async () => {
+		const ctx = fakeContext();
+		const tool = {
+			...noopTool(async () => {
+				throw new WikiTimeoutError(30_000, 'connecting');
+			}),
+			annotations: { title: 't', readOnlyHint: false, destructiveHint: false },
+		};
+
+		const result = await dispatch(tool, ctx)({ x: 'y' });
+
+		// The budget that expired covers only signing in, so the write provably
+		// never left the process.
+		const envelope = JSON.parse((result.content[0] as { text: string }).text);
+		expect(envelope.message).toContain('Gave up trying to reach the wiki');
+		expect(envelope.message).not.toContain('may or may not have been applied');
+	});
+
+	it('adds no such warning to a timed-out read', async () => {
+		const ctx = fakeContext();
+		const tool = noopTool(async () => {
+			throw new WikiTimeoutError(WIKI_CALL_TIMEOUT_MS, 'calling');
+		});
+
+		const result = await dispatch(tool, ctx)({ x: 'y' });
+
+		const envelope = JSON.parse((result.content[0] as { text: string }).text);
+		expect(envelope.message).toContain('Gave up waiting for the wiki');
+		expect(envelope.message).not.toContain('may or may not have been applied');
 	});
 
 	it('surfaces a CredentialResolutionError from the mwn provider as authentication category', async () => {
@@ -180,6 +287,20 @@ describe('dispatcher emits tool_call telemetry', () => {
 		expect(line).toBeDefined();
 		expect(line!.outcome).toBe('cancelled');
 		expect(line!.level).toBe('info');
+	});
+
+	it('reports an exhausted budget as an upstream failure, not as a cancellation', async () => {
+		const ctx = fakeContext({ logger: fakeLogger() });
+		const tool = noopTool(async () => {
+			throw new WikiTimeoutError(WIKI_CALL_TIMEOUT_MS, 'calling');
+		});
+
+		// A live caller: the budget expired, the client did not walk away.
+		await withRequestFields({ signal: new AbortController().signal }, () =>
+			dispatch(tool, ctx)({ x: 'y' }),
+		);
+
+		expect(captureToolCallLine(stderrSpy)?.outcome).toBe('upstream_failure');
 	});
 
 	it('still reports a genuine failure as an upstream failure when nothing was cancelled', async () => {

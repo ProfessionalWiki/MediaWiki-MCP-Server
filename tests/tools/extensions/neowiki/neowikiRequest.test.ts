@@ -6,6 +6,8 @@ import {
 	neowikiErrorResult,
 	NeoWikiApiError,
 } from '../../../../src/tools/extensions/neowiki/neowikiRequest.ts';
+import { WikiTimeoutError } from '../../../../src/errors/wikiTimeoutError.ts';
+import { rejectionOf } from '../../../helpers/rejectionOf.ts';
 
 // Builds an axios-style rejection: a thrown error carrying `.response`.
 function httpError(status: number, data: unknown): Error & { response: unknown } {
@@ -27,6 +29,21 @@ describe('neowikiRequest', () => {
 		const call = mock.rawRequest.mock.calls[0][0] as Record<string, unknown>;
 		expect(call.url).toBe('https://test.wiki/w/rest.php/neowiki/v0/schemas?limit=500&offset=0');
 		expect(call.method).toBe('GET');
+	});
+
+	it('lets an expired call budget through instead of relabelling it', async () => {
+		const mock = createMockMwn({
+			rawRequest: vi.fn().mockRejectedValue(new WikiTimeoutError(150_000, 'calling')),
+		});
+
+		const err = await rejectionOf(
+			neowikiRequest(mock as never, { method: 'GET', path: '/schemas' }),
+		);
+
+		// Converted, the tool returns it as a RESULT the dispatcher never sees,
+		// losing the code and the write caveat.
+		expect(err).toBeInstanceOf(WikiTimeoutError);
+		expect(err).not.toBeInstanceOf(NeoWikiApiError);
 	});
 
 	it('JSON-encodes a POST body and sets Content-Type', async () => {

@@ -1,4 +1,5 @@
 import { CredentialResolutionError } from './credentialResolutionError.ts';
+import { WikiTimeoutError } from './wikiTimeoutError.ts';
 
 export type ErrorCategory =
 	| 'not_found'
@@ -70,6 +71,9 @@ const MW_CODE_TO_CATEGORY: Record<string, ErrorCategory> = {
 	ratelimited: 'rate_limited',
 	// upstream_failure (explicit; unknown codes also fall through here)
 	readonly: 'upstream_failure',
+	// The one code this server issues rather than the wiki; listed so the
+	// pack-collision check covers it too.
+	'request-timeout': 'upstream_failure',
 };
 
 // Code families the wiki numbers per case, matched by prefix rather than by
@@ -106,6 +110,11 @@ export function classifyError(
 ): { category: ErrorCategory; code?: string } {
 	if (err instanceof CredentialResolutionError) {
 		return { category: 'authentication' };
+	}
+	// Carries no `code` of its own, so it would otherwise reach the caller as a
+	// bare upstream_failure.
+	if (err instanceof WikiTimeoutError) {
+		return { category: 'upstream_failure', code: 'request-timeout' };
 	}
 	if (err !== null && typeof err === 'object') {
 		const code = (err as { code?: unknown }).code;

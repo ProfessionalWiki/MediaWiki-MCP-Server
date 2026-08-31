@@ -5,8 +5,16 @@ import { errorResult } from '../../src/results/response.ts';
 import { createMockMwnError } from '../helpers/mock-mwn-error.ts';
 import { assertStructuredError } from '../helpers/structuredResult.ts';
 import { CredentialResolutionError } from '../../src/errors/credentialResolutionError.ts';
+import { WikiTimeoutError } from '../../src/errors/wikiTimeoutError.ts';
 
 describe('classifyError', () => {
+	it('classifies an expired call budget as an upstream failure with a stable code', () => {
+		expect(classifyError(new WikiTimeoutError(150_000, 'calling'))).toEqual({
+			category: 'upstream_failure',
+			code: 'request-timeout',
+		});
+	});
+
 	describe('maps MW .code to category', () => {
 		const cases: Array<[string, ErrorCategory]> = [
 			['missingtitle', 'not_found'],

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Fixed
+
+- A wiki that stops answering no longer hangs a tool call for minutes on end. A call that reaches a wiki now gives up within a fixed time and returns an error naming the limit it hit, instead of retrying out of sight. This also covers the first call to a wiki, where connecting and signing in were previously unbounded and slowest of all. A timed-out write reports that the change may or may not have been applied, since the server cannot tell. `add-wiki` is not yet covered: it reaches an unconfigured host over its own path.
+
 ## [0.17.0] - 2026-08-13
 
 ### Breaking changes

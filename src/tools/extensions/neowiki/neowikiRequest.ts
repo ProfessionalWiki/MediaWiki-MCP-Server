@@ -2,6 +2,7 @@ import type { Mwn } from 'mwn';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ErrorCategory } from '../../../errors/classifyError.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
+import { WikiTimeoutError } from '../../../errors/wikiTimeoutError.ts';
 
 /** A NeoWiki REST failure already classified into an MCP error category. */
 export class NeoWikiApiError extends Error {
@@ -108,6 +109,11 @@ export async function neowikiRequest(mwn: Mwn, spec: NeoWikiRequestSpec): Promis
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- axios response body at this boundary
 		return (response as { data: unknown }).data;
 	} catch (err: unknown) {
+		// The server's own verdict, not the wiki's: relabelling it as a pack error
+		// would lose the code and, on writes, the dispatcher's caveat.
+		if (err instanceof WikiTimeoutError) {
+			throw err;
+		}
 		throw classifyNeoWikiError(err);
 	}
 }
