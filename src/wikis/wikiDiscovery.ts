@@ -2,6 +2,7 @@ import { errorMessage } from '../errors/isErrnoException.ts';
 import { makeApiRequest, fetchPageHtml } from '../transport/httpFetch.ts';
 import { assertPublicDestination } from '../transport/ssrfGuard.ts';
 import { logger } from '../runtime/logger.ts';
+import { normalizeServer } from './normalizeServer.ts';
 
 const COMMON_SCRIPT_PATHS = ['/w', ''];
 
@@ -67,7 +68,7 @@ async function fetchWikiInfoFromApi(
 		sitename: general.sitename,
 		scriptpath: general.scriptpath,
 		articlepath: general.articlepath.replace('/$1', ''),
-		server: general.server,
+		server: normalizeServer(general.server),
 		servername: general.servername,
 	};
 }
