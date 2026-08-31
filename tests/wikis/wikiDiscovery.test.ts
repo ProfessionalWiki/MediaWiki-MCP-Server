@@ -81,4 +81,28 @@ describe('discoverWiki', () => {
 			servername: 'public.example',
 		});
 	});
+
+	it('normalizes a protocol-relative MediaWiki server to https', async () => {
+		vi.mocked(makeApiRequest).mockResolvedValue({
+			query: {
+				general: {
+					sitename: 'MediaWiki',
+					scriptpath: '/w',
+					articlepath: '/wiki/$1',
+					server: '//www.mediawiki.org',
+					servername: 'www.mediawiki.org',
+				},
+			},
+		});
+
+		const info = await discoverWiki('https://www.mediawiki.org/wiki/Main_Page');
+
+		expect(info).toEqual({
+			sitename: 'MediaWiki',
+			scriptpath: '/w',
+			articlepath: '/wiki',
+			server: 'https://www.mediawiki.org',
+			servername: 'www.mediawiki.org',
+		});
+	});
 });
