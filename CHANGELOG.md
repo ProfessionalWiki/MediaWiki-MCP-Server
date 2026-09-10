@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Breaking changes
+
+- `update-page` now refuses a call that replaces a page or section when the source would shorten a target too large for one read to return whole. Pass `removeUnreadContent: true` to do it deliberately, or use `operation='find-replace'` to change part of a page without resending it; appends, growth and any target inside the byte budget are unaffected.
+- `update-page` now requires `latestId` when `section` names the section being replaced, so the wiki resolves the number against the revision it was read from. `get-page` with `metadata=true` returns it alongside the section list; the lead, appends and prepends are unaffected.
+
 ### Added
 
 - `search-page` accepts `namespaces` to name the namespace IDs to search, and each result now reports the namespace it came from; `get-site-info` lists a wiki's namespace IDs. When the namespaces searched are not the ones asked for — the wiki refused an ID, or a namespace prefix in the query overrode them — the response now says so.

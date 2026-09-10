@@ -578,6 +578,27 @@ describe('get-page', () => {
 		expect(text).toContain('No narrower read returns more of this section');
 	});
 
+	// A write scoped to a section needs the revision its number was read from, so
+	// the read that produced the number has to carry it.
+	it('reports the revision ID on a source read without metadata', async () => {
+		const mock = createMockMwn({
+			read: vi.fn().mockResolvedValue({
+				pageid: 1,
+				title: 'Test Page',
+				revisions: [{ revid: 42, contentmodel: 'wikitext', content: '== One ==\nbody' }],
+			}),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		const result = await getPage.handle(
+			{ title: 'Test Page', content: ContentFormat.source, metadata: false, section: 1 },
+			ctx,
+		);
+
+		const text = assertStructuredSuccess(result);
+		expect(text).toContain('Latest revision ID: 42');
+	});
+
 	it('builds the page URL from the public siteinfo server, not the configured server', async () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockImplementation((params: { meta?: string; action?: string }) => {

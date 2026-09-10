@@ -97,6 +97,15 @@ export const getPage: Tool<typeof inputSchema> = {
 				entries = await ctx.sections.list(mwn, title);
 			}
 
+			// The revision ID rides on every read that fetches content, and a write
+			// scoped to a section needs it to say which revision its section
+			// number was read from. Withholding it behind metadata=true made the
+			// natural read-modify-write sequence fail on the write and then need a
+			// second read to recover, so it is reported whenever content is.
+			if (needsSource && rev?.revid !== undefined) {
+				payload.latestRevisionId = rev.revid;
+			}
+
 			if (metadata || content === ContentFormat.none) {
 				payload.pageId = page.pageid;
 				payload.title = page.title;

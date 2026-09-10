@@ -4,6 +4,7 @@ import type { Mwn } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { buildPageUrl, formatEditComment } from '../wikis/utils.ts';
+import { contentMaxBytes } from '../results/truncation.ts';
 import { editableChildrenOf } from '../services/sectionSubtree.ts';
 
 const OPERATIONS = ['replace', 'append', 'prepend', 'find-replace'] as const;
@@ -58,7 +59,7 @@ const inputSchema = {
 		.positive()
 		.optional()
 		.describe(
-			'Base revision ID for edit-conflict detection; obtain from get-page with metadata=true. If omitted, the update is applied without conflict detection.',
+			'Base revision ID for edit-conflict detection; obtain from get-page with metadata=true. Required when section is set, because the wiki resolves a section number against this revision rather than against whichever is current. If omitted on a write that is not scoped to a section, the update is applied without conflict detection.',
 		),
 	comment: z.string().optional().describe('Summary of the edit'),
 	section: z
@@ -83,6 +84,12 @@ const inputSchema = {
 		.describe(
 			'Marks the edit as a bot edit, which Special:RecentChanges hides by default. Takes effect only when the authenticated account has the `bot` right (granted by the bot group, or by the high-volume grant on a bot password or OAuth consumer); without it the edit saves unflagged and the response reports botMarked: false. Use when performing bulk or automated edit runs, or when the user requests it.',
 		),
+	removeUnreadContent: z
+		.boolean()
+		.optional()
+		.describe(
+			'Confirms that replacing content larger than a single read returns is meant to discard the part that was never returned. Required only when the target holds more bytes than one response carries and source holds fewer.',
+		),
 	removeSubsections: z
 		.boolean()
 		.optional()
@@ -104,13 +111,27 @@ type WritePlan =
 	| { readonly operation: 'replace' | 'append' | 'prepend'; readonly source: string };
 
 function writePlan(args: UpdatePageArgs): WritePlan {
-	const { operation, mode, source, find, replaceWith } = args;
+	const { operation, mode, source, find, replaceWith, section, latestId } = args;
 	if (operation !== undefined && mode !== undefined && operation !== mode) {
 		return {
 			error: `operation is '${operation}' but mode is '${mode}'. mode is the older spelling of the same choice; send operation alone.`,
 		};
 	}
 	const resolved: Operation = operation ?? mode ?? 'replace';
+	// A section number is only meaningful alongside the revision it was read
+	// from: the wiki resolves it against whichever revision is current, so an
+	// index that has since shifted addresses a different section. Required for a
+	// replace alone, because that is where the mistake destroys the section it
+	// lands on; a delta put in the wrong section is misplaced, not lost, and
+	// shows in the diff. find-replace addresses its target by the text it
+	// matches rather than by position, so it is unaffected either way. Section 0
+	// is the lead, which no insertion can move, so there is no ambiguity to
+	// resolve and nothing to require.
+	if (resolved === 'replace' && section !== undefined && section > 0 && latestId === undefined) {
+		return {
+			error: `Section ${section} names a different section once the page changes, so replacing a section needs latestId to say which revision the number was read from. get-page with metadata=true returns it.`,
+		};
+	}
 	if (resolved === 'find-replace') {
 		if (find === undefined || replaceWith === undefined) {
 			return {
@@ -132,6 +153,11 @@ function writePlan(args: UpdatePageArgs): WritePlan {
 	if (find !== undefined || replaceWith !== undefined) {
 		return {
 			error: `find and replaceWith belong to operation 'find-replace', not '${resolved}'.`,
+		};
+	}
+	if (args.removeUnreadContent !== undefined && resolved !== 'replace') {
+		return {
+			error: `removeUnreadContent confirms a replace that discards content too large to have been read, so it applies only to operation 'replace', not '${resolved}'.`,
 		};
 	}
 	if (
@@ -197,6 +223,85 @@ function scopeName(title: string, section: number | undefined): string {
 	return section === undefined ? `page "${title}"` : `section ${section} of "${title}"`;
 }
 
+// Content larger than one response cannot have been read whole through this
+// server, so a replace that shortens it is discarding bytes the caller never
+// saw. That is the loss #536 records: a truncated read written straight back.
+// Growth and same-size writes pass untouched, and a target inside the budget is
+// never measured, because a caller could have read all of it.
+async function unreadContentError(
+	args: UpdatePageArgs,
+	source: string,
+	mwn: Mwn,
+): Promise<string | undefined> {
+	if (args.removeUnreadContent === true) {
+		return undefined;
+	}
+	const cap = contentMaxBytes();
+	// prop=info reports the page's byte length, and unlike mwn.read it resolves
+	// no redirect, so it measures the page this write will land on.
+	const response =
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
+		(await mwn.request({
+			action: 'query',
+			prop: 'info',
+			titles: args.title,
+			formatversion: '2',
+		})) as { query?: { pages?: { length?: number }[] } } | undefined;
+	const pageBytes = response?.query?.pages?.[0]?.length;
+	// No section of a page inside the budget can be outside it either, so one
+	// small request answers for both scopes in the ordinary case. A page the
+	// wiki reports no length for is one it is about to refuse the edit on — a
+	// missing or invalid title — and that error says more than this guard could,
+	// so it is left to speak. A probe that throws propagates and no write
+	// happens, as with the subsection guard.
+	if (pageBytes === undefined || pageBytes <= cap) {
+		return undefined;
+	}
+	const sourceBytes = Buffer.byteLength(source, 'utf8');
+	if (args.section === undefined) {
+		return sourceBytes < pageBytes
+			? unreadContentMessage(`Page "${args.title}"`, pageBytes, sourceBytes, cap)
+			: undefined;
+	}
+	// The write resolves the section number against latestId, so the guard has to
+	// measure that same revision. Reading the current one certifies a section the
+	// write will not touch: once a section has been inserted, section 2 of the
+	// page now and section 2 of the base revision are different sections. Only
+	// the lead reaches here without a base, and the lead cannot move.
+	const sectionRead =
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
+		(await mwn.request({
+			action: 'query',
+			prop: 'revisions',
+			...(args.latestId === undefined ? { titles: args.title } : { revids: args.latestId }),
+			rvprop: 'content',
+			rvslots: 'main',
+			rvsection: args.section,
+			formatversion: '2',
+		})) as
+			| { query?: { pages?: { revisions?: { slots?: { main?: { content?: string } } }[] }[] } }
+			| undefined;
+	const current = sectionRead?.query?.pages?.[0]?.revisions?.[0]?.slots?.main?.content;
+	// A section the revision does not have is the edit's own error to report.
+	if (typeof current !== 'string') {
+		return undefined;
+	}
+	const sectionBytes = Buffer.byteLength(current, 'utf8');
+	if (sectionBytes <= cap || sourceBytes >= sectionBytes) {
+		return undefined;
+	}
+	return unreadContentMessage(`Section ${args.section}`, sectionBytes, sourceBytes, cap);
+}
+
+function unreadContentMessage(
+	target: string,
+	targetBytes: number,
+	sourceBytes: number,
+	cap: number,
+): string {
+	return `${target} holds ${targetBytes} bytes, more than the ${cap} bytes one read returns, so the ${sourceBytes}-byte source supplied cannot contain all of it and this replace would delete the rest. To change part of it without resending it, use operation='find-replace'. To replace it with something shorter deliberately, pass removeUnreadContent: true.`;
+}
+
 // Replacing a section replaces everything nested under it. A source that brings
 // the subsections back is not destructive; one that drops them deletes content
 // the caller may never have read. Both sides of the comparison are parsed by
@@ -217,7 +322,9 @@ async function subsectionRemovalError(
 	if (section === 0) {
 		return undefined;
 	}
-	const entries = await ctx.sections.list(mwn, args.title);
+	// Scoped to the revision the write names, for the same reason the size guard
+	// is: the section numbers being compared are the ones the write resolves.
+	const entries = await ctx.sections.list(mwn, args.title, args.latestId);
 	const index = String(section);
 	// The subtree walk counts every entry so a transcluded heading still closes
 	// it at the right point; the transcluded children themselves drop out,
@@ -377,7 +484,7 @@ async function findReplace(
 export const updatePage: Tool<typeof inputSchema> = {
 	name: 'update-page',
 	description:
-		"Writes to an existing wiki page and returns the new revision ID. Fails if the page does not exist; for new pages, use create-page. operation says what the write does and section says where: omit section to act on the whole page, or set it to confine the write to one section. For changing part of a page, use operation='find-replace', which carries only the text being rewritten, so nothing outside find can be lost and the rest of the page never has to travel to or from the caller; a find that matches nothing, or more than one place, is refused without writing, which also makes it safe to resend a call whose result never arrived. For replacing a target outright, use operation='replace', whose source must carry every byte meant to survive; with section set it also takes out every subsection nested under that section, and is refused when source would drop them. operation='append' and 'prepend' add a delta: a new section at the end of the page is an append whose source begins with the heading, and with section set a prepend inserts one immediately above that section. Pass latestId (from get-page with metadata=true) for edit-conflict detection: the write is rejected rather than silently clobbering a concurrent change. Each call is a separate revision, and resending an append or prepend whose result never arrived adds the delta a second time.",
+		"Writes to an existing wiki page and returns the new revision ID. Fails if the page does not exist; for new pages, use create-page. operation says what the write does and section says where: omit section to act on the whole page, or set it to confine the write to one section. For changing part of a page, use operation='find-replace', which carries only the text being rewritten, so nothing outside find can be lost and the rest of the page never has to travel to or from the caller; a find that matches nothing, or more than one place, is refused without writing, which also makes it safe to resend a call whose result never arrived. For replacing a target outright, use operation='replace', whose source must carry every byte meant to survive; it is refused when source would shorten a target too large for one read to return whole, since the rest was never seen. With section set it also takes out every subsection nested under that section, is refused when source would drop them, and needs latestId to say which revision the section number was read from. operation='append' and 'prepend' add a delta: a new section at the end of the page is an append whose source begins with the heading, and with section set a prepend inserts one immediately above that section. Pass latestId (from get-page with metadata=true) for edit-conflict detection: the write is rejected rather than silently clobbering a concurrent change. Each call is a separate revision, and resending an append or prepend whose result never arrived adds the delta a second time.",
 	inputSchema,
 	annotations: {
 		title: 'Update page',
@@ -403,6 +510,13 @@ export const updatePage: Tool<typeof inputSchema> = {
 		// Only a replace takes the section's subtree with it; a delta adds to the
 		// section and removes nothing.
 		if (plan.operation === 'replace') {
+			// Before the subsection guard: a source that is a truncated prefix may
+			// appear to drop subsections that simply lie past the cut, so that
+			// guard's verdict on it would misdirect.
+			const unreadError = await unreadContentError(args, plan.source, mwn);
+			if (unreadError) {
+				return ctx.format.invalidInput(unreadError);
+			}
 			const removalError = await subsectionRemovalError(args, plan.source, ctx, mwn);
 			if (removalError) {
 				return ctx.format.invalidInput(removalError);
