@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Changed
+
+- `update-page` now documents that `mode` can be scoped with `section`: `mode='append'` writes at the end of the named section, and `mode='prepend'` immediately above its heading, which inserts a new section before an existing one without sending the whole page. The combination already worked; nothing about where content lands has changed.
+
 ### Fixed
 
 - A wiki that stops answering no longer hangs a tool call for minutes. This covers the first call to a wiki, where connecting and signing in were previously unbounded. A timed-out write reports that the change may or may not have been applied, since the server cannot tell.

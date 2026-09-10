@@ -52,7 +52,9 @@ const inputSchema = {
 		.enum(['append', 'prepend'])
 		.optional()
 		.describe(
-			"Adds source to the existing content instead of replacing it: 'append' to the end, 'prepend' to the start.",
+			"Adds source to the existing content instead of replacing it: 'append' to the end, 'prepend' to the start. " +
+				"With section=N, 'append' writes at the end of that section and 'prepend' immediately above that section's " +
+				'heading, which inserts a new section before an existing one.',
 		),
 	bot: z
 		.boolean()
@@ -137,7 +139,7 @@ async function subsectionRemovalError(
 export const updatePage: Tool<typeof inputSchema> = {
 	name: 'update-page',
 	description:
-		"Replaces the existing content of a wiki page and returns the new revision ID. Fails if the page does not exist; for new pages, use create-page. Pass latestId (obtained from get-page with metadata=true) to enable edit-conflict detection: if the page has been edited since that revision, the update is rejected rather than silently clobbering concurrent changes. For large pages, two modifiers avoid shipping the full source: section=N replaces one section together with every subsection nested under it, and is refused when source would drop those subsections; paired with get-page section=N it reads, changes and writes back a single section, which is also how to add content in the middle of a page; mode='append' or 'prepend' sends a delta, and adding a new section means appending a source that begins with a heading. Each call is a separate revision; for chains of mode='append' calls, re-fetching latestId between calls confirms the previous chunk landed before the next. Resending a mode='append' or 'prepend' call whose result never arrived adds the delta a second time.",
+		"Replaces the existing content of a wiki page and returns the new revision ID. Fails if the page does not exist; for new pages, use create-page. Pass latestId (obtained from get-page with metadata=true) to enable edit-conflict detection: if the page has been edited since that revision, the update is rejected rather than silently clobbering concurrent changes. For large pages, two modifiers avoid shipping the full source: section=N replaces one section together with every subsection nested under it, and is refused when source would drop those subsections; paired with get-page section=N it reads, changes and writes back a single section, which is also how to add content in the middle of a page; mode='append' or 'prepend' sends a delta, and adding a new section at the end of the page means appending a source that begins with a heading. Each call is a separate revision; for chains of mode='append' calls, re-fetching latestId between calls confirms the previous chunk landed before the next. Resending a mode='append' or 'prepend' call whose result never arrived adds the delta a second time.",
 	inputSchema,
 	annotations: {
 		title: 'Update page',
