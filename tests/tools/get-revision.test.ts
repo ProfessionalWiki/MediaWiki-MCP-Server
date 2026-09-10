@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
 import { fakeContext } from '../helpers/fakeContext.ts';
 import { getRevision } from '../../src/tools/get-revision.ts';
@@ -10,18 +10,23 @@ describe('get-revision', () => {
 	// A past revision was the one read this server never capped, so a caller could
 	// be handed several megabytes where every sibling read stops at the budget.
 	describe('content cap', () => {
-		function revisionWith(content: string) {
+		afterEach(() => {
+			vi.unstubAllEnvs();
+		});
+
+		function revisionWith(content: string, lastrevid = 42) {
 			return createMockMwn({
 				request: vi.fn().mockResolvedValue({
 					query: {
-						pages: [{ pageid: 1, title: 'Big', revisions: [{ revid: 42, content }] }],
+						pages: [{ pageid: 1, title: 'Big', lastrevid, revisions: [{ revid: 42, content }] }],
 					},
 				}),
 			});
 		}
 
 		it('truncates source at the byte cap and says how much it withheld', async () => {
-			const ctx = fakeContext({ mwn: async () => revisionWith('x'.repeat(100001)) as never });
+			vi.stubEnv('MCP_CONTENT_MAX_BYTES', '500');
+			const ctx = fakeContext({ mwn: async () => revisionWith('x'.repeat(501)) as never });
 
 			const result = await getRevision.handle(
 				{ revisionId: 42, content: ContentFormat.source, metadata: false },
@@ -29,15 +34,16 @@ describe('get-revision', () => {
 			);
 
 			const text = assertStructuredSuccess(result);
-			expect(text).toMatch(/Source:\n\nx{100000}\n/);
+			expect(text).toMatch(/Source:\n\nx{500}\n/);
 			expect(text).toContain('  Reason: content-truncated');
-			expect(text).toContain('  Returned bytes: 100000');
-			expect(text).toContain('  Total bytes: 100001');
+			expect(text).toContain('  Returned bytes: 500');
+			expect(text).toContain('  Total bytes: 501');
 			expect(text).toContain('  Tool name: get-revision');
 		});
 
 		it('leaves source alone at exactly the cap', async () => {
-			const ctx = fakeContext({ mwn: async () => revisionWith('x'.repeat(100000)) as never });
+			vi.stubEnv('MCP_CONTENT_MAX_BYTES', '500');
+			const ctx = fakeContext({ mwn: async () => revisionWith('x'.repeat(500)) as never });
 
 			const result = await getRevision.handle(
 				{ revisionId: 42, content: ContentFormat.source, metadata: false },
@@ -49,9 +55,10 @@ describe('get-revision', () => {
 		});
 
 		it('truncates rendered HTML too', async () => {
+			vi.stubEnv('MCP_CONTENT_MAX_BYTES', '500');
 			const mock = createMockMwn({
 				request: vi.fn().mockResolvedValue({
-					parse: { title: 'Big', pageid: 1, text: '<p>' + 'x'.repeat(100001) + '</p>' },
+					parse: { title: 'Big', pageid: 1, text: '<p>' + 'x'.repeat(501) + '</p>' },
 				}),
 			});
 			const ctx = fakeContext({ mwn: async () => mock as never });
@@ -63,12 +70,19 @@ describe('get-revision', () => {
 
 			const text = assertStructuredSuccess(result);
 			expect(text).toContain('  Item noun: HTML');
-			expect(text).toContain('  Returned bytes: 100000');
+			expect(text).toContain('  Returned bytes: 500');
+			// Rendering HTML alone makes no revisions query, so which revision this
+			// is cannot be known and the remedy names both routes.
+			expect(text).toContain('If this is the page');
 		});
 
-		// A past revision has no narrower read: section= addresses the current page.
-		it('says no narrower read exists, and names what does help', async () => {
-			const ctx = fakeContext({ mwn: async () => revisionWith('x'.repeat(100001)) as never });
+		// section= addresses the page as it stands, which is the same bytes only
+		// when the revision asked for is the current one.
+		it('sends a past revision to compare-pages', async () => {
+			vi.stubEnv('MCP_CONTENT_MAX_BYTES', '500');
+			const ctx = fakeContext({
+				mwn: async () => revisionWith('x'.repeat(501), 99) as never,
+			});
 
 			const result = await getRevision.handle(
 				{ revisionId: 42, content: ContentFormat.source, metadata: false },
@@ -79,6 +93,25 @@ describe('get-revision', () => {
 			expect(text).toContain('No narrower read of a past revision');
 			expect(text).toContain('compare-pages');
 			expect(text).not.toContain('Sections:');
+		});
+
+		// A revision ID taken from get-page metadata or from an edit that just
+		// landed is the current one, and section= reads exactly those bytes.
+		it('sends the current revision to get-page with a section', async () => {
+			vi.stubEnv('MCP_CONTENT_MAX_BYTES', '500');
+			const ctx = fakeContext({
+				mwn: async () => revisionWith('x'.repeat(501), 42) as never,
+			});
+
+			const result = await getRevision.handle(
+				{ revisionId: 42, content: ContentFormat.source, metadata: false },
+				ctx,
+			);
+
+			const text = assertStructuredSuccess(result);
+			expect(text).toContain('current revision');
+			expect(text).toContain('section=N');
+			expect(text).not.toContain('compare-pages');
 		});
 	});
 

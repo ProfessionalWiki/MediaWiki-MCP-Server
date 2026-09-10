@@ -179,8 +179,6 @@ async function buildPageEntry(
 	page: ApiPageLike,
 	viaRedirect: boolean,
 	args: GetPagesArgs,
-	entryIndex: number,
-	pending: PendingTruncation[],
 	ctx: ToolContext,
 ): Promise<PageEntry> {
 	const rev = page.revisions?.[0];
@@ -219,48 +217,55 @@ async function buildPageEntry(
 function applyResponseBudget(entries: PageEntry[], pending: PendingTruncation[]): string[] {
 	const budget = contentMaxBytes();
 	let used = 0;
+	let keptABody = false;
 	for (const [index, entry] of entries.entries()) {
 		if (entry.source === undefined) {
 			continue;
 		}
 		const size = Buffer.byteLength(entry.source, 'utf8');
-		if (index === 0 && size > budget) {
+		// Keyed on whether any body has been kept, not on the position: an
+		// earlier entry can carry no body at all — a revision whose text the wiki
+		// withholds — and dropping the first real one would answer a request for
+		// source with no source anywhere in the response.
+		if (!keptABody && size > budget) {
 			const truncated = truncateByBytes(entry.source, budget);
 			entry.source = truncated.text;
 			used = truncated.returnedBytes;
-			// The outline behind the marker is fetched by title, so a page whose
-			// title the API did not report is cut without one rather than sending
-			// an empty title to the wiki.
-			if (entry.title !== undefined) {
-				pending.push({
-					entryIndex: index,
-					title: entry.title,
-					returnedBytes: truncated.returnedBytes,
-					totalBytes: truncated.totalBytes,
-				});
-			}
+			keptABody = true;
+			pending.push({
+				entryIndex: index,
+				title: entry.title ?? entry.requestedTitle ?? '',
+				returnedBytes: truncated.returnedBytes,
+				totalBytes: truncated.totalBytes,
+			});
 			continue;
 		}
 		if (used + size > budget) {
-			const omitted = entries
-				.slice(index)
-				.map((e) => e.title ?? e.requestedTitle)
-				.filter((t): t is string => t !== undefined);
+			// Named as the caller named them: a page it asked for by a redirect or
+			// an unnormalised title is one it cannot otherwise account for.
+			const omitted = entries.slice(index).map((e) => e.requestedTitle ?? e.title ?? '');
 			entries.length = index;
 			return omitted;
 		}
 		used += size;
+		keptABody = true;
 	}
 	return [];
 }
 
+// A continuation exists and is exact — the names of the pages left out — so the
+// marker carries it rather than reporting a cap. Reporting one would also have
+// to name a number: the cap that fired is a byte budget, and stating it as a
+// count of pages would advertise a per-page limit this tool does not have.
 function omittedPagesTruncation(returnedCount: number, omitted: string[]): TruncationInfo {
 	return {
-		reason: 'capped-no-continuation',
+		reason: 'more-available',
 		returnedCount,
-		limit: returnedCount,
 		itemNoun: 'pages',
-		narrowHint: `the response byte budget was reached. Call get-pages again for the pages not returned: ${omitted.join(', ')}.`,
+		toolName: 'get-pages',
+		// Pipe-separated because a page title may contain a comma but never a
+		// pipe, which is MediaWiki's own separator for a multi-value argument.
+		continueWith: { param: 'titles', value: omitted.join('|') },
 	};
 }
 
@@ -314,9 +319,7 @@ async function assembleEntries(
 			continue;
 		}
 		emitted.add(page.title);
-		entryPromises.push(
-			buildPageEntry(requested, page, viaRedirect, args, entryPromises.length, pending, ctx),
-		);
+		entryPromises.push(buildPageEntry(requested, page, viaRedirect, args, ctx));
 	}
 	const entries = await Promise.all(entryPromises);
 	return { entries, missing, pending };
@@ -324,7 +327,7 @@ async function assembleEntries(
 
 export const getPages: Tool<typeof inputSchema> = {
 	name: 'get-pages',
-	description: `Returns multiple wiki pages in one call (wikitext source or metadata only). Suited to reading a cluster of related pages, diffing a page family, or syncing pages to local storage. Accepts up to ${MAX_TITLES} titles; missing pages are reported inline (not as errors). One byte budget covers the whole response, 100000 bytes by default: pages come back whole in the order asked for until it is spent, and the pages past that point are named rather than returned, so a follow-up call for those names fetches the rest. Only a first page larger than the budget on its own is truncated, with a marker reporting how much of it was returned and which sections a narrower read can target. For a single page or HTML output, use get-page. requestedTitle is included only when it differs from the resolved title.`,
+	description: `Returns multiple wiki pages in one call (wikitext source or metadata only). Suited to reading a cluster of related pages, diffing a page family, or syncing pages to local storage. Accepts up to ${MAX_TITLES} titles; missing pages are reported inline (not as errors). One byte budget covers the whole response, 75000 bytes by default: pages come back whole in the order asked for until it is spent, and the pages past that point are named rather than returned, so a follow-up call for those names fetches the rest. Only a first page larger than the budget on its own is truncated, with a marker reporting how much of it was returned and which sections a narrower read can target. For a single page or HTML output, use get-page. requestedTitle is included only when it differs from the resolved title.`,
 	inputSchema,
 	annotations: {
 		title: 'Get pages',

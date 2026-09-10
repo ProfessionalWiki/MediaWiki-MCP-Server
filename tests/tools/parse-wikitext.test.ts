@@ -274,7 +274,7 @@ describe('parse-wikitext', () => {
 	});
 
 	it('attaches content-truncated truncation when HTML exceeds the byte cap', async () => {
-		const bigHtml = '<p>' + 'x'.repeat(110000) + '</p>';
+		const bigHtml = '<p>' + 'x'.repeat(85000) + '</p>';
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({
 				parse: {
@@ -292,15 +292,15 @@ describe('parse-wikitext', () => {
 		expect(text).toMatch(/HTML:\n\n<p>x+/);
 		expect(text).toContain('Truncation:');
 		expect(text).toContain('  Reason: content-truncated');
-		expect(text).toContain('  Returned bytes: 100000');
-		expect(text).toContain('  Total bytes: 110007');
+		expect(text).toContain('  Returned bytes: 75000');
+		expect(text).toContain('  Total bytes: 85007');
 		expect(text).toContain('  Item noun: HTML');
 		expect(text).toContain('  Tool name: parse-wikitext');
 		expect(text).toContain('Categories:\n- Category: Foo');
 	});
 
 	it('omits truncation when HTML is exactly at the byte cap', async () => {
-		const exact = 'y'.repeat(100000);
+		const exact = 'y'.repeat(75000);
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({
 				parse: { text: exact, parsewarnings: [] },
@@ -311,7 +311,7 @@ describe('parse-wikitext', () => {
 		const result = await parseWikitext.handle({ wikitext: 'x', applyPreSaveTransform: true }, ctx);
 
 		const text = assertStructuredSuccess(result);
-		expect(text).toMatch(/HTML:\n\ny{100000}/);
+		expect(text).toMatch(/HTML:\n\ny{75000}/);
 		expect(text).not.toContain('Truncation:');
 	});
 });
