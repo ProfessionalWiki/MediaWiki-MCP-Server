@@ -62,6 +62,27 @@ function searchParams(mock: ReturnType<typeof createMockMwn>): Record<string, un
 	return call![0] as Record<string, unknown>;
 }
 
+// fakeContext seeds a siteinfo cache with no content namespaces, so every test
+// that does not call this exercises the unresolved path and proves nothing
+// about the wiki-derived default.
+function contextKnowing(mock: ReturnType<typeof createMockMwn>, contentNamespaces: number[]) {
+	const map = new Map<string, SiteInfo>([
+		['test-wiki', { server: 'https://test.wiki', articlepath: '/wiki', contentNamespaces }],
+	]);
+	return fakeContext({
+		mwn: async () => mock as never,
+		siteInfoCache: {
+			get: (k: string) => map.get(k),
+			set: (k: string, v: SiteInfo) => {
+				map.set(k, v);
+			},
+			delete: (k: string) => {
+				map.delete(k);
+			},
+		} as never,
+	});
+}
+
 describe('search-page', () => {
 	it('returns full-text search results with snippets', async () => {
 		const mock = createMockMwn({
@@ -256,7 +277,7 @@ describe('search-page', () => {
 		expect(searchParams(mock).srwhat).toBe('text');
 	});
 
-	it('omits srnamespace when the caller names no namespaces', async () => {
+	it('falls back to the wiki default when siteinfo reports no content namespaces', async () => {
 		const mock = mockSearchReturning([]);
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
@@ -336,12 +357,97 @@ describe('search-page', () => {
 
 	it('omits the scope notice when the caller named no namespaces', async () => {
 		const mock = mockSearchReturning([searchRow({ title: 'Help:Contents', ns: 12 })]);
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextKnowing(mock, [0, 12]);
 
 		const result = await searchPage.handle(toolArgs(searchPage, { query: 'Help:Contents' }), ctx);
 
 		const text = assertStructuredSuccess(result);
 		expect(text).toContain('- Title: Help:Contents');
+		expect(text).not.toContain('Scope notice:');
+	});
+
+	it('searches the wiki content namespaces when the caller names none', async () => {
+		const mock = mockSearchReturning([]);
+		const ctx = contextKnowing(mock, [0, 100, 102]);
+
+		await searchPage.handle(toolArgs(searchPage, { query: 'test' }), ctx);
+
+		expect(searchParams(mock).srnamespace).toBe('0|100|102');
+	});
+
+	it('prefers the namespaces the caller named over the wiki content namespaces', async () => {
+		const mock = mockSearchReturning([]);
+		const ctx = contextKnowing(mock, [0, 100, 102]);
+
+		await searchPage.handle(toolArgs(searchPage, { query: 'test', namespaces: [12] }), ctx);
+
+		expect(searchParams(mock).srnamespace).toBe('12');
+	});
+
+	it('never sends an empty srnamespace, which would search the whole wiki', async () => {
+		const mock = mockSearchReturning([]);
+		const ctx = contextKnowing(mock, []);
+
+		await searchPage.handle(toolArgs(searchPage, { query: 'test' }), ctx);
+
+		const params = searchParams(mock);
+		expect(params.srsearch).toBe('test');
+		expect(params).not.toHaveProperty('srnamespace');
+	});
+
+	it('caps the wiki scope at the fifty values the search API accepts', async () => {
+		const mock = mockSearchReturning([]);
+		const ctx = contextKnowing(
+			mock,
+			Array.from({ length: 60 }, (_, i) => i * 2),
+		);
+
+		const result = await searchPage.handle(toolArgs(searchPage, { query: 'test' }), ctx);
+
+		expect(String(searchParams(mock).srnamespace).split('|')).toHaveLength(50);
+		expect(scopeNotice(assertStructuredSuccess(result))).toContain('50');
+	});
+
+	it('does not blame the caller for namespaces the wiki default reached', async () => {
+		const mock = mockSearchReturning([searchRow({ title: 'Help:Contents', ns: 12 })]);
+		const ctx = contextKnowing(mock, [0, 100]);
+
+		const result = await searchPage.handle(toolArgs(searchPage, { query: 'Help:Contents' }), ctx);
+
+		const text = assertStructuredSuccess(result);
+		expect(text).toContain('- Title: Help:Contents');
+		expect(text).not.toContain('Scope notice:');
+	});
+
+	it('reports a wiki warning even when the scope came from the wiki', async () => {
+		const mock = mockSearchReturning(
+			[searchRow({ ns: 0 })],
+			'Unrecognized value for parameter "srnamespace": 999',
+		);
+		const ctx = contextKnowing(mock, [0, 999]);
+
+		const result = await searchPage.handle(toolArgs(searchPage, { query: 'test' }), ctx);
+
+		expect(scopeNotice(assertStructuredSuccess(result))).toContain('999');
+	});
+
+	it('explains an empty result the wiki namespaces could not be read for', async () => {
+		const mock = mockSearchReturning([]);
+		const ctx = contextKnowing(mock, []);
+
+		const result = await searchPage.handle(toolArgs(searchPage, { query: 'test' }), ctx);
+
+		expect(scopeNotice(assertStructuredSuccess(result))).toContain('main namespace');
+	});
+
+	it('stays quiet about an unread namespace list when the search found something', async () => {
+		const mock = mockSearchReturning([searchRow({ ns: 0 })]);
+		const ctx = contextKnowing(mock, []);
+
+		const result = await searchPage.handle(toolArgs(searchPage, { query: 'test' }), ctx);
+
+		const text = assertStructuredSuccess(result);
+		expect(text).toContain('- Title: Test Page');
 		expect(text).not.toContain('Scope notice:');
 	});
 });

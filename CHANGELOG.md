@@ -8,12 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Added
 
-- `search-page` accepts `namespaces` to name the namespace IDs to search, and each result now reports the namespace it came from. A call that omits `namespaces` searches the main namespace, which was always the case but went unstated; `get-site-info` lists a wiki's namespace IDs. When the namespaces searched are not the ones asked for — the wiki refused an ID, or a namespace prefix in the query overrode them — the response now says so.
+- `search-page` accepts `namespaces` to name the namespace IDs to search, and each result now reports the namespace it came from; `get-site-info` lists a wiki's namespace IDs. When the namespaces searched are not the ones asked for — the wiki refused an ID, or a namespace prefix in the query overrode them — the response now says so.
 - `update-page` can now rewrite one passage of a page without resending the rest: `operation='find-replace'` takes `find`, the existing wikitext to change, and `replaceWith`, what it becomes. The server holds the page and applies the change, so a large page no longer has to travel to or from the caller to be edited. `find` is matched in full and exactly; one that matches nothing, or more than one place, is refused without writing.
 - `update-page` takes an `operation` argument naming what the write does — `replace`, `append`, `prepend` or `find-replace` — where the choice was previously inferred from which other arguments were present. `section` now reads as the scope of the write rather than as a mode of its own: `operation` says what, `section` says where.
 
 ### Changed
 
+- `search-page` now searches the namespaces a wiki counts as content, instead of the main namespace only. Pass `namespaces: [0]` for the previous behaviour.
 - `update-page`'s `mode` argument is deprecated in favour of `operation`, which spells the same choice and adds `find-replace`. Calls sending `mode='append'` or `mode='prepend'` keep working; a call sending both is refused when they disagree.
 - `update-page` now documents that a delta can be scoped with `section`: `operation='append'` writes at the end of the named section, and `operation='prepend'` immediately above its heading, which inserts a new section before an existing one without sending the whole page. The combination already worked; nothing about where content lands has changed.
 - The section list `get-page` and `get-pages` report now labels each section with the number that edits it, as `1 (History)` where it was `History`, and leaves out headings that arrive by transclusion. This is the outline in every `metadata=true` response as well as the one attached to a truncated read. The list previously numbered by position, and a transcluded heading holds a position that no section number addresses, so on any page carrying one every later entry named a different section than the one it pointed at.
