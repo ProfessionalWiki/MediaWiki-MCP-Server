@@ -9,30 +9,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Breaking changes
 
 - `update-page` now refuses a call that replaces a page or section when the source would shorten a target too large for one read to return whole. Pass `removeUnreadContent: true` to do it deliberately, or use `operation='find-replace'` to change part of a page without resending it; appends, growth and any target inside the byte budget are unaffected.
-- `update-page` now requires `latestId` when `section` names the section being replaced, so the wiki resolves the number against the revision it was read from. `get-page` with `metadata=true` returns it alongside the section list; the lead, appends and prepends are unaffected.
+- `update-page` now requires `latestId` on a replace scoped to a section, so the wiki resolves the section number against the revision it was read from. The lead, appends and prepends are unaffected.
+- `update-page` now refuses `removeSubsections` unless the write is a section replace, the only case it means anything for.
 
 ### Added
 
-- `search-page` accepts `namespaces` to name the namespace IDs to search, and each result now reports the namespace it came from; `get-site-info` lists a wiki's namespace IDs. When the namespaces searched are not the ones asked for — the wiki refused an ID, or a namespace prefix in the query overrode them — the response now says so.
+- `update-page` takes an `operation` argument naming what the write does: `replace`, `append`, `prepend` or `find-replace`. Omitting it means `replace`; with `section` set, `append` writes at the end of that section and `prepend` immediately above its heading, which inserts a section before an existing one.
 - `update-page` can now rewrite one passage of a page without resending the rest: `operation='find-replace'` takes `find`, the existing wikitext to change, and `replaceWith`, what it becomes. `find` is matched in full and exactly; one that matches nothing, or more than one place, is refused without writing.
-- `update-page` takes an `operation` argument naming what the write does — `replace`, `append`, `prepend` or `find-replace` — where the choice was previously inferred from which other arguments were present. `section` now reads as the scope of the write rather than as a mode of its own: `operation` says what, `section` says where.
+- `search-page` accepts `namespaces` to name the namespace IDs to search, and each result now reports the namespace it came from. When the namespaces searched are not the ones asked for — the wiki refused an ID, or a namespace prefix in the query overrode them — the response says so.
 
 ### Changed
 
-- The content byte cap is now one budget per response rather than one per body, and its default rises from 50000 to 75000 bytes. Operators who set `MCP_CONTENT_MAX_BYTES` are unaffected.
+- The content byte cap is now one budget for the whole response rather than one per body, and its default rises from 50000 to 75000 bytes. `get-pages` returns whole pages until that budget is spent and names the ones left out for a follow-up call to fetch.
 - `get-revision` now applies the same content cap as every other read, to both wikitext and rendered HTML.
+- `get-page` now reports `latestRevisionId` on any read that returns wikitext, so a section replace no longer needs a separate `metadata=true` call to obtain it.
 - `search-page` now searches the namespaces a wiki counts as content, instead of the main namespace only. Pass `namespaces: [0]` for the previous behaviour.
-- `update-page`'s `mode` argument is deprecated in favour of `operation`, which spells the same choice and adds `find-replace`. Calls sending `mode='append'` or `mode='prepend'` keep working; a call sending both is refused when they disagree.
-- `update-page` now documents that a delta can be scoped with `section`: `operation='append'` writes at the end of the named section, and `operation='prepend'` immediately above its heading, which inserts a new section before an existing one without sending the whole page. The combination already worked; nothing about where content lands has changed.
-- The section list `get-page` and `get-pages` report now labels each section with the number that edits it, as `1 (History)` where it was `History`, and leaves out headings that arrive by transclusion, which no section number addresses. This is the outline in every `metadata=true` response as well as the one attached to a truncated read.
+- `update-page`'s `mode` argument is deprecated in favour of `operation`, which spells the same choice. Calls sending `mode='append'` or `mode='prepend'` keep working; a call sending both is refused when they disagree.
+- The section list `get-page` reports now labels each section with the number that edits it, as `1 (History)` where it was `History`, and leaves out headings that arrive by transclusion, which no section number addresses. The same list appears in the truncation marker of both `get-page` and `get-pages`.
 
 ### Fixed
 
-- Passing more namespace IDs than the wiki accepts (50, unless the account holds `apihighlimits`) is now reported as invalid input rather than as an upstream failure. This affects `get-category-members`, `get-links-here`, `get-recent-changes` and `search-page`.
-- A truncated page or section read no longer ends mid-character: the cut falls on a character boundary, so what comes back is a byte-exact prefix of what the page holds and never exceeds the cap it reports against.
+- A truncated body no longer ends mid-character: the cut falls on a character boundary, so what comes back is a byte-exact prefix and never exceeds the cap it reports against. This affects every capped read, including `get-page`, `get-pages`, `get-revision`, `compare-pages` and `parse-wikitext`.
 - A truncated read no longer offers a narrowing that returns the same bytes. A `section=N` read names that section's own subsections, and a read with nothing narrower left says so instead of repeating the call that had just truncated.
-- A wiki that stops answering no longer hangs a tool call for minutes. This covers the first call to a wiki, where connecting and signing in were previously unbounded. A timed-out write reports that the change may or may not have been applied, since the server cannot tell.
+- Passing more namespace IDs than the wiki accepts (50, unless the account holds `apihighlimits`) is now reported as invalid input rather than as an upstream failure. This affects `get-category-members`, `get-links-here` and `get-recent-changes`.
+- A tool call to a wiki that stops answering now fails after 150 seconds, and a first call that cannot connect or sign in after 30 seconds. A timed-out write reports that the change may or may not have been applied and asks you to check the wiki before retrying; neither limit is configurable.
 - `add-wiki` no longer hangs on a URL whose host accepts the connection and then goes quiet. It now gives up after 30 seconds and reports a timeout, instead of suggesting the URL may be wrong.
+- `add-wiki` now registers a wiki whose `$wgServer` is protocol-relative, such as `//example.org`, instead of producing an unusable entry.
 
 ## [0.17.0] - 2026-08-13
 
