@@ -63,7 +63,7 @@ export function sectionContentTruncation({
 		return {
 			...base,
 			remedyHint:
-				"No narrower read returns more of this section. To add to it without resending it, use update-page with mode='append'.",
+				"No narrower read returns more of this section. To change part of it, use update-page with operation='find-replace'.",
 		};
 	}
 	return {

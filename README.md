@@ -40,7 +40,7 @@ Every tool that operates on a wiki accepts an optional `wiki` argument naming th
 | `undelete-page` 🔐 | Undelete a wiki page. | `Delete pages, revisions, and log entries` |
 | `update-file` 🔐 | Upload a new revision of an existing file from local disk. | `Upload, replace, and move files` |
 | `update-file-from-url` 🔐 | Upload a new revision of an existing file from a URL. | `Upload, replace, and move files` |
-| `update-page` 🔐 | Update an existing wiki page. | `Edit existing pages` |
+| `update-page` 🔐 | Update an existing wiki page: overwrite it, add to it, or rewrite one passage of it. | `Edit existing pages` |
 | `upload-file` 🔐 | Upload a file to the wiki from local disk. | `Upload new files` |
 | `upload-file-from-url` 🔐 | Upload a file to the wiki from a URL. | `Upload, replace, and move files` |
 

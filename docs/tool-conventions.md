@@ -68,7 +68,7 @@ Do not restate this in prose. Prose is for context the schema cannot express.
 
 - **Tool names** appear bare in prose (`get-page`, not in backticks).
 - **Parameter names alone** appear bare (e.g., "paginate with continueFrom"). Use backticks only when the bare form would collide with an English word (e.g., the `wiki` parameter in `oauth-logout`).
-- **Parameter assignments** are bare for primitive RHS (`section=N`, `metadata=true`) and use single quotes for enum string values (`mode='append'`, `mode='prepend'`).
+- **Parameter assignments** are bare for primitive RHS (`section=N`, `metadata=true`) and use single quotes for enum string values (`operation='append'`, `operation='find-replace'`).
 - **Wiki syntax and code identifiers** use backticks: `[[Category:Person]]`, `_pageData`, `bucket("exchange")`, `MCP_CONTENT_MAX_BYTES`.
 
 #### Avoid tautology
@@ -177,7 +177,7 @@ Semantics (from the MCP 2025-11-25 spec):
 - Pure read-only tools: `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: true` (for tools that read from the wiki).
 - Write tools that delete, overwrite, or remove: `readOnlyHint: false`, `destructiveHint: true`.
 - Write tools that only add (create, append, upload-new): `readOnlyHint: false`, `destructiveHint: false`.
-- If idempotency depends on which parameters a call uses (an `update-page` full-page replace is idempotent; `mode='append'` is not), declare the weakest case: `idempotentHint: false`.
+- If idempotency depends on which parameters a call uses (an `update-page` full-page replace is idempotent; `operation='append'` is not), declare the weakest case: `idempotentHint: false`.
 - If the tool does not make network calls and only mutates server-local state (e.g. `add-wiki` / `remove-wiki` editing the wiki registry), `openWorldHint: false`.
 
 #### Tool titles
