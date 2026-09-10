@@ -12,7 +12,7 @@ export interface SectionEntry {
 }
 
 export interface SectionService {
-	list(mwn: Mwn, title: string): Promise<SectionEntry[]>;
+	list(mwn: Mwn, title: string, revisionId?: number): Promise<SectionEntry[]>;
 	listInSource(mwn: Mwn, title: string, source: string): Promise<SectionEntry[]>;
 }
 
@@ -30,10 +30,14 @@ function isEditableIndex(index: string): boolean {
 }
 
 export class SectionServiceImpl implements SectionService {
-	public async list(mwn: Mwn, title: string): Promise<SectionEntry[]> {
+	// `revisionId` asks for the outline as that revision had it. A write scoped
+	// to a section resolves the number against the revision it names, so a guard
+	// reading the current outline judges a different section than the one the
+	// write will replace.
+	public async list(mwn: Mwn, title: string, revisionId?: number): Promise<SectionEntry[]> {
 		return this.parseSections(mwn, {
 			action: 'parse',
-			page: title,
+			...(revisionId === undefined ? { page: title } : { oldid: String(revisionId) }),
 			prop: 'sections',
 			formatversion: '2',
 		});

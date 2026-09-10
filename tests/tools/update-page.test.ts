@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { Mwn } from 'mwn';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
 import { fakeContext } from '../helpers/fakeContext.ts';
@@ -83,6 +83,27 @@ function fakeEditWithOutline(
 	return { ...base, ctx, list, listInSource };
 }
 
+const PAGE =
+	'Lead text.\n\n== History ==\nThe city was founded in 1104.\n\n== Geography ==\nThe river runs east.\n';
+
+// The whole point of the operation is that the server holds the page and the
+// caller holds only the text it is changing, so the read is part of the tool.
+function fakeFindReplace(current: string = PAGE, revid = 41) {
+	const base = fakeEdit();
+	const read = vi.fn().mockResolvedValue({
+		pageid: 5,
+		title: 'My Page',
+		revisions: [{ revid, content: current }],
+	});
+	const mock = createMockMwn({
+		read,
+		request: base.request,
+		getCsrfToken: vi.fn().mockResolvedValue('csrf-token'),
+	});
+	const ctx = fakeContext({ mwn: async () => mock as never, edit: base.ctx.edit });
+	return { ...base, ctx, read };
+}
+
 describe('update-page', () => {
 	describe('full-page replacement', () => {
 		it('sends text=source with nocreate and baserevid for conflict detection', async () => {
@@ -120,7 +141,8 @@ describe('update-page', () => {
 			expect(params).not.toHaveProperty('formatversion');
 
 			// Sanity check: submit forwarded to mwn.request with token + formatversion.
-			const requestParams = request.mock.calls[0][0];
+			// The edit is the last request; the size guard probes before it.
+			const requestParams = request.mock.calls.at(-1)?.[0];
 			expect(requestParams).toMatchObject({
 				token: 'csrf-token',
 				formatversion: '2',
@@ -235,6 +257,7 @@ describe('update-page', () => {
 					title: 'My Page',
 					source: 'new section body',
 					section: 2,
+					latestId: 41,
 				},
 				ctx,
 			);
@@ -252,6 +275,7 @@ describe('update-page', () => {
 					title: 'My Page',
 					source: 'lead',
 					section: 0,
+					latestId: 41,
 				},
 				ctx,
 			);
@@ -279,6 +303,7 @@ describe('update-page', () => {
 				title: 'My Page',
 				source: 'x',
 				section: 99,
+				latestId: 41,
 			});
 
 			const envelope = assertStructuredError(result, 'not_found');
@@ -325,6 +350,7 @@ describe('update-page', () => {
 				title: 'My Page',
 				source: 'body',
 				section: 2,
+				latestId: 41,
 				sectionTitle: 'History',
 			});
 
@@ -339,6 +365,7 @@ describe('update-page', () => {
 				title: 'My Page',
 				source: 'new section body',
 				section: 2,
+				latestId: 41,
 			});
 
 			assertStructuredSuccess(result);
@@ -487,6 +514,7 @@ describe('update-page', () => {
 				title: 'Japan',
 				source: '== History ==\nRewritten.',
 				section: 2,
+				latestId: 41,
 			});
 
 			const envelope = assertStructuredError(result, 'invalid_input');
@@ -514,6 +542,7 @@ describe('update-page', () => {
 				source:
 					'== History ==\nIntro.\n\n=== Prehistoric to classical history ===\na\n\n=== Feudal era ===\nb\n\n=== Modern era ===\nc',
 				section: 2,
+				latestId: 41,
 			});
 
 			assertStructuredSuccess(result);
@@ -534,6 +563,7 @@ describe('update-page', () => {
 				source:
 					'== History ==\nIntro.\n\n=== Prehistory ===\na\n\n=== Feudal period ===\nb\n\n=== Modern era ===\nc',
 				section: 2,
+				latestId: 41,
 			});
 
 			assertStructuredSuccess(result);
@@ -555,6 +585,7 @@ describe('update-page', () => {
 				title: 'Japan',
 				source: '== History ==\n{{ThreeHeadings}}',
 				section: 2,
+				latestId: 41,
 			});
 
 			assertStructuredError(result, 'invalid_input');
@@ -568,6 +599,7 @@ describe('update-page', () => {
 				title: 'Japan',
 				source: '== History ==\nRewritten.',
 				section: 2,
+				latestId: 41,
 				removeSubsections: true,
 			});
 
@@ -582,6 +614,7 @@ describe('update-page', () => {
 				title: 'Japan',
 				source: '== Etymology ==\nRewritten.',
 				section: 1,
+				latestId: 41,
 			});
 
 			assertStructuredSuccess(result);
@@ -608,6 +641,7 @@ describe('update-page', () => {
 				title: 'Wikipedia:Requests for adminship',
 				source: '== Nominations ==\nIntro.\n{{RfA/Candidate A}}\n{{RfA/Candidate B}}',
 				section: 1,
+				latestId: 41,
 			});
 
 			assertStructuredSuccess(result);
@@ -630,6 +664,7 @@ describe('update-page', () => {
 				title: 'Wikipedia:Requests for adminship',
 				source: '== Nominations ==\nRewritten, dropping the discussion subsection.',
 				section: 1,
+				latestId: 41,
 			});
 
 			const envelope = assertStructuredError(result, 'invalid_input');
@@ -674,6 +709,7 @@ describe('update-page', () => {
 				title: 'Japan',
 				source: 'New lead.',
 				section: 0,
+				latestId: 41,
 			});
 
 			assertStructuredSuccess(result);
@@ -696,6 +732,7 @@ describe('update-page', () => {
 				title: 'Japan',
 				source: '== History ==\nRewritten.',
 				section: 2,
+				latestId: 41,
 			});
 
 			const envelope = assertStructuredError(result, 'upstream_failure');
@@ -719,6 +756,7 @@ describe('update-page', () => {
 				title: 'Japan',
 				source: '== History ==\nRewritten.',
 				section: 2,
+				latestId: 41,
 			});
 
 			const envelope = assertStructuredError(result, 'upstream_failure');
@@ -729,27 +767,6 @@ describe('update-page', () => {
 });
 
 describe('update-page find-replace', () => {
-	const PAGE =
-		'Lead text.\n\n== History ==\nThe city was founded in 1104.\n\n== Geography ==\nThe river runs east.\n';
-
-	// The whole point of the operation is that the server holds the page and the
-	// caller holds only the text it is changing, so the read is part of the tool.
-	function fakeFindReplace(current: string = PAGE, revid = 41) {
-		const base = fakeEdit();
-		const read = vi.fn().mockResolvedValue({
-			pageid: 5,
-			title: 'My Page',
-			revisions: [{ revid, content: current }],
-		});
-		const mock = createMockMwn({
-			read,
-			request: base.request,
-			getCsrfToken: vi.fn().mockResolvedValue('csrf-token'),
-		});
-		const ctx = fakeContext({ mwn: async () => mock as never, edit: base.ctx.edit });
-		return { ...base, ctx, read };
-	}
-
 	it('rewrites the single match and submits the whole target', async () => {
 		const { submit, ctx } = fakeFindReplace();
 
@@ -1127,6 +1144,422 @@ describe('update-page operation', () => {
 		const result = await callTool(ctx, 'update-page', { title: 'My Page' });
 
 		assertStructuredError(result, 'invalid_input');
+		expect(submit).not.toHaveBeenCalled();
+	});
+});
+
+// A section number means nothing without the revision it was read from: the wiki
+// resolves it against whatever the page is now, so an index that has since
+// shifted addresses a different section.
+describe('update-page section base revision', () => {
+	it('refuses a section replace without latestId', async () => {
+		const { submit, ctx } = fakeEdit();
+
+		const result = await callTool(ctx, 'update-page', {
+			title: 'My Page',
+			source: 'body',
+			section: 2,
+		});
+
+		const envelope = assertStructuredError(result, 'invalid_input');
+		expect(envelope.message).toContain('latestId');
+		expect(envelope.message).toContain('get-page');
+		expect(submit).not.toHaveBeenCalled();
+	});
+
+	// The lead is always section 0, and no insertion moves it, so there is no
+	// ambiguity to resolve and nothing to require.
+	it('leaves a lead replace alone', async () => {
+		const { submit, ctx } = fakeEditWithOutline(JAPAN_OUTLINE, []);
+
+		await callTool(ctx, 'update-page', { title: 'Japan', source: 'new lead', section: 0 });
+
+		expect(submit).toHaveBeenCalledTimes(1);
+	});
+
+	// A delta put in the wrong section is misplaced, not lost, and shows in the
+	// diff, so it is not worth refusing a call over.
+	it.each(['append', 'prepend'])('leaves a %s scoped to a section alone', async (operation) => {
+		const { submit, ctx } = fakeEdit();
+
+		await callTool(ctx, 'update-page', {
+			title: 'My Page',
+			operation,
+			source: 'body',
+			section: 2,
+		});
+
+		expect(submit).toHaveBeenCalledTimes(1);
+	});
+
+	// The payoff of requiring it: the wiki resolves the index against this
+	// revision rather than against whichever is current.
+	it("forwards the caller's base revision on a section replace", async () => {
+		const { submit, ctx } = fakeEditWithOutline(JAPAN_OUTLINE, [
+			{ index: '1', level: 2, line: 'History', editable: true },
+			{ index: '2', level: 3, line: 'Prehistoric to classical history', editable: true },
+			{ index: '3', level: 3, line: 'Feudal era', editable: true },
+			{ index: '4', level: 3, line: 'Modern era', editable: true },
+		]);
+
+		await callTool(ctx, 'update-page', {
+			title: 'Japan',
+			source:
+				'== History ==\nkept\n\n=== Prehistoric to classical history ===\na\n\n=== Feudal era ===\nb\n\n=== Modern era ===\nc',
+			section: 2,
+			latestId: 41,
+		});
+
+		expect(submit.mock.calls[0][1]).toMatchObject({ section: '2', baserevid: 41 });
+	});
+
+	// The subsection guard compares section numbers, so it has to read the
+	// outline of the revision those numbers came from.
+	it('reads the section outline at the revision the write names', async () => {
+		const { ctx, list } = fakeEditWithOutline(JAPAN_OUTLINE, []);
+
+		await callTool(ctx, 'update-page', {
+			title: 'Japan',
+			source: '== Geography ==\nrewritten',
+			section: 6,
+			latestId: 41,
+		});
+
+		expect(list).toHaveBeenCalledWith(expect.anything(), 'Japan', 41);
+	});
+
+	// find-replace addresses its target by the text it matches, so a shifted
+	// index either fails to match or names text that genuinely holds the anchor.
+	it('does not require latestId for find-replace', async () => {
+		const { submit, ctx } = fakeFindReplace();
+
+		const result = await callTool(ctx, 'update-page', {
+			title: 'My Page',
+			operation: 'find-replace',
+			section: 1,
+			find: 'founded in 1104',
+			replaceWith: 'founded in 1105',
+		});
+
+		assertStructuredSuccess(result);
+		expect(submit).toHaveBeenCalledTimes(1);
+	});
+
+	it('leaves a whole-page write alone', async () => {
+		const { submit, ctx } = fakeEdit();
+
+		await callTool(ctx, 'update-page', { title: 'My Page', source: 'whole page' });
+
+		expect(submit).toHaveBeenCalledTimes(1);
+	});
+});
+
+// Content larger than one read returns cannot have been read whole through this
+// server, so a replace that shortens it is discarding something unseen.
+describe('update-page unread content guard', () => {
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	// Routed by parameter rather than by call order, so a change to how either
+	// probe reads its response shows up as a failure instead of a skipped guard.
+	function fakeSizedEdit(pageBytes: number, sectionContent?: string) {
+		const base = fakeEdit();
+		const request = vi.fn().mockImplementation((params: Record<string, unknown>) => {
+			if (params.prop === 'info') {
+				return Promise.resolve({ query: { pages: [{ title: 'My Page', length: pageBytes }] } });
+			}
+			if (params.prop === 'revisions') {
+				return Promise.resolve({
+					query: {
+						pages: [
+							{
+								revisions: [
+									{
+										slots: {
+											main: {
+												...(sectionContent === undefined ? {} : { content: sectionContent }),
+											},
+										},
+									},
+								],
+							},
+						],
+					},
+				});
+			}
+			return base.request(params);
+		});
+		const mock = createMockMwn({ request, getCsrfToken: vi.fn().mockResolvedValue('t') });
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			edit: base.ctx.edit,
+			sections: { list: vi.fn().mockResolvedValue([]), listInSource: vi.fn() },
+		});
+		return { ...base, ctx, request };
+	}
+
+	const infoProbes = (request: ReturnType<typeof vi.fn>) =>
+		request.mock.calls.filter((c) => c[0]?.prop === 'info');
+	const sectionReads = (request: ReturnType<typeof vi.fn>) =>
+		request.mock.calls.filter((c) => c[0]?.prop === 'revisions');
+
+	it('refuses a whole-page replace that shortens a page too large to have been read', async () => {
+		const { submit, ctx } = fakeSizedEdit(150000);
+
+		const result = await callTool(ctx, 'update-page', { title: 'My Page', source: 'short' });
+
+		const envelope = assertStructuredError(result, 'invalid_input');
+		expect(envelope.message).toContain('150000');
+		expect(envelope.message).toContain("operation='find-replace'");
+		expect(envelope.message).toContain('removeUnreadContent');
+		expect(submit).not.toHaveBeenCalled();
+	});
+
+	// The guard and the read cap have to agree on what "returned whole" means,
+	// and truncateByBytes cuts only above the cap.
+	it('allows a shortening replace of a page at exactly the cap', async () => {
+		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '1000');
+		const { submit, ctx } = fakeSizedEdit(1000);
+
+		assertStructuredSuccess(await callTool(ctx, 'update-page', { title: 'My Page', source: 'x' }));
+		expect(submit).toHaveBeenCalledTimes(1);
+	});
+
+	it('refuses a shortening replace of a page one byte over the cap', async () => {
+		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '1000');
+		const { submit, ctx } = fakeSizedEdit(1001);
+
+		assertStructuredError(
+			await callTool(ctx, 'update-page', { title: 'My Page', source: 'x' }),
+			'invalid_input',
+		);
+		expect(submit).not.toHaveBeenCalled();
+	});
+
+	// The probe must measure the page the write lands on, and mwn resolves
+	// redirects unless told not to.
+	it('measures the page named, not the page it redirects to', async () => {
+		const { ctx, request } = fakeSizedEdit(150000);
+
+		await callTool(ctx, 'update-page', { title: 'My Page', source: 'short' });
+
+		expect(infoProbes(request)[0][0]).not.toHaveProperty('redirects');
+	});
+
+	// A source of multi-byte characters is longer in bytes than in characters,
+	// and the target is measured in bytes.
+	it('compares source and target in bytes, not characters', async () => {
+		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '100');
+		const { submit, ctx } = fakeSizedEdit(150);
+
+		// 60 characters, 180 bytes: longer than the 150-byte page it replaces.
+		const result = await callTool(ctx, 'update-page', {
+			title: 'My Page',
+			source: '漢'.repeat(60),
+		});
+
+		assertStructuredSuccess(result);
+		expect(submit).toHaveBeenCalledTimes(1);
+	});
+
+	it('allows the shortening replace when it is confirmed', async () => {
+		const { submit, ctx } = fakeSizedEdit(150000);
+
+		const result = await callTool(ctx, 'update-page', {
+			title: 'My Page',
+			source: 'short',
+			removeUnreadContent: true,
+		});
+
+		assertStructuredSuccess(result);
+		expect(submit).toHaveBeenCalledTimes(1);
+	});
+
+	// Nothing is measured when the confirmation has already answered the question.
+	it('makes no probe at all when the replace is confirmed', async () => {
+		const { ctx, request } = fakeSizedEdit(150000);
+
+		await callTool(ctx, 'update-page', {
+			title: 'My Page',
+			source: 'short',
+			removeUnreadContent: true,
+		});
+
+		expect(infoProbes(request)).toHaveLength(0);
+	});
+
+	it('allows a replace that does not shorten the page', async () => {
+		const { submit, ctx } = fakeSizedEdit(150000);
+
+		const result = await callTool(ctx, 'update-page', {
+			title: 'My Page',
+			source: 'x'.repeat(150001),
+		});
+
+		assertStructuredSuccess(result);
+		expect(submit).toHaveBeenCalledTimes(1);
+	});
+
+	it('allows a shortening replace of a page small enough to have been read whole', async () => {
+		const { submit, ctx } = fakeSizedEdit(500);
+
+		const result = await callTool(ctx, 'update-page', { title: 'My Page', source: 'short' });
+
+		assertStructuredSuccess(result);
+		expect(submit).toHaveBeenCalledTimes(1);
+	});
+
+	// No section of an under-cap page can be over it, so the section is never read.
+	it('does not measure a section of a page that fits within one read', async () => {
+		const { submit, ctx, request } = fakeSizedEdit(500);
+
+		await callTool(ctx, 'update-page', {
+			title: 'My Page',
+			source: 'short',
+			section: 1,
+			latestId: 41,
+		});
+
+		expect(sectionReads(request)).toHaveLength(0);
+		expect(submit).toHaveBeenCalledTimes(1);
+	});
+
+	it('measures the section itself on a page too large to have been read whole', async () => {
+		const { submit, ctx } = fakeSizedEdit(150000, 'y'.repeat(120000));
+
+		const result = await callTool(ctx, 'update-page', {
+			title: 'My Page',
+			source: 'short',
+			section: 1,
+			latestId: 41,
+		});
+
+		const envelope = assertStructuredError(result, 'invalid_input');
+		expect(envelope.message).toContain('Section 1');
+		expect(envelope.message).toContain('120000');
+		expect(submit).not.toHaveBeenCalled();
+	});
+
+	// The write resolves the section number against latestId, so measuring the
+	// current revision would certify a section the write does not touch.
+	it('measures the section at the revision the write names', async () => {
+		const { ctx, request } = fakeSizedEdit(150000, 'y'.repeat(120000));
+
+		await callTool(ctx, 'update-page', {
+			title: 'My Page',
+			source: 'short',
+			section: 1,
+			latestId: 41,
+		});
+
+		expect(sectionReads(request)[0][0]).toMatchObject({ revids: 41, rvsection: 1 });
+	});
+
+	// The section is measured in bytes too: a section of multi-byte characters is
+	// over the cap while its character count is well under it.
+	it('measures the section in bytes, not characters', async () => {
+		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '100');
+		const { submit, ctx } = fakeSizedEdit(150, '漢'.repeat(50));
+
+		const result = await callTool(ctx, 'update-page', {
+			title: 'My Page',
+			source: 'x',
+			section: 1,
+			latestId: 41,
+		});
+
+		assertStructuredError(result, 'invalid_input');
+		expect(submit).not.toHaveBeenCalled();
+	});
+
+	// Neither probe may opt into redirect resolution: the write goes to the title
+	// the caller named, so a probe that resolves one measures a different page.
+	it('never asks either probe to follow a redirect', async () => {
+		const { ctx, request } = fakeSizedEdit(150000, 'y'.repeat(120000));
+
+		await callTool(ctx, 'update-page', { title: 'My Page', source: 'short', section: 0 });
+
+		for (const call of [...infoProbes(request), ...sectionReads(request)]) {
+			expect(call[0].redirects ?? false).toBe(false);
+		}
+	});
+
+	it('allows replacing a small section of a large page', async () => {
+		const { submit, ctx } = fakeSizedEdit(150000, 'y'.repeat(200));
+
+		const result = await callTool(ctx, 'update-page', {
+			title: 'My Page',
+			source: 'short',
+			section: 1,
+			latestId: 41,
+		});
+
+		assertStructuredSuccess(result);
+		expect(submit).toHaveBeenCalledTimes(1);
+	});
+
+	// A source that is a truncated prefix may appear to drop subsections that
+	// simply lie past the cut, so this guard answers before that one.
+	it('reports the unread content before the subsections', async () => {
+		const base = fakeEdit();
+		const request = vi.fn().mockImplementation((params: Record<string, unknown>) => {
+			if (params.prop === 'info') {
+				return Promise.resolve({ query: { pages: [{ title: 'Japan', length: 150000 }] } });
+			}
+			if (params.prop === 'revisions') {
+				return Promise.resolve({
+					query: { pages: [{ revisions: [{ slots: { main: { content: 'y'.repeat(120000) } } }] }] },
+				});
+			}
+			return base.request(params);
+		});
+		const mock = createMockMwn({ request, getCsrfToken: vi.fn().mockResolvedValue('t') });
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			edit: base.ctx.edit,
+			sections: { list: vi.fn().mockResolvedValue(JAPAN_OUTLINE), listInSource: vi.fn() },
+		});
+
+		const result = await callTool(ctx, 'update-page', {
+			title: 'Japan',
+			source: '== History ==\nshort',
+			section: 2,
+			latestId: 41,
+		});
+
+		const envelope = assertStructuredError(result, 'invalid_input');
+		expect(envelope.message).toContain('bytes');
+		expect(envelope.message).not.toContain('subsection');
+	});
+
+	it.each(['append', 'prepend'])('never measures anything for a %s', async (operation) => {
+		const { submit, ctx, request } = fakeSizedEdit(150000);
+
+		await callTool(ctx, 'update-page', {
+			title: 'My Page',
+			operation,
+			source: 'x',
+			section: 1,
+			latestId: 41,
+		});
+
+		expect(infoProbes(request)).toHaveLength(0);
+		expect(submit).toHaveBeenCalledTimes(1);
+	});
+
+	it('refuses removeUnreadContent outside a replace', async () => {
+		const { submit, ctx } = fakeEdit();
+
+		const result = await callTool(ctx, 'update-page', {
+			title: 'My Page',
+			operation: 'append',
+			source: 'x',
+			removeUnreadContent: true,
+		});
+
+		const envelope = assertStructuredError(result, 'invalid_input');
+		expect(envelope.message).toContain('removeUnreadContent');
 		expect(submit).not.toHaveBeenCalled();
 	});
 });
