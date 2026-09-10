@@ -12,6 +12,7 @@ type ConformanceReport = {
 	passed?: boolean;
 	outcome?: string;
 	checks?: unknown;
+	profile?: { pendingCheckIds: string[] };
 };
 
 const { judgeConformanceReport } = createRequire(import.meta.url)(
@@ -73,6 +74,44 @@ describe('judgeConformanceReport', () => {
 		});
 
 		expect(judgeConformanceReport(report)).toEqual([]);
+	});
+
+	it('accepts the checks a 5.x suite cannot run without probes this server cannot offer', () => {
+		const report = modernReport({
+			passed: false,
+			outcome: 'incomplete',
+			checks: [
+				...passingChecks(34),
+				unrunCheck('modern-tool-output-schema-conformant'),
+				unrunCheck('modern-logs-require-log-level'),
+			],
+		});
+
+		expect(judgeConformanceReport(report)).toEqual([]);
+	});
+
+	it('accepts an unrunnable check the profile leaves unscored', () => {
+		const report = modernReport({
+			passed: false,
+			outcome: 'incomplete',
+			checks: [...passingChecks(35), unrunCheck('modern-some-future-obligation')],
+			profile: { pendingCheckIds: ['modern-some-future-obligation'] },
+		});
+
+		expect(judgeConformanceReport(report)).toEqual([]);
+	});
+
+	it('rejects an unrunnable check the profile scores', () => {
+		const report = modernReport({
+			passed: false,
+			outcome: 'incomplete',
+			checks: [...passingChecks(35), unrunCheck('modern-some-future-obligation')],
+			profile: { pendingCheckIds: ['modern-some-other-check'] },
+		});
+
+		expect(judgeConformanceReport(report)).toEqual([
+			expect.stringContaining('modern-some-future-obligation'),
+		]);
 	});
 
 	it('rejects an unrunnable check that is not tolerated', () => {

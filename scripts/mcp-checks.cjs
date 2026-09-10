@@ -20,17 +20,24 @@ const PORT = Number(process.env.PORT) || 3117;
 const SERVER_URL = `http://127.0.0.1:${PORT}/mcp`;
 const STARTUP_TIMEOUT_MS = 15000;
 
-// Neither check can run against this server, and neither is a gap to close.
-// modern-undeclared-capability-error needs a tool that asks the caller for
-// input, so that it can prove the server rejects a client which never
+// None of these checks can run against this server, and none is a gap to
+// close. modern-undeclared-capability-error needs a tool that asks the caller
+// for input, so that it can prove the server rejects a client which never
 // declared that capability; this server has no such tool, and the check
 // bails before it contacts the server at all. modern-subscription-graceful-close
 // waits for the completion result a server sends when it tears a subscription
 // down, which this server does send on shutdown, but the check only aborts
 // its own end of the stream and so can never observe one.
+// modern-tool-output-schema-conformant validates structuredContent against a
+// tool's declared outputSchema, and no tool declares one.
+// modern-logs-require-log-level needs a tool known to emit log notifications,
+// so that silence proves the opt-in gate; this server sends none and does not
+// advertise the logging capability.
 const TOLERATED_UNRUN_CHECKS = [
 	'modern-undeclared-capability-error',
 	'modern-subscription-graceful-close',
+	'modern-tool-output-schema-conformant',
+	'modern-logs-require-log-level',
 ];
 
 // A run that selected next to nothing establishes nothing, and the suite
@@ -235,8 +242,12 @@ function judgeConformanceReport(report) {
 		}
 	}
 
+	// A check the profile itself leaves unscored cannot withhold the verdict.
+	const unscored = Array.isArray(report?.profile?.pendingCheckIds)
+		? report.profile.pendingCheckIds
+		: [];
 	for (const id of unrunCheckIds(report)) {
-		if (!TOLERATED_UNRUN_CHECKS.includes(id)) {
+		if (!TOLERATED_UNRUN_CHECKS.includes(id) && !unscored.includes(id)) {
 			problems.push(`${id} could not run, so conformance is unproven`);
 		}
 	}
