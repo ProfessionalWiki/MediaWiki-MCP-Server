@@ -5,6 +5,27 @@ import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { buildPageUrl } from '../wikis/utils.ts';
 import { ContentFormat } from '../results/contentFormat.ts';
+import { truncateByBytes, type TruncationInfo } from '../results/truncation.ts';
+
+// A revision that is not the current one has no narrower read: `section=`
+// addresses the page as it stands, not as it stood.
+const NO_NARROWER_READ =
+	'No narrower read of a past revision is available. To see what changed between revisions, use compare-pages.';
+
+function revisionTruncation(
+	itemNoun: string,
+	returnedBytes: number,
+	totalBytes: number,
+): TruncationInfo {
+	return {
+		reason: 'content-truncated',
+		returnedBytes,
+		totalBytes,
+		itemNoun,
+		toolName: 'get-revision',
+		remedyHint: NO_NARROWER_READ,
+	};
+}
 
 const inputSchema = {
 	revisionId: z.number().int().positive().describe('Revision ID'),
@@ -25,7 +46,7 @@ const inputSchema = {
 export const getRevision: Tool<typeof inputSchema> = {
 	name: 'get-revision',
 	description:
-		'Returns a specific historical revision of a wiki page by revision ID (wikitext source, rendered HTML, or metadata only). If the revision ID does not exist, an error is returned. For the latest revision plus metadata, use get-page with metadata=true.',
+		'Returns a specific historical revision of a wiki page by revision ID (wikitext source, rendered HTML, or metadata only). If the revision ID does not exist, an error is returned. Content is truncated at 100000 bytes by default; a past revision has no narrower read, so for a large one use compare-pages to see what changed. For the latest revision plus metadata, use get-page with metadata=true.',
 	inputSchema,
 	annotations: {
 		title: 'Get revision',
@@ -57,6 +78,7 @@ export const getRevision: Tool<typeof inputSchema> = {
 			contentModel?: string;
 			source?: string;
 			html?: string;
+			truncation?: TruncationInfo;
 		} = {};
 
 		const needsSource = content === ContentFormat.source;
@@ -98,7 +120,15 @@ export const getRevision: Tool<typeof inputSchema> = {
 			}
 
 			if (needsSource && rev.content !== undefined) {
-				payload.source = rev.content;
+				const truncated = truncateByBytes(rev.content);
+				payload.source = truncated.text;
+				if (truncated.truncated) {
+					payload.truncation = revisionTruncation(
+						'wikitext',
+						truncated.returnedBytes,
+						truncated.totalBytes,
+					);
+				}
 			}
 		}
 
@@ -109,7 +139,18 @@ export const getRevision: Tool<typeof inputSchema> = {
 				prop: 'text',
 				formatversion: '2',
 			});
-			payload.html = parseResult.parse?.text;
+			const html: string | undefined = parseResult.parse?.text;
+			if (html !== undefined) {
+				const truncated = truncateByBytes(html);
+				payload.html = truncated.text;
+				if (truncated.truncated) {
+					payload.truncation = revisionTruncation(
+						'HTML',
+						truncated.returnedBytes,
+						truncated.totalBytes,
+					);
+				}
+			}
 
 			if (payload.revisionId === undefined) {
 				payload.revisionId = revisionId;

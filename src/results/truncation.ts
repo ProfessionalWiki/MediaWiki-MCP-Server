@@ -1,4 +1,4 @@
-export const DEFAULT_CONTENT_MAX_BYTES = 50000;
+export const DEFAULT_CONTENT_MAX_BYTES = 100000;
 
 /** The response content byte budget in force, for callers that cap before rendering. */
 export function contentMaxBytes(): number {

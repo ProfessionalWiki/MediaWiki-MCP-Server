@@ -4,7 +4,7 @@ import type { Mwn } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { buildPageUrl } from '../wikis/utils.ts';
-import { truncateByBytes, type TruncationInfo } from '../results/truncation.ts';
+import { contentMaxBytes, truncateByBytes, type TruncationInfo } from '../results/truncation.ts';
 import { sectionContentTruncation } from '../services/sectionMarker.ts';
 
 const MAX_TITLES = 50;
@@ -199,18 +199,69 @@ async function buildPageEntry(
 			: {}),
 	};
 	if (args.content === BatchContentFormat.source && rev?.content !== undefined) {
-		const truncated = truncateByBytes(rev.content);
-		entry.source = truncated.text;
-		if (truncated.truncated) {
-			pending.push({
-				entryIndex,
-				title: page.title,
-				returnedBytes: truncated.returnedBytes,
-				totalBytes: truncated.totalBytes,
-			});
-		}
+		entry.source = rev.content;
 	}
 	return entry;
+}
+
+// The byte budget is a response budget, not a per-body one: it was applied to
+// each body on its own, so a call for the maximum 50 titles could return 50
+// times it.
+//
+// Pages are kept whole, in the order asked for, while the bodies returned stay
+// inside the budget; the first page that does not fit ends the response and it
+// and the rest are named instead. Cutting into a page nobody can finish reading
+// serves no one, and this tool is used to sync and diff whole pages. The one
+// exception is a first page larger than the whole budget, which is cut rather
+// than dropped, so a caller still receives something. At most one page's body
+// is ever cut, and it is always the first. Only bodies are counted; the
+// metadata around them is small and fixed.
+function applyResponseBudget(entries: PageEntry[], pending: PendingTruncation[]): string[] {
+	const budget = contentMaxBytes();
+	let used = 0;
+	for (const [index, entry] of entries.entries()) {
+		if (entry.source === undefined) {
+			continue;
+		}
+		const size = Buffer.byteLength(entry.source, 'utf8');
+		if (index === 0 && size > budget) {
+			const truncated = truncateByBytes(entry.source, budget);
+			entry.source = truncated.text;
+			used = truncated.returnedBytes;
+			// The outline behind the marker is fetched by title, so a page whose
+			// title the API did not report is cut without one rather than sending
+			// an empty title to the wiki.
+			if (entry.title !== undefined) {
+				pending.push({
+					entryIndex: index,
+					title: entry.title,
+					returnedBytes: truncated.returnedBytes,
+					totalBytes: truncated.totalBytes,
+				});
+			}
+			continue;
+		}
+		if (used + size > budget) {
+			const omitted = entries
+				.slice(index)
+				.map((e) => e.title ?? e.requestedTitle)
+				.filter((t): t is string => t !== undefined);
+			entries.length = index;
+			return omitted;
+		}
+		used += size;
+	}
+	return [];
+}
+
+function omittedPagesTruncation(returnedCount: number, omitted: string[]): TruncationInfo {
+	return {
+		reason: 'capped-no-continuation',
+		returnedCount,
+		limit: returnedCount,
+		itemNoun: 'pages',
+		narrowHint: `the response byte budget was reached. Call get-pages again for the pages not returned: ${omitted.join(', ')}.`,
+	};
 }
 
 async function applyTruncations(
@@ -273,7 +324,7 @@ async function assembleEntries(
 
 export const getPages: Tool<typeof inputSchema> = {
 	name: 'get-pages',
-	description: `Returns multiple wiki pages in one call (wikitext source or metadata only). Suited to reading a cluster of related pages, diffing a page family, or syncing pages to local storage. Accepts up to ${MAX_TITLES} titles; missing pages are reported inline (not as errors). Each page's content is truncated at 50000 bytes by default, with a marker reporting how much of it was returned and which sections a narrower read can target; get-page with section=N fetches a specific section. For a single page or HTML output, use get-page. requestedTitle is included only when it differs from the resolved title.`,
+	description: `Returns multiple wiki pages in one call (wikitext source or metadata only). Suited to reading a cluster of related pages, diffing a page family, or syncing pages to local storage. Accepts up to ${MAX_TITLES} titles; missing pages are reported inline (not as errors). One byte budget covers the whole response, 100000 bytes by default: pages come back whole in the order asked for until it is spent, and the pages past that point are named rather than returned, so a follow-up call for those names fetches the rest. Only a first page larger than the budget on its own is truncated, with a marker reporting how much of it was returned and which sections a narrower read can target. For a single page or HTML output, use get-page. requestedTitle is included only when it differs from the resolved title.`,
 	inputSchema,
 	annotations: {
 		title: 'Get pages',
@@ -297,11 +348,15 @@ export const getPages: Tool<typeof inputSchema> = {
 				: 'ids|timestamp|contentmodel';
 		const fetched = await fetchPages(mwn, ctx, args, rvprop);
 		const { entries, missing, pending } = await assembleEntries(args, fetched, ctx);
+		const omitted = applyResponseBudget(entries, pending);
 		await applyTruncations(mwn, ctx, entries, pending);
 
 		return ctx.format.ok({
 			pages: entries,
 			...(missing.length > 0 ? { missing } : {}),
+			...(omitted.length > 0
+				? { truncation: omittedPagesTruncation(entries.length, omitted) }
+				: {}),
 		});
 	},
 };
