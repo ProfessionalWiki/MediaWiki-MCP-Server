@@ -13,6 +13,7 @@ interface SiteInfoApiResponse {
 			'wikibase-sparql'?: string;
 		};
 		rightsinfo?: { url?: string; text?: string };
+		namespaces?: Record<string, { id?: number; content?: boolean }>;
 	};
 }
 
@@ -41,7 +42,7 @@ async function fetchSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInf
 		const response = (await mwn.request({
 			action: 'query',
 			meta: 'siteinfo',
-			siprop: 'general|rightsinfo',
+			siprop: 'general|rightsinfo|namespaces',
 			formatversion: '2',
 		})) as SiteInfoApiResponse;
 
@@ -56,6 +57,8 @@ async function fetchSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInf
 		const license: LicenseInfo | undefined =
 			rights?.url && rights.text ? { url: rights.url, title: rights.text } : undefined;
 
+		const contentNamespaces = readContentNamespaces(response.query?.namespaces);
+
 		const resolved: SiteInfo = {
 			server: normalizeServer(general.server),
 			articlepath:
@@ -67,6 +70,7 @@ async function fetchSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInf
 				? { sparqlEndpoint: general['wikibase-sparql'] }
 				: {}),
 			...(license ? { license } : {}),
+			...(contentNamespaces.length > 0 ? { contentNamespaces } : {}),
 		};
 		ctx.siteInfoCache.set(wikiKey, resolved);
 		return resolved;
@@ -105,4 +109,24 @@ export async function resolveSiteInfo(ctx: ToolContext, wikiKey: string): Promis
 	});
 	inflight.set(wikiKey, promise);
 	return promise;
+}
+
+// MediaWiki always flags the main namespace as content, so an empty result means
+// the wiki reported no namespace map rather than that it holds no content. The
+// negative namespaces (Media, Special) are dropped because the search API
+// refuses them, and one refused value costs the whole scope.
+function readContentNamespaces(
+	namespaces: Record<string, { id?: number; content?: boolean }> | undefined,
+): number[] {
+	if (!namespaces) {
+		return [];
+	}
+
+	const ids = new Set<number>();
+	for (const entry of Object.values(namespaces)) {
+		if (entry.content === true && typeof entry.id === 'number' && entry.id >= 0) {
+			ids.add(entry.id);
+		}
+	}
+	return [...ids].sort((a, b) => a - b);
 }

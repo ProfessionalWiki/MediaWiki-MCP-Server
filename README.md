@@ -26,7 +26,7 @@ Every tool that operates on a wiki accepts an optional `wiki` argument naming th
 | `get-site-info` | Get a wiki's key settings: MediaWiki version, content language, title-case rules, namespaces, installed extensions, license, and (optionally) statistics. |
 | `list-wikis` | List every configured wiki — its key, sitename, server, whether it is read-only or the default, whether it is reachable, which extension-gated tools work on it, and, for an OAuth-configured wiki, its authorization server. Disabled when fewer than two wikis are configured. |
 | `parse-wikitext` | Render wikitext to HTML without saving. Returns parse warnings, wikilinks, templates, and external URLs. |
-| `search-page` | Search wiki page titles and contents (full-text). Searches the main namespace unless given other namespace IDs. |
+| `search-page` | Search wiki page titles and contents (full-text). Searches the wiki's content namespaces unless given other namespace IDs. |
 | `search-page-by-prefix` | Search page titles by prefix. |
 | `whoami` | Report the identity the current session is authenticated as on the targeted wiki — username, whether it is anonymous, and group memberships (optionally user rights). |
 

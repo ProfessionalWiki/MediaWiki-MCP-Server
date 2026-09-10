@@ -261,4 +261,67 @@ describe('resolveSiteInfo', () => {
 		expect(info.server).toBe('https://public.example');
 		expect(info.articlepath).toBe('/wiki');
 	});
+
+	it('keeps the namespace IDs the wiki flags as content', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				query: {
+					general: { server: 'https://public.example', articlepath: '/wiki/$1' },
+					namespaces: {
+						'0': { id: 0, name: '', content: true },
+						'1': { id: 1, name: 'Talk' },
+						'100': { id: 100, name: 'Manual', content: true },
+						'102': { id: 102, name: 'Extension', content: true },
+					},
+				},
+			}),
+		});
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			siteInfoCache: emptyCache() as never,
+		});
+
+		const info = await resolveSiteInfo(ctx, 'test-wiki');
+
+		expect(info.contentNamespaces).toEqual([0, 100, 102]);
+	});
+
+	it('drops namespace IDs below zero, which the search API refuses', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				query: {
+					general: { server: 'https://public.example', articlepath: '/wiki/$1' },
+					namespaces: {
+						'-2': { id: -2, name: 'Media', content: true },
+						'0': { id: 0, name: '', content: true },
+					},
+				},
+			}),
+		});
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			siteInfoCache: emptyCache() as never,
+		});
+
+		const info = await resolveSiteInfo(ctx, 'test-wiki');
+
+		expect(info.contentNamespaces).toEqual([0]);
+	});
+
+	it('leaves contentNamespaces absent when siteinfo reports no namespace map', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				query: { general: { server: 'https://public.example', articlepath: '/wiki/$1' } },
+			}),
+		});
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			siteInfoCache: emptyCache() as never,
+		});
+
+		const info = await resolveSiteInfo(ctx, 'test-wiki');
+
+		expect(info.server).toBe('https://public.example');
+		expect(info.contentNamespaces).toBeUndefined();
+	});
 });

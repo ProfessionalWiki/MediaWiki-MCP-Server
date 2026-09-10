@@ -7,6 +7,11 @@ export type SiteInfo = {
 	lang?: string;
 	license?: LicenseInfo;
 	/**
+	 * Namespace IDs the wiki counts as content ($wgContentNamespaces), ascending;
+	 * absent when siteinfo did not report a namespace map.
+	 */
+	contentNamespaces?: readonly number[];
+	/**
 	 * SPARQL endpoint of the query service backing this wiki's Wikibase
 	 * repository, as published in siteinfo; absent on a wiki that publishes none.
 	 */
