@@ -378,7 +378,7 @@ describe('get-page', () => {
 	});
 
 	it('attaches content-truncated truncation when source exceeds the byte cap', async () => {
-		const big = 'x'.repeat(100001);
+		const big = 'x'.repeat(75001);
 		const mock = createMockMwn({
 			read: vi.fn().mockResolvedValue({
 				pageid: 1,
@@ -411,19 +411,19 @@ describe('get-page', () => {
 		);
 
 		const text = assertStructuredSuccess(result);
-		// Source body is ~100000 chars, rendered as long-string block after Source: label.
-		expect(text).toMatch(/Source:\n\nx{100000}/);
+		// Source body is ~75000 chars, rendered as long-string block after Source: label.
+		expect(text).toMatch(/Source:\n\nx{75000}/);
 		expect(text).toContain('Truncation:');
 		expect(text).toContain('  Reason: content-truncated');
-		expect(text).toContain('  Returned bytes: 100000');
-		expect(text).toContain('  Total bytes: 100001');
+		expect(text).toContain('  Returned bytes: 75000');
+		expect(text).toContain('  Total bytes: 75001');
 		expect(text).toContain('  Item noun: wikitext');
 		expect(text).toContain('  Tool name: get-page');
 		expect(text).toContain('  Sections:\n  - 0 (Lead)\n  - 1 (History)');
 	});
 
 	it('omits truncation when source is exactly at the byte cap', async () => {
-		const exact = 'y'.repeat(100000);
+		const exact = 'y'.repeat(75000);
 		const mock = createMockMwn({
 			read: vi.fn().mockResolvedValue({
 				pageid: 1,
@@ -450,12 +450,12 @@ describe('get-page', () => {
 		);
 
 		const text = assertStructuredSuccess(result);
-		expect(text).toMatch(/Source:\n\ny{100000}/);
+		expect(text).toMatch(/Source:\n\ny{75000}/);
 		expect(text).not.toContain('Truncation:');
 	});
 
 	it('attaches content-truncated truncation when HTML exceeds the byte cap', async () => {
-		const bigHtml = '<p>' + 'x'.repeat(110000) + '</p>';
+		const bigHtml = '<p>' + 'x'.repeat(85000) + '</p>';
 		const request = vi
 			.fn()
 			.mockResolvedValueOnce({ parse: { text: bigHtml } })
@@ -482,7 +482,7 @@ describe('get-page', () => {
 		expect(text).toMatch(/HTML:\n\n<p>x+/);
 		expect(text).toContain('Truncation:');
 		expect(text).toContain('  Reason: content-truncated');
-		expect(text).toContain('  Returned bytes: 100000');
+		expect(text).toContain('  Returned bytes: 75000');
 		expect(text).toContain('  Item noun: HTML');
 		expect(text).toContain('  Tool name: get-page');
 		expect(text).toContain('  Sections:\n  - 0 (Lead)\n  - 1 (Heading)');
@@ -502,7 +502,7 @@ describe('get-page', () => {
 			read: vi.fn().mockResolvedValue({
 				pageid: 1,
 				title: 'Big',
-				revisions: [{ revid: 42, contentmodel: 'wikitext', content: 'x'.repeat(100001) }],
+				revisions: [{ revid: 42, contentmodel: 'wikitext', content: 'x'.repeat(75001) }],
 			}),
 		});
 		const ctx = fakeContext({
@@ -530,7 +530,7 @@ describe('get-page', () => {
 			read: vi.fn().mockResolvedValue({
 				pageid: 1,
 				title: 'Big',
-				revisions: [{ revid: 42, contentmodel: 'wikitext', content: 'x'.repeat(100001) }],
+				revisions: [{ revid: 42, contentmodel: 'wikitext', content: 'x'.repeat(75001) }],
 			}),
 		});
 		const ctx = fakeContext({
@@ -561,7 +561,7 @@ describe('get-page', () => {
 			read: vi.fn().mockResolvedValue({
 				pageid: 1,
 				title: 'Big',
-				revisions: [{ revid: 42, contentmodel: 'wikitext', content: 'x'.repeat(100001) }],
+				revisions: [{ revid: 42, contentmodel: 'wikitext', content: 'x'.repeat(75001) }],
 			}),
 		});
 		const ctx = fakeContext({

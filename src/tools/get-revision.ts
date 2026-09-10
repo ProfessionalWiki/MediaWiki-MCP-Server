@@ -7,15 +7,33 @@ import { buildPageUrl } from '../wikis/utils.ts';
 import { ContentFormat } from '../results/contentFormat.ts';
 import { truncateByBytes, type TruncationInfo } from '../results/truncation.ts';
 
-// A revision that is not the current one has no narrower read: `section=`
-// addresses the page as it stands, not as it stood.
-const NO_NARROWER_READ =
+// What helps depends on which revision was asked for. A revision ID taken from
+// get-page metadata or from an edit that just landed is the current one, and
+// section= is a narrower read of exactly those bytes. Only a genuinely past
+// revision has nowhere narrower to go, because section= addresses the page as
+// it stands rather than as it stood.
+const CURRENT_REVISION_REMEDY =
+	"This is the page's current revision, so to read part of it call get-page with section=N.";
+const PAST_REVISION_REMEDY =
 	'No narrower read of a past revision is available. To see what changed between revisions, use compare-pages.';
+
+// Rendering HTML alone makes no revisions query, so which revision this is can
+// be unknown; the remedy then names both routes rather than asserting either.
+const UNKNOWN_REVISION_REMEDY =
+	"If this is the page's current revision, call get-page with section=N to read part of it; otherwise use compare-pages.";
+
+function remedyFor(isCurrent: boolean | undefined): string {
+	if (isCurrent === undefined) {
+		return UNKNOWN_REVISION_REMEDY;
+	}
+	return isCurrent ? CURRENT_REVISION_REMEDY : PAST_REVISION_REMEDY;
+}
 
 function revisionTruncation(
 	itemNoun: string,
 	returnedBytes: number,
 	totalBytes: number,
+	isCurrent: boolean | undefined,
 ): TruncationInfo {
 	return {
 		reason: 'content-truncated',
@@ -23,7 +41,7 @@ function revisionTruncation(
 		totalBytes,
 		itemNoun,
 		toolName: 'get-revision',
-		remedyHint: NO_NARROWER_READ,
+		remedyHint: remedyFor(isCurrent),
 	};
 }
 
@@ -46,7 +64,7 @@ const inputSchema = {
 export const getRevision: Tool<typeof inputSchema> = {
 	name: 'get-revision',
 	description:
-		'Returns a specific historical revision of a wiki page by revision ID (wikitext source, rendered HTML, or metadata only). If the revision ID does not exist, an error is returned. Content is truncated at 100000 bytes by default; a past revision has no narrower read, so for a large one use compare-pages to see what changed. For the latest revision plus metadata, use get-page with metadata=true.',
+		'Returns a specific historical revision of a wiki page by revision ID (wikitext source, rendered HTML, or metadata only). If the revision ID does not exist, an error is returned. Content is truncated at 75000 bytes by default; a past revision has no narrower read, so for a large one use compare-pages to see what changed. For the latest revision plus metadata, use get-page with metadata=true.',
 	inputSchema,
 	annotations: {
 		title: 'Get revision',
@@ -81,6 +99,8 @@ export const getRevision: Tool<typeof inputSchema> = {
 			truncation?: TruncationInfo;
 		} = {};
 
+		// Left undefined when nothing this call does reveals it.
+		let isCurrentRevision: boolean | undefined;
 		const needsSource = content === ContentFormat.source;
 		const needsMetadata = metadata || content === ContentFormat.none;
 
@@ -91,15 +111,18 @@ export const getRevision: Tool<typeof inputSchema> = {
 
 			const response = await mwn.request({
 				action: 'query',
-				prop: 'revisions',
+				prop: 'revisions|info',
 				revids: revisionId,
 				rvprop,
 				formatversion: '2',
 			});
 
 			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
-			const page = response.query?.pages?.[0] as ApiPage | undefined;
+			const page = response.query?.pages?.[0] as (ApiPage & { lastrevid?: number }) | undefined;
 			const rev: ApiRevision | undefined = page?.revisions?.[0];
+			if (rev?.revid !== undefined && page?.lastrevid !== undefined) {
+				isCurrentRevision = rev.revid === page.lastrevid;
+			}
 
 			if (!rev || !page || page.missing) {
 				return ctx.format.notFound(`Revision ${revisionId} not found`);
@@ -127,6 +150,7 @@ export const getRevision: Tool<typeof inputSchema> = {
 						'wikitext',
 						truncated.returnedBytes,
 						truncated.totalBytes,
+						isCurrentRevision,
 					);
 				}
 			}
@@ -148,6 +172,7 @@ export const getRevision: Tool<typeof inputSchema> = {
 						'HTML',
 						truncated.returnedBytes,
 						truncated.totalBytes,
+						isCurrentRevision,
 					);
 				}
 			}

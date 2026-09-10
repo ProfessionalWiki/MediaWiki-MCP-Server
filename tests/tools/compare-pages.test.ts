@@ -439,7 +439,7 @@ describe('compare-pages', () => {
 		const text = assertStructuredSuccess(result);
 		expect(text).toContain('Truncation:');
 		expect(text).toContain('  Reason: content-truncated');
-		expect(text).toContain('  Returned bytes: 100000');
+		expect(text).toContain('  Returned bytes: 75000');
 		expect(text).toContain('  Item noun: diff');
 		expect(text).toContain('  Tool name: compare-pages');
 	});

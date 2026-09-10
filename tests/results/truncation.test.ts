@@ -81,8 +81,8 @@ describe('capLinesByBytes', () => {
 });
 
 describe('DEFAULT_CONTENT_MAX_BYTES', () => {
-	it('is exported and equals 100000', () => {
-		expect(DEFAULT_CONTENT_MAX_BYTES).toBe(100000);
+	it('is exported and equals 75000', () => {
+		expect(DEFAULT_CONTENT_MAX_BYTES).toBe(75000);
 	});
 });
 
