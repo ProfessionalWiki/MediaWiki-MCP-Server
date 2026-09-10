@@ -403,8 +403,8 @@ describe('compare-pages', () => {
 	});
 
 	it('truncates oversized diff with a content-truncated truncation field', async () => {
-		const bigOld = 'a'.repeat(30000);
-		const bigNew = 'b'.repeat(30000);
+		const bigOld = 'a'.repeat(60000);
+		const bigNew = 'b'.repeat(60000);
 		const bigDiffHtml = [
 			'<table class="diff">',
 			'<tr><td colspan="2" class="diff-lineno">Line 1:</td><td colspan="2" class="diff-lineno">Line 1:</td></tr>',
@@ -439,7 +439,7 @@ describe('compare-pages', () => {
 		const text = assertStructuredSuccess(result);
 		expect(text).toContain('Truncation:');
 		expect(text).toContain('  Reason: content-truncated');
-		expect(text).toContain('  Returned bytes: 50000');
+		expect(text).toContain('  Returned bytes: 100000');
 		expect(text).toContain('  Item noun: diff');
 		expect(text).toContain('  Tool name: compare-pages');
 	});

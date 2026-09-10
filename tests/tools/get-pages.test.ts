@@ -535,7 +535,7 @@ describe('get-pages', () => {
 
 	describe('byte truncation', () => {
 		it('truncates oversized content per page with a truncation field on the entry', async () => {
-			const big = 'x'.repeat(50001);
+			const big = 'x'.repeat(100001);
 			const small = 'tiny body';
 			const massQuery = vi.fn().mockResolvedValue(
 				massQueryResponse({
@@ -566,17 +566,17 @@ describe('get-pages', () => {
 			// The blank line after the source is what separates it from the next field:
 			// without it the wikitext runs straight into `Truncation:`, and a page whose
 			// own text contains such a line would read as a field of this payload.
-			expect(text).toMatch(/Page ID: 1[\s\S]*?Source:\n\nx{50000}\n\n {2}Truncation:/);
+			expect(text).toMatch(/Page ID: 1[\s\S]*?Source:\n\nx{100000}\n\n {2}Truncation:/);
 			expect(text).toContain('    Reason: content-truncated');
-			expect(text).toContain('    Returned bytes: 50000');
-			expect(text).toContain('    Total bytes: 50001');
+			expect(text).toContain('    Returned bytes: 100000');
+			expect(text).toContain('    Total bytes: 100001');
 			expect(text).toContain('    Item noun: wikitext');
 			expect(text).toContain('    Tool name: get-pages');
 			expect(text).toContain('    Sections:\n    - 0 (Lead)\n    - 1 (Overview)');
-			expect(text).toContain(`  Source: ${small}`);
-			// Small entry has no truncation: block under it. We can verify only one Truncation block exists.
-			const truncationCount = (text.match(/Truncation:/g) ?? []).length;
-			expect(truncationCount).toBe(1);
+			// The first body reached the response budget, so the page after it is
+			// named rather than returned.
+			expect(text).not.toContain(`  Source: ${small}`);
+			expect(text).toContain('Small');
 
 			expect(request).toHaveBeenCalledTimes(1);
 			expect(request).toHaveBeenCalledWith(
@@ -587,26 +587,20 @@ describe('get-pages', () => {
 			);
 		});
 
-		it('fetches section outlines for multiple truncated pages in parallel, not serially', async () => {
-			const big1 = 'a'.repeat(60000);
-			const big2 = 'b'.repeat(70000);
+		// A body at the budget ends the response, so only the first page can carry a
+		// content-truncated marker and the outline behind it is fetched once.
+		it('cuts only the first page and names the rest', async () => {
 			const massQuery = vi.fn().mockResolvedValue(
 				massQueryResponse({
-					pages: [massQueryPage('BigA', 1, 10, big1), massQueryPage('BigB', 2, 20, big2)],
+					pages: [
+						massQueryPage('BigA', 1, 10, 'a'.repeat(120000)),
+						massQueryPage('BigB', 2, 20, 'b'.repeat(70000)),
+					],
 				}),
 			);
-			let inFlight = 0;
-			let maxInFlight = 0;
-			const request = vi.fn().mockImplementation(() => {
-				inFlight += 1;
-				maxInFlight = Math.max(maxInFlight, inFlight);
-				return new Promise((resolve) => {
-					setTimeout(() => {
-						inFlight -= 1;
-						resolve({ parse: { sections: [{ line: 'H' }] } });
-					}, 10);
-				});
-			});
+			const request = vi
+				.fn()
+				.mockResolvedValue({ parse: { sections: [{ line: 'H', index: '1' }] } });
 			const mock = createMockMwn({ massQuery, request });
 			const ctx = fakeContext({
 				mwn: async () => mock as never,
@@ -624,15 +618,15 @@ describe('get-pages', () => {
 			);
 
 			const text = assertStructuredSuccess(result);
-			expect(request).toHaveBeenCalledTimes(2);
-			expect(maxInFlight).toBe(2);
-			// Both pages should have a truncation block.
-			const truncationCount = (text.match(/Truncation:/g) ?? []).length;
-			expect(truncationCount).toBe(2);
+			expect((text.match(/Truncation:/g) ?? []).length).toBe(2);
+			expect(text).toContain('  Reason: content-truncated');
+			expect(text).toContain('  Reason: capped-no-continuation');
+			expect(text).not.toContain('Title: BigB');
+			expect(request).toHaveBeenCalledTimes(1);
 		});
 
-		it('does not emit a truncation for content at exactly 50000 bytes', async () => {
-			const exact = 'y'.repeat(50000);
+		it('does not emit a truncation for content at exactly the byte cap', async () => {
+			const exact = 'y'.repeat(100000);
 			const massQuery = vi.fn().mockResolvedValue(
 				massQueryResponse({
 					pages: [massQueryPage('Exact', 1, 10, exact)],
@@ -656,5 +650,72 @@ describe('get-pages', () => {
 			expect(text).not.toContain('Truncation:');
 			expect(request).not.toHaveBeenCalled();
 		});
+	});
+});
+
+// The byte budget was applied to each body independently, so a call for the
+// maximum 50 titles could return 50 times it.
+describe('get-pages response budget', () => {
+	function pagesOfSize(sizes: number[]) {
+		const massQuery = vi.fn().mockResolvedValue(
+			massQueryResponse({
+				pages: sizes.map((size, i) => massQueryPage(`P${i + 1}`, i + 1, 100 + i, 'x'.repeat(size))),
+			}),
+		);
+		const request = vi.fn().mockResolvedValue({ parse: { sections: [] } });
+		const mock = createMockMwn({ massQuery, request });
+		return fakeContext({ mwn: async () => mock as never, sections: new SectionServiceImpl() });
+	}
+
+	async function read(ctx: ReturnType<typeof fakeContext>, titles: string[]) {
+		return getPages.handle(
+			{ titles, content: BatchContentFormat.source, metadata: false, followRedirects: true },
+			ctx,
+		);
+	}
+
+	it('returns every page when their bodies fit the budget together', async () => {
+		const ctx = pagesOfSize([30000, 30000, 30000]);
+
+		const text = assertStructuredSuccess(await read(ctx, ['P1', 'P2', 'P3']));
+
+		expect(text).toContain('Title: P3');
+		expect(text).not.toContain('Truncation:');
+	});
+
+	it('omits whole pages once the budget is spent, and names them', async () => {
+		const ctx = pagesOfSize([40000, 40000, 40000]);
+
+		const text = assertStructuredSuccess(await read(ctx, ['P1', 'P2', 'P3']));
+
+		expect(text).toContain('Title: P1');
+		expect(text).toContain('Title: P2');
+		expect(text).not.toContain('Title: P3');
+		expect(text).toContain('  Reason: capped-no-continuation');
+		expect(text).toContain('  Item noun: pages');
+		expect(text).toContain('P3');
+	});
+
+	// A page dropped for the budget is a different fact from a page the wiki does
+	// not have, so it is not folded into `missing`.
+	it('reports an omitted page apart from a missing one', async () => {
+		const ctx = pagesOfSize([100000, 40000]);
+
+		const text = assertStructuredSuccess(await read(ctx, ['P1', 'P2']));
+
+		expect(text).not.toContain('Missing:');
+		expect(text).toContain('  Reason: capped-no-continuation');
+	});
+
+	// One page larger than the whole budget still comes back, cut, rather than
+	// being dropped for not fitting.
+	it('keeps a first page that fills the budget by itself', async () => {
+		const ctx = pagesOfSize([150000, 10]);
+
+		const text = assertStructuredSuccess(await read(ctx, ['P1', 'P2']));
+
+		expect(text).toContain('Title: P1');
+		expect(text).toContain('  Reason: content-truncated');
+		expect(text).not.toContain('Title: P2');
 	});
 });

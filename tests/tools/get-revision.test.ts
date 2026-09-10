@@ -7,6 +7,81 @@ import { ContentFormat } from '../../src/results/contentFormat.ts';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
 
 describe('get-revision', () => {
+	// A past revision was the one read this server never capped, so a caller could
+	// be handed several megabytes where every sibling read stops at the budget.
+	describe('content cap', () => {
+		function revisionWith(content: string) {
+			return createMockMwn({
+				request: vi.fn().mockResolvedValue({
+					query: {
+						pages: [{ pageid: 1, title: 'Big', revisions: [{ revid: 42, content }] }],
+					},
+				}),
+			});
+		}
+
+		it('truncates source at the byte cap and says how much it withheld', async () => {
+			const ctx = fakeContext({ mwn: async () => revisionWith('x'.repeat(100001)) as never });
+
+			const result = await getRevision.handle(
+				{ revisionId: 42, content: ContentFormat.source, metadata: false },
+				ctx,
+			);
+
+			const text = assertStructuredSuccess(result);
+			expect(text).toMatch(/Source:\n\nx{100000}\n/);
+			expect(text).toContain('  Reason: content-truncated');
+			expect(text).toContain('  Returned bytes: 100000');
+			expect(text).toContain('  Total bytes: 100001');
+			expect(text).toContain('  Tool name: get-revision');
+		});
+
+		it('leaves source alone at exactly the cap', async () => {
+			const ctx = fakeContext({ mwn: async () => revisionWith('x'.repeat(100000)) as never });
+
+			const result = await getRevision.handle(
+				{ revisionId: 42, content: ContentFormat.source, metadata: false },
+				ctx,
+			);
+
+			const text = assertStructuredSuccess(result);
+			expect(text).not.toContain('Truncation:');
+		});
+
+		it('truncates rendered HTML too', async () => {
+			const mock = createMockMwn({
+				request: vi.fn().mockResolvedValue({
+					parse: { title: 'Big', pageid: 1, text: '<p>' + 'x'.repeat(100001) + '</p>' },
+				}),
+			});
+			const ctx = fakeContext({ mwn: async () => mock as never });
+
+			const result = await getRevision.handle(
+				{ revisionId: 42, content: ContentFormat.html, metadata: false },
+				ctx,
+			);
+
+			const text = assertStructuredSuccess(result);
+			expect(text).toContain('  Item noun: HTML');
+			expect(text).toContain('  Returned bytes: 100000');
+		});
+
+		// A past revision has no narrower read: section= addresses the current page.
+		it('says no narrower read exists, and names what does help', async () => {
+			const ctx = fakeContext({ mwn: async () => revisionWith('x'.repeat(100001)) as never });
+
+			const result = await getRevision.handle(
+				{ revisionId: 42, content: ContentFormat.source, metadata: false },
+				ctx,
+			);
+
+			const text = assertStructuredSuccess(result);
+			expect(text).toContain('No narrower read of a past revision');
+			expect(text).toContain('compare-pages');
+			expect(text).not.toContain('Sections:');
+		});
+	});
+
 	it('returns source content from a specific revision', async () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({
