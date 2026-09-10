@@ -6,11 +6,49 @@ on:
       - 'v*'
 
 jobs:
-  build-and-publish:
+  # Split into three jobs so that a publish target failing on its own can be
+  # re-run on its own: `gh run rerun --failed` works per job, and as one job a
+  # registry failure could only be retried by replaying the npm publish, which
+  # refuses to republish a version it already has.
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      name: ${{ steps.meta.outputs.name }}
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Read package metadata
+        id: meta
+        run: |
+          echo "name=$(node -p "require('./package.json').name")" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Run preversion checks
+        run: npm run preversion
+
+      - name: Build MCP Bundle
+        run: npm run bundle
+
+      - name: Upload MCP Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcpb-bundle
+          path: '*.mcpb'
+          if-no-files-found: error
+
+  publish:
+    needs: build
     runs-on: ubuntu-latest
     permissions:
-      contents: write # For creating release
-      id-token: write # For npm provenance and MCP registry OIDC
+      contents: write # For creating the release and pushing the server.json sync
+      id-token: write # For npm provenance
     env:
       LEFTHOOK: '0' # Skip lefthook hooks; this job commits and pushes from CI
     steps:
@@ -23,11 +61,10 @@ jobs:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org/'
 
-      - name: Run preversion checks
-        run: npm run preversion
-
-      - name: Build MCP Bundle
-        run: npm run bundle
+      - name: Download MCP Bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: mcpb-bundle
 
       - name: Update server.json (MCP Bundle)
         run: node scripts/update-server-json-mcpb.cjs
@@ -52,10 +89,9 @@ jobs:
 
       - name: Extract release notes from CHANGELOG
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          node scripts/extract-changelog-section.cjs "$VERSION" > release-notes.md
+          node scripts/extract-changelog-section.cjs "${{ needs.build.outputs.version }}" > release-notes.md
           if [ ! -s release-notes.md ]; then
-            echo "::error::Empty CHANGELOG section for $VERSION"
+            echo "::error::Empty CHANGELOG section for ${{ needs.build.outputs.version }}"
             exit 1
           fi
 
@@ -65,12 +101,59 @@ jobs:
           files: '*.mcpb'
           body_path: release-notes.md
 
+      # server.json is rewritten twice above, and the registry publishes the
+      # rewritten file rather than the one at the tag.
+      - name: Upload server.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-json
+          path: server.json
+          if-no-files-found: error
+
+  registry:
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # For MCP registry OIDC
+    steps:
+      - name: Download server.json
+        uses: actions/download-artifact@v4
+        with:
+          name: server-json
+
       - name: Install MCP Publisher
         run: |
           curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      # The registry validates server.json by fetching the npm version it names,
+      # and a publish takes a moment to become readable, so without this the
+      # registry 404s on a package uploaded seconds earlier.
+      - name: Wait for npm to serve the new version
+        run: |
+          NAME='${{ needs.build.outputs.name }}'
+          VERSION='${{ needs.build.outputs.version }}'
+          for attempt in $(seq 1 30); do
+            if curl -sfo /dev/null "https://registry.npmjs.org/$NAME/$VERSION"; then
+              echo "npm is serving $NAME@$VERSION"
+              exit 0
+            fi
+            echo "waiting for npm to serve $NAME@$VERSION ($attempt/30)"
+            sleep 10
+          done
+          echo "::error::npm did not serve $NAME@$VERSION within five minutes"
+          exit 1
 
       - name: Login to MCP Registry
         run: ./mcp-publisher login github-oidc
 
       - name: Publish to MCP Registry
-        run: ./mcp-publisher publish
+        run: |
+          for attempt in 1 2 3; do
+            if ./mcp-publisher publish; then
+              exit 0
+            fi
+            echo "publish attempt $attempt failed; retrying in 30s"
+            sleep 30
+          done
+          echo "::error::MCP registry publish failed three times"
+          exit 1
