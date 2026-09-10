@@ -149,6 +149,10 @@ This convention doesn't apply to tools that reject oversize input (e.g. `get-pag
 
 There is no MCP-spec-level budget for tool output. Cap sizes are chosen to stay well under Anthropic's 25,000-token Claude Code default ([Writing tools for agents](https://www.anthropic.com/engineering/writing-tools-for-agents)) and revisited when [MCP discussion #2211](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/2211) ratifies a standard.
 
+#### Response channels
+
+A successful result carries the payload twice: a prose rendering in `content[0]` and the same payload as JSON in `structuredContent`. Which one a model reads depends on the client: one that understands `structuredContent` shows the JSON and ignores the prose; one that reads only `content` shows the prose. No tool declares an `outputSchema`, and none should without a client that needs the contract: the declaration is served in `tools/list` to every client on every session.
+
 #### Default-value omission in list responses
 
 List tools omit fields whose value is the type default rather than serialising them: a boolean flag is present only when `true` (absent means `false`), empty strings and empty arrays are dropped, and a value equal to a documented common default is omitted (e.g. a category member's `type` is absent for an ordinary page). Every non-default value is preserved; field names are unchanged. State the convention in each affected tool's description so callers know absence means the default.
