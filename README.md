@@ -7,7 +7,7 @@ An MCP (Model Context Protocol) server that enables Large Language Model (LLM) c
 
 ### Tools
 
-Every tool that operates on a wiki accepts an optional `wiki` argument naming the wiki to act on (the wiki-management and OAuth tools do not) — pass a wiki key (e.g. `en.wikipedia.org`) or the full `mcp://wikis/{wikiKey}` URI. Omit it to use the configured default wiki (see [Configuration](#configuration)). Each tool response reports the wiki the call ran against. Results carry a prose rendering in `content` and the same payload as JSON in `structuredContent`; see [response channels](docs/tool-conventions.md#response-channels).
+Every tool that operates on a wiki accepts an optional `wiki` argument naming the wiki to act on (the wiki-management and OAuth tools do not) — pass a wiki key (e.g. `en.wikipedia.org`) or the full `mcp://wikis/{wikiKey}` URI. Omit it to use the configured default wiki (see [Configuration](#configuration)). Each tool response reports the wiki the call ran against. Each successful response carries its payload as prose in `content` and as JSON in `structuredContent`; see [response channels](docs/tool-conventions.md#response-channels).
 
 #### Page reads
 

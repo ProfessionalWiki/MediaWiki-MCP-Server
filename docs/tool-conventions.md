@@ -151,7 +151,7 @@ There is no MCP-spec-level budget for tool output. Cap sizes are chosen to stay 
 
 #### Response channels
 
-A successful result carries the payload twice: a prose rendering in `content[0]` and the same payload as JSON in `structuredContent`. Which one a model reads depends on the client: one that understands `structuredContent` shows the JSON and ignores the prose; one that reads only `content` shows the prose. No tool declares an `outputSchema`, and none should without a client that needs the contract: the declaration is served in `tools/list` to every client on every session.
+A successful result carries its payload twice: as prose in `content[0]` and as JSON in `structuredContent`. Which channel the model sees depends on the client, and it may be only one of them, so both carry the complete payload. No tool declares an `outputSchema`, and none should until a client needs the contract: the declaration reaches every client through `tools/list`, whether or not it uses it.
 
 #### Default-value omission in list responses
 
