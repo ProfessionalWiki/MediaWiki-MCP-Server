@@ -4,7 +4,7 @@ import type { Mwn } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { buildPageUrl, formatEditComment } from '../wikis/utils.ts';
-import { childrenOf } from '../services/sectionSubtree.ts';
+import { editableChildrenOf } from '../services/sectionSubtree.ts';
 
 interface ApiEditResponse {
 	result?: string;
@@ -112,11 +112,11 @@ async function subsectionRemovalError(
 	}
 	const entries = await ctx.sections.list(mwn, args.title);
 	const index = String(section);
-	// childrenOf walks every entry so a transcluded heading still closes the
-	// subtree at the right point; transcluded children are filtered out here
-	// because they can never appear in source for the caller to carry back,
-	// and the guard must not refuse a write over content it cannot supply.
-	const children = childrenOf(entries, index).filter((c) => c.editable);
+	// The subtree walk counts every entry so a transcluded heading still closes
+	// it at the right point; the transcluded children themselves drop out,
+	// because the guard must not refuse a write over content the caller cannot
+	// supply.
+	const children = editableChildrenOf(entries, index);
 	if (children.length === 0) {
 		return undefined;
 	}

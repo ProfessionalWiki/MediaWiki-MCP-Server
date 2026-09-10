@@ -542,9 +542,9 @@ describe('get-pages', () => {
 					pages: [massQueryPage('Big', 1, 10, big), massQueryPage('Small', 2, 20, small)],
 				}),
 			);
-			const request = vi
-				.fn()
-				.mockResolvedValueOnce({ parse: { sections: [{ line: 'Overview' }] } });
+			const request = vi.fn().mockResolvedValueOnce({
+				parse: { sections: [{ line: 'Overview', index: '1', level: '2' }] },
+			});
 			const mock = createMockMwn({ massQuery, request });
 			const ctx = fakeContext({
 				mwn: async () => mock as never,
@@ -572,7 +572,7 @@ describe('get-pages', () => {
 			expect(text).toContain('    Total bytes: 50001');
 			expect(text).toContain('    Item noun: wikitext');
 			expect(text).toContain('    Tool name: get-pages');
-			expect(text).toContain('    Sections:\n    - (empty)\n    - Overview');
+			expect(text).toContain('    Sections:\n    - 0 (Lead)\n    - 1 (Overview)');
 			expect(text).toContain(`  Source: ${small}`);
 			// Small entry has no truncation: block under it. We can verify only one Truncation block exists.
 			const truncationCount = (text.match(/Truncation:/g) ?? []).length;

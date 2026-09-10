@@ -374,7 +374,7 @@ describe('get-page', () => {
 
 		const text = assertStructuredSuccess(result);
 		expect(text).toContain('Size: 12345');
-		expect(text).toContain('Sections:\n- (empty)\n- History\n- Background');
+		expect(text).toContain('Sections:\n- 0 (Lead)\n- 1 (History)\n- 2 (Background)');
 	});
 
 	it('attaches content-truncated truncation when source exceeds the byte cap', async () => {
@@ -393,7 +393,7 @@ describe('get-page', () => {
 				],
 			}),
 			request: vi.fn().mockResolvedValue({
-				parse: { sections: [{ line: 'History' }] },
+				parse: { sections: [{ line: 'History', index: '1', level: '2' }] },
 			}),
 		});
 		const ctx = fakeContext({
@@ -419,7 +419,7 @@ describe('get-page', () => {
 		expect(text).toContain('  Total bytes: 50001');
 		expect(text).toContain('  Item noun: wikitext');
 		expect(text).toContain('  Tool name: get-page');
-		expect(text).toContain('  Sections:\n  - (empty)\n  - History');
+		expect(text).toContain('  Sections:\n  - 0 (Lead)\n  - 1 (History)');
 	});
 
 	it('omits truncation when source is exactly at the byte cap', async () => {
@@ -459,7 +459,9 @@ describe('get-page', () => {
 		const request = vi
 			.fn()
 			.mockResolvedValueOnce({ parse: { text: bigHtml } })
-			.mockResolvedValueOnce({ parse: { sections: [{ line: 'Heading' }] } });
+			.mockResolvedValueOnce({
+				parse: { sections: [{ line: 'Heading', index: '1', level: '2' }] },
+			});
 		const mock = createMockMwn({ request });
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
@@ -483,7 +485,97 @@ describe('get-page', () => {
 		expect(text).toContain('  Returned bytes: 50000');
 		expect(text).toContain('  Item noun: HTML');
 		expect(text).toContain('  Tool name: get-page');
-		expect(text).toContain('  Sections:\n  - (empty)\n  - Heading');
+		expect(text).toContain('  Sections:\n  - 0 (Lead)\n  - 1 (Heading)');
+	});
+
+	// A caller that already passed section=N cannot narrow by passing it again,
+	// so the marker names that section's own subsections instead of the outline
+	// of a page it did not ask for.
+	it("lists the requested section's subsections when a section read is truncated", async () => {
+		const list = vi.fn().mockResolvedValue([
+			{ index: '1', level: 2, line: 'History', editable: true },
+			{ index: '2', level: 3, line: 'Origins', editable: true },
+			{ index: '3', level: 3, line: 'Modern era', editable: true },
+			{ index: '4', level: 2, line: 'Geography', editable: true },
+		]);
+		const mock = createMockMwn({
+			read: vi.fn().mockResolvedValue({
+				pageid: 1,
+				title: 'Big',
+				revisions: [{ revid: 42, contentmodel: 'wikitext', content: 'x'.repeat(50001) }],
+			}),
+		});
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			sections: { list, listInSource: vi.fn() },
+		});
+
+		const result = await getPage.handle(
+			{ title: 'Big', content: ContentFormat.source, metadata: false, section: 1 },
+			ctx,
+		);
+
+		const text = assertStructuredSuccess(result);
+		expect(text).toContain('  Sections:\n  - 2 (Origins)\n  - 3 (Modern era)');
+		expect(text).not.toContain('Geography');
+		expect(text).toContain('subsection numbers');
+	});
+
+	it('reports that no narrower read exists when the truncated section has no subsections', async () => {
+		const list = vi.fn().mockResolvedValue([
+			{ index: '1', level: 2, line: 'History', editable: true },
+			{ index: '2', level: 2, line: 'Geography', editable: true },
+		]);
+		const mock = createMockMwn({
+			read: vi.fn().mockResolvedValue({
+				pageid: 1,
+				title: 'Big',
+				revisions: [{ revid: 42, contentmodel: 'wikitext', content: 'x'.repeat(50001) }],
+			}),
+		});
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			sections: { list, listInSource: vi.fn() },
+		});
+
+		const result = await getPage.handle(
+			{ title: 'Big', content: ContentFormat.source, metadata: false, section: 1 },
+			ctx,
+		);
+
+		const text = assertStructuredSuccess(result);
+		expect(text).toContain('No narrower read returns more of this section');
+		expect(text).toContain("mode='append'");
+		// Naming the sections of a page the caller did not ask for is what sent it
+		// back to the call it had just made.
+		expect(text).not.toContain('Sections:');
+		expect(text).not.toContain('Geography');
+	});
+
+	// The lead has no heading of its own, so childrenOf finds no entry for it.
+	it('reports that no narrower read exists when a truncated lead read has no subsections', async () => {
+		const list = vi
+			.fn()
+			.mockResolvedValue([{ index: '1', level: 2, line: 'History', editable: true }]);
+		const mock = createMockMwn({
+			read: vi.fn().mockResolvedValue({
+				pageid: 1,
+				title: 'Big',
+				revisions: [{ revid: 42, contentmodel: 'wikitext', content: 'x'.repeat(50001) }],
+			}),
+		});
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			sections: { list, listInSource: vi.fn() },
+		});
+
+		const result = await getPage.handle(
+			{ title: 'Big', content: ContentFormat.source, metadata: false, section: 0 },
+			ctx,
+		);
+
+		const text = assertStructuredSuccess(result);
+		expect(text).toContain('No narrower read returns more of this section');
 	});
 
 	it('builds the page URL from the public siteinfo server, not the configured server', async () => {

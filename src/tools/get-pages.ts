@@ -5,7 +5,7 @@ import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { buildPageUrl } from '../wikis/utils.ts';
 import { truncateByBytes, type TruncationInfo } from '../results/truncation.ts';
-import { toOutlineLines } from '../services/sectionService.ts';
+import { sectionContentTruncation } from '../services/sectionMarker.ts';
 
 const MAX_TITLES = 50;
 
@@ -222,19 +222,18 @@ async function applyTruncations(
 	if (pending.length === 0) {
 		return;
 	}
-	const sectionLists = await Promise.all(
-		pending.map(async (p) => toOutlineLines(await ctx.sections.list(mwn, p.title))),
-	);
+	const outlines = await Promise.all(pending.map((p) => ctx.sections.list(mwn, p.title)));
 	pending.forEach((p, i) => {
-		entries[p.entryIndex].truncation = {
-			reason: 'content-truncated',
-			returnedBytes: p.returnedBytes,
-			totalBytes: p.totalBytes,
+		entries[p.entryIndex].truncation = sectionContentTruncation({
+			entries: outlines[i],
+			// get-pages reads whole pages, so the narrowing on offer is always
+			// the page's own sections.
+			section: undefined,
 			itemNoun: 'wikitext',
 			toolName: 'get-pages',
-			sections: sectionLists[i],
-			remedyHint: 'To read a specific section, call get-page again with section=N.',
-		};
+			returnedBytes: p.returnedBytes,
+			totalBytes: p.totalBytes,
+		});
 	});
 }
 
@@ -274,7 +273,7 @@ async function assembleEntries(
 
 export const getPages: Tool<typeof inputSchema> = {
 	name: 'get-pages',
-	description: `Returns multiple wiki pages in one call (wikitext source or metadata only). Suited to reading a cluster of related pages, diffing a page family, or syncing pages to local storage. Accepts up to ${MAX_TITLES} titles; missing pages are reported inline (not as errors). Each page's content is truncated at 50000 bytes by default with a trailing marker listing available sections; get-page with section=N fetches a specific section. For a single page or HTML output, use get-page. requestedTitle is included only when it differs from the resolved title.`,
+	description: `Returns multiple wiki pages in one call (wikitext source or metadata only). Suited to reading a cluster of related pages, diffing a page family, or syncing pages to local storage. Accepts up to ${MAX_TITLES} titles; missing pages are reported inline (not as errors). Each page's content is truncated at 50000 bytes by default, with a marker reporting how much of it was returned and which sections a narrower read can target; get-page with section=N fetches a specific section. For a single page or HTML output, use get-page. requestedTitle is included only when it differs from the resolved title.`,
 	inputSchema,
 	annotations: {
 		title: 'Get pages',

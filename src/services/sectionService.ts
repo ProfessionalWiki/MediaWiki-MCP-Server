@@ -70,9 +70,11 @@ export class SectionServiceImpl implements SectionService {
 	}
 }
 
-// The outline shape tools publish today: the lead as an empty first entry, then
-// one heading line per section. Kept separate from the service so the richer
-// entries are available internally without changing any tool's output.
+// The published outline: one line per section, each labelled with the number
+// that edits it. Transcluded headings are left out — they appear on the page but
+// no `section=` value addresses them, so listing them shifts every later heading
+// away from its own number. Kept separate from the service so the richer entries
+// stay available internally to the guards and markers that need levels.
 export function toOutlineLines(entries: readonly SectionEntry[]): string[] {
-	return ['', ...entries.map((e) => e.line)];
+	return ['0 (Lead)', ...entries.filter((e) => e.editable).map((e) => `${e.index} (${e.line})`)];
 }

@@ -89,18 +89,28 @@ describe('listInSource', () => {
 });
 
 describe('toOutlineLines', () => {
-	// The published outline is unchanged by this task: a leading empty string
-	// for the lead, then one heading line per section.
-	it('renders the lead as an empty first entry', () => {
+	it('numbers each entry with the section number it is edited by', () => {
 		expect(
 			toOutlineLines([
 				{ index: '1', level: 2, line: 'Etymology', editable: true },
 				{ index: '2', level: 2, line: 'History', editable: true },
 			]),
-		).toEqual(['', 'Etymology', 'History']);
+		).toEqual(['0 (Lead)', '1 (Etymology)', '2 (History)']);
+	});
+
+	// A transcluded heading occupies a position in the outline but is not
+	// addressable by section number, so listing it shifts every later heading
+	// away from the number that edits it.
+	it('omits transcluded headings, which no section number addresses', () => {
+		expect(
+			toOutlineLines([
+				{ index: 'T-1', level: 2, line: 'From a template', editable: false },
+				{ index: '1', level: 2, line: 'Etymology', editable: true },
+			]),
+		).toEqual(['0 (Lead)', '1 (Etymology)']);
 	});
 
 	it('renders a page with no headings as the lead alone', () => {
-		expect(toOutlineLines([])).toEqual(['']);
+		expect(toOutlineLines([])).toEqual(['0 (Lead)']);
 	});
 });

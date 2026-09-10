@@ -5,7 +5,8 @@ import type { ToolContext } from '../runtime/context.ts';
 import { buildPageUrl } from '../wikis/utils.ts';
 import { ContentFormat } from '../results/contentFormat.ts';
 import { truncateByBytes, type TruncationInfo } from '../results/truncation.ts';
-import { toOutlineLines } from '../services/sectionService.ts';
+import { toOutlineLines, type SectionEntry } from '../services/sectionService.ts';
+import { sectionContentTruncation } from '../services/sectionMarker.ts';
 
 const inputSchema = {
 	title: z.string().describe('Wiki page title'),
@@ -34,7 +35,7 @@ const inputSchema = {
 export const getPage: Tool<typeof inputSchema> = {
 	name: 'get-page',
 	description:
-		'Returns a single wiki page (wikitext source, rendered HTML, or metadata only). If the title does not exist, an error is returned. Use metadata=true to retrieve the revision ID (for edit-conflict detection), page size, and section outline. Set content="none" to fetch only metadata. Large content is truncated at 50000 bytes by default with a trailing marker listing available sections; a follow-up call with section=N fetches a specific section. For more than one page at a time, use get-pages. For a specific historical revision, use get-revision.',
+		'Returns a single wiki page (wikitext source, rendered HTML, or metadata only). If the title does not exist, an error is returned. Use metadata=true to retrieve the revision ID (for edit-conflict detection), page size, and section outline. Set content="none" to fetch only metadata. Large content is truncated at 50000 bytes by default, with a marker reporting how much of it was returned and which sections a narrower read can target; a follow-up call with section=N fetches a specific section. For more than one page at a time, use get-pages. For a specific historical revision, use get-revision.',
 	inputSchema,
 	annotations: {
 		title: 'Get page',
@@ -74,7 +75,7 @@ export const getPage: Tool<typeof inputSchema> = {
 			metadata || content === ContentFormat.source || content === ContentFormat.none;
 		const needsSource = content === ContentFormat.source;
 
-		let sections: string[] | undefined;
+		let entries: SectionEntry[] | undefined;
 
 		if (needsReadCall) {
 			const rvprop = needsSource
@@ -93,7 +94,7 @@ export const getPage: Tool<typeof inputSchema> = {
 			const rev = page.revisions?.[0];
 
 			if (metadata) {
-				sections = toOutlineLines(await ctx.sections.list(mwn, title));
+				entries = await ctx.sections.list(mwn, title);
 			}
 
 			if (metadata || content === ContentFormat.none) {
@@ -105,8 +106,8 @@ export const getPage: Tool<typeof inputSchema> = {
 				if (rev?.size !== undefined) {
 					payload.size = rev.size;
 				}
-				if (sections !== undefined) {
-					payload.sections = sections;
+				if (entries !== undefined) {
+					payload.sections = toOutlineLines(entries);
 				}
 				payload.url = await buildPageUrl(ctx, page.title);
 			}
@@ -115,18 +116,15 @@ export const getPage: Tool<typeof inputSchema> = {
 				const truncated = truncateByBytes(rev.content);
 				payload.source = truncated.text;
 				if (truncated.truncated) {
-					if (sections === undefined) {
-						sections = toOutlineLines(await ctx.sections.list(mwn, title));
-					}
-					payload.truncation = {
-						reason: 'content-truncated',
-						returnedBytes: truncated.returnedBytes,
-						totalBytes: truncated.totalBytes,
+					entries ??= await ctx.sections.list(mwn, title);
+					payload.truncation = sectionContentTruncation({
+						entries,
+						section,
 						itemNoun: 'wikitext',
 						toolName: 'get-page',
-						sections,
-						remedyHint: 'To read a specific section, call get-page again with section=N.',
-					};
+						returnedBytes: truncated.returnedBytes,
+						totalBytes: truncated.totalBytes,
+					});
 				}
 			}
 		}
@@ -158,18 +156,15 @@ export const getPage: Tool<typeof inputSchema> = {
 				}
 
 				if (truncated.truncated) {
-					if (sections === undefined) {
-						sections = toOutlineLines(await ctx.sections.list(mwn, title));
-					}
-					payload.truncation = {
-						reason: 'content-truncated',
-						returnedBytes: truncated.returnedBytes,
-						totalBytes: truncated.totalBytes,
+					entries ??= await ctx.sections.list(mwn, title);
+					payload.truncation = sectionContentTruncation({
+						entries,
+						section,
 						itemNoun: 'HTML',
 						toolName: 'get-page',
-						sections,
-						remedyHint: 'To read a specific section, call get-page again with section=N.',
-					};
+						returnedBytes: truncated.returnedBytes,
+						totalBytes: truncated.totalBytes,
+					});
 				}
 			}
 		}

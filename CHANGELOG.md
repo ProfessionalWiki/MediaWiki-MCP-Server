@@ -13,10 +13,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Changed
 
 - `update-page` now documents that `mode` can be scoped with `section`: `mode='append'` writes at the end of the named section, and `mode='prepend'` immediately above its heading, which inserts a new section before an existing one without sending the whole page. The combination already worked; nothing about where content lands has changed.
+- The section list `get-page` and `get-pages` report now labels each section with the number that edits it, as `1 (History)` where it was `History`, and leaves out headings that arrive by transclusion. This is the outline in every `metadata=true` response as well as the one attached to a truncated read. The list previously numbered by position, and a transcluded heading holds a position that no section number addresses, so on any page carrying one every later entry named a different section than the one it pointed at.
 
 ### Fixed
 
 - Passing more namespace IDs than the wiki accepts (50, unless the account holds `apihighlimits`) is now reported as invalid input rather than as an upstream failure. This affects `get-category-members`, `get-links-here`, `get-recent-changes` and `search-page`.
+- A truncated page or section read no longer ends mid-character. The cut now falls on a character boundary, so what comes back is exactly what the page holds: a multi-byte character split by the cut previously arrived as a replacement character that was never on the page, and the response could exceed the byte cap it reported against.
+- A truncated read no longer offers a narrowing that returns the same bytes. A `section=N` read names that section's own subsections, and a read with nothing narrower left says so instead of repeating the call that had just truncated.
 - A wiki that stops answering no longer hangs a tool call for minutes. This covers the first call to a wiki, where connecting and signing in were previously unbounded. A timed-out write reports that the change may or may not have been applied, since the server cannot tell.
 - `add-wiki` no longer hangs on a URL whose host accepts the connection and then goes quiet. It now gives up after 30 seconds and reports a timeout, instead of suggesting the URL may be wrong.
 
