@@ -47,6 +47,7 @@ describe('classifyError', () => {
 			['immobilenamespace', 'invalid_input'],
 			['nonfilenamespace', 'invalid_input'],
 			['filetypemismatch', 'invalid_input'],
+			['toomanyvalues', 'invalid_input'],
 			['editconflict', 'conflict'],
 			['articleexists', 'conflict'],
 			['fileexists', 'conflict'],

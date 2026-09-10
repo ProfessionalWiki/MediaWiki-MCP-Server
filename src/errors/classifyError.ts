@@ -51,6 +51,7 @@ const MW_CODE_TO_CATEGORY: Record<string, ErrorCategory> = {
 	immobilenamespace: 'invalid_input',
 	nonfilenamespace: 'invalid_input',
 	filetypemismatch: 'invalid_input',
+	toomanyvalues: 'invalid_input',
 	// conflict
 	editconflict: 'conflict',
 	articleexists: 'conflict',
