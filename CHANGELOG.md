@@ -6,12 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- `search-page` accepts `namespaces` to name the namespace IDs to search, and each result now reports the namespace it came from. A call that omits `namespaces` searches the main namespace, which was always the case but went unstated; `get-site-info` lists a wiki's namespace IDs. When the namespaces searched are not the ones asked for — the wiki refused an ID, or a namespace prefix in the query overrode them — the response now says so.
+
 ### Changed
 
 - `update-page` now documents that `mode` can be scoped with `section`: `mode='append'` writes at the end of the named section, and `mode='prepend'` immediately above its heading, which inserts a new section before an existing one without sending the whole page. The combination already worked; nothing about where content lands has changed.
 
 ### Fixed
 
+- Passing more namespace IDs than the wiki accepts (50, unless the account holds `apihighlimits`) is now reported as invalid input rather than as an upstream failure. This affects `get-category-members`, `get-links-here`, `get-recent-changes` and `search-page`.
 - A wiki that stops answering no longer hangs a tool call for minutes. This covers the first call to a wiki, where connecting and signing in were previously unbounded. A timed-out write reports that the change may or may not have been applied, since the server cannot tell.
 - `add-wiki` no longer hangs on a URL whose host accepts the connection and then goes quiet. It now gives up after 30 seconds and reports a timeout, instead of suggesting the URL may be wrong.
 
