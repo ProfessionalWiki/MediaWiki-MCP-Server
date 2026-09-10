@@ -133,17 +133,19 @@ Parameter descriptions must:
 
 #### Result caps and truncation signaling
 
-Tools that return variable-size result sets or content bodies have a per-call cap. When the cap is hit, the tool appends a trailing text block to `content` describing the truncation. Three shapes:
+Tools that return variable-size result sets or content bodies have a per-call cap. When the cap is hit, the tool sets a `truncation` field on its payload, which reaches the caller through both response channels: rendered as prose in `content[0]` and typed in `structuredContent`. Three shapes, each a variant of `TruncationInfo` in `src/results/truncation.ts`:
 
-- **With continuation** (the caller can fetch more): `"More results available. Returned N <items>. To fetch the next segment, call <tool-name> again with <param>=<value>."`
-- **Without continuation** (the only remedy is a narrower query): `"Result capped at N <items>. Additional <items> may exist — <narrow-hint>."`
-- **Content truncated** (the response body exceeded the byte budget): `"Content truncated at N of M bytes. [Available sections: 0 (Lead), 1 (<heading>), ....] <remedy>"` where `<remedy>` is a full sentence of the form `"To <purpose>, <action>."` (e.g. `"To read a specific section, call get-page again with section=N."`), matching the connector-phrase pattern used by the `more-available` shape.
+- **With continuation** (`more-available`, the caller can fetch more): the count returned, the item noun, and the parameter and value that fetch the next segment.
+- **Without continuation** (`capped-no-continuation`, the only remedy is a narrower query): the count returned, the limit, and a hint naming the narrowing available.
+- **Content truncated** (`content-truncated`, the response body exceeded the byte budget): the bytes returned and the bytes available, a `remedyHint` — a full sentence of the form `"To <purpose>, <action>."` — and, where narrower targets exist, a `sections` list naming them.
 
-Where the narrowing a parameter offers is exhausted — the call already names the single item the response can be narrowed to, so naming it again returns the same response — no action remains, and the `<remedy>` says so instead. A parameter that still has somewhere to go is repeated as normal: `get-page` truncating one oversize section still points at `section=N`, because the other sections remain.
+Each `sections` entry carries the number that addresses it, as `"3 (History)"`. That number is the section's own `index` from the API, never its position in the list: a transcluded heading occupies a position but no `section=` value addresses it, so numbering by position sends a caller to a different section than the one it read. Transcluded headings are left out of the list for the same reason.
+
+Where the narrowing a parameter offers is exhausted — the call already names the single item the response can be narrowed to, so naming it again returns the same response — no action remains, and the `remedyHint` says so instead. `get-page` truncating a `section=N` read names that section's own subsections, the only narrower target it has; where the section has none, the remedy says no narrower read exists rather than pointing back at the call that just truncated.
 
 Descriptions state the default cap with a "by default" qualifier (e.g., "truncated at 50000 bytes by default"). The qualifier is load-bearing because operators can override `DEFAULT_CONTENT_MAX_BYTES` via `MCP_CONTENT_MAX_BYTES`; without it, descriptions misrepresent customised deployments. If continuation is supported, descriptions reference the continuation parameter by name so the LLM can pick the right parameter without inspecting the schema.
 
-The byte budget for content bodies is centrally resolved via `contentMaxBytes()` in `src/results/truncation.ts` — it reads the `MCP_CONTENT_MAX_BYTES` environment variable and falls back to `DEFAULT_CONTENT_MAX_BYTES` (50000). Tools do not invent their own limits. Section-aware tools (`get-page`, `get-pages`) include a section list in the marker so the caller can navigate without a follow-up "list sections" call.
+The byte budget for content bodies is centrally resolved via `contentMaxBytes()` in `src/results/truncation.ts` — it reads the `MCP_CONTENT_MAX_BYTES` environment variable and falls back to `DEFAULT_CONTENT_MAX_BYTES` (50000). Tools do not invent their own limits. A cut body is a byte-exact prefix of the whole: the cut moves back to a character boundary rather than splitting a multi-byte character, because a caller may write the returned text back to the wiki and it must carry nothing the page did not. Section-aware tools (`get-page`, `get-pages`) include a section list in the marker so the caller can navigate without a follow-up "list sections" call.
 
 This convention doesn't apply to tools that reject oversize input (e.g. `get-pages`' 50-title cap): those return an error, not a truncation marker.
 

@@ -23,3 +23,15 @@ export function childrenOf(entries: readonly SectionEntry[], index: string): Sec
 	}
 	return children;
 }
+
+/**
+ * The children of `index` a caller can both read and supply: a transcluded
+ * heading shows on the page but no `section=` value edits it, and it can never
+ * appear in a source the caller writes back.
+ */
+export function editableChildrenOf(
+	entries: readonly SectionEntry[],
+	index: string,
+): SectionEntry[] {
+	return childrenOf(entries, index).filter((c) => c.editable);
+}

@@ -93,6 +93,12 @@ export function capLinesByBytes(lines: string[]): CappedLines {
 	return { lines: kept, returnedBytes, totalBytes, truncated: true };
 }
 
+// UTF-8 continuation bytes are 0b10xxxxxx. A cut whose next byte is one of them
+// lands inside a multi-byte character.
+function isContinuationByte(byte: number): boolean {
+	return (byte & 0xc0) === 0x80;
+}
+
 export function truncateByBytes(
 	text: string,
 	maxBytes: number = contentMaxBytes(),
@@ -102,14 +108,20 @@ export function truncateByBytes(
 	if (totalBytes <= maxBytes) {
 		return { text, truncated: false, returnedBytes: totalBytes, totalBytes };
 	}
-	// Slice on a byte boundary, then decode. Node's Buffer#toString handles
-	// incomplete trailing UTF-8 sequences by replacing them with U+FFFD,
-	// which is acceptable for a truncated preview.
-	const sliced = buffer.subarray(0, maxBytes).toString('utf8');
+	// Cut back to a character boundary, so the text returned is a byte-exact
+	// prefix of the input. Slicing mid-sequence leaves Node decoding the partial
+	// character as U+FFFD, which both pushes the result past maxBytes and puts a
+	// character in the caller's copy that the page never contained.
+	// Clamped here rather than at the call sites, because maxBytes is a public
+	// parameter and a negative one would make subarray count from the end.
+	let end = Math.max(0, maxBytes);
+	while (end > 0 && isContinuationByte(buffer[end])) {
+		end--;
+	}
 	return {
-		text: sliced,
+		text: buffer.subarray(0, end).toString('utf8'),
 		truncated: true,
-		returnedBytes: Buffer.byteLength(sliced, 'utf8'),
+		returnedBytes: end,
 		totalBytes,
 	};
 }

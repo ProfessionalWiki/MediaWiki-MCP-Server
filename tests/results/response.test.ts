@@ -46,45 +46,4 @@ describe('ResponseFormatterImpl', () => {
 			fmt.error('permission_denied', 'X', 'protectedpage'),
 		);
 	});
-
-	it('truncationMarker formats content-truncated info with sections', () => {
-		const text = fmt.truncationMarker({
-			reason: 'content-truncated',
-			returnedBytes: 50000,
-			totalBytes: 80000,
-			itemNoun: 'wikitext',
-			toolName: 'get-page',
-			sections: ['', 'Lead', 'Body'],
-			remedyHint: 'To read a specific section, call get-page again with section=N.',
-		});
-		expect(text).toContain('50000 of 80000');
-		expect(text).toContain('wikitext');
-		expect(text).toContain('Lead');
-		expect(text).toContain('To read a specific section');
-	});
-
-	it('truncationMarker formats more-available info with continuation', () => {
-		const text = fmt.truncationMarker({
-			reason: 'more-available',
-			returnedCount: 50,
-			itemNoun: 'changes',
-			toolName: 'get-recent-changes',
-			continueWith: { param: 'continue', value: 'tok123' },
-		});
-		expect(text).toContain('More results available');
-		expect(text).toContain('50 changes');
-		expect(text).toContain('continue=tok123');
-	});
-
-	it('truncationMarker formats capped-no-continuation info', () => {
-		const text = fmt.truncationMarker({
-			reason: 'capped-no-continuation',
-			returnedCount: 10,
-			limit: 10,
-			itemNoun: 'results',
-			narrowHint: 'narrow your filter',
-		});
-		expect(text).toContain('Result capped at 10 results');
-		expect(text).toContain('narrow your filter');
-	});
 });

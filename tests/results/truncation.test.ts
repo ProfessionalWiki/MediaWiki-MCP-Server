@@ -66,6 +66,18 @@ describe('capLinesByBytes', () => {
 
 		expect(capLinesByBytes(lines).lines).toEqual(['a-ver…']);
 	});
+
+	// The row listings this feeds carry multi-byte labels as a matter of course,
+	// so the one branch that cuts inside a line has to cut on a character.
+	it('cuts an oversized first line on a character boundary', () => {
+		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '8');
+
+		const capped = capLinesByBytes(['漢漢漢漢']);
+
+		expect(capped.lines).toEqual(['漢…']);
+		expect(capped.returnedBytes).toBeLessThanOrEqual(8);
+		expect(capped.lines[0]).not.toContain('\uFFFD');
+	});
 });
 
 describe('DEFAULT_CONTENT_MAX_BYTES', () => {
@@ -139,19 +151,41 @@ describe('truncateByBytes', () => {
 		expect(result.totalBytes).toBe(DEFAULT_CONTENT_MAX_BYTES + 1);
 	});
 
-	it('handles a multi-byte UTF-8 character straddling the byte boundary', () => {
-		// '漢' is 3 bytes in UTF-8. Build a buffer whose first 100 bytes split
-		// the final character across the limit so the slice lands mid-sequence.
+	it('cuts back to a character boundary when the limit lands mid-sequence', () => {
+		// '漢' is 3 bytes in UTF-8, so a 100-byte cut falls inside the first one.
 		const input = 'x'.repeat(99) + '漢漢';
 		const result = truncateByBytes(input, 100);
 		expect(result.truncated).toBe(true);
-		// Buffer#toString('utf8') replaces the partial trailing byte with U+FFFD;
-		// returnedBytes reflects the decoded string's UTF-8 length, which may
-		// exceed the raw 100-byte slice but stays bounded by maxBytes + 2 bytes
-		// of replacement.
 		expect(result.totalBytes).toBe(99 + 6);
-		expect(result.returnedBytes).toBeLessThanOrEqual(100 + 2);
-		// The returned text must decode cleanly as a string (no thrown decode error)
-		expect(typeof result.text).toBe('string');
+		expect(result.text).toBe('x'.repeat(99));
+		expect(result.returnedBytes).toBe(99);
+	});
+
+	// A caller may write the returned text back to the wiki, so it must contain
+	// nothing the page did not.
+	it('returns a byte-exact prefix, never a replacement character', () => {
+		const input = 'x'.repeat(99) + '漢漢';
+		const result = truncateByBytes(input, 100);
+		expect(input.startsWith(result.text)).toBe(true);
+		expect(result.text).not.toContain('\uFFFD');
+	});
+
+	it.each([98, 99, 100, 101, 102, 103])(
+		'returns a prefix within the limit at maxBytes=%i',
+		(maxBytes) => {
+			const input = 'x'.repeat(99) + '漢漢';
+
+			const result = truncateByBytes(input, maxBytes);
+
+			expect(result.returnedBytes).toBeLessThanOrEqual(maxBytes);
+			expect(input.startsWith(result.text)).toBe(true);
+		},
+	);
+
+	it('returns nothing when the first character alone exceeds the limit', () => {
+		const result = truncateByBytes('漢x', 2);
+		expect(result.truncated).toBe(true);
+		expect(result.text).toBe('');
+		expect(result.returnedBytes).toBe(0);
 	});
 });
