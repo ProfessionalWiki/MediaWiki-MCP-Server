@@ -545,7 +545,7 @@ describe('get-page', () => {
 
 		const text = assertStructuredSuccess(result);
 		expect(text).toContain('No narrower read returns more of this section');
-		expect(text).toContain("mode='append'");
+		expect(text).toContain("operation='find-replace'");
 		// Naming the sections of a page the caller did not ask for is what sent it
 		// back to the call it had just made.
 		expect(text).not.toContain('Sections:');

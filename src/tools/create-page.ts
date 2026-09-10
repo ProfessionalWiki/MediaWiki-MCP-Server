@@ -26,7 +26,7 @@ const inputSchema = {
 export const createPage: Tool<typeof inputSchema> = {
 	name: 'create-page',
 	description:
-		"Creates a new wiki page with the provided content and returns the new page's title, page ID, and first revision ID. Fails if a page with the given title already exists; for existing pages, use update-page. The optional contentModel parameter selects a non-default content format (e.g. javascript, css); when omitted, MediaWiki picks the default for the title's namespace. For building up a large page across multiple calls, pair create-page with chained update-page(mode='append') calls, each adding a chunk.",
+		"Creates a new wiki page with the provided content and returns the new page's title, page ID, and first revision ID. Fails if a page with the given title already exists; for existing pages, use update-page. The optional contentModel parameter selects a non-default content format (e.g. javascript, css); when omitted, MediaWiki picks the default for the title's namespace. For building up a large page across multiple calls, pair create-page with chained update-page(operation='append') calls, each adding a chunk.",
 	inputSchema,
 	annotations: {
 		title: 'Create page',
