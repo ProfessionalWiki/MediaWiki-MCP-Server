@@ -38,6 +38,35 @@ export type TruncationInfo =
 			remedyHint: string;
 	  };
 
+/**
+ * The marker as one sentence, which is what the prose channel carries;
+ * `structuredContent` keeps the typed object.
+ *
+ * Phrased so a count never modifies its noun directly. Every `itemNoun` is
+ * plural, so "Returned 1 pages" is the alternative, and singularising a noun
+ * this vocabulary already includes — `properties`, `matches` — needs more rules
+ * than the sentence is worth.
+ */
+export function truncationSentence(info: TruncationInfo): string {
+	switch (info.reason) {
+		case 'content-truncated': {
+			const sections =
+				info.sections !== undefined && info.sections.length > 0
+					? ` Available sections: ${info.sections.join(', ')}.`
+					: '';
+			return `Content (${info.itemNoun}) truncated at ${info.returnedBytes} of ${info.totalBytes} bytes.${sections} ${info.remedyHint}`;
+		}
+		case 'more-available':
+			return `More ${info.itemNoun} available; ${info.returnedCount} returned. To fetch the next segment, call ${info.toolName} again with ${info.continueWith.param}=${info.continueWith.value}.`;
+		case 'capped-no-continuation':
+			return `Capped at the ${info.itemNoun} limit of ${info.limit}; ${info.returnedCount} returned. Additional ${info.itemNoun} may exist — ${info.narrowHint}`;
+		default: {
+			const _exhaustive: never = info;
+			return _exhaustive;
+		}
+	}
+}
+
 export interface TruncatedContent {
 	text: string;
 	truncated: boolean;

@@ -437,11 +437,7 @@ describe('compare-pages', () => {
 		);
 
 		const text = assertStructuredSuccess(result);
-		expect(text).toContain('Truncation:');
-		expect(text).toContain('  Reason: content-truncated');
-		expect(text).toContain('  Returned bytes: 75000');
-		expect(text).toContain('  Item noun: diff');
-		expect(text).toContain('  Tool name: compare-pages');
+		expect(text).toContain('Content (diff) truncated at 75000 of');
 	});
 
 	it('cheap mode (includeDiff=false) never attaches a content-truncated truncation', async () => {

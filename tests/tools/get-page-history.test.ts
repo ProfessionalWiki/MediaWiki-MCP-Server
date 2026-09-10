@@ -325,14 +325,8 @@ describe('get-page-history', () => {
 		const result = await getPageHistory.handle({ title: 'Test Page' }, ctx);
 
 		const text = assertStructuredSuccess(result);
-		expect(text).toContain('Truncation:');
-		expect(text).toContain('  Reason: more-available');
-		expect(text).toContain('  Returned count: 2');
-		expect(text).toContain('  Item noun: revisions');
-		expect(text).toContain('  Tool name: get-page-history');
-		expect(text).toContain('  Continue with:');
-		expect(text).toContain('    Param: olderThan');
-		expect(text).toContain('    Value: 99');
+		expect(text).toContain('More revisions available; 2 returned.');
+		expect(text).toContain('call get-page-history again with olderThan=99.');
 	});
 
 	it('attaches a more-available truncation with newerThan when walking forward', async () => {
@@ -372,14 +366,8 @@ describe('get-page-history', () => {
 		const result = await getPageHistory.handle({ title: 'Test Page', newerThan: 49 }, ctx);
 
 		const text = assertStructuredSuccess(result);
-		expect(text).toContain('Truncation:');
-		expect(text).toContain('  Reason: more-available');
-		expect(text).toContain('  Returned count: 2');
-		expect(text).toContain('  Item noun: revisions');
-		expect(text).toContain('  Tool name: get-page-history');
-		expect(text).toContain('  Continue with:');
-		expect(text).toContain('    Param: newerThan');
-		expect(text).toContain('    Value: 60');
+		expect(text).toContain('More revisions available; 2 returned.');
+		expect(text).toContain('call get-page-history again with newerThan=60.');
 
 		const call = mock.request.mock.calls[0][0];
 		expect(call.rvdir).toBe('newer');

@@ -200,10 +200,7 @@ describe('smw-list-properties', () => {
 		const result = await smwListProperties.handle({ limit: 50 }, ctx);
 
 		const text = assertStructuredSuccess(result);
-		expect(text).toContain('Truncation:');
-		expect(text).toContain('Reason: more-available');
-		expect(text).toContain('Param: continueFrom');
-		expect(text).toContain('Value: 50');
+		expect(text).toContain('call smw-list-properties again with continueFrom=50.');
 	});
 
 	it('omits truncation when query-continue-offset is 0', async () => {

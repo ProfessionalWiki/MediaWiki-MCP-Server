@@ -234,10 +234,7 @@ describe('bucket-query', () => {
 		);
 
 		const text = assertStructuredSuccess(result);
-		expect(text).toContain('Truncation:');
-		expect(text).toContain('Reason: more-available');
-		expect(text).toContain('Param: continueFrom');
-		expect(text).toContain('Value: 50');
+		expect(text).toContain('call bucket-query again with continueFrom=50.');
 	});
 
 	it('continueFrom advances by rows.length on subsequent pages', async () => {
@@ -259,7 +256,7 @@ describe('bucket-query', () => {
 		);
 
 		const text = assertStructuredSuccess(result);
-		expect(text).toContain('Value: 100');
+		expect(text).toContain('with continueFrom=100.');
 	});
 
 	it('emits no truncation when rows.length < effectiveLimit', async () => {

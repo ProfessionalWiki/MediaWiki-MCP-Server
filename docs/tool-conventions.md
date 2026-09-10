@@ -133,13 +133,13 @@ Parameter descriptions must:
 
 #### Result caps and truncation signaling
 
-Tools that return variable-size result sets or content bodies have a per-call cap. When the cap is hit, the tool sets a `truncation` field on its payload, which reaches the caller through both response channels: rendered as prose in `content[0]` and typed in `structuredContent`. Three shapes, each a variant of `TruncationInfo` in `src/results/truncation.ts`:
+Tools that return variable-size result sets or content bodies have a per-call cap. When the cap is hit, the tool sets a `truncation` field on its payload, which reaches the caller through both response channels: as one sentence in `content[0]`, and as the typed object in `structuredContent`. A tool builds the object; `truncationSentence` in `src/results/truncation.ts` turns it into the sentence, so the wording of each variant is decided once rather than per tool. Three shapes:
 
 - **With continuation** (`more-available`, the caller can fetch more): the count returned, the item noun, and the parameter and value that fetch the next segment.
 - **Without continuation** (`capped-no-continuation`, the only remedy is a narrower query): the count returned, the limit, and a hint naming the narrowing available.
 - **Content truncated** (`content-truncated`, the response body exceeded the byte budget): the bytes returned and the bytes available, a `remedyHint` — a full sentence of the form `"To <purpose>, <action>."` — and, where narrower targets exist, a `sections` list naming them.
 
-Each `sections` entry carries the number that addresses it, as `"3 (History)"`. That number is the section's own `index` from the API, never its position in the list: a transcluded heading occupies a position but no `section=` value addresses it, so numbering by position sends a caller to a different section than the one it read. Transcluded headings are left out of the list for the same reason.
+The sentence states the follow-up call outright — `call get-page-history again with olderThan=…` — rather than leaving a caller to assemble one from a parameter and a value rendered as separate fields. Each `sections` entry carries the number that addresses it, as `"3 (History)"`. That number is the section's own `index` from the API, never its position in the list: a transcluded heading occupies a position but no `section=` value addresses it, so numbering by position sends a caller to a different section than the one it read. Transcluded headings are left out of the list for the same reason.
 
 Where the narrowing a parameter offers is exhausted — the call already names the single item the response can be narrowed to, so naming it again returns the same response — no action remains, and the `remedyHint` says so instead. `get-page` truncating a `section=N` read names that section's own subsections, the only narrower target it has; where the section has none, the remedy says no narrower read exists rather than pointing back at the call that just truncated.
 

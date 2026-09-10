@@ -413,13 +413,8 @@ describe('get-page', () => {
 		const text = assertStructuredSuccess(result);
 		// Source body is ~75000 chars, rendered as long-string block after Source: label.
 		expect(text).toMatch(/Source:\n\nx{75000}/);
-		expect(text).toContain('Truncation:');
-		expect(text).toContain('  Reason: content-truncated');
-		expect(text).toContain('  Returned bytes: 75000');
-		expect(text).toContain('  Total bytes: 75001');
-		expect(text).toContain('  Item noun: wikitext');
-		expect(text).toContain('  Tool name: get-page');
-		expect(text).toContain('  Sections:\n  - 0 (Lead)\n  - 1 (History)');
+		expect(text).toContain('Content (wikitext) truncated at 75000 of 75001 bytes.');
+		expect(text).toContain('Available sections: 0 (Lead), 1 (History).');
 	});
 
 	it('omits truncation when source is exactly at the byte cap', async () => {
@@ -480,12 +475,8 @@ describe('get-page', () => {
 		const text = assertStructuredSuccess(result);
 		// Truncated HTML is rendered as long-string block.
 		expect(text).toMatch(/HTML:\n\n<p>x+/);
-		expect(text).toContain('Truncation:');
-		expect(text).toContain('  Reason: content-truncated');
-		expect(text).toContain('  Returned bytes: 75000');
-		expect(text).toContain('  Item noun: HTML');
-		expect(text).toContain('  Tool name: get-page');
-		expect(text).toContain('  Sections:\n  - 0 (Lead)\n  - 1 (Heading)');
+		expect(text).toContain('Content (HTML) truncated at 75000 of');
+		expect(text).toContain('Available sections: 0 (Lead), 1 (Heading).');
 	});
 
 	// A caller that already passed section=N cannot narrow by passing it again,
@@ -516,7 +507,7 @@ describe('get-page', () => {
 		);
 
 		const text = assertStructuredSuccess(result);
-		expect(text).toContain('  Sections:\n  - 2 (Origins)\n  - 3 (Modern era)');
+		expect(text).toContain('Available sections: 2 (Origins), 3 (Modern era).');
 		expect(text).not.toContain('Geography');
 		expect(text).toContain('subsection numbers');
 	});

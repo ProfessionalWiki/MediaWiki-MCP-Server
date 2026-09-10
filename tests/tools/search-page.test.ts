@@ -166,11 +166,7 @@ describe('search-page', () => {
 		const result = await searchPage.handle({ query: 'test', limit: 10 }, ctx);
 
 		const text = assertStructuredSuccess(result);
-		expect(text).toContain('Truncation:');
-		expect(text).toContain('  Reason: capped-no-continuation');
-		expect(text).toContain('  Returned count: 1');
-		expect(text).toContain('  Limit: 10');
-		expect(text).toContain('  Item noun: matches');
+		expect(text).toContain('Capped at the matches limit of 10; 1 returned.');
 	});
 
 	it('omits truncation when response.continue is absent', async () => {
@@ -265,7 +261,7 @@ describe('search-page', () => {
 
 		const text = assertStructuredSuccess(result);
 		expect(text).toContain('Truncation:');
-		expect(text).toContain('  Limit: 10');
+		expect(text).toContain('limit of 10;');
 	});
 
 	it('searches page content rather than titles', async () => {

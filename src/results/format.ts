@@ -34,8 +34,20 @@ const ABBREVIATIONS = new Set([
 	'Wsl',
 ]);
 
-export function formatPayload(data: unknown): string {
-	const rendered = renderValue(data, '').trim();
+/**
+ * `inlineKeys` names fields whose value is prose rather than content, and so
+ * stays on the label's own line however long it runs. Everything else over
+ * INLINE_STRING_LIMIT becomes its own block at column 0, which is right for a
+ * content body — indenting one would add leading spaces, and a leading space
+ * turns a wikitext line into a `<pre>` block — and wrong for a sentence, which
+ * then reads as belonging to the response rather than to the entry it sits in.
+ */
+export interface FormatOptions {
+	readonly inlineKeys?: ReadonlySet<string>;
+}
+
+export function formatPayload(data: unknown, options: FormatOptions = {}): string {
+	const rendered = renderValue(data, '', options).trim();
 	return rendered.length > 0 ? rendered : '(empty)';
 }
 
@@ -59,7 +71,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function renderValue(value: unknown, indent: string): string {
+function renderValue(value: unknown, indent: string, options: FormatOptions): string {
 	if (value === null || value === undefined) {
 		return '—';
 	}
@@ -70,23 +82,37 @@ function renderValue(value: unknown, indent: string): string {
 		return String(value);
 	}
 	if (Array.isArray(value)) {
-		return renderArray(value, indent);
+		return renderArray(value, indent, options);
 	}
 	if (isPlainObject(value)) {
-		return renderObject(value, indent);
+		return renderObject(value, indent, options);
 	}
 	return stringifyUnknown(value);
 }
 
-function renderObject(obj: Record<string, unknown>, indent: string): string {
+function renderObject(
+	obj: Record<string, unknown>,
+	indent: string,
+	options: FormatOptions,
+): string {
 	const entries = Object.entries(obj).filter(([, v]) => v !== undefined);
 	if (entries.length === 0) {
 		return '(empty)';
 	}
-	return entries.map(([key, value]) => renderField(humanizeKey(key), value, indent)).join('\n');
+	return entries
+		.map(([key, value]) =>
+			renderField(humanizeKey(key), value, indent, options, options.inlineKeys?.has(key) ?? false),
+		)
+		.join('\n');
 }
 
-function renderField(label: string, value: unknown, indent: string): string {
+function renderField(
+	label: string,
+	value: unknown,
+	indent: string,
+	options: FormatOptions,
+	inline: boolean,
+): string {
 	const prefix = `${indent}${label}:`;
 	if (value === null || value === undefined) {
 		return `${prefix} —`;
@@ -95,7 +121,7 @@ function renderField(label: string, value: unknown, indent: string): string {
 		if (value === '') {
 			return `${prefix} (empty)`;
 		}
-		if (value.length <= INLINE_STRING_LIMIT && !value.includes('\n')) {
+		if (inline || (value.length <= INLINE_STRING_LIMIT && !value.includes('\n'))) {
 			return `${prefix} ${value}`;
 		}
 		// Closed with a blank line. Without one the next field's label is the only
@@ -110,15 +136,15 @@ function renderField(label: string, value: unknown, indent: string): string {
 		if (value.length === 0) {
 			return `${prefix} (none)`;
 		}
-		return `${prefix}\n${renderArray(value, indent)}`;
+		return `${prefix}\n${renderArray(value, indent, options)}`;
 	}
 	if (isPlainObject(value)) {
-		return `${prefix}\n${renderObject(value, indent + '  ')}`;
+		return `${prefix}\n${renderObject(value, indent + '  ', options)}`;
 	}
 	return `${prefix} ${stringifyUnknown(value)}`;
 }
 
-function renderArray(arr: unknown[], indent: string): string {
+function renderArray(arr: unknown[], indent: string, options: FormatOptions): string {
 	const itemIndent = `${indent}- `;
 	const continuationIndent = `${indent}  `;
 	return arr
@@ -133,10 +159,10 @@ function renderArray(arr: unknown[], indent: string): string {
 				return `${itemIndent}${item}`;
 			}
 			if (Array.isArray(item)) {
-				return `${itemIndent}\n${renderArray(item, continuationIndent)}`;
+				return `${itemIndent}\n${renderArray(item, continuationIndent, options)}`;
 			}
 			if (isPlainObject(item)) {
-				const objText = renderObject(item, continuationIndent);
+				const objText = renderObject(item, continuationIndent, options);
 				const lines = objText.split('\n');
 				if (lines.length === 0) {
 					return `${itemIndent}(empty)`;

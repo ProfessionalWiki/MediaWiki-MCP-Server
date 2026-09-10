@@ -479,14 +479,8 @@ describe('get-recent-changes — truncation and empty results', () => {
 		const result = await getRecentChanges.handle({}, ctx);
 
 		const text = assertStructuredSuccess(result);
-		expect(text).toContain('Truncation:');
-		expect(text).toContain('  Reason: more-available');
-		expect(text).toContain('  Returned count: 2');
-		expect(text).toContain('  Item noun: changes');
-		expect(text).toContain('  Tool name: get-recent-changes');
-		expect(text).toContain('  Continue with:');
-		expect(text).toContain('    Param: continue');
-		expect(text).toContain('    Value: 20260101000000|1234');
+		expect(text).toContain('More changes available; 2 returned.');
+		expect(text).toContain('call get-recent-changes again with continue=20260101000000|1234.');
 	});
 
 	it('omits truncation when rccontinue is absent', async () => {

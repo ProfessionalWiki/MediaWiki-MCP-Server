@@ -174,10 +174,7 @@ describe('smw-query', () => {
 		const result = await smwQuery.handle({ query: '[[Category:X]]', limit: 1 }, ctx);
 
 		const text = assertStructuredSuccess(result);
-		expect(text).toContain('Truncation:');
-		expect(text).toContain('Reason: more-available');
-		expect(text).toContain('Param: continueFrom');
-		expect(text).toContain('Value: 1');
+		expect(text).toContain('call smw-query again with continueFrom=1.');
 	});
 
 	it('omits empty printouts from a row', async () => {

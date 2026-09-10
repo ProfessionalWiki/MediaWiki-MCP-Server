@@ -35,10 +35,7 @@ describe('get-revision', () => {
 
 			const text = assertStructuredSuccess(result);
 			expect(text).toMatch(/Source:\n\nx{500}\n/);
-			expect(text).toContain('  Reason: content-truncated');
-			expect(text).toContain('  Returned bytes: 500');
-			expect(text).toContain('  Total bytes: 501');
-			expect(text).toContain('  Tool name: get-revision');
+			expect(text).toContain('Content (wikitext) truncated at 500 of 501 bytes.');
 		});
 
 		it('leaves source alone at exactly the cap', async () => {
@@ -69,8 +66,7 @@ describe('get-revision', () => {
 			);
 
 			const text = assertStructuredSuccess(result);
-			expect(text).toContain('  Item noun: HTML');
-			expect(text).toContain('  Returned bytes: 500');
+			expect(text).toContain('Content (HTML) truncated at 500 of');
 			// Rendering HTML alone makes no revisions query, so which revision this
 			// is cannot be known and the remedy names both routes.
 			expect(text).toContain('If this is the page');

@@ -76,11 +76,7 @@ describe('search-page-by-prefix', () => {
 		const result = await searchPageByPrefix.handle({ prefix: 'A', limit: 10 }, ctx);
 
 		const text = assertStructuredSuccess(result);
-		expect(text).toContain('Truncation:');
-		expect(text).toContain('  Reason: capped-no-continuation');
-		expect(text).toContain('  Returned count: 1');
-		expect(text).toContain('  Limit: 10');
-		expect(text).toContain('  Item noun: titles');
+		expect(text).toContain('Capped at the titles limit of 10; 1 returned.');
 	});
 
 	it('omits truncation when response.continue is absent', async () => {

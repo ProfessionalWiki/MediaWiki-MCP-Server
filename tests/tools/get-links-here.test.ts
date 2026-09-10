@@ -192,12 +192,8 @@ describe('get-links-here', () => {
 		const result = await getLinksHere.handle(args({ expandRedirects: false }), ctx);
 
 		const text = assertStructuredSuccess(result);
-		expect(text).toContain('Truncation:');
-		expect(text).toContain('  Reason: more-available');
-		expect(text).toContain('  Item noun: links');
-		expect(text).toContain('  Tool name: get-links-here');
-		expect(text).toContain('    Param: continueFrom');
-		expect(text).toContain('    Value: 0|123');
+		expect(text).toContain('More links available;');
+		expect(text).toContain('call get-links-here again with continueFrom=0|123.');
 	});
 
 	it('returns an empty list without error when the target has no references', async () => {

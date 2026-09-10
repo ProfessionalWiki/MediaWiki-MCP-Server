@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Changed
+
+- A truncation marker now reads as one sentence rather than a block of labelled fields, so a capped result states the follow-up call to make instead of leaving a caller to assemble one from a parameter and a value listed separately. `structuredContent` carries the same marker as a typed object, unchanged.
+
 ### Breaking changes
 
 - `update-page` now refuses a call that replaces a page or section when the source would shorten a target too large for one read to return whole. Pass `removeUnreadContent: true` to do it deliberately, or use `operation='find-replace'` to change part of a page without resending it; appends, growth and any target inside the byte budget are unaffected.

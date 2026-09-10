@@ -134,14 +134,8 @@ describe('get-category-members', () => {
 		const result = await getCategoryMembers.handle({ category: 'Foo' }, ctx);
 
 		const text = assertStructuredSuccess(result);
-		expect(text).toContain('Truncation:');
-		expect(text).toContain('  Reason: more-available');
-		expect(text).toContain('  Returned count: 1');
-		expect(text).toContain('  Item noun: members');
-		expect(text).toContain('  Tool name: get-category-members');
-		expect(text).toContain('  Continue with:');
-		expect(text).toContain('    Param: continueFrom');
-		expect(text).toContain('    Value: page|DOE|456');
+		expect(text).toContain('More members available; 1 returned.');
+		expect(text).toContain('call get-category-members again with continueFrom=page|DOE|456.');
 	});
 
 	it('omits truncation when response.continue is absent', async () => {

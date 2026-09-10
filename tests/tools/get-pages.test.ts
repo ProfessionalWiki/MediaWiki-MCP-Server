@@ -568,16 +568,12 @@ describe('get-pages', () => {
 			// without it the wikitext runs straight into `Truncation:`, and a page whose
 			// own text contains such a line would read as a field of this payload.
 			expect(text).toMatch(/Page ID: 1[\s\S]*?Source:\n\nx{1000}\n\n {2}Truncation:/);
-			expect(text).toContain('    Reason: content-truncated');
-			expect(text).toContain('    Returned bytes: 1000');
-			expect(text).toContain('    Total bytes: 1001');
-			expect(text).toContain('    Item noun: wikitext');
-			expect(text).toContain('    Tool name: get-pages');
-			expect(text).toContain('    Sections:\n    - 0 (Lead)\n    - 1 (Overview)');
+			expect(text).toContain('Content (wikitext) truncated at 1000 of 1001 bytes.');
+			expect(text).toContain('Available sections: 0 (Lead), 1 (Overview).');
 			// The first body reached the response budget, so the page after it is
 			// named rather than returned.
 			expect(text).not.toContain(`  Source: ${small}`);
-			expect(text).toContain('    Value: Small');
+			expect(text).toContain('call get-pages again with titles=Small.');
 
 			expect(request).toHaveBeenCalledTimes(1);
 			expect(request).toHaveBeenCalledWith(
@@ -621,8 +617,7 @@ describe('get-pages', () => {
 
 			const text = assertStructuredSuccess(result);
 			expect((text.match(/Truncation:/g) ?? []).length).toBe(2);
-			expect(text).toContain('  Reason: content-truncated');
-			expect(text).toContain('  Reason: more-available');
+			expect(text).toContain('More pages available;');
 			expect(text).not.toContain('Title: BigB');
 			expect(request).toHaveBeenCalledTimes(1);
 		});
@@ -717,11 +712,8 @@ describe('get-pages response budget', () => {
 		expect(text).toContain('Title: P1');
 		expect(text).toContain('Title: P2');
 		expect(text).not.toContain('Title: P3');
-		expect(text).toContain('  Reason: more-available');
-		expect(text).toContain('  Returned count: 2');
-		expect(text).toContain('  Item noun: pages');
-		expect(text).toContain('    Param: titles');
-		expect(text).toContain('    Value: P3');
+		expect(text).toContain('More pages available; 2 returned.');
+		expect(text).toContain('call get-pages again with titles=P3.');
 	});
 
 	// A page the wiki does not have and a page left out for the budget are
@@ -744,7 +736,7 @@ describe('get-pages response budget', () => {
 		const text = assertStructuredSuccess(await read(ctx, ['P1', 'Gone', 'P3']));
 
 		expect(text).toContain('Missing:\n- Gone');
-		expect(text).toContain('    Value: P3');
+		expect(text).toContain('call get-pages again with titles=P3.');
 		expect(text).not.toContain('Title: P3');
 	});
 
@@ -756,7 +748,7 @@ describe('get-pages response budget', () => {
 		const text = assertStructuredSuccess(await read(ctx, ['P1', 'P2']));
 
 		expect(text).toContain('Title: P1');
-		expect(text).toContain('  Reason: content-truncated');
+		expect(text).toContain('Content (wikitext) truncated at');
 		expect(text).not.toContain('Title: P2');
 	});
 
@@ -769,7 +761,7 @@ describe('get-pages response budget', () => {
 		const text = assertStructuredSuccess(await read(ctx, ['P1', 'P2']));
 
 		expect(text).toContain('Title: P2');
-		expect(text).toContain('  Reason: content-truncated');
+		expect(text).toContain('Content (wikitext) truncated at');
 		expect(text).toMatch(/Source:\n\nx{1000}/);
 	});
 
@@ -792,6 +784,6 @@ describe('get-pages response budget', () => {
 
 		const text = assertStructuredSuccess(await read(ctx, ['P1', 'Shortcut']));
 
-		expect(text).toContain('    Value: Shortcut');
+		expect(text).toContain('call get-pages again with titles=Shortcut.');
 	});
 });

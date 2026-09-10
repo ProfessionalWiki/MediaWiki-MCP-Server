@@ -290,12 +290,7 @@ describe('parse-wikitext', () => {
 
 		const text = assertStructuredSuccess(result);
 		expect(text).toMatch(/HTML:\n\n<p>x+/);
-		expect(text).toContain('Truncation:');
-		expect(text).toContain('  Reason: content-truncated');
-		expect(text).toContain('  Returned bytes: 75000');
-		expect(text).toContain('  Total bytes: 85007');
-		expect(text).toContain('  Item noun: HTML');
-		expect(text).toContain('  Tool name: parse-wikitext');
+		expect(text).toContain('Content (HTML) truncated at 75000 of 85007 bytes.');
 		expect(text).toContain('Categories:\n- Category: Foo');
 	});
 
