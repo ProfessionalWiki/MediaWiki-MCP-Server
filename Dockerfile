@@ -62,7 +62,7 @@ EXPOSE 8080
 
 # Add health check for container orchestration
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
-  CMD [ "node", "-e", "require('http').get('http://localhost:8080/health', (res) => process.exit(res.statusCode == 200 ? 0 : 1))" ]
+  CMD [ "node", "-e", "require('http').get('http://localhost:' + process.env.PORT + '/health', (res) => process.exit(res.statusCode == 200 ? 0 : 1))" ]
 
 # Start the server
 CMD ["node", "dist/index.js"]
