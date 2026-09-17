@@ -37,7 +37,7 @@ jobs:
         run: npm run bundle
 
       - name: Upload MCP Bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mcpb-bundle
           path: '*.mcpb'
@@ -104,7 +104,7 @@ jobs:
       # server.json is rewritten twice above, and the registry publishes the
       # rewritten file rather than the one at the tag.
       - name: Upload server.json
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: server-json
           path: server.json
