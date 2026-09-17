@@ -62,7 +62,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org/'
 
       - name: Download MCP Bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: mcpb-bundle
 
@@ -117,7 +117,7 @@ jobs:
       id-token: write # For MCP registry OIDC
     steps:
       - name: Download server.json
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: server-json
 
