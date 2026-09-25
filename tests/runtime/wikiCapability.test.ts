@@ -219,6 +219,7 @@ describe('WRITE_TOOL_NAMES', () => {
 			'update-page',
 			'delete-page',
 			'undelete-page',
+			'protect-page',
 			'upload-file',
 			'upload-file-from-url',
 			'update-file',

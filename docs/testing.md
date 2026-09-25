@@ -140,13 +140,13 @@ To point an MCP client at a locally-built copy of the server:
 
 ## Local wiki setup (for authenticated tools)
 
-Authenticated tools (create, update, delete, undelete, upload) need credentials.
+Authenticated tools (create, update, delete, undelete, protect, upload) need credentials.
 To create a bot password on a local MediaWiki running in Docker:
 
 ```bash
 docker exec <container> php /var/www/html/maintenance/run.php createBotPassword \
   --appid mcp-server \
-  --grants 'basic,highvolume,editpage,editprotected,createeditmovepage,delete,uploadfile,uploadeditmovefile' \
+  --grants 'basic,highvolume,editpage,editprotected,createeditmovepage,delete,protect,uploadfile,uploadeditmovefile' \
   <username>
 ```
 
