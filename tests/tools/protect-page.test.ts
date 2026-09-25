@@ -20,11 +20,18 @@ interface CurrentProtection {
 
 const PROTECTED = { protect: { title: 'Main Page', reason: '', protections: [] } };
 
+const WIKI_NOW = '2026-01-01T00:00:00Z';
+
 // A wiki where Main Page carries the given protections and every other title
-// none, so a read of the wrong title finds nothing to keep.
-function wikiWith(current: CurrentProtection[], response: unknown = PROTECTED) {
+// none, so a read of the wrong title finds nothing to keep. `now` is the wiki's
+// own clock, which it reports alongside the protections.
+function wikiWith(
+	current: CurrentProtection[],
+	{ response = PROTECTED as unknown, now = WIKI_NOW } = {},
+) {
 	const mock = createMockMwn({
 		request: vi.fn(async (params: { titles?: string }) => ({
+			curtimestamp: now,
 			query: {
 				pages: [{ title: params.titles, protection: params.titles === 'Main Page' ? current : [] }],
 			},
@@ -98,10 +105,13 @@ describe('protect-page', () => {
 		});
 	});
 
-	it('does not reinstate a protection whose expiry has passed', async () => {
-		const { ctx, submit } = wikiWith([
-			{ type: 'move', level: 'sysop', expiry: '2020-01-01T00:00:00Z' },
-		]);
+	// The expiry is still ahead by the host's clock, so only the wiki's clock
+	// can tell that it has passed.
+	it("does not reinstate a protection that has expired by the wiki's clock", async () => {
+		const { ctx, submit } = wikiWith(
+			[{ type: 'move', level: 'sysop', expiry: '2089-12-31T00:00:00Z' }],
+			{ now: '2090-01-01T00:00:00Z' },
+		);
 
 		await protectPage.handle(
 			toolArgs(protectPage, { title: 'Main Page', protections: { edit: 'sysop' } }),
@@ -173,16 +183,18 @@ describe('protect-page', () => {
 		expect(asksToCascade(submit)).toBe(true);
 	});
 
-	it('reports the protections in effect afterwards, leaving out lifted ones', async () => {
+	it("reports the page's protections after the change, leaving out lifted ones", async () => {
 		const { ctx } = wikiWith([], {
-			protect: {
-				title: 'Main Page',
-				reason: '',
-				cascade: true,
-				protections: [
-					{ edit: 'sysop', expiry: '2099-01-01T00:00:00Z' },
-					{ move: '', expiry: 'infinite' },
-				],
+			response: {
+				protect: {
+					title: 'Main Page',
+					reason: '',
+					cascade: true,
+					protections: [
+						{ edit: 'sysop', expiry: '2099-01-01T00:00:00Z' },
+						{ move: '', expiry: 'infinite' },
+					],
+				},
 			},
 		});
 
@@ -202,10 +214,12 @@ describe('protect-page', () => {
 	// and says so only by leaving the flag out of its response.
 	it('reports cascading as off when the wiki declines to cascade', async () => {
 		const { ctx } = wikiWith([], {
-			protect: {
-				title: 'Main Page',
-				reason: '',
-				protections: [{ edit: 'autoconfirmed', expiry: 'infinite' }],
+			response: {
+				protect: {
+					title: 'Main Page',
+					reason: '',
+					protections: [{ edit: 'autoconfirmed', expiry: 'infinite' }],
+				},
 			},
 		});
 

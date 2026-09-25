@@ -42,6 +42,11 @@ interface CurrentProtection {
 	source?: string;
 }
 
+interface ProtectionRead {
+	curtimestamp: string;
+	query?: { pages?: { protection?: CurrentProtection[] }[] };
+}
+
 interface ProtectResponse {
 	protect: {
 		title: string;
@@ -82,7 +87,7 @@ export const protectPage: Tool<typeof inputSchema> = {
 		const mwn = await ctx.mwn();
 		// The wiki lifts the protection of every action a request leaves out, so
 		// the page's other protections are sent again to keep them.
-		const current = (await ownProtections(mwn, title)).filter((p) => inForce(p.expiry));
+		const current = await protectionsInForce(mwn, title);
 		const kept: Protection[] = current
 			.filter((p) => !Object.hasOwn(protections, p.type))
 			.map((p) => ({ action: p.type, level: p.level, expiry: p.expiry }));
@@ -107,23 +112,31 @@ export const protectPage: Tool<typeof inputSchema> = {
 	},
 };
 
-async function ownProtections(mwn: Mwn, title: string): Promise<CurrentProtection[]> {
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
-	const response = (await mwn.request({
+// The page's own protections, leaving out those inherited from a cascading page
+// and those already expired. An expired protection stays listed until the wiki
+// next purges it, and sending one again fails the whole request as an expiry in
+// the past; it is judged by the wiki's clock, which the host's need not match.
+async function protectionsInForce(mwn: Mwn, title: string): Promise<CurrentProtection[]> {
+	const params = {
 		action: 'query',
 		prop: 'info',
 		inprop: 'protection',
 		titles: title,
+		curtimestamp: true,
 		formatversion: '2',
-	})) as { query?: { pages?: { protection?: CurrentProtection[] }[] } };
-	return (response.query?.pages?.[0]?.protection ?? []).filter((p) => p.source === undefined);
+	};
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
+	const response = (await mwn.request(params)) as ProtectionRead;
+	const now = Date.parse(response.curtimestamp);
+	return (response.query?.pages?.[0]?.protection ?? []).filter(
+		(p) => p.source === undefined && inForceAt(p.expiry, now),
+	);
 }
 
-// An expired protection stays listed until the wiki next purges it, and sending
-// one again fails the whole request as an expiry in the past.
-function inForce(expiry: string): boolean {
+// "infinity" does not parse as a date, so it is kept.
+function inForceAt(expiry: string, now: number): boolean {
 	const end = Date.parse(expiry);
-	return Number.isNaN(end) || end > Date.now();
+	return Number.isNaN(end) || end > now;
 }
 
 function fromResponse({ expiry, ...levelByAction }: Record<string, string>): Protection[] {
