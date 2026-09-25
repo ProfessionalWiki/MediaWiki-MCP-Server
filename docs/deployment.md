@@ -47,7 +47,7 @@ Serve a single wiki for anonymous reads: no sign-in, no writes. Good for public 
 }
 ```
 
-`readOnly: true` together with `allowWikiManagement: false` hides the wiki-management tools (`add-wiki`, `remove-wiki`) and the write tools (`create-page`, `update-page`, `delete-page`, `undelete-page`, `upload-file`, `upload-file-from-url`, and extension-pack write tools) from `tools/list`. What remains is an anonymous, read-only interface.
+`readOnly: true` together with `allowWikiManagement: false` hides the wiki-management tools (`add-wiki`, `remove-wiki`) and every write tool, extension-pack writes included, from `tools/list`. What remains is an anonymous, read-only interface.
 
 Then run it with `MCP_TRANSPORT=http` behind a reverse proxy that terminates TLS (Cloudflare, nginx, and Caddy all work), then set the [Host and Origin allowlists](#security-checklist). The server itself [rate limits tool calls](#rate-limiting); IP-level limiting against anonymous floods still belongs at the proxy, which knows the caller's address when this server does not.
 

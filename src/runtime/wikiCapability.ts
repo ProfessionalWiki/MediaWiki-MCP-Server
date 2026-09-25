@@ -2,32 +2,29 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ToolContext } from './context.ts';
 import type { ExtensionPack } from '../tools/extensions/types.ts';
 import { extensionPacks } from '../tools/extensions/index.ts';
+import { standardTools } from '../tools/standardTools.ts';
+import { isWikiScoped } from './wikiArg.ts';
 import { getRuntimeToken } from './requestContext.ts';
 import { bearerPassthroughEnabled, hasStaticCredentials } from './authShape.ts';
 
-const CORE_WRITE_TOOL_NAMES: readonly string[] = [
-	'create-page',
-	'move-page',
-	'update-page',
-	'delete-page',
-	'undelete-page',
-	'protect-page',
-	'upload-file',
-	'upload-file-from-url',
-	'update-file',
-	'update-file-from-url',
-];
-
-const EXTENSION_WRITE_TOOL_NAMES: readonly string[] = extensionPacks.flatMap((pack) =>
-	pack.tools.filter((tool) => tool.annotations.readOnlyHint === false).map((tool) => tool.name),
-);
-
 // The wiki-mutating tools. Shared by reconcile's read-only rule and the
 // per-call capability guard.
-export const WRITE_TOOL_NAMES: readonly string[] = [
-	...CORE_WRITE_TOOL_NAMES,
-	...EXTENSION_WRITE_TOOL_NAMES,
-];
+export const WRITE_TOOL_NAMES: readonly string[] = standardTools
+	.filter(isWriteTool)
+	.map((tool) => tool.name);
+
+/**
+ * Whether a tool changes a wiki, read from its own annotations so that a new
+ * one is gated without being listed anywhere. A tool that is not wiki-scoped is
+ * left out: the gate acts on the wiki a call resolves to, and only a
+ * wiki-scoped tool resolves one.
+ */
+export function isWriteTool(tool: {
+	readonly annotations: { readonly readOnlyHint: boolean };
+	readonly wikiScoped?: boolean;
+}): boolean {
+	return !tool.annotations.readOnlyHint && isWikiScoped(tool);
+}
 
 const WRITE_TOOL_SET: ReadonlySet<string> = new Set(WRITE_TOOL_NAMES);
 

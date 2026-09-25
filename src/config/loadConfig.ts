@@ -79,10 +79,10 @@ export interface WikiConfig {
 	 */
 	private?: boolean;
 	/**
-	 * When true, write tools — the core page/file writes plus extension-pack
-	 * writes (identified by readOnlyHint: false) — are rejected for this wiki
-	 * by the per-call guard, and hidden from tools/list when no configured
-	 * wiki is writable. Defaults to false.
+	 * When true, write tools — every wiki-scoped tool that declares
+	 * readOnlyHint: false — are rejected for this wiki by the per-call guard,
+	 * and hidden from tools/list when no configured wiki is writable.
+	 * Defaults to false.
 	 */
 	readOnly?: boolean;
 	/**

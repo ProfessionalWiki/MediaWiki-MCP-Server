@@ -1,5 +1,9 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { checkWikiCapability, WRITE_TOOL_NAMES } from '../../src/runtime/wikiCapability.ts';
+import {
+	checkWikiCapability,
+	isWriteTool,
+	WRITE_TOOL_NAMES,
+} from '../../src/runtime/wikiCapability.ts';
 import { fakeContext } from '../helpers/fakeContext.ts';
 import { withRequestFields } from '../../src/runtime/requestContext.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
@@ -212,47 +216,43 @@ describe('checkWikiCapability — pack wiki gates', () => {
 });
 
 describe('WRITE_TOOL_NAMES', () => {
-	it('includes the core write tools', () => {
-		for (const name of [
-			'create-page',
-			'move-page',
-			'update-page',
-			'delete-page',
-			'undelete-page',
-			'protect-page',
-			'upload-file',
-			'upload-file-from-url',
-			'update-file',
-			'update-file-from-url',
-		]) {
-			expect(WRITE_TOOL_NAMES).toContain(name);
-		}
+	// Exact, so a tool whose annotation puts it on the wrong side fails here,
+	// and adding a write tool means saying so.
+	it('holds exactly the tools that write to a wiki', () => {
+		expect([...WRITE_TOOL_NAMES].sort()).toEqual(
+			[
+				'create-page',
+				'delete-page',
+				'move-page',
+				'protect-page',
+				'undelete-page',
+				'update-file',
+				'update-file-from-url',
+				'update-page',
+				'upload-file',
+				'upload-file-from-url',
+				'neowiki-create-subject',
+				'neowiki-delete-subject',
+				'neowiki-set-main-subject',
+				'neowiki-update-subject',
+				'wikibase-add-statement',
+				'wikibase-edit-entity',
+			].sort(),
+		);
+	});
+});
+
+describe('isWriteTool', () => {
+	it('counts a wiki tool that declares it writes', () => {
+		expect(isWriteTool({ annotations: { readOnlyHint: false } })).toBe(true);
 	});
 
-	it('derives extension-pack write tools from their readOnlyHint annotation', () => {
-		for (const name of [
-			'neowiki-create-subject',
-			'neowiki-update-subject',
-			'neowiki-delete-subject',
-			'neowiki-set-main-subject',
-			'wikibase-edit-entity',
-			'wikibase-add-statement',
-		]) {
-			expect(WRITE_TOOL_NAMES).toContain(name);
-		}
+	it('does not count a tool that declares it only reads', () => {
+		expect(isWriteTool({ annotations: { readOnlyHint: true } })).toBe(false);
 	});
 
-	it('excludes extension read tools', () => {
-		for (const name of [
-			'neowiki-cypher-query',
-			'neowiki-get-subject',
-			'smw-query',
-			'cargo-query',
-			'bucket-query',
-			'wikibase-get-entity',
-			'wikibase-query',
-		]) {
-			expect(WRITE_TOOL_NAMES).not.toContain(name);
-		}
+	// Such a tool, like oauth-logout, names no wiki for the gate to act on.
+	it('does not count a tool that is not wiki-scoped', () => {
+		expect(isWriteTool({ annotations: { readOnlyHint: false }, wikiScoped: false })).toBe(false);
 	});
 });

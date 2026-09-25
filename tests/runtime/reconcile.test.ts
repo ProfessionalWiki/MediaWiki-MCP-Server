@@ -182,6 +182,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
+		expect(mocks.get('update-page')!.disable).toHaveBeenCalledTimes(1);
 		for (const name of WRITE_TOOL_NAMES) {
 			expect(mocks.get(name)!.disable).toHaveBeenCalledTimes(1);
 			expect(mocks.get(name)!.enable).not.toHaveBeenCalled();
@@ -222,6 +223,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
+		expect(mocks.get('update-page')!.enable).toHaveBeenCalledTimes(1);
 		for (const name of WRITE_TOOL_NAMES) {
 			expect(mocks.get(name)!.enable).toHaveBeenCalledTimes(1);
 			expect(mocks.get(name)!.disable).not.toHaveBeenCalled();
@@ -241,6 +243,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
+		expect(mocks.get('update-page')!.enable).toHaveBeenCalledTimes(1);
 		for (const name of WRITE_TOOL_NAMES) {
 			expect(mocks.get(name)!.enable).toHaveBeenCalledTimes(1);
 		}
@@ -290,6 +293,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 				extensionPacks: ALL_PACKS,
 			}),
 		).resolves.not.toThrow();
+		expect(mocks.get('update-page')!.disable).toHaveBeenCalledTimes(1);
 		for (const name of WRITE_TOOL_NAMES) {
 			if (name === 'upload-file') {
 				continue;
@@ -1061,6 +1065,7 @@ describe('reconcileTools — union gating', () => {
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
+		expect(mocks.get('update-page')!.disable).not.toHaveBeenCalled();
 		for (const name of WRITE_TOOL_NAMES) {
 			expect(mocks.get(name)!.disable).not.toHaveBeenCalled();
 		}
@@ -1080,6 +1085,7 @@ describe('reconcileTools — union gating', () => {
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
+		expect(mocks.get('update-page')!.disable).toHaveBeenCalledTimes(1);
 		for (const name of WRITE_TOOL_NAMES) {
 			expect(mocks.get(name)!.disable).toHaveBeenCalledTimes(1);
 		}

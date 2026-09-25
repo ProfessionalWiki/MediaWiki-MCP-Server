@@ -34,6 +34,7 @@ const isManagementAllowedRef = { current: true };
 
 const WRITE_TOOLS = [
 	'create-page',
+	'move-page',
 	'update-page',
 	'delete-page',
 	'undelete-page',
