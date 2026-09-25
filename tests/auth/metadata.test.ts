@@ -45,6 +45,8 @@ describe('fetchMetadata', () => {
 	});
 
 	it('identifies itself to the wiki with the server User-Agent', async () => {
+		// Added after the fake's routes, the recorder sees only the requests no
+		// route answers, so the probes must find no metadata.
 		fakeAs = await startFakeAs({ wellKnown: 'absent' });
 		const userAgents = new Set<string | undefined>();
 		fakeAs.app.use((req, _res, next) => {

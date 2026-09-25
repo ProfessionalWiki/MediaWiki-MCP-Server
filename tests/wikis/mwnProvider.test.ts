@@ -132,6 +132,16 @@ describe('MwnProviderImpl', () => {
 		expect(mockConstructor).toHaveBeenCalledTimes(2);
 	});
 
+	it('identifies itself to the wiki with the server User-Agent', async () => {
+		const reg = new WikiRegistryImpl({ a: sample('a') }, true);
+		const sel = new ActiveWikiImpl('a', reg);
+		const provider = new MwnProviderImpl(reg, sel, () => undefined);
+		await provider.get();
+		expect(mockConstructor).toHaveBeenCalledWith(
+			expect.objectContaining({ userAgent: 'test-agent' }),
+		);
+	});
+
 	it('passes the OAuth2 token from config to mwn', async () => {
 		const reg = new WikiRegistryImpl(
 			{

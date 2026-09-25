@@ -30,6 +30,7 @@ import {
 	HttpStatusError,
 	FileTooLargeError,
 } from '../../src/transport/httpFetch.ts';
+import { USER_AGENT } from '../../src/runtime/constants.ts';
 
 describe('utils.fetchCore (via makeApiRequest / fetchPageHtml)', () => {
 	beforeEach(() => {
@@ -50,6 +51,14 @@ describe('utils.fetchCore (via makeApiRequest / fetchPageHtml)', () => {
 			'https://example.com/w/api.php?action=query',
 			expect.objectContaining({ redirect: 'manual' }),
 		);
+	});
+
+	it('identifies itself with the server User-Agent', async () => {
+		vi.mocked(fetch).mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+		await makeApiRequest('https://example.com/w/api.php');
+
+		expect(vi.mocked(fetch).mock.calls[0][1]!.headers).toMatchObject({ 'User-Agent': USER_AGENT });
 	});
 
 	it('pins DNS by passing an Agent built from the resolved addresses to fetch', async () => {
