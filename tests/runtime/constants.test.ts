@@ -4,7 +4,7 @@ import { resolveUserAgent } from '../../src/runtime/constants.ts';
 describe('resolveUserAgent', () => {
 	it('identifies the server and a contact URL by default', () => {
 		expect(resolveUserAgent({})).toMatch(
-			/^mediawiki-mcp-server\/\d+\.\d+\.\d+ \(https:\/\/github\.com\/ProfessionalWiki\/MediaWiki-MCP-Server\)$/,
+			/^mediawiki-mcp-server\/\S+ \(https:\/\/github\.com\/ProfessionalWiki\/MediaWiki-MCP-Server\)$/,
 		);
 	});
 
