@@ -2,31 +2,33 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/serv
 import type { ToolContext } from './context.ts';
 import type { ExtensionPack } from '../tools/extensions/types.ts';
 import { extensionPacks } from '../tools/extensions/index.ts';
-import { standardTools } from '../tools/standardTools.ts';
+import { allStandardTools } from '../tools/standardTools.ts';
 import { isWikiScoped } from './wikiArg.ts';
 import { getRuntimeToken } from './requestContext.ts';
 import { bearerPassthroughEnabled, hasStaticCredentials } from './authShape.ts';
 
 // The wiki-mutating tools. Shared by reconcile's read-only rule and the
 // per-call capability guard.
-export const WRITE_TOOL_NAMES: readonly string[] = writeToolNames([
-	...standardTools,
-	...extensionPacks.flatMap((pack) => pack.tools),
-]);
+export const WRITE_TOOL_NAMES: readonly string[] = writeToolNames(allStandardTools);
+
+interface AnnotatedTool {
+	readonly name: string;
+	readonly annotations: ToolAnnotations;
+	readonly wikiScoped?: boolean;
+}
+
+export function writeToolNames(tools: readonly AnnotatedTool[]): string[] {
+	return tools.filter(isWriteTool).map((tool) => tool.name);
+}
 
 /**
- * The tools that change a wiki, read from each tool's own annotations so that a
- * new one is gated without being listed anywhere. MCP reads an absent
- * readOnlyHint as false, so only a tool that declares itself read-only is left
- * out, along with tools that do not act on a wiki and change only this
- * server's own state.
+ * Whether a tool changes a wiki, read from its own annotations so that a new
+ * one is gated without being listed anywhere. MCP reads an absent readOnlyHint
+ * as false, so only a tool that declares itself read-only is left out, along
+ * with tools that do not act on a wiki and change only this server's own state.
  */
-export function writeToolNames(
-	tools: readonly { name: string; annotations: ToolAnnotations; wikiScoped?: boolean }[],
-): string[] {
-	return tools
-		.filter((tool) => tool.annotations.readOnlyHint !== true && isWikiScoped(tool))
-		.map((tool) => tool.name);
+export function isWriteTool(tool: AnnotatedTool): boolean {
+	return tool.annotations.readOnlyHint !== true && isWikiScoped(tool);
 }
 
 const WRITE_TOOL_SET: ReadonlySet<string> = new Set(WRITE_TOOL_NAMES);

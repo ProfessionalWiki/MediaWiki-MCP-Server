@@ -90,10 +90,10 @@ describe('extensionPacks', () => {
 	});
 
 	it('every tool declares an explicit boolean readOnlyHint annotation', () => {
-		// The read-only gate derives extension write tools from
-		// readOnlyHint === false (WRITE_TOOL_NAMES in src/runtime/wikiCapability.ts).
-		// readOnlyHint is optional in the SDK type, so a mutating tool that omits it
-		// would silently escape the gate. Require every pack tool to state it.
+		// readOnlyHint is optional in the SDK type, and the read-only gate counts a
+		// tool that omits it as a write (isWriteTool in src/runtime/wikiCapability.ts),
+		// so a read tool that forgot it would be hidden on a read-only wiki.
+		// Require every pack tool to state it.
 		for (const pack of extensionPacks) {
 			for (const tool of pack.tools) {
 				expect(

@@ -1,4 +1,5 @@
 import type { Tool } from '../runtime/tool.ts';
+import { extensionPacks } from './extensions/index.ts';
 
 import { getPage } from './get-page.ts';
 import { getPages } from './get-pages.ts';
@@ -34,7 +35,7 @@ import { oauthLogout } from './oauth-logout.ts';
 // fail this assignment. The dispatcher's own generic re-narrows TSchema
 // when each tool's handler is wrapped.
 // oxlint-disable-next-line typescript/no-explicit-any
-export const standardTools: Tool<any>[] = [
+const standardTools: Tool<any>[] = [
 	getPage,
 	getPages,
 	getPageHistory,
@@ -63,4 +64,13 @@ export const standardTools: Tool<any>[] = [
 	updateFileFromUrl,
 	oauthStatus,
 	oauthLogout,
+];
+
+// Every tool that runs with a ToolContext, standard and extension-pack alike.
+// registerAllTools registers this list and the read-only gate reads it, so the
+// two cannot disagree.
+// oxlint-disable-next-line typescript/no-explicit-any
+export const allStandardTools: Tool<any>[] = [
+	...standardTools,
+	...extensionPacks.flatMap((pack) => pack.tools),
 ];

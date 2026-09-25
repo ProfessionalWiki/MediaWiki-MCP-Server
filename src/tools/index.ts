@@ -8,7 +8,7 @@ import { dispatch } from '../runtime/dispatcher.ts';
 import { register } from '../runtime/register.ts';
 
 import { extensionPacks } from './extensions/index.ts';
-import { standardTools } from './standardTools.ts';
+import { allStandardTools } from './standardTools.ts';
 import { addWiki } from './add-wiki.ts';
 import { removeWiki } from './remove-wiki.ts';
 
@@ -22,11 +22,6 @@ export function registerAllTools(
 ): Map<string, RegisteredTool> {
 	const registered = new Map<string, RegisteredTool>();
 
-	// oxlint-disable-next-line typescript/no-explicit-any
-	const allStandardTools: Tool<any>[] = [
-		...standardTools,
-		...extensionPacks.flatMap((p) => p.tools),
-	];
 	for (const tool of allStandardTools) {
 		try {
 			registered.set(tool.name, register(server, tool, dispatch(tool, ctx)));

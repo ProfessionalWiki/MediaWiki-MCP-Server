@@ -16,7 +16,7 @@ import {
 } from './instrument.ts';
 import { acquireToken } from '../auth/acquireToken.ts';
 import { structuredResult } from '../results/response.ts';
-import { checkWikiCapability } from './wikiCapability.ts';
+import { checkWikiCapability, isWriteTool } from './wikiCapability.ts';
 import { monotonicNow } from './clock.ts';
 
 // Tools that operate on server-local state (the wiki registry, the OAuth token
@@ -152,11 +152,7 @@ async function runDispatchInner<TSchema extends ZodRawShape, TCtx extends ToolCo
 		const tailored = overridden.message !== rawMessage;
 		const verb = tool.failureVerb ?? tool.name;
 		let finalMessage = tailored ? overridden.message : `Failed to ${verb}: ${overridden.message}`;
-		if (
-			err instanceof WikiTimeoutError &&
-			err.phase === 'calling' &&
-			tool.annotations.readOnlyHint === false
-		) {
+		if (err instanceof WikiTimeoutError && err.phase === 'calling' && isWriteTool(tool)) {
 			finalMessage += WRITE_TIMEOUT_CAVEAT;
 		}
 		errorText = finalMessage;
