@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-09-25
+
 ### Added
 
 - `protect-page` tool that protects or unprotects a wiki page, setting edit, move, upload or create protection separately, with an optional expiry. It needs the `Protect and unprotect pages` grant.
@@ -383,7 +385,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - Smithery integration.
 
-[Unreleased]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.15.0...v0.16.0
