@@ -23,31 +23,28 @@ export type SiteInfo = {
 };
 
 export interface SiteInfoCache {
-	/** The wiki's siteinfo, or undefined once it is due for a refetch. */
-	get(wikiKey: string): SiteInfo | undefined;
 	/** The wiki's siteinfo as last stored, however old. */
-	getLastKnown(wikiKey: string): SiteInfo | undefined;
+	get(wikiKey: string): SiteInfo | undefined;
+	/** False once the stored siteinfo is due for a refetch, or when none is stored. */
+	isFresh(wikiKey: string): boolean;
 	set(wikiKey: string, value: SiteInfo): void;
 	delete(wikiKey: string): void;
 }
 
-// Entries expire so that a wiki's changed settings, such as a namespace newly
-// counted as content, are picked up without a restart.
+// Entries go stale after an hour, so that a wiki's changed settings, such as a
+// namespace newly counted as content, are picked up without a restart.
 export class SiteInfoCacheImpl implements SiteInfoCache {
 	private readonly cache = new Map<string, { value: SiteInfo; expiresAt: number }>();
 
 	public constructor(private readonly now: () => number = monotonicNow) {}
 
 	public get(wikiKey: string): SiteInfo | undefined {
-		const entry = this.cache.get(wikiKey);
-		if (entry && entry.expiresAt > this.now()) {
-			return entry.value;
-		}
-		return undefined;
+		return this.cache.get(wikiKey)?.value;
 	}
 
-	public getLastKnown(wikiKey: string): SiteInfo | undefined {
-		return this.cache.get(wikiKey)?.value;
+	public isFresh(wikiKey: string): boolean {
+		const entry = this.cache.get(wikiKey);
+		return entry !== undefined && entry.expiresAt > this.now();
 	}
 
 	public set(wikiKey: string, value: SiteInfo): void {

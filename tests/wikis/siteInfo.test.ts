@@ -1,11 +1,11 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, type Mock } from 'vitest';
 import { resolveSiteInfo } from '../../src/wikis/siteInfo.ts';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
 import { fakeContext } from '../helpers/fakeContext.ts';
 import { withRequestFields, getRequestDeadline } from '../../src/runtime/requestContext.ts';
 import { callDeadline } from '../../src/runtime/callDeadline.ts';
 import { SiteInfoCacheImpl } from '../../src/wikis/siteInfoCache.ts';
-import { fakeClock } from '../helpers/fakeClock.ts';
+import { fakeClock, type FakeClock } from '../helpers/fakeClock.ts';
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -22,6 +22,14 @@ function siteInfoWithNamespaces(namespaces: Record<string, { id: number; content
 // need an empty cache so resolveSiteInfo actually calls mwn).
 function emptyCache() {
 	return new SiteInfoCacheImpl();
+}
+
+// A context whose siteinfo cache runs on `clock`, so a test can let an entry expire.
+function contextOverTime(clock: FakeClock, request: Mock) {
+	return fakeContext({
+		mwn: async () => createMockMwn({ request }) as never,
+		siteInfoCache: new SiteInfoCacheImpl(clock.now),
+	});
 }
 
 describe('resolveSiteInfo', () => {
@@ -163,7 +171,7 @@ describe('resolveSiteInfo', () => {
 	it('falls back to config and does not cache when the fetch fails', async () => {
 		const mock = createMockMwn({ request: vi.fn().mockRejectedValue(new Error('unreachable')) });
 		const cache = emptyCache();
-		const ctx = fakeContext({ mwn: async () => mock as never, siteInfoCache: cache as never });
+		const ctx = fakeContext({ mwn: async () => mock as never, siteInfoCache: cache });
 
 		const info = await resolveSiteInfo(ctx, 'test-wiki');
 		expect(info).toEqual({ server: 'https://test.wiki', articlepath: '/wiki' });
@@ -313,8 +321,9 @@ describe('resolveSiteInfo', () => {
 
 	it('picks up a changed content namespace list once the cached siteinfo expires', async () => {
 		const clock = fakeClock();
-		const mock = createMockMwn({
-			request: vi
+		const ctx = contextOverTime(
+			clock,
+			vi
 				.fn()
 				.mockResolvedValueOnce(siteInfoWithNamespaces({ '0': { id: 0, content: true } }))
 				.mockResolvedValueOnce(
@@ -323,43 +332,31 @@ describe('resolveSiteInfo', () => {
 						'120': { id: 120, content: true },
 					}),
 				),
-		});
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
-			siteInfoCache: new SiteInfoCacheImpl(clock.now),
-		});
+		);
 
 		await resolveSiteInfo(ctx, 'test-wiki');
 		clock.advance(HOUR_MS + 1);
-		const info = await resolveSiteInfo(ctx, 'test-wiki');
 
-		expect(info.contentNamespaces).toEqual([0, 120]);
+		await vi.waitFor(async () => {
+			expect((await resolveSiteInfo(ctx, 'test-wiki')).contentNamespaces).toEqual([0, 120]);
+		});
 	});
 
-	it('keeps serving the last fetched siteinfo when a refresh after expiry fails', async () => {
+	it('serves expired siteinfo without waiting for its refetch', async () => {
 		const clock = fakeClock();
-		const mock = createMockMwn({
-			request: vi
+		const ctx = contextOverTime(
+			clock,
+			vi
 				.fn()
-				.mockResolvedValueOnce(
-					siteInfoWithNamespaces({
-						'0': { id: 0, content: true },
-						'120': { id: 120, content: true },
-					}),
-				)
-				.mockRejectedValueOnce(new Error('unreachable')),
-		});
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
-			siteInfoCache: new SiteInfoCacheImpl(clock.now),
-		});
+				.mockResolvedValueOnce(siteInfoWithNamespaces({ '0': { id: 0, content: true } }))
+				.mockReturnValueOnce(new Promise(() => {})),
+		);
 
 		await resolveSiteInfo(ctx, 'test-wiki');
 		clock.advance(HOUR_MS + 1);
 		const info = await resolveSiteInfo(ctx, 'test-wiki');
 
 		expect(info.server).toBe('https://public.example');
-		expect(info.contentNamespaces).toEqual([0, 120]);
 	});
 
 	it('leaves contentNamespaces absent when siteinfo reports no namespace map', async () => {

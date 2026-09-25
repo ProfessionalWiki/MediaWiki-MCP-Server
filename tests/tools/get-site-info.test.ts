@@ -4,7 +4,7 @@ import { fakeContext } from '../helpers/fakeContext.ts';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { assertStructuredData, assertStructuredError } from '../helpers/structuredResult.ts';
-import { SiteInfoCacheImpl, type LicenseInfo } from '../../src/wikis/siteInfoCache.ts';
+import type { LicenseInfo } from '../../src/wikis/siteInfoCache.ts';
 
 function siteinfoResponse(generalOverrides: Record<string, unknown> = {}) {
 	return {
@@ -32,16 +32,8 @@ function ctxWith(
 	opts: { extensions?: Set<string>; license?: LicenseInfo; reachable?: boolean } = {},
 ) {
 	const mwn = createMockMwn({ request });
-	// Pre-populate so resolveSiteInfo short-circuits (issues no extra request).
-	const siteInfoCache = new SiteInfoCacheImpl();
-	siteInfoCache.set('test-wiki', {
-		server: 'https://example',
-		articlepath: '/wiki',
-		...(opts.license ? { license: opts.license } : {}),
-	});
-	return fakeContext({
+	const ctx = fakeContext({
 		mwn: () => Promise.resolve(mwn as never),
-		siteInfoCache,
 		wikiProbe: {
 			hasExtension: (async () => false) as never,
 			hasAnyExtension: (async () => false) as never,
@@ -52,6 +44,13 @@ function ctxWith(
 			invalidate: (() => {}) as never,
 		},
 	});
+	// Pre-populate so resolveSiteInfo short-circuits (issues no extra request).
+	ctx.siteInfoCache.set('test-wiki', {
+		server: 'https://example',
+		articlepath: '/wiki',
+		...(opts.license ? { license: opts.license } : {}),
+	});
+	return ctx;
 }
 
 describe('get-site-info', () => {

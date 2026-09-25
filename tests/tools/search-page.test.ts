@@ -66,13 +66,13 @@ function searchParams(mock: ReturnType<typeof createMockMwn>): Record<string, un
 // that does not call this exercises the unresolved path and proves nothing
 // about the wiki-derived default.
 function contextKnowing(mock: ReturnType<typeof createMockMwn>, contentNamespaces: number[]) {
-	const siteInfoCache = new SiteInfoCacheImpl();
-	siteInfoCache.set('test-wiki', {
+	const ctx = fakeContext({ mwn: async () => mock as never });
+	ctx.siteInfoCache.set('test-wiki', {
 		server: 'https://test.wiki',
 		articlepath: '/wiki',
 		contentNamespaces,
 	});
-	return fakeContext({ mwn: async () => mock as never, siteInfoCache });
+	return ctx;
 }
 
 describe('search-page', () => {

@@ -15,16 +15,16 @@ afterEach(() => {
 });
 
 describe('SiteInfoCacheImpl', () => {
-	it('serves an entry for an hour, then reports it due for a refetch', () => {
+	it('counts an entry fresh for an hour, then due for a refetch', () => {
 		const clock = fakeClock();
 		const cache = new SiteInfoCacheImpl(clock.now);
 		cache.set('a', siteInfo);
 
 		clock.advance(HOUR_MS - 1);
-		expect(cache.get('a')).toEqual(siteInfo);
+		expect(cache.isFresh('a')).toBe(true);
 
 		clock.advance(2);
-		expect(cache.get('a')).toBeUndefined();
+		expect(cache.isFresh('a')).toBe(false);
 	});
 
 	it('measures its TTL monotonically, so a wall-clock jump does not expire an entry', () => {
@@ -36,6 +36,6 @@ describe('SiteInfoCacheImpl', () => {
 		// Two hours of wall clock, past the one-hour TTL, but no running time.
 		vi.setSystemTime(Date.now() + 2 * HOUR_MS);
 
-		expect(cache.get('a')).toEqual(siteInfo);
+		expect(cache.isFresh('a')).toBe(true);
 	});
 });

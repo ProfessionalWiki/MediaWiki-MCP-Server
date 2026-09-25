@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - The Docker health check now follows `PORT` instead of always probing port 8080.
 - Unauthenticated requests to Wikimedia wikis no longer fall under Wikimedia's lowest rate limit, which is shared across all of its wikis and made `list-wikis` report some of them unreachable when many were configured. The default `User-Agent` now includes a contact URL.
-- `search-page` now notices within an hour when a wiki changes which namespaces it counts as content, instead of keeping the list it first read until the server restarted. The wiki's public address, license, content language and query service endpoint refresh on the same schedule.
+- `search-page` now picks up a change to which namespaces a wiki counts as content without a server restart: the list is re-read once it is an hour old. The wiki's public address, license, content language and query service endpoint are re-read on the same schedule.
 
 ## [0.18.0] - 2026-09-10
 
