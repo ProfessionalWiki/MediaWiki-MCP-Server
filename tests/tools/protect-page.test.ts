@@ -39,7 +39,7 @@ function wikiWith(
 						{
 							title: params.titles,
 							...(params.inprop?.includes('protection') === true
-								? { protection: params.titles === 'Main Page' ? current : [] }
+								? { protection: String(params.titles) === 'Main Page' ? current : [] }
 								: {}),
 						},
 					],
@@ -171,13 +171,15 @@ describe('protect-page', () => {
 		});
 	});
 
+	// Naming edit replaces the protection that carries the cascade flag, so the
+	// current setting has to come from before the change.
 	it('keeps cascading on when the call leaves cascade out', async () => {
 		const { ctx, submit } = wikiWith([
 			{ type: 'edit', level: 'sysop', expiry: 'infinity', cascade: true },
 		]);
 
 		await protectPage.handle(
-			toolArgs(protectPage, { title: 'Main Page', protections: { move: 'sysop' } }),
+			toolArgs(protectPage, { title: 'Main Page', protections: { edit: 'sysop' } }),
 			ctx,
 		);
 
@@ -321,7 +323,7 @@ describe('protect-page', () => {
 		expect(submit).not.toHaveBeenCalled();
 	});
 
-	it('reports a level the wiki does not have as invalid input', async () => {
+	it('reports a level the wiki does not have as invalid input to protect the page', async () => {
 		const { ctx, submit } = wikiWith([]);
 		submit.mockRejectedValue(createMockMwnError('protect-invalidlevel'));
 
@@ -330,6 +332,7 @@ describe('protect-page', () => {
 			ctx,
 		)(toolArgs(protectPage, { title: 'Main Page', protections: { edit: 'staff' } }));
 
-		assertStructuredError(result, 'invalid_input', 'protect-invalidlevel');
+		const envelope = assertStructuredError(result, 'invalid_input', 'protect-invalidlevel');
+		expect(envelope.message).toContain('protect page');
 	});
 });
