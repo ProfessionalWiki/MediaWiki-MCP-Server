@@ -81,7 +81,7 @@ export const protectPage: Tool<typeof inputSchema> = {
 			expiry,
 		}));
 		if (requested.length === 0) {
-			return ctx.format.error('invalid_input', 'protections must name at least one action');
+			return ctx.format.invalidInput('protections must name at least one action');
 		}
 
 		const mwn = await ctx.mwn();
