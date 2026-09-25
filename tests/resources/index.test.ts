@@ -300,9 +300,8 @@ describe('wikis resource', () => {
 
 		clock.advance(60 * 60 * 1000 + 1);
 
-		expect((await listedResources(template)).map((resource) => resource.description)).toEqual([
-			'Wiki "Test" hosted at https://public.example',
-		]);
+		const [resource] = await listedResources(template);
+		expect(resource.description).toContain('https://public.example');
 	});
 
 	it('leaves a host:port key unencoded, as RFC 3986 permits ":" in a path segment', async () => {

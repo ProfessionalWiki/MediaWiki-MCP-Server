@@ -4,11 +4,7 @@ import { fakeClock } from '../helpers/fakeClock.ts';
 
 const HOUR_MS = 60 * 60 * 1000;
 
-const siteInfo: SiteInfo = {
-	server: 'https://test.wiki',
-	articlepath: '/wiki',
-	contentNamespaces: [0, 120],
-};
+const siteInfo: SiteInfo = { server: 'https://test.wiki', articlepath: '/wiki' };
 
 afterEach(() => {
 	vi.useRealTimers();
@@ -25,6 +21,17 @@ describe('SiteInfoCacheImpl', () => {
 
 		clock.advance(2);
 		expect(cache.isFresh('a')).toBe(false);
+	});
+
+	it('gives an entry stored again a fresh hour', () => {
+		const clock = fakeClock();
+		const cache = new SiteInfoCacheImpl(clock.now);
+		cache.set('a', siteInfo);
+		clock.advance(HOUR_MS + 1);
+
+		cache.set('a', siteInfo);
+
+		expect(cache.isFresh('a')).toBe(true);
 	});
 
 	it('measures its TTL monotonically, so a wall-clock jump does not expire an entry', () => {
