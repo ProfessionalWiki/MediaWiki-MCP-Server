@@ -1,6 +1,7 @@
 // src/auth/metadata.ts
 import { logger } from '../runtime/logger.ts';
 import { monotonicNow } from '../runtime/clock.ts';
+import { USER_AGENT } from '../runtime/constants.ts';
 import { mwOauth2AuthorizeEndpoint, mwOauth2TokenEndpoint } from './mwOauth2Endpoints.ts';
 
 // The authorization-server metadata of an upstream wiki, as discovered from its
@@ -99,7 +100,7 @@ async function tryFetch(url: string): Promise<unknown> {
 	const ctrl = new AbortController();
 	const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
 	try {
-		const res = await fetch(url, { signal: ctrl.signal });
+		const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT }, signal: ctrl.signal });
 		if (!res.ok) {
 			return undefined;
 		}

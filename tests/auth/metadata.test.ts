@@ -5,6 +5,7 @@ import {
 	MetadataError,
 	_resetMetadataCacheForTesting,
 } from '../../src/auth/metadata.ts';
+import { USER_AGENT } from '../../src/runtime/constants.ts';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 
 let fakeAs: FakeAsHandle;
@@ -41,6 +42,17 @@ describe('fetchMetadata', () => {
 		expect(md.synthesized).toBe(true);
 		expect(md.authorization_endpoint).toBe(`${fakeAs.url}/w/rest.php/oauth2/authorize`);
 		expect(md.token_endpoint).toBe(`${fakeAs.url}/w/rest.php/oauth2/access_token`);
+	});
+
+	it('identifies itself to the wiki with the server User-Agent', async () => {
+		fakeAs = await startFakeAs({ wellKnown: 'absent' });
+		const userAgents = new Set<string | undefined>();
+		fakeAs.app.use((req, _res, next) => {
+			userAgents.add(req.headers['user-agent']);
+			next();
+		});
+		await fetchMetadata('k', wikiPointingAt(fakeAs));
+		expect(userAgents).toEqual(new Set([USER_AGENT]));
 	});
 
 	it('rejects metadata missing S256', async () => {
