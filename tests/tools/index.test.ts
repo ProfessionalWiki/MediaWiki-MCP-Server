@@ -37,6 +37,7 @@ const WRITE_TOOLS = [
 	'update-page',
 	'delete-page',
 	'undelete-page',
+	'protect-page',
 	'upload-file',
 	'upload-file-from-url',
 	'update-file',

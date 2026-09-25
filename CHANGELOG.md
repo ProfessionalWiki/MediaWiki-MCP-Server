@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Added
 
+- `protect-page` tool that protects or unprotects a wiki page, setting edit, move, upload or create protection separately, with an optional expiry. It needs the `Protect and unprotect pages` grant.
 - `MCP_USER_AGENT` replaces the `User-Agent` header the server sends, so wiki operators can reach you rather than this project.
 
 ### Fixed

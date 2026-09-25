@@ -20,6 +20,8 @@ const MW_CODE_TO_CATEGORY: Record<string, ErrorCategory> = {
 	nosuchrevid: 'not_found',
 	nosuchsection: 'not_found',
 	nofile: 'not_found',
+	// A protection other than create on a title that does not exist.
+	'missingtitle-createonly': 'not_found',
 	// permission_denied
 	permissiondenied: 'permission_denied',
 	protectedpage: 'permission_denied',
@@ -52,6 +54,11 @@ const MW_CODE_TO_CATEGORY: Record<string, ErrorCategory> = {
 	nonfilenamespace: 'invalid_input',
 	filetypemismatch: 'invalid_input',
 	toomanyvalues: 'invalid_input',
+	'protect-invalidaction': 'invalid_input',
+	'protect-invalidlevel': 'invalid_input',
+	invalidexpiry: 'invalid_input',
+	pastexpiry: 'invalid_input',
+	'create-titleexists': 'invalid_input',
 	// conflict
 	editconflict: 'conflict',
 	articleexists: 'conflict',

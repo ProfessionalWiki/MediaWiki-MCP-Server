@@ -11,6 +11,7 @@ const CORE_WRITE_TOOL_NAMES: readonly string[] = [
 	'update-page',
 	'delete-page',
 	'undelete-page',
+	'protect-page',
 	'upload-file',
 	'upload-file-from-url',
 	'update-file',

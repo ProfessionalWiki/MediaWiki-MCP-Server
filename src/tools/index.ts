@@ -29,6 +29,7 @@ import { updatePage } from './update-page.ts';
 import { movePage } from './move-page.ts';
 import { deletePage } from './delete-page.ts';
 import { undeletePage } from './undelete-page.ts';
+import { protectPage } from './protect-page.ts';
 import { uploadFile } from './upload-file.ts';
 import { uploadFileFromUrl } from './upload-file-from-url.ts';
 import { updateFile } from './update-file.ts';
@@ -65,6 +66,7 @@ const standardTools: Tool<any>[] = [
 	movePage,
 	deletePage,
 	undeletePage,
+	protectPage,
 	uploadFile,
 	uploadFileFromUrl,
 	updateFile,
