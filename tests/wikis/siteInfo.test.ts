@@ -8,6 +8,7 @@ import { SiteInfoCacheImpl } from '../../src/wikis/siteInfoCache.ts';
 import { fakeClock, type FakeClock } from '../helpers/fakeClock.ts';
 
 const HOUR_MS = 60 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
 
 function siteInfoWithNamespaces(namespaces: Record<string, { id: number; content?: boolean }>) {
 	return {
@@ -336,20 +337,24 @@ describe('resolveSiteInfo', () => {
 
 		await resolveSiteInfo(ctx, 'test-wiki');
 		clock.advance(HOUR_MS + 1);
+		const info = await resolveSiteInfo(ctx, 'test-wiki');
 
-		await vi.waitFor(async () => {
-			expect((await resolveSiteInfo(ctx, 'test-wiki')).contentNamespaces).toEqual([0, 120]);
-		});
+		expect(info.contentNamespaces).toEqual([0, 120]);
 	});
 
-	it('serves expired siteinfo without waiting for its refetch', async () => {
+	it('keeps serving the last fetched siteinfo when a refetch fails', async () => {
 		const clock = fakeClock();
 		const ctx = contextOverTime(
 			clock,
 			vi
 				.fn()
-				.mockResolvedValueOnce(siteInfoWithNamespaces({ '0': { id: 0, content: true } }))
-				.mockReturnValueOnce(new Promise(() => {})),
+				.mockResolvedValueOnce(
+					siteInfoWithNamespaces({
+						'0': { id: 0, content: true },
+						'120': { id: 120, content: true },
+					}),
+				)
+				.mockRejectedValueOnce(new Error('unreachable')),
 		);
 
 		await resolveSiteInfo(ctx, 'test-wiki');
@@ -357,6 +362,27 @@ describe('resolveSiteInfo', () => {
 		const info = await resolveSiteInfo(ctx, 'test-wiki');
 
 		expect(info.server).toBe('https://public.example');
+		expect(info.contentNamespaces).toEqual([0, 120]);
+	});
+
+	it('retries a failed refetch after a minute rather than on every call', async () => {
+		const clock = fakeClock();
+		const request = vi
+			.fn()
+			.mockResolvedValueOnce(siteInfoWithNamespaces({ '0': { id: 0, content: true } }))
+			.mockRejectedValue(new Error('unreachable'));
+		const ctx = contextOverTime(clock, request);
+		await resolveSiteInfo(ctx, 'test-wiki');
+		clock.advance(HOUR_MS + 1);
+		await resolveSiteInfo(ctx, 'test-wiki');
+
+		clock.advance(MINUTE_MS - 1);
+		await resolveSiteInfo(ctx, 'test-wiki');
+		expect(request).toHaveBeenCalledTimes(2);
+
+		clock.advance(2);
+		await resolveSiteInfo(ctx, 'test-wiki');
+		expect(request).toHaveBeenCalledTimes(3);
 	});
 
 	it('leaves contentNamespaces absent when siteinfo reports no namespace map', async () => {

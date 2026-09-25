@@ -1,6 +1,7 @@
 import { monotonicNow } from '../runtime/clock.ts';
 
-const TTL_MS = 60 * 60 * 1000; // 1 hour
+const TTL_SUCCESS_MS = 60 * 60 * 1000; // 1 hour
+const TTL_FAILURE_MS = 60 * 1000; // 60 seconds
 
 export type LicenseInfo = { url: string; title: string };
 
@@ -28,6 +29,8 @@ export interface SiteInfoCache {
 	/** False once the stored siteinfo is due for a refetch, or when none is stored. */
 	isFresh(wikiKey: string): boolean;
 	set(wikiKey: string, value: SiteInfo): void;
+	/** Puts off the next refetch of the stored siteinfo by a minute, after one has failed. */
+	deferRefetch(wikiKey: string): void;
 	delete(wikiKey: string): void;
 }
 
@@ -48,7 +51,14 @@ export class SiteInfoCacheImpl implements SiteInfoCache {
 	}
 
 	public set(wikiKey: string, value: SiteInfo): void {
-		this.cache.set(wikiKey, { value, expiresAt: this.now() + TTL_MS });
+		this.cache.set(wikiKey, { value, expiresAt: this.now() + TTL_SUCCESS_MS });
+	}
+
+	public deferRefetch(wikiKey: string): void {
+		const entry = this.cache.get(wikiKey);
+		if (entry) {
+			this.cache.set(wikiKey, { value: entry.value, expiresAt: this.now() + TTL_FAILURE_MS });
+		}
 	}
 
 	public delete(wikiKey: string): void {

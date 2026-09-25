@@ -17,7 +17,7 @@ interface SiteInfoApiResponse {
 	};
 }
 
-// In-flight resolutions, so concurrent cold-cache misses for the same wiki
+// In-flight resolutions, so concurrent cache misses for the same wiki
 // (e.g. a get-pages or search-page batch building one URL per result) share a
 // single siteinfo request instead of issuing one each. Mirrors the inflight
 // idiom in wikiProbe.ts. Keyed by the cache instance via a WeakMap so
@@ -31,9 +31,15 @@ async function fetchSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInf
 	// (the wikis resource) early-returns on unknown keys before reaching here,
 	// so an empty-string base never escapes today; it's a defensive default.
 	const config = ctx.wikis.get(wikiKey);
-	const fallback: SiteInfo = {
+	const configured: SiteInfo = {
 		server: config?.server ?? '',
 		articlepath: config?.articlepath ?? '',
+	};
+	// A failed refetch keeps serving the siteinfo last fetched, and is retried a
+	// minute later rather than on every call.
+	const fallBack = (): SiteInfo => {
+		ctx.siteInfoCache.deferRefetch(wikiKey);
+		return ctx.siteInfoCache.get(wikiKey) ?? configured;
 	};
 
 	try {
@@ -46,11 +52,11 @@ async function fetchSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInf
 			formatversion: '2',
 		})) as SiteInfoApiResponse;
 
-		// An empty server would yield relative links, so treat it as a miss and
-		// fall back to the configured value.
+		// An empty server would yield relative links, so treat it as a failed
+		// fetch.
 		const general = response.query?.general;
 		if (!general || typeof general.server !== 'string' || general.server === '') {
-			return fallback;
+			return fallBack();
 		}
 
 		const rights = response.query?.rightsinfo;
@@ -64,7 +70,7 @@ async function fetchSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInf
 			articlepath:
 				typeof general.articlepath === 'string'
 					? general.articlepath.replace('/$1', '')
-					: fallback.articlepath,
+					: configured.articlepath,
 			...(typeof general.lang === 'string' && general.lang !== '' ? { lang: general.lang } : {}),
 			...(typeof general['wikibase-sparql'] === 'string' && general['wikibase-sparql'] !== ''
 				? { sparqlEndpoint: general['wikibase-sparql'] }
@@ -75,27 +81,20 @@ async function fetchSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInf
 		ctx.siteInfoCache.set(wikiKey, resolved);
 		return resolved;
 	} catch {
-		return fallback;
+		return fallBack();
 	}
 }
 
 // Resolves the wiki's own public base (and license) from meta=siteinfo,
-// cached per wiki. Never throws: any failure falls back to the configured
-// server/articlepath without caching, so a transiently-unreachable wiki is
-// retried on the next call.
+// cached per wiki and refetched once an hour old. Never throws: a failed first
+// fetch falls back to the configured server/articlepath without caching, so a
+// transiently-unreachable wiki is retried on the next call.
 export async function resolveSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInfo> {
 	const cached = ctx.siteInfoCache.get(wikiKey);
 	if (cached && ctx.siteInfoCache.isFresh(wikiKey)) {
 		return cached;
 	}
 
-	// Stale siteinfo is served while it refetches, so only a wiki's first fetch
-	// holds up a call. The refetch never rejects, so leaving it unawaited is safe.
-	const refetch = fetchShared(ctx, wikiKey);
-	return cached ?? refetch;
-}
-
-function fetchShared(ctx: ToolContext, wikiKey: string): Promise<SiteInfo> {
 	let inflight = inflightByCache.get(ctx.siteInfoCache);
 	if (!inflight) {
 		inflight = new Map();
