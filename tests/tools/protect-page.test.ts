@@ -23,19 +23,29 @@ const PROTECTED = { protect: { title: 'Main Page', reason: '', protections: [] }
 const WIKI_NOW = '2026-01-01T00:00:00Z';
 
 // A wiki where Main Page carries the given protections and every other title
-// none, so a read of the wrong title finds nothing to keep. `now` is the wiki's
-// own clock, which it reports alongside the protections.
+// none, so a read of the wrong title finds nothing to keep. Like the real one,
+// it lists protections only for inprop=protection and reports its own clock,
+// `now`, only for curtimestamp.
 function wikiWith(
 	current: CurrentProtection[],
 	{ response = PROTECTED as unknown, now = WIKI_NOW } = {},
 ) {
 	const mock = createMockMwn({
-		request: vi.fn(async (params: { titles?: string }) => ({
-			curtimestamp: now,
-			query: {
-				pages: [{ title: params.titles, protection: params.titles === 'Main Page' ? current : [] }],
-			},
-		})),
+		request: vi.fn(
+			async (params: { titles?: string; inprop?: string; curtimestamp?: boolean }) => ({
+				...(params.curtimestamp === true ? { curtimestamp: now } : {}),
+				query: {
+					pages: [
+						{
+							title: params.titles,
+							...(params.inprop?.includes('protection') === true
+								? { protection: params.titles === 'Main Page' ? current : [] }
+								: {}),
+						},
+					],
+				},
+			}),
+		),
 	});
 	const submit = vi.fn().mockResolvedValue(response);
 	const ctx = fakeContext({ mwn: async () => mock as never, edit: { ...baseEdit, submit } });
@@ -91,17 +101,40 @@ describe('protect-page', () => {
 	it('keeps the current protection of an action the call leaves out, with its own expiry', async () => {
 		const { ctx, submit } = wikiWith([
 			{ type: 'edit', level: 'sysop', expiry: 'infinity' },
-			{ type: 'move', level: 'sysop', expiry: '2099-01-01T00:00:00Z' },
+			{ type: 'move', level: 'sysop', expiry: 'infinity' },
 		]);
 
 		await protectPage.handle(
-			toolArgs(protectPage, { title: 'Main Page', protections: { edit: 'autoconfirmed' } }),
+			toolArgs(protectPage, {
+				title: 'Main Page',
+				protections: { edit: 'autoconfirmed' },
+				expiry: '1 week',
+			}),
 			ctx,
 		);
 
 		expect(requestedProtections(submit)).toEqual({
-			edit: { level: 'autoconfirmed', expiry: 'infinite' },
-			move: { level: 'sysop', expiry: '2099-01-01T00:00:00Z' },
+			edit: { level: 'autoconfirmed', expiry: '1 week' },
+			move: { level: 'sysop', expiry: 'infinity' },
+		});
+	});
+
+	// The expiry is already behind the host's clock, so only the wiki's clock can
+	// tell that it has not passed.
+	it("keeps a protection that is still in force by the wiki's clock", async () => {
+		const { ctx, submit } = wikiWith(
+			[{ type: 'move', level: 'sysop', expiry: '2020-06-01T00:00:00Z' }],
+			{ now: '2020-01-01T00:00:00Z' },
+		);
+
+		await protectPage.handle(
+			toolArgs(protectPage, { title: 'Main Page', protections: { edit: 'sysop' } }),
+			ctx,
+		);
+
+		expect(requestedProtections(submit)).toEqual({
+			edit: { level: 'sysop', expiry: 'infinite' },
+			move: { level: 'sysop', expiry: '2020-06-01T00:00:00Z' },
 		});
 	});
 
@@ -149,6 +182,17 @@ describe('protect-page', () => {
 		);
 
 		expect(asksToCascade(submit)).toBe(true);
+	});
+
+	it('leaves cascading off when the call leaves cascade out', async () => {
+		const { ctx, submit } = wikiWith([{ type: 'edit', level: 'sysop', expiry: 'infinity' }]);
+
+		await protectPage.handle(
+			toolArgs(protectPage, { title: 'Main Page', protections: { move: 'sysop' } }),
+			ctx,
+		);
+
+		expect(asksToCascade(submit)).toBe(false);
 	});
 
 	it('turns cascading off when the call sets cascade to false', async () => {
@@ -235,7 +279,7 @@ describe('protect-page', () => {
 		expect(assertStructuredData(result).cascade).toBe(false);
 	});
 
-	it('sends the comment as the reason', async () => {
+	it('sends the comment as the reason, attributed to protect-page', async () => {
 		const { ctx, submit } = wikiWith([]);
 
 		await protectPage.handle(
@@ -248,9 +292,12 @@ describe('protect-page', () => {
 		);
 
 		expect(protectRequest(submit).reason).toContain('Persistent vandalism');
+		expect(protectRequest(submit).reason).toContain('protect-page');
 	});
 
-	it('sends no reason when a wiki opts out of attribution and the call gives no comment', async () => {
+	// action=protect's reason defaults to the empty string, so the wiki records
+	// an absent reason and an empty one alike.
+	it('records no reason when a wiki opts out of attribution and the call gives no comment', async () => {
 		const { ctx, submit } = wikiWith([]);
 
 		await protectPage.handle(
@@ -259,7 +306,7 @@ describe('protect-page', () => {
 		);
 
 		expect(protectRequest(submit)).toMatchObject({ action: 'protect' });
-		expect(protectRequest(submit).reason).toBeUndefined();
+		expect(protectRequest(submit).reason ?? '').toBe('');
 	});
 
 	it('rejects a call that names no action, without changing the wiki', async () => {
