@@ -169,7 +169,7 @@ MCP's `ToolAnnotations` exposes four boolean hints that shape how clients route 
 
 Semantics (from the MCP 2025-11-25 spec):
 
-- **`readOnlyHint`** — if `true`, the tool does not modify its environment. Master switch; when `true`, the other behavioural hints are semantically irrelevant (but still set explicitly for clarity and cross-client compatibility).
+- **`readOnlyHint`** — if `true`, the tool does not modify its environment. Master switch; when `true`, the other behavioural hints are semantically irrelevant (but still set explicitly for clarity and cross-client compatibility). This server reads it too: a wiki-scoped tool that does not set it to `true` counts as a write, so it is refused on a wiki configured `readOnly: true` and hidden when every configured wiki is.
 - **`destructiveHint`** — if `true`, the tool may perform destructive updates (delete, overwrite, remove). If `false`, the tool performs only additive updates (create new without replacing). Only meaningful when `readOnlyHint: false`. Spec default is `true`.
 - **`idempotentHint`** — if `true`, calling the tool repeatedly with the same arguments has no additional effect on the environment beyond the first call. A call that errors but leaves state unchanged still counts as idempotent. Only meaningful when `readOnlyHint: false`. Spec default is `false`.
 - **`openWorldHint`** — if `true`, the tool interacts with external entities (e.g. a remote API). If `false`, the tool's world is self-contained (server-local state only). Spec default is `true`.

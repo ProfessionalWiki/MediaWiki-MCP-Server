@@ -1,5 +1,9 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { checkWikiCapability, WRITE_TOOL_NAMES } from '../../src/runtime/wikiCapability.ts';
+import {
+	checkWikiCapability,
+	WRITE_TOOL_NAMES,
+	writeToolNames,
+} from '../../src/runtime/wikiCapability.ts';
 import { fakeContext } from '../helpers/fakeContext.ts';
 import { withRequestFields } from '../../src/runtime/requestContext.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
@@ -254,5 +258,32 @@ describe('WRITE_TOOL_NAMES', () => {
 		]) {
 			expect(WRITE_TOOL_NAMES).not.toContain(name);
 		}
+	});
+});
+
+describe('writeToolNames', () => {
+	const writer = { name: 'writer', annotations: { readOnlyHint: false } };
+
+	it('names a wiki tool that declares it writes', () => {
+		expect(writeToolNames([writer])).toEqual(['writer']);
+	});
+
+	// MCP reads an absent readOnlyHint as false, so a tool that forgets the
+	// annotation is gated rather than let through.
+	it('names a wiki tool that does not declare whether it writes', () => {
+		expect(writeToolNames([{ name: 'undeclared', annotations: {} }])).toEqual(['undeclared']);
+	});
+
+	it('leaves out a tool that declares it only reads', () => {
+		const reader = { name: 'reader', annotations: { readOnlyHint: true } };
+
+		expect(writeToolNames([reader, writer])).toEqual(['writer']);
+	});
+
+	// Such a tool, like oauth-logout, changes only this server's own state.
+	it('leaves out a tool that does not act on a wiki', () => {
+		const local = { name: 'local', annotations: { readOnlyHint: false }, wikiScoped: false };
+
+		expect(writeToolNames([local, writer])).toEqual(['writer']);
 	});
 });
