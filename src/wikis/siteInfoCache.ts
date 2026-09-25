@@ -1,3 +1,7 @@
+import { monotonicNow } from '../runtime/clock.ts';
+
+const TTL_MS = 60 * 60 * 1000; // 1 hour
+
 export type LicenseInfo = { url: string; title: string };
 
 export type SiteInfo = {
@@ -24,15 +28,23 @@ export interface SiteInfoCache {
 	delete(wikiKey: string): void;
 }
 
+// Entries expire so that a wiki's changed settings, such as a namespace newly
+// counted as content, are picked up without a restart.
 export class SiteInfoCacheImpl implements SiteInfoCache {
-	private readonly cache = new Map<string, SiteInfo>();
+	private readonly cache = new Map<string, { value: SiteInfo; expiresAt: number }>();
+
+	public constructor(private readonly now: () => number = monotonicNow) {}
 
 	public get(wikiKey: string): SiteInfo | undefined {
-		return this.cache.get(wikiKey);
+		const entry = this.cache.get(wikiKey);
+		if (entry && entry.expiresAt > this.now()) {
+			return entry.value;
+		}
+		return undefined;
 	}
 
 	public set(wikiKey: string, value: SiteInfo): void {
-		this.cache.set(wikiKey, value);
+		this.cache.set(wikiKey, { value, expiresAt: this.now() + TTL_MS });
 	}
 
 	public delete(wikiKey: string): void {
