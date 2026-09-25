@@ -216,60 +216,35 @@ describe('checkWikiCapability — pack wiki gates', () => {
 });
 
 describe('WRITE_TOOL_NAMES', () => {
-	// The core write tools are checked end to end, through tools/list, in
-	// tests/tools/index.test.ts.
-	it('includes the extension write tools', () => {
-		for (const name of [
-			'neowiki-create-subject',
-			'neowiki-update-subject',
-			'neowiki-delete-subject',
-			'neowiki-set-main-subject',
-			'wikibase-edit-entity',
-			'wikibase-add-statement',
-		]) {
-			expect(WRITE_TOOL_NAMES).toContain(name);
-		}
-	});
-
-	it('excludes read tools', () => {
-		for (const name of [
-			'compare-pages',
-			'get-category-members',
-			'get-file',
-			'get-file-data',
-			'get-links-here',
-			'get-page',
-			'get-page-history',
-			'get-pages',
-			'get-recent-changes',
-			'get-revision',
-			'get-site-info',
-			'parse-wikitext',
-			'search-page',
-			'search-page-by-prefix',
-			'whoami',
-			'neowiki-cypher-query',
-			'neowiki-get-subject',
-			'smw-query',
-			'cargo-query',
-			'bucket-query',
-			'wikibase-get-entity',
-			'wikibase-query',
-		]) {
-			expect(WRITE_TOOL_NAMES).not.toContain(name);
-		}
+	// Exact, so a tool whose annotation puts it on the wrong side fails here,
+	// and adding a write tool means saying so.
+	it('holds exactly the tools that write to a wiki', () => {
+		expect([...WRITE_TOOL_NAMES].sort()).toEqual(
+			[
+				'create-page',
+				'delete-page',
+				'move-page',
+				'protect-page',
+				'undelete-page',
+				'update-file',
+				'update-file-from-url',
+				'update-page',
+				'upload-file',
+				'upload-file-from-url',
+				'neowiki-create-subject',
+				'neowiki-delete-subject',
+				'neowiki-set-main-subject',
+				'neowiki-update-subject',
+				'wikibase-add-statement',
+				'wikibase-edit-entity',
+			].sort(),
+		);
 	});
 });
 
 describe('isWriteTool', () => {
 	it('counts a wiki tool that declares it writes', () => {
 		expect(isWriteTool({ annotations: { readOnlyHint: false } })).toBe(true);
-	});
-
-	// MCP reads an absent readOnlyHint as false, so a tool that forgets the
-	// annotation is gated rather than let through.
-	it('counts a wiki tool that does not declare whether it writes', () => {
-		expect(isWriteTool({ annotations: {} })).toBe(true);
 	});
 
 	it('does not count a tool that declares it only reads', () => {

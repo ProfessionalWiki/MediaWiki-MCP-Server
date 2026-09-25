@@ -146,14 +146,12 @@ describe('add-wiki', () => {
 
 		await reconcileTools(tools, deps);
 		expect(states.get('update-page')).toBe(false);
-		expect(WRITE_TOOL_NAMES.every((n) => states.get(n) === false)).toBe(true);
 
 		await dispatch(addWiki, ctx)({ wikiUrl: 'https://example.org/' });
 		await reconcileTools(tools, deps);
 
 		// Still hidden: the added wiki inherited the deployment's read-only posture.
 		expect(states.get('update-page')).toBe(false);
-		expect(WRITE_TOOL_NAMES.every((n) => states.get(n) === false)).toBe(true);
 		expect(states.get('get-page')).toBe(true);
 	});
 

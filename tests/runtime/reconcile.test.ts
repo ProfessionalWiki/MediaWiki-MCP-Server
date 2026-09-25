@@ -1065,6 +1065,7 @@ describe('reconcileTools — union gating', () => {
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
+		expect(mocks.get('update-page')!.disable).not.toHaveBeenCalled();
 		for (const name of WRITE_TOOL_NAMES) {
 			expect(mocks.get(name)!.disable).not.toHaveBeenCalled();
 		}
@@ -1084,6 +1085,7 @@ describe('reconcileTools — union gating', () => {
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
 		});
+		expect(mocks.get('update-page')!.disable).toHaveBeenCalledTimes(1);
 		for (const name of WRITE_TOOL_NAMES) {
 			expect(mocks.get(name)!.disable).toHaveBeenCalledTimes(1);
 		}

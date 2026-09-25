@@ -7,8 +7,9 @@ export interface Tool<TSchema extends ZodRawShape, TCtx extends ToolContext = To
 	readonly description: string;
 	readonly inputSchema: TSchema;
 	/**
-	 * readOnlyHint is required, not optional as in the SDK: the read-only gate
-	 * counts a tool without it as a write (isWriteTool in wikiCapability.ts).
+	 * readOnlyHint is required, not optional as in the SDK, because it decides
+	 * whether the read-only gate treats the tool as a write (isWriteTool in
+	 * wikiCapability.ts).
 	 */
 	readonly annotations: ToolAnnotations & { readonly readOnlyHint: boolean };
 	/**

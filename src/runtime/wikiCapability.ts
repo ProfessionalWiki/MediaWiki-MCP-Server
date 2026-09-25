@@ -1,4 +1,4 @@
-import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/server';
+import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ToolContext } from './context.ts';
 import type { ExtensionPack } from '../tools/extensions/types.ts';
 import { extensionPacks } from '../tools/extensions/index.ts';
@@ -15,16 +15,15 @@ export const WRITE_TOOL_NAMES: readonly string[] = standardTools
 
 /**
  * Whether a tool changes a wiki, read from its own annotations so that a new
- * one is gated without being listed anywhere. MCP reads an absent readOnlyHint
- * as false, so only a tool that declares itself read-only is left out. So is a
- * tool that is not wiki-scoped: the gate acts on the wiki a call resolves to,
- * and only a wiki-scoped tool resolves one.
+ * one is gated without being listed anywhere. A tool that is not wiki-scoped is
+ * left out: the gate acts on the wiki a call resolves to, and only a
+ * wiki-scoped tool resolves one.
  */
 export function isWriteTool(tool: {
-	readonly annotations: ToolAnnotations;
+	readonly annotations: { readonly readOnlyHint: boolean };
 	readonly wikiScoped?: boolean;
 }): boolean {
-	return tool.annotations.readOnlyHint !== true && isWikiScoped(tool);
+	return !tool.annotations.readOnlyHint && isWikiScoped(tool);
 }
 
 const WRITE_TOOL_SET: ReadonlySet<string> = new Set(WRITE_TOOL_NAMES);
