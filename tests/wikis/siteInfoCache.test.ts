@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 describe('SiteInfoCacheImpl', () => {
-	it('serves an entry for an hour, then drops it so the next read refetches', () => {
+	it('serves an entry for an hour, then reports it due for a refetch', () => {
 		const clock = fakeClock();
 		const cache = new SiteInfoCacheImpl(clock.now);
 		cache.set('a', siteInfo);

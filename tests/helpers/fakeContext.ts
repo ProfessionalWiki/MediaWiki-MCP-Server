@@ -5,6 +5,7 @@ import { ErrorClassifierImpl } from '../../src/errors/classifyError.ts';
 import { extensionErrorVocabulary, extensionPacks } from '../../src/tools/extensions/index.ts';
 import { RevisionNormalizerImpl } from '../../src/services/revisionNormalize.ts';
 import { getRequestWiki } from '../../src/runtime/requestContext.ts';
+import { SiteInfoCacheImpl } from '../../src/wikis/siteInfoCache.ts';
 import { fakeLogger } from './fakeLogger.ts';
 
 const throws = (label: string) => () => {
@@ -49,21 +50,12 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 		uploadDirs: { list: () => [] },
 		wikiCache: { invalidate: throws('wikiCache.invalidate') as never },
 		siteInfoCache: (() => {
-			const map = new Map<string, { server: string; articlepath: string }>([
-				['test-wiki', { server: 'https://test.wiki', articlepath: '/wiki' }],
-				['fr.wikipedia.org', { server: 'https://test.wiki', articlepath: '/wiki' }],
-				['de.wikipedia.org', { server: 'https://test.wiki', articlepath: '/wiki' }],
-			]);
-			return {
-				get: (k: string) => map.get(k),
-				set: (k: string, v: { server: string; articlepath: string }) => {
-					map.set(k, v);
-				},
-				delete: (k: string) => {
-					map.delete(k);
-				},
-			};
-		})() as never,
+			const cache = new SiteInfoCacheImpl();
+			for (const key of Object.keys(testWikiRegistry)) {
+				cache.set(key, { server: 'https://test.wiki', articlepath: '/wiki' });
+			}
+			return cache;
+		})(),
 		wikiProbe: {
 			hasExtension: throws('wikiProbe.hasExtension') as never,
 			// The dispatch() capability guard calls hasAnyExtension for

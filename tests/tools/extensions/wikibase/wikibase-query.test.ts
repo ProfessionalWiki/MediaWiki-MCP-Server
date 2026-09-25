@@ -9,6 +9,7 @@ vi.mock('../../../../src/transport/httpFetch.ts', async () => {
 
 import { postForm, HttpStatusError } from '../../../../src/transport/httpFetch.ts';
 import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { SiteInfoCacheImpl, type SiteInfo } from '../../../../src/wikis/siteInfoCache.ts';
 import { toolArgs } from '../../../helpers/toolArgs.ts';
 import { wikibaseQuery } from '../../../../src/tools/extensions/wikibase/wikibase-query.ts';
 import { assertStructuredData, assertStructuredError } from '../../../helpers/structuredResult.ts';
@@ -19,14 +20,10 @@ const CATS = 'SELECT ?item WHERE { ?item wdt:P31 wd:Q146 } LIMIT 3';
 // The endpoint comes from the wiki's own siteinfo. A wiki publishing none never
 // reaches the handler: the pack's wikiGate refuses it centrally, which
 // tests/runtime/wikiCapability.test.ts covers.
-function contextWithSiteInfo(siteInfo: Record<string, string>) {
-	return fakeContext({
-		siteInfoCache: {
-			get: () => siteInfo,
-			set: () => {},
-			delete: () => {},
-		} as never,
-	});
+function contextWithSiteInfo(siteInfo: SiteInfo) {
+	const siteInfoCache = new SiteInfoCacheImpl();
+	siteInfoCache.set('test-wiki', siteInfo);
+	return fakeContext({ siteInfoCache });
 }
 
 function contextWithEndpoint() {

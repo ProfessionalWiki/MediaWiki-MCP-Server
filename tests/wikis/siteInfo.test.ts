@@ -4,21 +4,24 @@ import { createMockMwn } from '../helpers/mock-mwn.ts';
 import { fakeContext } from '../helpers/fakeContext.ts';
 import { withRequestFields, getRequestDeadline } from '../../src/runtime/requestContext.ts';
 import { callDeadline } from '../../src/runtime/callDeadline.ts';
-import type { SiteInfo } from '../../src/wikis/siteInfoCache.ts';
+import { SiteInfoCacheImpl } from '../../src/wikis/siteInfoCache.ts';
+import { fakeClock } from '../helpers/fakeClock.ts';
 
-// A fresh Map-backed cache (the fakeContext default is seeded; tests of the
-// fetch path need an empty cache so resolveSiteInfo actually calls mwn).
-function emptyCache() {
-	const map = new Map<string, SiteInfo>();
+const HOUR_MS = 60 * 60 * 1000;
+
+function siteInfoWithNamespaces(namespaces: Record<string, { id: number; content?: boolean }>) {
 	return {
-		get: (k: string) => map.get(k),
-		set: (k: string, v: SiteInfo) => {
-			map.set(k, v);
-		},
-		delete: (k: string) => {
-			map.delete(k);
+		query: {
+			general: { server: 'https://public.example', articlepath: '/wiki/$1' },
+			namespaces,
 		},
 	};
+}
+
+// An empty cache (the fakeContext default is seeded; tests of the fetch path
+// need an empty cache so resolveSiteInfo actually calls mwn).
+function emptyCache() {
+	return new SiteInfoCacheImpl();
 }
 
 describe('resolveSiteInfo', () => {
@@ -36,7 +39,7 @@ describe('resolveSiteInfo', () => {
 				budgetDuringFetch = getRequestDeadline();
 				return mock as never;
 			},
-			siteInfoCache: emptyCache() as never,
+			siteInfoCache: emptyCache(),
 		});
 
 		await withRequestFields({ deadline: spentBudget }, () => resolveSiteInfo(ctx, 'test-wiki'));
@@ -61,7 +64,7 @@ describe('resolveSiteInfo', () => {
 		});
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: emptyCache() as never,
+			siteInfoCache: emptyCache(),
 		});
 
 		const first = await resolveSiteInfo(ctx, 'test-wiki');
@@ -86,7 +89,7 @@ describe('resolveSiteInfo', () => {
 		});
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: emptyCache() as never,
+			siteInfoCache: emptyCache(),
 		});
 
 		expect((await resolveSiteInfo(ctx, 'test-wiki')).lang).toBe('de');
@@ -100,7 +103,7 @@ describe('resolveSiteInfo', () => {
 		});
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: emptyCache() as never,
+			siteInfoCache: emptyCache(),
 		});
 
 		expect(await resolveSiteInfo(ctx, 'test-wiki')).not.toHaveProperty('lang');
@@ -120,7 +123,7 @@ describe('resolveSiteInfo', () => {
 		});
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: emptyCache() as never,
+			siteInfoCache: emptyCache(),
 		});
 
 		expect((await resolveSiteInfo(ctx, 'test-wiki')).sparqlEndpoint).toBe(
@@ -136,7 +139,7 @@ describe('resolveSiteInfo', () => {
 		});
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: emptyCache() as never,
+			siteInfoCache: emptyCache(),
 		});
 
 		expect(await resolveSiteInfo(ctx, 'test-wiki')).not.toHaveProperty('sparqlEndpoint');
@@ -150,7 +153,7 @@ describe('resolveSiteInfo', () => {
 		});
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: emptyCache() as never,
+			siteInfoCache: emptyCache(),
 		});
 
 		const info = await resolveSiteInfo(ctx, 'test-wiki');
@@ -171,7 +174,7 @@ describe('resolveSiteInfo', () => {
 		const mock = createMockMwn({ request: vi.fn().mockResolvedValue({ query: {} }) });
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: emptyCache() as never,
+			siteInfoCache: emptyCache(),
 		});
 
 		const info = await resolveSiteInfo(ctx, 'test-wiki');
@@ -187,7 +190,7 @@ describe('resolveSiteInfo', () => {
 		});
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: emptyCache() as never,
+			siteInfoCache: emptyCache(),
 		});
 
 		const info = await resolveSiteInfo(ctx, 'test-wiki');
@@ -202,7 +205,7 @@ describe('resolveSiteInfo', () => {
 		});
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: emptyCache() as never,
+			siteInfoCache: emptyCache(),
 		});
 
 		const info = await resolveSiteInfo(ctx, 'test-wiki');
@@ -218,7 +221,7 @@ describe('resolveSiteInfo', () => {
 		});
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: emptyCache() as never,
+			siteInfoCache: emptyCache(),
 		});
 
 		const [a, b] = await Promise.all([
@@ -239,7 +242,7 @@ describe('resolveSiteInfo', () => {
 		});
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: emptyCache() as never,
+			siteInfoCache: emptyCache(),
 		});
 
 		const info = await resolveSiteInfo(ctx, 'test-wiki');
@@ -254,7 +257,7 @@ describe('resolveSiteInfo', () => {
 		});
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: emptyCache() as never,
+			siteInfoCache: emptyCache(),
 		});
 
 		const info = await resolveSiteInfo(ctx, 'test-wiki');
@@ -278,7 +281,7 @@ describe('resolveSiteInfo', () => {
 		});
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: emptyCache() as never,
+			siteInfoCache: emptyCache(),
 		});
 
 		const info = await resolveSiteInfo(ctx, 'test-wiki');
@@ -300,12 +303,63 @@ describe('resolveSiteInfo', () => {
 		});
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: emptyCache() as never,
+			siteInfoCache: emptyCache(),
 		});
 
 		const info = await resolveSiteInfo(ctx, 'test-wiki');
 
 		expect(info.contentNamespaces).toEqual([0]);
+	});
+
+	it('picks up a changed content namespace list once the cached siteinfo expires', async () => {
+		const clock = fakeClock();
+		const mock = createMockMwn({
+			request: vi
+				.fn()
+				.mockResolvedValueOnce(siteInfoWithNamespaces({ '0': { id: 0, content: true } }))
+				.mockResolvedValueOnce(
+					siteInfoWithNamespaces({
+						'0': { id: 0, content: true },
+						'120': { id: 120, content: true },
+					}),
+				),
+		});
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			siteInfoCache: new SiteInfoCacheImpl(clock.now),
+		});
+
+		await resolveSiteInfo(ctx, 'test-wiki');
+		clock.advance(HOUR_MS + 1);
+		const info = await resolveSiteInfo(ctx, 'test-wiki');
+
+		expect(info.contentNamespaces).toEqual([0, 120]);
+	});
+
+	it('keeps serving the last fetched siteinfo when a refresh after expiry fails', async () => {
+		const clock = fakeClock();
+		const mock = createMockMwn({
+			request: vi
+				.fn()
+				.mockResolvedValueOnce(
+					siteInfoWithNamespaces({
+						'0': { id: 0, content: true },
+						'120': { id: 120, content: true },
+					}),
+				)
+				.mockRejectedValueOnce(new Error('unreachable')),
+		});
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			siteInfoCache: new SiteInfoCacheImpl(clock.now),
+		});
+
+		await resolveSiteInfo(ctx, 'test-wiki');
+		clock.advance(HOUR_MS + 1);
+		const info = await resolveSiteInfo(ctx, 'test-wiki');
+
+		expect(info.server).toBe('https://public.example');
+		expect(info.contentNamespaces).toEqual([0, 120]);
 	});
 
 	it('leaves contentNamespaces absent when siteinfo reports no namespace map', async () => {
@@ -316,7 +370,7 @@ describe('resolveSiteInfo', () => {
 		});
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: emptyCache() as never,
+			siteInfoCache: emptyCache(),
 		});
 
 		const info = await resolveSiteInfo(ctx, 'test-wiki');

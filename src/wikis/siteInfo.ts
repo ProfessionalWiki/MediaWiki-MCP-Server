@@ -31,10 +31,12 @@ async function fetchSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInf
 	// (the wikis resource) early-returns on unknown keys before reaching here,
 	// so an empty-string base never escapes today; it's a defensive default.
 	const config = ctx.wikis.get(wikiKey);
-	const fallback: SiteInfo = {
+	const configured: SiteInfo = {
 		server: config?.server ?? '',
 		articlepath: config?.articlepath ?? '',
 	};
+	// A failed refetch keeps serving what the wiki last reported.
+	const fallback = ctx.siteInfoCache.getLastKnown(wikiKey) ?? configured;
 
 	try {
 		const mwn = await ctx.mwn(wikiKey);
@@ -64,7 +66,7 @@ async function fetchSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInf
 			articlepath:
 				typeof general.articlepath === 'string'
 					? general.articlepath.replace('/$1', '')
-					: fallback.articlepath,
+					: configured.articlepath,
 			...(typeof general.lang === 'string' && general.lang !== '' ? { lang: general.lang } : {}),
 			...(typeof general['wikibase-sparql'] === 'string' && general['wikibase-sparql'] !== ''
 				? { sparqlEndpoint: general['wikibase-sparql'] }
@@ -80,9 +82,9 @@ async function fetchSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInf
 }
 
 // Resolves the wiki's own public base (and license) from meta=siteinfo,
-// cached per wiki. Never throws: any failure falls back to the configured
-// server/articlepath without caching, so a transiently-unreachable wiki is
-// retried on the next call.
+// cached per wiki. Never throws: any failure falls back, without caching, to
+// the siteinfo last fetched or else the configured server/articlepath, so a
+// transiently-unreachable wiki is retried on the next call.
 export async function resolveSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInfo> {
 	const cached = ctx.siteInfoCache.get(wikiKey);
 	if (cached) {

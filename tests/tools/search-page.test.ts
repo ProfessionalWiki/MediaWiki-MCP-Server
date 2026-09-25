@@ -4,7 +4,7 @@ import { fakeContext } from '../helpers/fakeContext.ts';
 import { searchPage } from '../../src/tools/search-page.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
-import type { SiteInfo } from '../../src/wikis/siteInfoCache.ts';
+import { SiteInfoCacheImpl } from '../../src/wikis/siteInfoCache.ts';
 import { toolArgs } from '../helpers/toolArgs.ts';
 
 type SearchRow = {
@@ -66,21 +66,13 @@ function searchParams(mock: ReturnType<typeof createMockMwn>): Record<string, un
 // that does not call this exercises the unresolved path and proves nothing
 // about the wiki-derived default.
 function contextKnowing(mock: ReturnType<typeof createMockMwn>, contentNamespaces: number[]) {
-	const map = new Map<string, SiteInfo>([
-		['test-wiki', { server: 'https://test.wiki', articlepath: '/wiki', contentNamespaces }],
-	]);
-	return fakeContext({
-		mwn: async () => mock as never,
-		siteInfoCache: {
-			get: (k: string) => map.get(k),
-			set: (k: string, v: SiteInfo) => {
-				map.set(k, v);
-			},
-			delete: (k: string) => {
-				map.delete(k);
-			},
-		} as never,
+	const siteInfoCache = new SiteInfoCacheImpl();
+	siteInfoCache.set('test-wiki', {
+		server: 'https://test.wiki',
+		articlepath: '/wiki',
+		contentNamespaces,
 	});
+	return fakeContext({ mwn: async () => mock as never, siteInfoCache });
 }
 
 describe('search-page', () => {
@@ -222,18 +214,9 @@ describe('search-page', () => {
 				});
 			}),
 		});
-		const emptyMap = new Map<string, SiteInfo>();
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: {
-				get: (k: string) => emptyMap.get(k),
-				set: (k: string, v: SiteInfo) => {
-					emptyMap.set(k, v);
-				},
-				delete: (k: string) => {
-					emptyMap.delete(k);
-				},
-			} as never,
+			siteInfoCache: new SiteInfoCacheImpl(),
 		});
 
 		const result = await searchPage.handle({ query: 'test', limit: 10 }, ctx);

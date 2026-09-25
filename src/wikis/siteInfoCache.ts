@@ -23,7 +23,10 @@ export type SiteInfo = {
 };
 
 export interface SiteInfoCache {
+	/** The wiki's siteinfo, or undefined once it is due for a refetch. */
 	get(wikiKey: string): SiteInfo | undefined;
+	/** The wiki's siteinfo as last stored, however old. */
+	getLastKnown(wikiKey: string): SiteInfo | undefined;
 	set(wikiKey: string, value: SiteInfo): void;
 	delete(wikiKey: string): void;
 }
@@ -41,6 +44,10 @@ export class SiteInfoCacheImpl implements SiteInfoCache {
 			return entry.value;
 		}
 		return undefined;
+	}
+
+	public getLastKnown(wikiKey: string): SiteInfo | undefined {
+		return this.cache.get(wikiKey)?.value;
 	}
 
 	public set(wikiKey: string, value: SiteInfo): void {

@@ -37,7 +37,7 @@ export function registerAllResources(server: McpServer, ctx: ToolContext): void 
 					// wiki, so the description shows the configured server until a
 					// resource read warms the cache. The authoritative public server
 					// is resolved in the content handler below.
-					description: `Wiki "${wikiConfig.sitename}" hosted at ${ctx.siteInfoCache.get(wikiKey)?.server ?? wikiConfig.server}`,
+					description: `Wiki "${wikiConfig.sitename}" hosted at ${ctx.siteInfoCache.getLastKnown(wikiKey)?.server ?? wikiConfig.server}`,
 				});
 			}
 			return { resources };
