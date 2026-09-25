@@ -113,7 +113,7 @@
         },
         {
           "name": "MCP_USER_AGENT",
-          "description": "Replaces the User-Agent header of every outbound request. Leave blank to use the default, which already gives a contact; if you set it, include an email or URL, e.g. 'ExampleBot/1.0 (bot@example.org)'."
+          "description": "Replaces the User-Agent header of every outbound request, which defaults to mediawiki-mcp-server/<version> (https://github.com/ProfessionalWiki/MediaWiki-MCP-Server). If you set it, give a name and an email or URL, e.g. 'ExampleBot/1.0 (bot@example.org)'."
         },
         {
           "name": "PORT",
@@ -228,7 +228,7 @@
         },
         {
           "name": "MCP_USER_AGENT",
-          "description": "Replaces the User-Agent header of every outbound request. Leave blank to use the default, which already gives a contact; if you set it, include an email or URL, e.g. 'ExampleBot/1.0 (bot@example.org)'."
+          "description": "Replaces the User-Agent header of every outbound request, which defaults to mediawiki-mcp-server/<version> (https://github.com/ProfessionalWiki/MediaWiki-MCP-Server). If you set it, give a name and an email or URL, e.g. 'ExampleBot/1.0 (bot@example.org)'."
         },
         {
           "name": "PORT",

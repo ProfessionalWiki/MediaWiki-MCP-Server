@@ -8,12 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Added
 
-- `MCP_USER_AGENT` replaces the `User-Agent` header the server sends, so wiki operators can reach you rather than this project. Include an email or URL in it: Wikimedia wikis limit unauthenticated requests without one to 10 a minute.
+- `MCP_USER_AGENT` replaces the `User-Agent` header the server sends, so wiki operators can reach you rather than this project.
 
 ### Fixed
 
 - The Docker health check now follows `PORT` instead of always probing port 8080.
-- Unauthenticated requests to Wikimedia wikis are no longer limited to 10 a minute across all of them combined, which made `list-wikis` report some wikis unreachable when many were configured. The default `User-Agent` now includes a contact URL, which raises the limit to 200 a minute.
+- Unauthenticated requests to Wikimedia wikis no longer fall under Wikimedia's lowest rate limit, which is shared across all of its wikis and made `list-wikis` report some of them unreachable when many were configured. The default `User-Agent` now includes a contact URL.
 
 ## [0.18.0] - 2026-09-10
 
