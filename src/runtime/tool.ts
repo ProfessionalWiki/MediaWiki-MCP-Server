@@ -6,7 +6,11 @@ export interface Tool<TSchema extends ZodRawShape, TCtx extends ToolContext = To
 	readonly name: string;
 	readonly description: string;
 	readonly inputSchema: TSchema;
-	readonly annotations: ToolAnnotations;
+	/**
+	 * readOnlyHint is required, not optional as in the SDK: the read-only gate
+	 * counts a tool without it as a write (isWriteTool in wikiCapability.ts).
+	 */
+	readonly annotations: ToolAnnotations & { readonly readOnlyHint: boolean };
 	/**
 	 * Verb phrase used by the dispatcher to wrap raw upstream errors as
 	 * "Failed to <verb>: <message>". Falls back to `name` if omitted.

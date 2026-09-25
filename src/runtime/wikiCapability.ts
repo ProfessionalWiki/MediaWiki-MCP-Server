@@ -2,32 +2,28 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/serv
 import type { ToolContext } from './context.ts';
 import type { ExtensionPack } from '../tools/extensions/types.ts';
 import { extensionPacks } from '../tools/extensions/index.ts';
-import { allStandardTools } from '../tools/standardTools.ts';
+import { standardTools } from '../tools/standardTools.ts';
 import { isWikiScoped } from './wikiArg.ts';
 import { getRuntimeToken } from './requestContext.ts';
 import { bearerPassthroughEnabled, hasStaticCredentials } from './authShape.ts';
 
 // The wiki-mutating tools. Shared by reconcile's read-only rule and the
 // per-call capability guard.
-export const WRITE_TOOL_NAMES: readonly string[] = writeToolNames(allStandardTools);
-
-interface AnnotatedTool {
-	readonly name: string;
-	readonly annotations: ToolAnnotations;
-	readonly wikiScoped?: boolean;
-}
-
-export function writeToolNames(tools: readonly AnnotatedTool[]): string[] {
-	return tools.filter(isWriteTool).map((tool) => tool.name);
-}
+export const WRITE_TOOL_NAMES: readonly string[] = standardTools
+	.filter(isWriteTool)
+	.map((tool) => tool.name);
 
 /**
  * Whether a tool changes a wiki, read from its own annotations so that a new
  * one is gated without being listed anywhere. MCP reads an absent readOnlyHint
- * as false, so only a tool that declares itself read-only is left out, along
- * with tools that do not act on a wiki and change only this server's own state.
+ * as false, so only a tool that declares itself read-only is left out. So is a
+ * tool that is not wiki-scoped: the gate acts on the wiki a call resolves to,
+ * and only a wiki-scoped tool resolves one.
  */
-export function isWriteTool(tool: AnnotatedTool): boolean {
+export function isWriteTool(tool: {
+	readonly annotations: ToolAnnotations;
+	readonly wikiScoped?: boolean;
+}): boolean {
 	return tool.annotations.readOnlyHint !== true && isWikiScoped(tool);
 }
 

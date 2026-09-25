@@ -88,21 +88,6 @@ describe('extensionPacks', () => {
 	it('every wiki gate names only tools its own pack provides', () => {
 		expect(() => assertWikiGatesNameOwnTools(extensionPacks)).not.toThrow();
 	});
-
-	it('every tool declares an explicit boolean readOnlyHint annotation', () => {
-		// readOnlyHint is optional in the SDK type, and the read-only gate counts a
-		// tool that omits it as a write (isWriteTool in src/runtime/wikiCapability.ts),
-		// so a read tool that forgot it would be hidden on a read-only wiki.
-		// Require every pack tool to state it.
-		for (const pack of extensionPacks) {
-			for (const tool of pack.tools) {
-				expect(
-					typeof tool.annotations.readOnlyHint,
-					`${tool.name} must declare a boolean readOnlyHint`,
-				).toBe('boolean');
-			}
-		}
-	});
 });
 
 describe('assertWikiGatesNameOwnTools', () => {

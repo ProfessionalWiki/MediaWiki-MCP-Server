@@ -145,12 +145,14 @@ describe('add-wiki', () => {
 		};
 
 		await reconcileTools(tools, deps);
+		expect(states.get('update-page')).toBe(false);
 		expect(WRITE_TOOL_NAMES.every((n) => states.get(n) === false)).toBe(true);
 
 		await dispatch(addWiki, ctx)({ wikiUrl: 'https://example.org/' });
 		await reconcileTools(tools, deps);
 
 		// Still hidden: the added wiki inherited the deployment's read-only posture.
+		expect(states.get('update-page')).toBe(false);
 		expect(WRITE_TOOL_NAMES.every((n) => states.get(n) === false)).toBe(true);
 		expect(states.get('get-page')).toBe(true);
 	});
@@ -223,8 +225,8 @@ describe('add-wiki', () => {
 			wikiUrl: 'https://example.org/',
 		});
 
-		// The phase is what keeps the dispatcher's "your change may have been
-		// applied" caveat off this tool, which declares readOnlyHint: false.
+		// The phase also picks the timeout message: one about reaching the wiki,
+		// not one about a call that may have landed.
 		expect(vi.mocked(discoverWiki).mock.calls[0]?.[1]).toMatchObject({
 			timeoutMs: WIKI_CONNECT_TIMEOUT_MS,
 			phase: 'connecting',
@@ -240,8 +242,8 @@ describe('add-wiki', () => {
 
 		const envelope = assertStructuredError(result, 'upstream_failure', 'request-timeout');
 		expect(envelope.message).toMatch(/Gave up trying to reach the wiki/);
-		// This tool declares readOnlyHint: false, so the write caveat is gated on
-		// the phase alone — and discovery never reaches a wiki, let alone writes.
+		// add-wiki changes this server's list of wikis, not a wiki, so there is no
+		// wiki write that could have landed.
 		expect(envelope.message).not.toMatch(/may or may not have been applied/);
 		expect(reconcile).not.toHaveBeenCalled();
 	});

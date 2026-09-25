@@ -8,7 +8,7 @@ import { dispatch } from '../runtime/dispatcher.ts';
 import { register } from '../runtime/register.ts';
 
 import { extensionPacks } from './extensions/index.ts';
-import { allStandardTools } from './standardTools.ts';
+import { standardTools } from './standardTools.ts';
 import { addWiki } from './add-wiki.ts';
 import { removeWiki } from './remove-wiki.ts';
 
@@ -22,7 +22,7 @@ export function registerAllTools(
 ): Map<string, RegisteredTool> {
 	const registered = new Map<string, RegisteredTool>();
 
-	for (const tool of allStandardTools) {
+	for (const tool of standardTools) {
 		try {
 			registered.set(tool.name, register(server, tool, dispatch(tool, ctx)));
 		} catch (error) {

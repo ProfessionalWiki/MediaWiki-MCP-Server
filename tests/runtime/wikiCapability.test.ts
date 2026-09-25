@@ -1,8 +1,8 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
 	checkWikiCapability,
+	isWriteTool,
 	WRITE_TOOL_NAMES,
-	writeToolNames,
 } from '../../src/runtime/wikiCapability.ts';
 import { fakeContext } from '../helpers/fakeContext.ts';
 import { withRequestFields } from '../../src/runtime/requestContext.ts';
@@ -216,24 +216,9 @@ describe('checkWikiCapability — pack wiki gates', () => {
 });
 
 describe('WRITE_TOOL_NAMES', () => {
-	it('includes the core write tools', () => {
-		for (const name of [
-			'create-page',
-			'move-page',
-			'update-page',
-			'delete-page',
-			'undelete-page',
-			'protect-page',
-			'upload-file',
-			'upload-file-from-url',
-			'update-file',
-			'update-file-from-url',
-		]) {
-			expect(WRITE_TOOL_NAMES).toContain(name);
-		}
-	});
-
-	it('derives extension-pack write tools from their readOnlyHint annotation', () => {
+	// The core write tools are checked end to end, through tools/list, in
+	// tests/tools/index.test.ts.
+	it('includes the extension write tools', () => {
 		for (const name of [
 			'neowiki-create-subject',
 			'neowiki-update-subject',
@@ -246,8 +231,23 @@ describe('WRITE_TOOL_NAMES', () => {
 		}
 	});
 
-	it('excludes extension read tools', () => {
+	it('excludes read tools', () => {
 		for (const name of [
+			'compare-pages',
+			'get-category-members',
+			'get-file',
+			'get-file-data',
+			'get-links-here',
+			'get-page',
+			'get-page-history',
+			'get-pages',
+			'get-recent-changes',
+			'get-revision',
+			'get-site-info',
+			'parse-wikitext',
+			'search-page',
+			'search-page-by-prefix',
+			'whoami',
 			'neowiki-cypher-query',
 			'neowiki-get-subject',
 			'smw-query',
@@ -261,29 +261,23 @@ describe('WRITE_TOOL_NAMES', () => {
 	});
 });
 
-describe('writeToolNames', () => {
-	const writer = { name: 'writer', annotations: { readOnlyHint: false } };
-
-	it('names a wiki tool that declares it writes', () => {
-		expect(writeToolNames([writer])).toEqual(['writer']);
+describe('isWriteTool', () => {
+	it('counts a wiki tool that declares it writes', () => {
+		expect(isWriteTool({ annotations: { readOnlyHint: false } })).toBe(true);
 	});
 
 	// MCP reads an absent readOnlyHint as false, so a tool that forgets the
 	// annotation is gated rather than let through.
-	it('names a wiki tool that does not declare whether it writes', () => {
-		expect(writeToolNames([{ name: 'undeclared', annotations: {} }])).toEqual(['undeclared']);
+	it('counts a wiki tool that does not declare whether it writes', () => {
+		expect(isWriteTool({ annotations: {} })).toBe(true);
 	});
 
-	it('leaves out a tool that declares it only reads', () => {
-		const reader = { name: 'reader', annotations: { readOnlyHint: true } };
-
-		expect(writeToolNames([reader, writer])).toEqual(['writer']);
+	it('does not count a tool that declares it only reads', () => {
+		expect(isWriteTool({ annotations: { readOnlyHint: true } })).toBe(false);
 	});
 
-	// Such a tool, like oauth-logout, changes only this server's own state.
-	it('leaves out a tool that does not act on a wiki', () => {
-		const local = { name: 'local', annotations: { readOnlyHint: false }, wikiScoped: false };
-
-		expect(writeToolNames([local, writer])).toEqual(['writer']);
+	// Such a tool, like oauth-logout, names no wiki for the gate to act on.
+	it('does not count a tool that is not wiki-scoped', () => {
+		expect(isWriteTool({ annotations: { readOnlyHint: false }, wikiScoped: false })).toBe(false);
 	});
 });

@@ -32,7 +32,7 @@ const tokenCaptureTool: Tool<Record<string, never>> = {
 	name: 'dummy',
 	description: 'd',
 	inputSchema: {},
-	annotations: {},
+	annotations: { readOnlyHint: true },
 	async handle(): Promise<CallToolResult> {
 		return { content: [{ type: 'text', text: getRuntimeToken() ?? '' }] };
 	},
@@ -86,7 +86,7 @@ describe('dispatch OAuth integration', () => {
 			name: 'wiki-capture',
 			description: 'd',
 			inputSchema: {},
-			annotations: {},
+			annotations: { readOnlyHint: true },
 			async handle(): Promise<CallToolResult> {
 				observedWiki = getRequestWiki();
 				return { content: [{ type: 'text', text: getRequestWiki() ?? '' }] };
@@ -161,7 +161,7 @@ describe('dispatch OAuth integration', () => {
 			name: 'probe',
 			description: 'd',
 			inputSchema: {},
-			annotations: {},
+			annotations: { readOnlyHint: true },
 			async handle(): Promise<CallToolResult> {
 				toolInvoked = true;
 				return { content: [{ type: 'text', text: 'should not reach here' }] };
@@ -201,7 +201,7 @@ describe('dispatch OAuth integration', () => {
 				name: toolName,
 				description: 'd',
 				inputSchema: {},
-				annotations: {},
+				annotations: { readOnlyHint: true },
 				// add-wiki / remove-wiki / oauth-* are not wiki-scoped, so they skip
 				// per-call wiki resolution entirely.
 				wikiScoped: false,

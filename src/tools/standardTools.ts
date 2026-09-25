@@ -30,12 +30,16 @@ import { updateFileFromUrl } from './update-file-from-url.ts';
 import { oauthStatus } from './oauth-status.ts';
 import { oauthLogout } from './oauth-logout.ts';
 
+// Every tool that runs with a ToolContext: the core tools and each extension
+// pack's. registerAllTools registers this list and the read-only gate reads it,
+// so the two cannot disagree.
+//
 // `Tool<any>` widens the heterogeneous-schema array; `inputSchema: TSchema`
 // is invariant in `TSchema`, so `Tool<never>` and `Tool<ZodRawShape>` both
 // fail this assignment. The dispatcher's own generic re-narrows TSchema
 // when each tool's handler is wrapped.
 // oxlint-disable-next-line typescript/no-explicit-any
-const standardTools: Tool<any>[] = [
+export const standardTools: Tool<any>[] = [
 	getPage,
 	getPages,
 	getPageHistory,
@@ -64,13 +68,5 @@ const standardTools: Tool<any>[] = [
 	updateFileFromUrl,
 	oauthStatus,
 	oauthLogout,
-];
-
-// Every tool that runs with a ToolContext, standard and extension-pack alike.
-// registerAllTools registers this list and the read-only gate reads it, so the
-// two cannot disagree.
-// oxlint-disable-next-line typescript/no-explicit-any
-export const allStandardTools: Tool<any>[] = [
-	...standardTools,
 	...extensionPacks.flatMap((pack) => pack.tools),
 ];
