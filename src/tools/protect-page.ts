@@ -10,7 +10,7 @@ const inputSchema = {
 	protections: z
 		.record(z.string(), z.string())
 		.describe(
-			'Protection level for each action, e.g. {"edit": "autoconfirmed", "move": "sysop"}. The actions are edit and move, plus upload on a File page; a page that does not exist takes only create, which stops the title being created. Levels are the wiki\'s own; MediaWiki\'s defaults are autoconfirmed (semi-protection) and sysop (full protection). "all" lifts the action\'s protection.',
+			'Protection level for each action, e.g. {"edit": "autoconfirmed", "move": "sysop"}. The actions are edit and move, plus upload on a File page; a page that does not exist takes only create, which limits who can create the title. Levels are the wiki\'s own; MediaWiki\'s defaults are autoconfirmed (semi-protection) and sysop (full protection). "all" lifts the action\'s protection.',
 		),
 	expiry: z
 		.string()
@@ -22,7 +22,7 @@ const inputSchema = {
 		.boolean()
 		.optional()
 		.describe(
-			'Also protect every page transcluded into this one. Applies only while edit protection is at a cascading level, sysop by default. Omit to keep the current setting.',
+			'Also protect every page transcluded into this one against editing. Applies only while edit protection is at a cascading level, sysop by default. Omit to keep the current setting.',
 		),
 	comment: z.string().optional().describe('Reason for changing the protection'),
 } as const;
@@ -59,7 +59,7 @@ interface ProtectResponse {
 export const protectPage: Tool<typeof inputSchema> = {
 	name: 'protect-page',
 	description:
-		'Changes the protection of a wiki page and returns its title, the protections in effect afterwards with their expiries, and whether cascading is on. Each action named in protections is set to its level until expiry; the level "all" lifts that action\'s protection. Actions left out keep their current protection, so lifting all protection means naming each protected action with "all". Fails if the authenticated user lacks the protect permission, if the wiki does not accept an action or level for this page, or if the expiry is invalid or in the past.',
+		'Changes the protection of a wiki page and returns its title, its own protections afterwards with their expiries, and whether cascading is on. Each action named in protections is set to its level until expiry. Actions left out keep their current protection, so lifting all protection means naming every action the page takes with "all". Protection the page inherits from a cascade-protected page that transcludes it is neither changed nor listed. Fails if the authenticated user lacks the protect permission, if the wiki does not accept an action or level for this page, or if the expiry is invalid or in the past.',
 	inputSchema,
 	annotations: {
 		title: 'Protect page',
