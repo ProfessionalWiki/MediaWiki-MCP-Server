@@ -61,6 +61,14 @@ jobs:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org/'
 
+      # npm publish packs dist/, and a job starts from a bare checkout, so this
+      # one installs and builds for itself.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
       - name: Download MCP Bundle
         uses: actions/download-artifact@v8
         with:
