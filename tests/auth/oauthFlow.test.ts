@@ -7,6 +7,7 @@ import {
 	OAuthFlowError,
 	refreshTokens,
 } from '../../src/auth/oauthFlow.ts';
+import { USER_AGENT } from '../../src/runtime/constants.ts';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 
 let fakeAs: FakeAsHandle;
@@ -31,6 +32,24 @@ describe('exchangeCode', () => {
 		expect(result.expires_in).toBe(3600);
 		expect(result.scope).toBe('edit');
 		expect(result.token_type).toBe('Bearer');
+	});
+
+	it('identifies itself to the token endpoint with the server User-Agent', async () => {
+		let userAgent: string | undefined;
+		fakeAs = await startFakeAs({
+			token: (req, res) => {
+				userAgent = req.headers['user-agent'];
+				res.json({ access_token: 'a', expires_in: 3600 });
+			},
+		});
+		await exchangeCode({
+			tokenEndpoint: `${fakeAs.url}/w/rest.php/oauth2/access_token`,
+			code: 'c',
+			verifier: 'v',
+			clientId: 'c',
+			redirectUri: 'http://localhost/callback',
+		});
+		expect(userAgent).toBe(USER_AGENT);
 	});
 
 	it('throws OAuthFlowError(invalid_grant) on 400 invalid_grant', async () => {

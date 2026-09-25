@@ -112,6 +112,10 @@
           "default": "104857600"
         },
         {
+          "name": "MCP_USER_AGENT",
+          "description": "Replaces the User-Agent header of every outbound request, which defaults to mediawiki-mcp-server/<version> (https://github.com/ProfessionalWiki/MediaWiki-MCP-Server). If you set it, give a name and an email or URL, e.g. 'ExampleBot/1.0 (bot@example.org)'."
+        },
+        {
           "name": "PORT",
           "description": "Port used for StreamableHTTP transport",
           "format": "number",
@@ -221,6 +225,10 @@
           "description": "Memory cap on the server-side fetch used by upload-file-from-url and update-file-from-url. Files larger than this are routed to the wiki's own copy-upload instead of being buffered by the server. Guards this server's memory, not the wiki's $wgMaxUploadSize.",
           "format": "number",
           "default": "104857600"
+        },
+        {
+          "name": "MCP_USER_AGENT",
+          "description": "Replaces the User-Agent header of every outbound request, which defaults to mediawiki-mcp-server/<version> (https://github.com/ProfessionalWiki/MediaWiki-MCP-Server). If you set it, give a name and an email or URL, e.g. 'ExampleBot/1.0 (bot@example.org)'."
         },
         {
           "name": "PORT",

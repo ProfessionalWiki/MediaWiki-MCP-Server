@@ -1,4 +1,5 @@
 // src/auth/oauthFlow.ts
+import { USER_AGENT } from '../runtime/constants.ts';
 
 const TIMEOUT_MS = 5000;
 
@@ -109,7 +110,10 @@ async function post(endpoint: string, body: Record<string, string>): Promise<Tok
 	try {
 		res = await fetch(endpoint, {
 			method: 'POST',
-			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			headers: {
+				'Content-Type': 'application/x-www-form-urlencoded',
+				'User-Agent': USER_AGENT,
+			},
 			body: new URLSearchParams(body).toString(),
 			signal: ctrl.signal,
 		});
