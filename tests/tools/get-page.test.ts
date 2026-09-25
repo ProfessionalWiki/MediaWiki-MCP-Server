@@ -6,7 +6,7 @@ import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { ContentFormat } from '../../src/results/contentFormat.ts';
 import { SectionServiceImpl } from '../../src/services/sectionService.ts';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
-import type { SiteInfo } from '../../src/wikis/siteInfoCache.ts';
+import { SiteInfoCacheImpl } from '../../src/wikis/siteInfoCache.ts';
 
 describe('get-page', () => {
 	it('returns page source using mwn.read()', async () => {
@@ -613,18 +613,9 @@ describe('get-page', () => {
 				});
 			}),
 		});
-		const emptyMap = new Map<string, SiteInfo>();
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: {
-				get: (k: string) => emptyMap.get(k),
-				set: (k: string, v: SiteInfo) => {
-					emptyMap.set(k, v);
-				},
-				delete: (k: string) => {
-					emptyMap.delete(k);
-				},
-			} as never,
+			siteInfoCache: new SiteInfoCacheImpl(),
 		});
 
 		const result = await getPage.handle(

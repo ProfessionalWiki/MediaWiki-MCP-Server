@@ -32,18 +32,8 @@ function ctxWith(
 	opts: { extensions?: Set<string>; license?: LicenseInfo; reachable?: boolean } = {},
 ) {
 	const mwn = createMockMwn({ request });
-	return fakeContext({
+	const ctx = fakeContext({
 		mwn: () => Promise.resolve(mwn as never),
-		// Pre-populate so resolveSiteInfo short-circuits (issues no extra request).
-		siteInfoCache: {
-			get: () => ({
-				server: 'https://example',
-				articlepath: '/wiki',
-				...(opts.license ? { license: opts.license } : {}),
-			}),
-			set: () => {},
-			delete: () => {},
-		},
 		wikiProbe: {
 			hasExtension: (async () => false) as never,
 			hasAnyExtension: (async () => false) as never,
@@ -54,6 +44,13 @@ function ctxWith(
 			invalidate: (() => {}) as never,
 		},
 	});
+	// Pre-populate so resolveSiteInfo short-circuits (issues no extra request).
+	ctx.siteInfoCache.set('test-wiki', {
+		server: 'https://example',
+		articlepath: '/wiki',
+		...(opts.license ? { license: opts.license } : {}),
+	});
+	return ctx;
 }
 
 describe('get-site-info', () => {

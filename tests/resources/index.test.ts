@@ -6,25 +6,13 @@ import {
 	McpServer,
 	ResourceNotFoundError,
 } from '@modelcontextprotocol/server';
-import type { ResourceTemplate } from '@modelcontextprotocol/server';
+import type { Resource, ResourceTemplate } from '@modelcontextprotocol/server';
 import { registerAllResources } from '../../src/resources/index.ts';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
 import { fakeContext } from '../helpers/fakeContext.ts';
-import type { SiteInfo } from '../../src/wikis/siteInfoCache.ts';
+import { SiteInfoCacheImpl } from '../../src/wikis/siteInfoCache.ts';
+import { fakeClock } from '../helpers/fakeClock.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
-
-function emptyCache() {
-	const map = new Map<string, SiteInfo>();
-	return {
-		get: (k: string) => map.get(k),
-		set: (k: string, v: SiteInfo) => {
-			map.set(k, v);
-		},
-		delete: (k: string) => {
-			map.delete(k);
-		},
-	};
-}
 
 type ReadHandler = (
 	uri: { toString: () => string },
@@ -53,10 +41,14 @@ function captureHandler(ctx: ReturnType<typeof fakeContext>): ReadHandler {
 
 // registerAllResources always supplies a list callback, and that callback
 // ignores the server context it is handed.
-async function listedUris(template: ResourceTemplate): Promise<string[]> {
+async function listedResources(template: ResourceTemplate): Promise<Resource[]> {
 	// oxlint-disable-next-line typescript/no-non-null-assertion -- see above
 	const listed = await template.listCallback!({} as never);
-	return listed.resources.map((resource) => resource.uri);
+	return listed.resources;
+}
+
+async function listedUris(template: ResourceTemplate): Promise<string[]> {
+	return (await listedResources(template)).map((resource) => resource.uri);
 }
 
 // A context whose registry holds exactly the given keys, so a test can name a
@@ -75,7 +67,7 @@ function ctxWithWikis(keys: string[]) {
 	return fakeContext({
 		mwn: async () =>
 			createMockMwn({ request: vi.fn().mockRejectedValue(new Error('down')) }) as never,
-		siteInfoCache: emptyCache() as never,
+		siteInfoCache: new SiteInfoCacheImpl(),
 		wikis: {
 			getAll: () => registry as never,
 			get: ((key: string) => (Object.hasOwn(registry, key) ? registry[key] : undefined)) as never,
@@ -98,7 +90,7 @@ describe('wikis resource', () => {
 		});
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: emptyCache() as never,
+			siteInfoCache: new SiteInfoCacheImpl(),
 		});
 		const handler = captureHandler(ctx);
 
@@ -120,7 +112,7 @@ describe('wikis resource', () => {
 		const mock = createMockMwn({ request: vi.fn().mockRejectedValue(new Error('down')) });
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: emptyCache() as never,
+			siteInfoCache: new SiteInfoCacheImpl(),
 		});
 		const handler = captureHandler(ctx);
 
@@ -157,7 +149,7 @@ describe('wikis resource', () => {
 		};
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: emptyCache() as never,
+			siteInfoCache: new SiteInfoCacheImpl(),
 			wikis: {
 				getAll: () => ({ 'test-wiki': loaded }) as never,
 				get: ((key: string) => (key === 'test-wiki' ? loaded : undefined)) as never,
@@ -298,6 +290,18 @@ describe('wikis resource', () => {
 			await client.close();
 			await handler.close();
 		}
+	});
+
+	it('keeps describing a wiki by its public server after the cached siteinfo expires', async () => {
+		const clock = fakeClock();
+		const siteInfoCache = new SiteInfoCacheImpl(clock.now);
+		siteInfoCache.set('test-wiki', { server: 'https://public.example', articlepath: '/wiki' });
+		const { template } = captureResource({ ...ctxWithWikis(['test-wiki']), siteInfoCache });
+
+		clock.advance(60 * 60 * 1000 + 1);
+
+		const [resource] = await listedResources(template);
+		expect(resource.description).toContain('https://public.example');
 	});
 
 	it('leaves a host:port key unencoded, as RFC 3986 permits ":" in a path segment', async () => {
