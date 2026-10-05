@@ -63,6 +63,36 @@ describe('embeddable-add-special-content', () => {
 		});
 	});
 
+	it('forwards the math note and the quotation translations', async () => {
+		const { ctx, submit } = contextWith();
+
+		await embeddableAddSpecialContent.handle(
+			toolArgs(embeddableAddSpecialContent, {
+				kind: 'math',
+				label: 'E = mc²',
+				content: 'E = mc^2',
+				note: 'See $E$ for the energy.',
+			}),
+			ctx,
+		);
+		expect(submit.mock.calls[0][1]).toMatchObject({ note: 'See $E$ for the energy.' });
+
+		const second = contextWith();
+		await embeddableAddSpecialContent.handle(
+			toolArgs(embeddableAddSpecialContent, {
+				kind: 'quotation',
+				label: 'q',
+				content: 'hi',
+				attributedTo: 'Q94',
+				translations: '[{"language":"fr","content":"salut"}]',
+			}),
+			second.ctx,
+		);
+		expect(second.submit.mock.calls[0][1]).toMatchObject({
+			translations: '[{"language":"fr","content":"salut"}]',
+		});
+	});
+
 	it('leaves blank fields out of the request', async () => {
 		const { ctx, submit } = contextWith();
 

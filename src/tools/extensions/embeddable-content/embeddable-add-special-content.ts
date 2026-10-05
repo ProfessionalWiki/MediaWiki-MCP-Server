@@ -1,8 +1,8 @@
-import { z } from 'zod';
+import { z, type ZodTypeAny } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
-import { SPECIAL_CONTENT_KINDS } from './embeddableSchema.ts';
+import { SPECIAL_CONTENT_FIELD_NAMES, SPECIAL_CONTENT_KINDS } from './generated/fieldContract.ts';
 import { DAY_DATE, ITEM_ID, LANGUAGE_CODE, resolveItemIdOrLabel } from './embeddableWrite.ts';
 import {
 	duplicateHitOf,
@@ -10,14 +10,12 @@ import {
 	unresolvedWriteResult,
 } from './embeddableAddOutcome.ts';
 
-const KINDS = SPECIAL_CONTENT_KINDS;
-
-const inputSchema = {
-	kind: z
-		.enum(KINDS)
-		.describe(
-			'What the item holds: quotation (a quote with language), math (LaTeX source), or code-snippet (source code).',
-		),
+// The kind's field set is generated from the wiki's canonical contract
+// (generated/fieldContract.ts); `satisfies` forces this validator table to
+// cover every contract field exactly — a field added on the wiki and
+// re-emitted fails compilation here until it is exposed or explicitly
+// excluded in scripts/gen-embeddable-contract.cjs.
+const FIELD_VALIDATORS = {
 	label: z
 		.string()
 		.min(1)
@@ -33,6 +31,12 @@ const inputSchema = {
 		.describe(
 			"The payload: the quotation text (quotation), LaTeX source (math — enclosing $…$, $$…$$, \\(…\\) or \\[…\\] delimiters are stripped on save), or the source code (code-snippet). Required when creating. Multi-line content is stored backslash-escaped (\\n, \\t, \\r, \\\\) because the wiki's string values reject the raw whitespace, and decoded at render time by the wiki. Content items carry no description field.",
 		),
+	note: z
+		.string()
+		.optional()
+		.describe(
+			'Accepted for kind=math only: an accompanying note rendered below the expression. Rich wikitext (links, media and $…$ math render); multi-line notes are stored backslash-escaped like the payload. Ignored for the other kinds.',
+		),
 	labelLanguage: z
 		.string()
 		.regex(LANGUAGE_CODE, 'A single lowercase language code, such as en or fr')
@@ -44,6 +48,12 @@ const inputSchema = {
 		.optional()
 		.describe(
 			'Language code of the quotation text. Accepted for kind=quotation only; ignored otherwise. Defaults to en.',
+		),
+	translations: z
+		.string()
+		.optional()
+		.describe(
+			'Accepted for kind=quotation only: added translations as a JSON array of {"language":"fr","content":"…"} rows (the AddQuotation "Add translation" field). The original stays in content/language. A blank language, a duplicate, a translation in the original language, or an invalid JSON shape is rejected by the wiki.',
 		),
 	programmingLanguage: z
 		.string()
@@ -85,6 +95,15 @@ const inputSchema = {
 		.regex(DAY_DATE, 'A calendar date in YYYY-MM-DD form')
 		.optional()
 		.describe('When the content was created or published, as YYYY-MM-DD at day precision.'),
+} satisfies Record<(typeof SPECIAL_CONTENT_FIELD_NAMES)[number], ZodTypeAny>;
+
+const inputSchema = {
+	kind: z
+		.enum(SPECIAL_CONTENT_KINDS)
+		.describe(
+			'What the item holds: quotation (a quote with language), math (LaTeX source), or code-snippet (source code).',
+		),
+	...FIELD_VALIDATORS,
 	qid: z
 		.string()
 		.regex(ITEM_ID, 'An item ID, such as Q100')
@@ -104,7 +123,7 @@ const inputSchema = {
 export const embeddableAddSpecialContent: Tool<typeof inputSchema> = {
 	name: 'embeddable-add-special-content',
 	description:
-		"Creates or updates a quotation, mathematical expression or code-snippet item on a wiki with the EmbeddableContent extension, mirroring the Special:AddQuotation / AddMath / AddCodeSnippet forms, and returns the item ID and latest revision. Requires the edit right.\n\nThe item is created by the wiki's own special-content service (action=addspecialcontent): classified instance of the kind's class, payload handled exactly like the forms (math delimiters stripped, multi-line content backslash-escaped and decoded at render time), plus the provenance block you supply: attributedTo, source, sourceUrl and date. A quotation's content is stored as monolingual text in language, and attributedTo is required when creating one. Content items carry no description field and create no classic page. A create that matches an existing item (the same authority id or URL, or a highly similar class-filtered label) is refused by the wiki's duplication guard, which returns the existing item instead of creating — update that item instead, or set confirmDuplicate to force the create. When the wiki's response is lost and no item comes back, the tool checks whether an item with the submitted label exists and reports the outcome before you retry. To find existing entities — including the attributedTo person or source item — use wikibase-search-entities first.\n\nSet qid to update an existing item instead: statements on the fields you provide are replaced, blank fields keep the existing statements, and the class is never changed. For the field table, property IDs and a ready-to-submit example, call embeddable-describe-entity-type first.",
+		"Creates or updates a quotation, mathematical expression or code-snippet item on a wiki with the EmbeddableContent extension, mirroring the Special:AddQuotation / AddMath / AddCodeSnippet forms, and returns the item ID and latest revision. Requires the edit right.\n\nThe item is created by the wiki's own special-content service (action=addspecialcontent): classified instance of the kind's class, payload handled exactly like the forms (math delimiters stripped, multi-line content backslash-escaped and decoded at render time), plus the provenance block you supply: attributedTo, source, sourceUrl and date. A quotation's content is stored as monolingual text in language, and attributedTo is required when creating one; its added translations ride in translations. A math item's note is an accompanying wikitext note. Content items carry no description field and create no classic page. A create that matches an existing item (the same authority id or URL, or a highly similar class-filtered label) is refused by the wiki's duplication guard, which returns the existing item instead of creating — update that item instead, or set confirmDuplicate to force the create. When the wiki's response is lost and no item comes back, the tool checks whether an item with the submitted label exists and reports the outcome before you retry. To find existing entities — including the attributedTo person or source item — use wikibase-search-entities first.\n\nSet qid to update an existing item instead: statements on the fields you provide are replaced, blank fields keep the existing statements, and the class is never changed. For the field table, property IDs and a ready-to-submit example, call embeddable-describe-entity-type first.",
 	inputSchema,
 	annotations: {
 		title: 'Add special content',
@@ -133,23 +152,14 @@ export const embeddableAddSpecialContent: Tool<typeof inputSchema> = {
 			programmingLanguage = resolved;
 		}
 
+		// Every generated field is forwarded verbatim (the wiki validates); the
+		// locally-resolved programmingLanguage overrides its label input.
 		const params: Record<string, string> = {
 			action: 'addspecialcontent',
 			kind: args.kind,
 		};
-		for (const [field, value] of Object.entries({
-			label: args.label,
-			content: args.content,
-			labelLanguage: args.labelLanguage,
-			language: args.language,
-			programmingLanguage,
-			describes: args.describes,
-			implementationOf: args.implementationOf,
-			attributedTo: args.attributedTo,
-			source: args.source,
-			sourceUrl: args.sourceUrl,
-			date: args.date,
-		})) {
+		for (const field of SPECIAL_CONTENT_FIELD_NAMES) {
+			const value = field === 'programmingLanguage' ? programmingLanguage : args[field];
 			if (value !== undefined && value !== '') {
 				params[field] = value;
 			}

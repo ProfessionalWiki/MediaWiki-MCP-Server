@@ -1,0 +1,8 @@
+# The EmbeddableContent field contract is a pinned, machine-generated artifact
+# copied verbatim from the wiki repo (ronzz-wikibase,
+# extensions/EmbeddableContent/contract/field-contract.json). It is a data
+# file, not source: keep it byte-identical to the emitter's output so a sync is
+# a clean copy (and the two repos' hashes can be compared). The generated/
+# TypeScript projection IS formatted — the generator runs oxfmt on it. The
+# directory's README.md stays checked.
+src/tools/extensions/embeddable-content/contract/field-contract.json
