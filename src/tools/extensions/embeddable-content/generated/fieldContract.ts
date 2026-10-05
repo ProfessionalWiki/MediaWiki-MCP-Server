@@ -66,6 +66,7 @@ export type SourceClassKey = (typeof SOURCE_CLASS_KEYS)[number];
 export const SOURCE_FIELD_NAMES = [
 	'title',
 	'description',
+	'language',
 	'authors',
 	'publisher',
 	'pages',

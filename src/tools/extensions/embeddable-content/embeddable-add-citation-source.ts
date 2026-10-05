@@ -28,6 +28,13 @@ const FIELD_VALIDATORS = {
 		.max(2000)
 		.optional()
 		.describe("A short description; becomes the item's English description."),
+	language: z
+		.string()
+		.regex(/^[a-z]{2,8}(?:-[a-z0-9]{2,8})*$/i, 'A BCP-47 language code, such as fr or en')
+		.optional()
+		.describe(
+			'The source language as a BCP-47 code (e.g. fr). Stored as a language statement; the item label and description are stored under this term language too (default: en).',
+		),
 	authors: z
 		.string()
 		.optional()

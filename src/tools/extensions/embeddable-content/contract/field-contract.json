@@ -64,6 +64,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "publisher",
                         "pages",
@@ -80,6 +81,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "journal",
                         "publisher",
@@ -101,6 +103,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "url",
                         "wikidataId"
@@ -113,6 +116,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "url",
                         "year",
@@ -128,6 +132,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "year",
                         "duration",
@@ -141,6 +146,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "year",
                         "duration",
@@ -154,6 +160,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "year",
                         "duration",
@@ -167,6 +174,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "year",
                         "url",
@@ -180,6 +188,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "year",
                         "duration",
@@ -196,6 +205,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "pages",
                         "volume",
@@ -213,6 +223,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "publisher",
                         "pages",
@@ -229,6 +240,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "publisher",
                         "volume",
@@ -247,6 +259,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "publisher",
                         "pages",
@@ -265,6 +278,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "publisher",
                         "reportNumber",
@@ -281,6 +295,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "publisher",
                         "reportNumber",
@@ -297,6 +312,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "publisher",
                         "year",
@@ -312,6 +328,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "year",
                         "url",
@@ -326,6 +343,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "patentNumber",
                         "year",
@@ -340,6 +358,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "court",
                         "territorialJurisdiction",
                         "territorialJurisdictionLabel",
@@ -357,6 +376,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "territorialJurisdiction",
                         "territorialJurisdictionLabel",
                         "legislationNumber",
@@ -373,6 +393,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "territorialJurisdiction",
                         "territorialJurisdictionLabel",
                         "legislationNumber",
@@ -389,6 +410,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "territorialJurisdiction",
                         "territorialJurisdictionLabel",
                         "international",
@@ -404,6 +426,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "publisher",
                         "year",
@@ -418,6 +441,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "publisher",
                         "year",
@@ -433,6 +457,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "year",
                         "url",
@@ -446,6 +471,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "publisher",
                         "year",
@@ -461,6 +487,7 @@
                     "fields": [
                         "title",
                         "description",
+                        "language",
                         "authors",
                         "year",
                         "url",
