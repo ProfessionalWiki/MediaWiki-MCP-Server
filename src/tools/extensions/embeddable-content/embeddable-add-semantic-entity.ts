@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z, type ZodTypeAny } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
@@ -8,15 +8,19 @@ import {
 	duplicateHitResult,
 	unresolvedWriteResult,
 } from './embeddableAddOutcome.ts';
+import {
+	SEMANTIC_ENTITY_FIELD_NAMES,
+	SEMANTIC_ENTITY_KINDS,
+	type SemanticEntityField,
+	type SemanticEntityKind,
+} from './generated/fieldContract.ts';
 
-const KINDS = ['person', 'software', 'collective', 'fictional-character', 'other'] as const;
-
-const inputSchema = {
-	kind: z
-		.enum(KINDS)
-		.describe(
-			'The kind of semantic entity: person, software (a free/open-source software item), collective (an organization or group), fictional-character, or other (any class — the catch-all that takes instanceOf).',
-		),
+// The kind's field set is generated from the wiki's canonical contract
+// (generated/fieldContract.ts); `satisfies` forces this validator table to
+// cover every contract field exactly — a field added on the wiki and
+// re-emitted fails compilation here until it is exposed or explicitly
+// excluded in scripts/gen-embeddable-contract.cjs.
+const FIELD_VALIDATORS = {
 	label: z
 		.string()
 		.min(1)
@@ -117,6 +121,12 @@ const inputSchema = {
 		.regex(ITEM_ID, 'An item ID, such as Q42')
 		.optional()
 		.describe('The parent organization as an item ID (collective).'),
+	alias: z
+		.string()
+		.optional()
+		.describe(
+			'Comma/semicolon-separated alternative names (fictional-character), written as item aliases. A blank field keeps the stored aliases on update.',
+		),
 	presentInWork: z
 		.string()
 		.optional()
@@ -130,6 +140,15 @@ const inputSchema = {
 		.describe(
 			'The class item for kind=other, e.g. Q163 for a software item. Required when creating with other.',
 		),
+} satisfies Record<SemanticEntityField, ZodTypeAny>;
+
+const inputSchema = {
+	kind: z
+		.enum(SEMANTIC_ENTITY_KINDS)
+		.describe(
+			'The kind of semantic entity: person, software (a free/open-source software item), collective (an organization or group), fictional-character, or other (any class — the catch-all that takes instanceOf).',
+		),
+	...FIELD_VALIDATORS,
 	qid: z
 		.string()
 		.regex(ITEM_ID, 'An item ID, such as Q42')
@@ -182,34 +201,8 @@ export const embeddableAddSemanticEntity: Tool<typeof inputSchema> = {
 			action: 'addsemanticentity',
 			kind: args.kind,
 		};
-		for (const [field, value] of Object.entries({
-			label: args.label,
-			description: args.description,
-			givenName: args.givenName,
-			familyName: args.familyName,
-			dateOfBirth: args.dateOfBirth,
-			placeOfBirth: args.placeOfBirth,
-			dateOfDeath: args.dateOfDeath,
-			placeOfDeath: args.placeOfDeath,
-			orcid: args.orcid,
-			viafId: args.viafId,
-			isni: args.isni,
-			wikidataId: args.wikidataId,
-			openalexAuthorId: args.openalexAuthorId,
-			officialWebsite: args.officialWebsite,
-			developer: args.developer,
-			license: args.license,
-			programmingLanguage,
-			operatingSystem: args.operatingSystem,
-			userInterface: args.userInterface,
-			hasUse: args.hasUse,
-			sourceCodeRepository: args.sourceCodeRepository,
-			documentationUrl: args.documentationUrl,
-			collectiveClass: args.collectiveClass,
-			parentOrganization: args.parentOrganization,
-			presentInWork: args.presentInWork,
-			instanceOf: args.instanceOf,
-		})) {
+		for (const field of SEMANTIC_ENTITY_FIELD_NAMES) {
+			const value = field === 'programmingLanguage' ? programmingLanguage : args[field];
 			if (value !== undefined && value !== '') {
 				params[field] = value;
 			}
@@ -275,7 +268,7 @@ export const embeddableAddSemanticEntity: Tool<typeof inputSchema> = {
  * match covers.
  */
 function createLabelPrefix(args: {
-	kind: (typeof KINDS)[number];
+	kind: SemanticEntityKind;
 	label?: string;
 	givenName?: string;
 	familyName?: string;

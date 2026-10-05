@@ -37,6 +37,8 @@ interface SpecialContentFieldContract {
 		programmingLanguage?: string;
 		describes?: string | null;
 		implementationOf?: string | null;
+		translation?: string | null;
+		note?: string | null;
 		provenance?: Record<string, string>;
 	};
 }

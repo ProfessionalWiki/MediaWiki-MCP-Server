@@ -34,6 +34,21 @@ function contextWith(result: unknown = CREATED, request?: (p: unknown) => unknow
 }
 
 describe('embeddable-add-semantic-entity', () => {
+	it('forwards the fictional-character alias field (contract-driven)', async () => {
+		const { ctx, submit } = contextWith();
+
+		await embeddableAddSemanticEntity.handle(
+			toolArgs(embeddableAddSemanticEntity, {
+				kind: 'fictional-character',
+				givenName: 'Sherlock',
+				familyName: 'Holmes',
+				alias: 'The Detective, Holmes',
+			}),
+			ctx,
+		);
+		expect(submit.mock.calls[0][1]).toMatchObject({ alias: 'The Detective, Holmes' });
+	});
+
 	it('forwards the person fields to the wiki action=addsemanticentity module', async () => {
 		const { ctx, submit } = contextWith();
 

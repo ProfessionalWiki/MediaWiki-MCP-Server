@@ -38,6 +38,29 @@ function contextWith(result: unknown = CREATED, request?: (p: unknown) => unknow
 }
 
 describe('embeddable-add-citation-source', () => {
+	it('forwards the Zotero/CSL-aligned classes and fields (contract-driven)', async () => {
+		const { ctx, submit } = contextWith();
+
+		await embeddableAddCitationSource.handle(
+			toolArgs(embeddableAddCitationSource, {
+				classKey: 'legal-case',
+				title: 'Roe v. Wade',
+				court: 'Q1',
+				caseNumber: '410 U.S. 113',
+				international: 'yes',
+			}),
+			ctx,
+		);
+
+		expect(submit.mock.calls[0][1]).toMatchObject({
+			action: 'addsource',
+			class: 'legal-case',
+			court: 'Q1',
+			caseNumber: '410 U.S. 113',
+			international: 'yes',
+		});
+	});
+
 	it('forwards the fields to the wiki action=addsource module on create', async () => {
 		const { ctx, submit } = contextWith(CREATED);
 

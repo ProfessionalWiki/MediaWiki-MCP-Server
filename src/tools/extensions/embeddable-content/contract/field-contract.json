@@ -1,0 +1,559 @@
+{
+    "version": 1,
+    "generator": "EmbeddableContent maintenance/emitFieldContract.php",
+    "flows": {
+        "special-content": {
+            "kinds": {
+                "quotation": {
+                    "fields": [
+                        "label",
+                        "content",
+                        "labelLanguage",
+                        "language",
+                        "translations",
+                        "attributedTo",
+                        "source",
+                        "sourceUrl",
+                        "date"
+                    ],
+                    "requiredOnCreate": [
+                        "label",
+                        "content",
+                        "attributedTo"
+                    ]
+                },
+                "math": {
+                    "fields": [
+                        "label",
+                        "content",
+                        "note",
+                        "labelLanguage",
+                        "describes",
+                        "attributedTo",
+                        "source",
+                        "sourceUrl",
+                        "date"
+                    ],
+                    "requiredOnCreate": [
+                        "label",
+                        "content"
+                    ]
+                },
+                "code-snippet": {
+                    "fields": [
+                        "label",
+                        "content",
+                        "labelLanguage",
+                        "programmingLanguage",
+                        "implementationOf",
+                        "attributedTo",
+                        "source",
+                        "sourceUrl",
+                        "date"
+                    ],
+                    "requiredOnCreate": [
+                        "label",
+                        "content"
+                    ]
+                }
+            }
+        },
+        "citation-source": {
+            "classes": {
+                "book": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "publisher",
+                        "pages",
+                        "year",
+                        "isbn",
+                        "accessUrl",
+                        "wikidataId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "scholarly-article": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "journal",
+                        "publisher",
+                        "volume",
+                        "issue",
+                        "pages",
+                        "year",
+                        "doi",
+                        "accessUrl",
+                        "wikidataId",
+                        "openalexWorkId",
+                        "pubmedId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "website": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "url",
+                        "wikidataId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "webpage": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "url",
+                        "year",
+                        "parent",
+                        "wikidataId"
+                    ],
+                    "requiredOnCreate": [
+                        "title",
+                        "parent"
+                    ]
+                },
+                "song": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "year",
+                        "duration",
+                        "accessUrl"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "film": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "year",
+                        "duration",
+                        "accessUrl"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "video": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "year",
+                        "duration",
+                        "url"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "youtube-channel": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "year",
+                        "url",
+                        "youtubeChannelId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "youtube-video": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "year",
+                        "duration",
+                        "url",
+                        "youtubeVideoId",
+                        "parent"
+                    ],
+                    "requiredOnCreate": [
+                        "title",
+                        "parent"
+                    ]
+                },
+                "book-excerpt": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "pages",
+                        "volume",
+                        "chapters",
+                        "year",
+                        "accessUrl",
+                        "parent"
+                    ],
+                    "requiredOnCreate": [
+                        "title",
+                        "parent"
+                    ]
+                },
+                "newspaper-article": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "publisher",
+                        "pages",
+                        "year",
+                        "url",
+                        "accessUrl",
+                        "wikidataId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "magazine-article": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "publisher",
+                        "volume",
+                        "issue",
+                        "pages",
+                        "year",
+                        "url",
+                        "accessUrl",
+                        "wikidataId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "conference-paper": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "publisher",
+                        "pages",
+                        "year",
+                        "doi",
+                        "url",
+                        "accessUrl",
+                        "wikidataId",
+                        "openalexWorkId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "report": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "publisher",
+                        "reportNumber",
+                        "year",
+                        "url",
+                        "accessUrl",
+                        "wikidataId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "document": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "publisher",
+                        "reportNumber",
+                        "year",
+                        "url",
+                        "accessUrl",
+                        "wikidataId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "thesis": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "publisher",
+                        "year",
+                        "url",
+                        "accessUrl",
+                        "wikidataId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "manuscript": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "year",
+                        "url",
+                        "accessUrl",
+                        "wikidataId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "patent": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "patentNumber",
+                        "year",
+                        "url",
+                        "wikidataId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "legal-case": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "court",
+                        "territorialJurisdiction",
+                        "territorialJurisdictionLabel",
+                        "caseNumber",
+                        "international",
+                        "year",
+                        "url",
+                        "wikidataId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "legislation": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "territorialJurisdiction",
+                        "territorialJurisdictionLabel",
+                        "legislationNumber",
+                        "international",
+                        "year",
+                        "url",
+                        "wikidataId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "bill": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "territorialJurisdiction",
+                        "territorialJurisdictionLabel",
+                        "legislationNumber",
+                        "international",
+                        "year",
+                        "url",
+                        "wikidataId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "treaty": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "territorialJurisdiction",
+                        "territorialJurisdictionLabel",
+                        "international",
+                        "year",
+                        "url",
+                        "wikidataId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "interview": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "publisher",
+                        "year",
+                        "url",
+                        "wikidataId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "map": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "publisher",
+                        "year",
+                        "url",
+                        "accessUrl",
+                        "wikidataId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "presentation": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "year",
+                        "url",
+                        "wikidataId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "dataset": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "publisher",
+                        "year",
+                        "url",
+                        "accessUrl",
+                        "wikidataId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                },
+                "text": {
+                    "fields": [
+                        "title",
+                        "description",
+                        "authors",
+                        "year",
+                        "url",
+                        "accessUrl",
+                        "wikidataId"
+                    ],
+                    "requiredOnCreate": [
+                        "title"
+                    ]
+                }
+            }
+        },
+        "semantic-entity": {
+            "kinds": {
+                "person": {
+                    "fields": [
+                        "givenName",
+                        "familyName",
+                        "description",
+                        "dateOfBirth",
+                        "placeOfBirth",
+                        "dateOfDeath",
+                        "placeOfDeath",
+                        "orcid",
+                        "viafId",
+                        "isni",
+                        "wikidataId",
+                        "openalexAuthorId",
+                        "officialWebsite"
+                    ],
+                    "requiredOnCreate": [
+                        "givenName",
+                        "familyName"
+                    ]
+                },
+                "software": {
+                    "fields": [
+                        "label",
+                        "description",
+                        "developer",
+                        "license",
+                        "programmingLanguage",
+                        "operatingSystem",
+                        "userInterface",
+                        "hasUse",
+                        "officialWebsite",
+                        "sourceCodeRepository",
+                        "documentationUrl",
+                        "wikidataId",
+                        "pageKind"
+                    ],
+                    "requiredOnCreate": [
+                        "label"
+                    ]
+                },
+                "collective": {
+                    "fields": [
+                        "label",
+                        "description",
+                        "collectiveClass",
+                        "parentOrganization",
+                        "officialWebsite",
+                        "wikidataId"
+                    ],
+                    "requiredOnCreate": [
+                        "label"
+                    ]
+                },
+                "fictional-character": {
+                    "fields": [
+                        "givenName",
+                        "familyName",
+                        "alias",
+                        "description",
+                        "presentInWork"
+                    ],
+                    "requiredOnCreate": [
+                        "givenName",
+                        "familyName"
+                    ]
+                },
+                "other": {
+                    "fields": [
+                        "label",
+                        "description",
+                        "instanceOf"
+                    ],
+                    "requiredOnCreate": [
+                        "label",
+                        "instanceOf"
+                    ]
+                }
+            }
+        }
+    }
+}
