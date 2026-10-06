@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Fixed
+
+- `move-page` now reports `redirectCreated: false` when no redirect was left at the old title, instead of always reporting `true`.
+
 ## [0.19.0] - 2026-09-25
 
 ### Added

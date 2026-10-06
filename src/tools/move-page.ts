@@ -63,7 +63,7 @@ export const movePage: Tool<typeof inputSchema> = {
 		const data: ApiMoveResponse & {
 			from?: string;
 			to?: string;
-			redirectcreated?: string;
+			redirectcreated?: boolean;
 			talkfrom?: string;
 			talkto?: string;
 			subpages?: unknown[];
@@ -79,7 +79,7 @@ export const movePage: Tool<typeof inputSchema> = {
 		return ctx.format.ok({
 			from: data.from,
 			to,
-			redirectCreated: data.redirectcreated !== undefined,
+			redirectCreated: data.redirectcreated === true,
 			talkFrom: data.talkfrom,
 			talkTo: data.talkto,
 			subpagesMoved: Array.isArray(data.subpages) ? data.subpages.length : undefined,

@@ -17,7 +17,7 @@ describe('move-page', () => {
 				from: 'Old Title',
 				to: 'New Title',
 				reason: 'tidy',
-				redirectcreated: '',
+				redirectcreated: true,
 			}),
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
@@ -51,7 +51,7 @@ describe('move-page', () => {
 
 	it('sends noredirect when leaveRedirect is false and reports no redirect', async () => {
 		const mock = createMockMwn({
-			move: vi.fn().mockResolvedValue({ from: 'A', to: 'B' }),
+			move: vi.fn().mockResolvedValue({ from: 'A', to: 'B', redirectcreated: false }),
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 
