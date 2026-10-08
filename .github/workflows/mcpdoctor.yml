@@ -1,0 +1,20 @@
+name: MCP Trust Check
+
+on:
+  workflow_dispatch:
+    inputs:
+      endpoint:
+        description: Public MCP HTTP endpoint to inspect
+        required: true
+        type: string
+
+jobs:
+  mcpdoctor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: xka0085-byte/mcp-doctor@v1
+        with:
+          endpoint: ${{ inputs.endpoint }}
+          mode: schema
+          format: markdown
+          fail-on: true
