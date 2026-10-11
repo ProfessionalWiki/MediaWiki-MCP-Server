@@ -13,7 +13,7 @@ const statementSchema = z.object({
 	value: z
 		.unknown()
 		.describe(
-			'text/url/date/datetime → array of strings; select → array of option IDs; number → number; boolean → boolean; relation → array of { target: subjectId, properties? }.',
+			'text/url/date/datetime → array of strings; select → array of option IDs; number → number; boolean → boolean; relation → array of { target: subjectId }.',
 		),
 });
 
@@ -39,7 +39,7 @@ interface UpdateResponse {
 export const neowikiUpdateSubject: Tool<typeof inputSchema> = {
 	name: 'neowiki-update-subject',
 	description:
-		'Replaces a NeoWiki Subject\'s label and statements — a FULL replace: property names absent from `statements` are deleted, and {} clears all statements. Enabled only when the wiki has NeoWiki installed. The Subject\'s id and schema are immutable. Requires the edit right. Read the current state with neowiki-get-subject first. Each statement is keyed by property name as { propertyType, value } — the key is propertyType, NOT the `type` key read tools return. Value by type: text/url/date/datetime → array of strings; select → array of option IDs (resolve via neowiki-get-schema); number → a number; boolean → a boolean; relation → array of { target: "<subjectId>", properties? }. Pre-validate with neowiki-validate-subject. Pre-1.0: the NeoWiki API may change without notice.',
+		'Replaces a NeoWiki Subject\'s label and statements — a FULL replace: property names absent from `statements` are deleted, and {} clears all statements. Enabled only when the wiki has NeoWiki installed. The Subject\'s id and schema are immutable. Requires the edit right. Read the current state with neowiki-get-subject first. Each statement is keyed by property name as { propertyType, value } — the key is propertyType, NOT the `type` key read tools return. Value by type: text/url/date/datetime → array of strings; select → array of option IDs (resolve via neowiki-get-schema); number → a number; boolean → a boolean; relation → array of { target: "<subjectId>" }. Pre-validate with neowiki-validate-subject. Pre-1.0: the NeoWiki API may change without notice.',
 	inputSchema,
 	annotations: {
 		title: 'Update NeoWiki subject',

@@ -17,7 +17,7 @@ const statementSchema = z.object({
 	value: z
 		.unknown()
 		.describe(
-			'text/url/date/datetime → array of strings; select → array of option IDs (decode via neowiki-get-schema); number → number; boolean → boolean; relation → array of { target: subjectId, properties? }.',
+			'text/url/date/datetime → array of strings; select → array of option IDs (decode via neowiki-get-schema); number → number; boolean → boolean; relation → array of { target: subjectId }.',
 		),
 });
 
@@ -63,7 +63,7 @@ interface CreateResponse {
 export const neowikiCreateSubject: Tool<typeof inputSchema> = {
 	name: 'neowiki-create-subject',
 	description:
-		'Creates a new NeoWiki Subject on a wiki page and attaches its statements. Enabled only when the wiki has NeoWiki installed. Set isMain to make it the page\'s Main Subject (a page has at most one); otherwise it is added as a child Subject. Requires the edit right. Each statement is keyed by property name as { propertyType, value } — the key is propertyType, NOT the `type` key read tools return; a statement lacking propertyType is rejected. Value by type: text/url/date/datetime → array of strings (dates ISO, e.g. ["2020-12-31"]); select → array of option IDs (resolve labels via neowiki-get-schema); number → a number; boolean → a boolean; relation → array of { target: "<subjectId>", properties? }. Pre-validate with neowiki-validate-subject. Pre-1.0: the NeoWiki API may change without notice.',
+		'Creates a new NeoWiki Subject on a wiki page and attaches its statements. Enabled only when the wiki has NeoWiki installed. Set isMain to make it the page\'s Main Subject (a page has at most one); otherwise it is added as a child Subject. Requires the edit right. Each statement is keyed by property name as { propertyType, value } — the key is propertyType, NOT the `type` key read tools return; a statement lacking propertyType is rejected. Value by type: text/url/date/datetime → array of strings (dates ISO, e.g. ["2020-12-31"]); select → array of option IDs (resolve labels via neowiki-get-schema); number → a number; boolean → a boolean; relation → array of { target: "<subjectId>" }. Pre-validate with neowiki-validate-subject. Pre-1.0: the NeoWiki API may change without notice.',
 	inputSchema,
 	annotations: {
 		title: 'Create NeoWiki subject',

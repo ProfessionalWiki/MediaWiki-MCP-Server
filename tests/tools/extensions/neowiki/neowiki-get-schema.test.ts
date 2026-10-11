@@ -14,8 +14,7 @@ describe('neowiki-get-schema', () => {
 						propertyDefinitions: {
 							'Main product': {
 								type: 'relation',
-								relation: 'Has main product',
-								targetSchema: 'Product',
+								targetSchemas: ['Product'],
 								multiple: false,
 							},
 							Status: { type: 'select', required: true, options: [{ id: 'o1', label: 'Active' }] },
@@ -35,8 +34,7 @@ describe('neowiki-get-schema', () => {
 				{
 					name: 'Main product',
 					type: 'relation',
-					relation: 'Has main product',
-					targetSchema: 'Product',
+					targetSchemas: ['Product'],
 				},
 				{ name: 'Status', type: 'select', options: [{ id: 'o1', label: 'Active' }] },
 			],
