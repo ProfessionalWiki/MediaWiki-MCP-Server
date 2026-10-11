@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Changed
+
+- The NeoWiki tool descriptions now describe relations as https://github.com/ProfessionalWiki/NeoWiki/pull/1633 changed them. On a NeoWiki without that change, Cypher queries written from them miss relation edges, so upgrade NeoWiki and the server together.
+
 ### Fixed
 
 - `move-page` now reports `redirectCreated: false` when no redirect was left at the old title, instead of always reporting `true`.

@@ -18,7 +18,7 @@ interface GetSchemaResponse {
 export const neowikiGetSchema: Tool<typeof inputSchema> = {
 	name: 'neowiki-get-schema',
 	description:
-		"Returns one NeoWiki Schema's property definitions: each property's name, type (text/number/boolean/url/date/datetime/select/relation), and type-specific attributes. Enabled only when the wiki has NeoWiki installed. `relation` properties name the graph edge (`relation`) and the `targetSchema` they point to — this is the relationship vocabulary for neowiki-cypher-query. `select` properties carry the option ID->label map needed to decode select values returned by queries. Use neowiki-list-schemas to discover schema names. Pre-1.0: the NeoWiki API may change without notice.",
+		"Returns one NeoWiki Schema's property definitions: each property's name, type (text/number/boolean/url/date/datetime/select/relation), and type-specific attributes. Enabled only when the wiki has NeoWiki installed. A `relation` property's name is its graph edge type, and `targetSchemas` lists the Schemas its targets follow — this is the relationship vocabulary for neowiki-cypher-query. `select` properties carry the option ID->label map needed to decode select values returned by queries. Use neowiki-list-schemas to discover schema names. Pre-1.0: the NeoWiki API may change without notice.",
 	inputSchema,
 	annotations: {
 		title: 'Get NeoWiki schema',
