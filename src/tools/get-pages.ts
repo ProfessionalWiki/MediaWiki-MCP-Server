@@ -208,10 +208,11 @@ async function buildPageEntry(
 // than dropped, so a caller still receives something. At most one page's body
 // is ever cut, and it is always the first. Only bodies are counted; the
 // metadata around them is small and fixed.
-function applyResponseBudget(entries: PageEntry[], pending: PendingTruncation[]): string[] {
+function applyResponseBudget(entries: PageEntry[]): { omitted: string[]; cut?: PendingTruncation } {
 	const budget = contentMaxBytes();
 	let used = 0;
 	let keptABody = false;
+	let cut: PendingTruncation | undefined;
 	for (const [index, entry] of entries.entries()) {
 		if (entry.source === undefined) {
 			continue;
@@ -226,12 +227,12 @@ function applyResponseBudget(entries: PageEntry[], pending: PendingTruncation[])
 			entry.source = truncated.text;
 			used = truncated.returnedBytes;
 			keptABody = true;
-			pending.push({
+			cut = {
 				entryIndex: index,
 				title: entry.title ?? entry.requestedTitle ?? '',
 				returnedBytes: truncated.returnedBytes,
 				totalBytes: truncated.totalBytes,
-			});
+			};
 			continue;
 		}
 		if (used + size > budget) {
@@ -239,12 +240,12 @@ function applyResponseBudget(entries: PageEntry[], pending: PendingTruncation[])
 			// an unnormalised title is one it cannot otherwise account for.
 			const omitted = entries.slice(index).map((e) => e.requestedTitle ?? e.title ?? '');
 			entries.length = index;
-			return omitted;
+			return { omitted, cut };
 		}
 		used += size;
 		keptABody = true;
 	}
-	return [];
+	return { omitted: [], cut };
 }
 
 // A continuation exists and is exact — the names of the pages left out — so the
@@ -263,27 +264,24 @@ function omittedPagesTruncation(returnedCount: number, omitted: string[]): Trunc
 	};
 }
 
-async function applyTruncations(
+async function applyTruncation(
 	mwn: Mwn,
 	ctx: ToolContext,
 	entries: PageEntry[],
-	pending: PendingTruncation[],
+	cut: PendingTruncation | undefined,
 ): Promise<void> {
-	if (pending.length === 0) {
+	if (cut === undefined) {
 		return;
 	}
-	const outlines = await Promise.all(pending.map((p) => ctx.sections.list(mwn, p.title)));
-	pending.forEach((p, i) => {
-		entries[p.entryIndex].truncation = sectionContentTruncation({
-			entries: outlines[i],
-			// get-pages reads whole pages, so the narrowing on offer is always
-			// the page's own sections.
-			section: undefined,
-			itemNoun: 'wikitext',
-			toolName: 'get-pages',
-			returnedBytes: p.returnedBytes,
-			totalBytes: p.totalBytes,
-		});
+	entries[cut.entryIndex].truncation = sectionContentTruncation({
+		entries: await ctx.sections.list(mwn, cut.title),
+		// get-pages reads whole pages, so the narrowing on offer is always the
+		// page's own sections.
+		section: undefined,
+		itemNoun: 'wikitext',
+		toolName: 'get-pages',
+		returnedBytes: cut.returnedBytes,
+		totalBytes: cut.totalBytes,
 	});
 }
 
@@ -291,12 +289,11 @@ async function assembleEntries(
 	args: GetPagesArgs,
 	fetched: FetchResult,
 	ctx: ToolContext,
-): Promise<{ entries: PageEntry[]; missing: string[]; pending: PendingTruncation[] }> {
+): Promise<{ entries: PageEntry[]; missing: string[] }> {
 	const entryPromises: Promise<PageEntry>[] = [];
 	const emitted = new Set<string>();
 	const missing: string[] = [];
 	const missingSeen = new Set<string>();
-	const pending: PendingTruncation[] = [];
 	for (const requested of args.titles) {
 		const { resolved, viaRedirect } = resolveChain(
 			requested,
@@ -318,7 +315,7 @@ async function assembleEntries(
 		entryPromises.push(buildPageEntry(requested, page, viaRedirect, args, ctx));
 	}
 	const entries = await Promise.all(entryPromises);
-	return { entries, missing, pending };
+	return { entries, missing };
 }
 
 export const getPages: Tool<typeof inputSchema> = {
@@ -346,9 +343,9 @@ export const getPages: Tool<typeof inputSchema> = {
 				? 'ids|timestamp|contentmodel|content'
 				: 'ids|timestamp|contentmodel';
 		const fetched = await fetchPages(mwn, ctx, args, rvprop);
-		const { entries, missing, pending } = await assembleEntries(args, fetched, ctx);
-		const omitted = applyResponseBudget(entries, pending);
-		await applyTruncations(mwn, ctx, entries, pending);
+		const { entries, missing } = await assembleEntries(args, fetched, ctx);
+		const { omitted, cut } = applyResponseBudget(entries);
+		await applyTruncation(mwn, ctx, entries, cut);
 
 		return ctx.format.ok({
 			pages: entries,

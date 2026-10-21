@@ -57,9 +57,8 @@ export function resolveProxyConfig(
 	const clientSecret = wiki.oauth2ClientSecret?.trim() || undefined;
 	const publicUrl = env.MCP_PUBLIC_URL?.trim();
 	const signingKey = env.MCP_OAUTH_JWT_SIGNING_KEY?.trim();
-	const transport = env.MCP_TRANSPORT ?? 'stdio';
 
-	if (!clientId || !publicUrl || !signingKey || transport !== 'http') {
+	if (!clientId || !publicUrl || !signingKey) {
 		return null;
 	}
 

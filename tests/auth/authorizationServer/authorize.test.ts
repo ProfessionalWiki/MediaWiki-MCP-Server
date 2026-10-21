@@ -35,9 +35,7 @@ const baseQuery = (clientId: string) => ({
 describe('planAuthorize', () => {
 	it('errors on unknown client', () => {
 		const { store } = setup();
-		expect(planAuthorize(baseQuery('nope'), undefined, pc, store, 'Ex', undefined).kind).toBe(
-			'error',
-		);
+		expect(planAuthorize(baseQuery('nope'), undefined, pc, store, undefined).kind).toBe('error');
 	});
 	it('errors on unregistered redirect', () => {
 		// A different path is unregistered outright — loopback port relaxation
@@ -49,7 +47,6 @@ describe('planAuthorize', () => {
 				undefined,
 				pc,
 				store,
-				'Ex',
 				store.getClient(client.clientId),
 			).kind,
 		).toBe('error');
@@ -66,7 +63,7 @@ describe('planAuthorize', () => {
 			redirect_uri: 'http://127.0.0.1:27523/callback',
 		};
 		const consent = { clientId: client.clientId, redirectHost: '127.0.0.1', wiki: 'w' };
-		expect(planAuthorize(q, consent, pc, store, 'Ex', store.getClient(client.clientId)).kind).toBe(
+		expect(planAuthorize(q, consent, pc, store, store.getClient(client.clientId)).kind).toBe(
 			'redirect',
 		);
 	});
@@ -82,7 +79,7 @@ describe('planAuthorize', () => {
 			redirect_uri: 'https://vscode.dev/redirect/extra',
 		};
 		expect(
-			planAuthorize(q, undefined, pc, store, 'Ex', store.getClient(client.clientId)).kind,
+			planAuthorize(q, undefined, pc, store, store.getClient(client.clientId)).kind,
 			// A page, not a redirect: this redirect_uri is not registered, so bouncing
 			// an error to it would make the endpoint an open redirector.
 		).toBe('error');
@@ -95,7 +92,6 @@ describe('planAuthorize', () => {
 				undefined,
 				pc,
 				store,
-				'Ex',
 				store.getClient(client.clientId),
 			).kind,
 		).toBe('error-redirect');
@@ -111,7 +107,6 @@ describe('planAuthorize', () => {
 				undefined,
 				pc,
 				store,
-				'Ex',
 				store.getClient(client.clientId),
 			).kind,
 		).toBe('consent');
@@ -124,7 +119,6 @@ describe('planAuthorize', () => {
 				undefined,
 				pc,
 				store,
-				'Ex',
 				store.getClient(client.clientId),
 			).kind,
 		).toBe('error-redirect');
@@ -137,7 +131,6 @@ describe('planAuthorize', () => {
 				undefined,
 				pc,
 				store,
-				'Ex',
 				store.getClient(client.clientId),
 			).kind,
 		).toBe('error-redirect');
@@ -146,9 +139,9 @@ describe('planAuthorize', () => {
 		const { store, client } = setup();
 		const q = baseQuery(client.clientId);
 		delete (q as Record<string, unknown>).code_challenge;
-		expect(
-			planAuthorize(q, undefined, pc, store, 'Ex', store.getClient(client.clientId)).kind,
-		).toBe('error-redirect');
+		expect(planAuthorize(q, undefined, pc, store, store.getClient(client.clientId)).kind).toBe(
+			'error-redirect',
+		);
 	});
 	it('renders consent when no cookie', () => {
 		const { store, client } = setup();
@@ -158,7 +151,6 @@ describe('planAuthorize', () => {
 				undefined,
 				pc,
 				store,
-				'Ex',
 				store.getClient(client.clientId),
 			).kind,
 		).toBe('consent');
@@ -170,7 +162,6 @@ describe('planAuthorize', () => {
 			{ clientId: client.clientId, redirectHost: '127.0.0.1', wiki: 'w' },
 			pc,
 			store,
-			'Ex',
 			store.getClient(client.clientId),
 		);
 		expect(r.kind).toBe('redirect');
@@ -206,7 +197,7 @@ describe('planAuthorize', () => {
 			} else {
 				q.scope = scope;
 			}
-			const r = planAuthorize(q, consent, pc, store, 'Ex', store.getClient(client.clientId));
+			const r = planAuthorize(q, consent, pc, store, store.getClient(client.clientId));
 			expect(r.kind).toBe('redirect');
 			if (r.kind !== 'redirect') break;
 			const u = new URL(r.location);
@@ -218,7 +209,7 @@ describe('planAuthorize', () => {
 
 	it('errors when no client is resolved', () => {
 		const { store } = setup();
-		expect(planAuthorize(baseQuery('anything'), undefined, pc, store, 'Ex', undefined).kind).toBe(
+		expect(planAuthorize(baseQuery('anything'), undefined, pc, store, undefined).kind).toBe(
 			'error',
 		);
 	});

@@ -23,7 +23,7 @@ export type AsMetadataDoc = OAuthMetadata &
  * proxy as the authorization server. All endpoints are rooted at `pc.issuer`
  * (the slash-free issuer identifier produced by resolveProxyConfig).
  */
-export function buildAsMetadata(pc: ProxyConfig, scopesSupported?: string[]): AsMetadataDoc {
+export function buildAsMetadata(pc: ProxyConfig): AsMetadataDoc {
 	return {
 		issuer: pc.issuer,
 		authorization_endpoint: `${pc.issuer}/authorize`,
@@ -35,6 +35,5 @@ export function buildAsMetadata(pc: ProxyConfig, scopesSupported?: string[]): As
 		token_endpoint_auth_methods_supported: ['none'],
 		authorization_response_iss_parameter_supported: true,
 		client_id_metadata_document_supported: true,
-		...(scopesSupported ? { scopes_supported: scopesSupported } : {}),
 	};
 }
