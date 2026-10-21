@@ -1,34 +1,29 @@
-import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.ts';
-import { createMockMwnError } from '../helpers/mock-mwn-error.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { describe, it, expect } from 'vitest';
 import { movePage } from '../../src/tools/move-page.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { formatPayload } from '../../src/results/format.ts';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
 import { toolArgs } from '../helpers/toolArgs.ts';
+import { contextWritingTo, writingWiki } from '../helpers/writingWiki.ts';
 
-const baseEdit = fakeContext().edit;
+const MOVED = { move: { from: 'A', to: 'B' } };
+
+function refusing(code: string): ReturnType<typeof writingWiki> {
+	return writingWiki({ error: { code, info: `The move was refused (${code}).` } });
+}
 
 describe('move-page', () => {
-	it('returns a structured payload and passes default options on success', async () => {
-		const mock = createMockMwn({
-			move: vi.fn().mockResolvedValue({
-				from: 'Old Title',
-				to: 'New Title',
-				reason: 'tidy',
-				redirectcreated: true,
-			}),
+	it('moves the page with its talk page, leaving a redirect, by default', async () => {
+		const wiki = writingWiki({
+			move: { from: 'Old Title', to: 'New Title', reason: 'tidy', redirectcreated: true },
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
 
 		const result = await movePage.handle(
 			toolArgs(movePage, { fromTitle: 'Old Title', toTitle: 'New Title', comment: 'tidy' }),
-			ctx,
+			contextWritingTo(wiki),
 		);
 
-		const text = assertStructuredSuccess(result);
-		expect(text).toBe(
+		expect(assertStructuredSuccess(result)).toBe(
 			formatPayload({
 				from: 'Old Title',
 				to: 'New Title',
@@ -36,170 +31,121 @@ describe('move-page', () => {
 				url: 'https://test.wiki/wiki/New_Title',
 			}),
 		);
-		expect(mock.move).toHaveBeenCalledWith(
-			'Old Title',
-			'New Title',
-			expect.stringContaining('tidy'),
-			expect.objectContaining({
-				movetalk: true,
-				movesubpages: false,
-				noredirect: false,
-				ignorewarnings: false,
-			}),
-		);
+		const sent = wiki.sentWrite();
+		expect(sent.get('action')).toBe('move');
+		expect(sent.get('from')).toBe('Old Title');
+		expect(sent.get('to')).toBe('New Title');
+		expect(sent.get('reason')).toContain('tidy');
+		expect(sent.get('movetalk')).toBe('1');
+		expect(sent.has('movesubpages')).toBe(false);
+		expect(sent.has('noredirect')).toBe(false);
+		expect(sent.has('ignorewarnings')).toBe(false);
 	});
 
-	it('sends noredirect when leaveRedirect is false and reports no redirect', async () => {
-		const mock = createMockMwn({
-			move: vi.fn().mockResolvedValue({ from: 'A', to: 'B', redirectcreated: false }),
-		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+	it('asks for no redirect when leaveRedirect is false and reports none', async () => {
+		const wiki = writingWiki({ move: { from: 'A', to: 'B', redirectcreated: false } });
 
 		const result = await movePage.handle(
 			toolArgs(movePage, { fromTitle: 'A', toTitle: 'B', leaveRedirect: false }),
-			ctx,
+			contextWritingTo(wiki),
 		);
 
-		const text = assertStructuredSuccess(result);
-		expect(text).toContain('Redirect created: false');
-		expect(mock.move).toHaveBeenCalledWith(
-			'A',
-			'B',
-			expect.any(String),
-			expect.objectContaining({ noredirect: true }),
-		);
+		expect(assertStructuredSuccess(result)).toContain('Redirect created: false');
+		expect(wiki.sentWrite().get('noredirect')).toBe('1');
 	});
 
-	it('overrides mwn movetalk default and surfaces moved talk titles', async () => {
-		const mock = createMockMwn({
-			move: vi.fn().mockResolvedValue({
-				from: 'A',
-				to: 'B',
-				talkfrom: 'Talk:A',
-				talkto: 'Talk:B',
-			}),
+	it('leaves the talk page behind when moveTalk is false', async () => {
+		const wiki = writingWiki(MOVED);
+
+		await movePage.handle(
+			toolArgs(movePage, { fromTitle: 'A', toTitle: 'B', moveTalk: false }),
+			contextWritingTo(wiki),
+		);
+
+		expect(wiki.sentWrite().get('action')).toBe('move');
+		expect(wiki.sentWrite().has('movetalk')).toBe(false);
+	});
+
+	it('reports the talk page it moved', async () => {
+		const wiki = writingWiki({
+			move: { from: 'A', to: 'B', talkfrom: 'Talk:A', talkto: 'Talk:B' },
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
 
 		const result = await movePage.handle(
-			toolArgs(movePage, { fromTitle: 'A', toTitle: 'B', moveTalk: false }),
-			ctx,
+			toolArgs(movePage, { fromTitle: 'A', toTitle: 'B' }),
+			contextWritingTo(wiki),
 		);
 
 		const text = assertStructuredSuccess(result);
 		expect(text).toContain('Talk from: Talk:A');
 		expect(text).toContain('Talk to: Talk:B');
-		expect(mock.move).toHaveBeenCalledWith(
-			'A',
-			'B',
-			expect.any(String),
-			expect.objectContaining({ movetalk: false }),
-		);
 	});
 
-	it('reports the number of subpages moved', async () => {
-		const mock = createMockMwn({
-			move: vi.fn().mockResolvedValue({
+	it('moves subpages when asked and reports how many', async () => {
+		const wiki = writingWiki({
+			move: {
 				from: 'A',
 				to: 'B',
 				subpages: [
 					{ from: 'A/x', to: 'B/x' },
 					{ from: 'A/y', to: 'B/y' },
 				],
-			}),
+			},
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
 
 		const result = await movePage.handle(
 			toolArgs(movePage, { fromTitle: 'A', toTitle: 'B', moveSubpages: true }),
-			ctx,
+			contextWritingTo(wiki),
 		);
 
-		const text = assertStructuredSuccess(result);
-		expect(text).toContain('Subpages moved: 2');
-		expect(mock.move).toHaveBeenCalledWith(
-			'A',
-			'B',
-			expect.any(String),
-			expect.objectContaining({ movesubpages: true }),
-		);
+		expect(assertStructuredSuccess(result)).toContain('Subpages moved: 2');
+		expect(wiki.sentWrite().get('movesubpages')).toBe('1');
 	});
 
-	it('dispatches missingtitle as not_found', async () => {
-		const mock = createMockMwn({
-			move: vi.fn().mockRejectedValue(createMockMwnError('missingtitle')),
-		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
-
+	it('reports a missing page as not_found', async () => {
 		const result = await dispatch(
 			movePage,
-			ctx,
+			contextWritingTo(refusing('missingtitle')),
 		)(toolArgs(movePage, { fromTitle: 'Ghost', toTitle: 'B' }));
 
 		assertStructuredError(result, 'not_found', 'missingtitle');
 	});
 
-	it('dispatches articleexists as conflict', async () => {
-		const mock = createMockMwn({
-			move: vi.fn().mockRejectedValue(createMockMwnError('articleexists')),
-		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
-
+	it('reports a taken target as conflict', async () => {
 		const result = await dispatch(
 			movePage,
-			ctx,
+			contextWritingTo(refusing('articleexists')),
 		)(toolArgs(movePage, { fromTitle: 'A', toTitle: 'Taken' }));
 
 		assertStructuredError(result, 'conflict', 'articleexists');
 	});
 
-	it('dispatches selfmove as invalid_input', async () => {
-		const mock = createMockMwn({
-			move: vi.fn().mockRejectedValue(createMockMwnError('selfmove')),
-		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
-
+	it('reports a move onto itself as invalid_input', async () => {
 		const result = await dispatch(
 			movePage,
-			ctx,
+			contextWritingTo(refusing('selfmove')),
 		)(toolArgs(movePage, { fromTitle: 'A', toTitle: 'A' }));
 
 		assertStructuredError(result, 'invalid_input', 'selfmove');
 	});
 
-	it('dispatches cantmove as permission_denied', async () => {
-		const mock = createMockMwn({
-			move: vi.fn().mockRejectedValue(createMockMwnError('cantmove')),
-		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
-
+	it('reports a refused move as permission_denied', async () => {
 		const result = await dispatch(
 			movePage,
-			ctx,
+			contextWritingTo(refusing('cantmove')),
 		)(toolArgs(movePage, { fromTitle: 'A', toTitle: 'B' }));
 
 		assertStructuredError(result, 'permission_denied', 'cantmove');
 	});
 
-	it('injects tags from selection when configured', async () => {
-		const mock = createMockMwn({
-			move: vi.fn().mockResolvedValue({ from: 'A', to: 'B' }),
-		});
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
-			edit: {
-				...baseEdit,
-				applyTags: <T extends Record<string, unknown>>(o: T) => ({ ...o, tags: 'mcp-edit' }),
-			},
-		});
+	it("tags the move with the wiki's configured tags", async () => {
+		const wiki = writingWiki(MOVED);
 
-		await movePage.handle(toolArgs(movePage, { fromTitle: 'A', toTitle: 'B' }), ctx);
-
-		expect(mock.move).toHaveBeenCalledWith(
-			'A',
-			'B',
-			expect.any(String),
-			expect.objectContaining({ tags: 'mcp-edit' }),
+		await movePage.handle(
+			toolArgs(movePage, { fromTitle: 'A', toTitle: 'B' }),
+			contextWritingTo(wiki, 'mcp-edit'),
 		);
+
+		expect(wiki.sentWrite().get('tags')).toBe('mcp-edit');
 	});
 });

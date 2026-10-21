@@ -1,11 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
-import { Mwn } from 'mwn';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { describe, it, expect } from 'vitest';
 import { createPage } from '../../src/tools/create-page.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
-import { EditServiceImpl } from '../../src/services/editService.ts';
-import type { ToolContext } from '../../src/runtime/context.ts';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
+import { contextWritingTo, writingWiki, type WritingWiki } from '../helpers/writingWiki.ts';
 
 const CREATED = {
 	edit: {
@@ -19,55 +16,10 @@ const CREATED = {
 	},
 };
 
-interface FakeWiki {
-	mwn: Mwn;
-	sentEdit: () => URLSearchParams;
-}
-
-// A real Mwn with only its HTTP layer stubbed, so mwn's own parameter handling
-// runs and the assertions see the edit as the wiki receives it, including any
-// default mwn adds on the way.
-function fakeWiki(answers: { editResponse?: object; rights?: string[] } = {}): FakeWiki {
-	const mwn = new Mwn({ apiUrl: 'https://test.wiki/w/api.php' });
-	let editBody: string | undefined;
-	vi.spyOn(mwn, 'rawRequest').mockImplementation((async (request: {
-		params?: Record<string, string>;
-		data?: string;
-	}) => {
-		if (request.params?.meta === 'tokens') {
-			return { data: { query: { tokens: { csrftoken: 'csrf-token' } } } };
-		}
-		if (request.params?.meta === 'userinfo') {
-			return { data: { query: { userinfo: { rights: answers.rights ?? [] } } } };
-		}
-		editBody = request.data;
-		return { data: answers.editResponse ?? CREATED };
-	}) as never);
-	return {
-		mwn,
-		sentEdit: () => {
-			if (editBody === undefined) {
-				throw new Error('No edit reached the wiki');
-			}
-			return new URLSearchParams(editBody);
-		},
-	};
-}
-
-function contextFor(wiki: FakeWiki, tags: string | null = null): ToolContext {
-	const base = fakeContext();
-	const activeWiki = {
-		...base.activeWiki,
-		get: () => {
-			const { key, config } = base.activeWiki.get();
-			return { key, config: { ...config, tags } };
-		},
-	};
-	return fakeContext({
-		mwn: async () => wiki.mwn,
-		activeWiki,
-		edit: new EditServiceImpl(activeWiki),
-	});
+// The wiki answers the write with `answers.editResponse`, or a successful
+// creation, and reports `answers.rights` for the account.
+function fakeWiki(answers: { editResponse?: object; rights?: string[] } = {}): WritingWiki {
+	return writingWiki(answers.editResponse ?? CREATED, answers.rights);
 }
 
 describe('create-page', () => {
@@ -76,10 +28,10 @@ describe('create-page', () => {
 
 		await createPage.handle(
 			{ source: 'Hello', title: 'New Page', comment: 'Seeding the page' },
-			contextFor(wiki),
+			contextWritingTo(wiki),
 		);
 
-		const sent = wiki.sentEdit();
+		const sent = wiki.sentWrite();
 		expect(sent.get('action')).toBe('edit');
 		expect(sent.get('title')).toBe('New Page');
 		expect(sent.get('text')).toBe('Hello');
@@ -92,7 +44,7 @@ describe('create-page', () => {
 
 		const result = await createPage.handle(
 			{ source: 'Hello', title: 'New Page' },
-			contextFor(wiki),
+			contextWritingTo(wiki),
 		);
 
 		const text = assertStructuredSuccess(result);
@@ -107,9 +59,12 @@ describe('create-page', () => {
 	it("tags the edit with the wiki's configured change tags", async () => {
 		const wiki = fakeWiki();
 
-		await createPage.handle({ source: 'Hello', title: 'New Page' }, contextFor(wiki, 'mcp-server'));
+		await createPage.handle(
+			{ source: 'Hello', title: 'New Page' },
+			contextWritingTo(wiki, 'mcp-server'),
+		);
 
-		expect(wiki.sentEdit().get('tags')).toBe('mcp-server');
+		expect(wiki.sentWrite().get('tags')).toBe('mcp-server');
 	});
 
 	it('sends the given content model', async () => {
@@ -117,18 +72,18 @@ describe('create-page', () => {
 
 		await createPage.handle(
 			{ source: 'mw.log()', title: 'Module:Foo', contentModel: 'Scribunto' },
-			contextFor(wiki),
+			contextWritingTo(wiki),
 		);
 
-		expect(wiki.sentEdit().get('contentmodel')).toBe('Scribunto');
+		expect(wiki.sentWrite().get('contentmodel')).toBe('Scribunto');
 	});
 
 	it('leaves the content model to MediaWiki when none is given', async () => {
 		const wiki = fakeWiki();
 
-		await createPage.handle({ source: 'mw.log()', title: 'Module:Foo' }, contextFor(wiki));
+		await createPage.handle({ source: 'mw.log()', title: 'Module:Foo' }, contextWritingTo(wiki));
 
-		expect(wiki.sentEdit().has('contentmodel')).toBe(false);
+		expect(wiki.sentWrite().has('contentmodel')).toBe(false);
 	});
 
 	it('fails as conflict when the page already exists', async () => {
@@ -143,7 +98,7 @@ describe('create-page', () => {
 
 		const result = await dispatch(
 			createPage,
-			contextFor(wiki),
+			contextWritingTo(wiki),
 		)({ source: 'Hello', title: 'New Page' });
 
 		const envelope = assertStructuredError(result, 'conflict', 'articleexists');
@@ -157,7 +112,7 @@ describe('create-page', () => {
 
 		const result = await dispatch(
 			createPage,
-			contextFor(wiki),
+			contextWritingTo(wiki),
 		)({ source: 'Hello', title: 'New Page' });
 
 		const envelope = assertStructuredError(result, 'upstream_failure');
@@ -170,10 +125,10 @@ describe('create-page', () => {
 
 			const result = await createPage.handle(
 				{ source: 'Hello', title: 'New Page' },
-				contextFor(wiki),
+				contextWritingTo(wiki),
 			);
 
-			expect(wiki.sentEdit().has('bot')).toBe(false);
+			expect(wiki.sentWrite().has('bot')).toBe(false);
 			expect(assertStructuredSuccess(result)).not.toContain('Bot marked');
 		});
 
@@ -182,10 +137,10 @@ describe('create-page', () => {
 
 			const result = await createPage.handle(
 				{ source: 'Hello', title: 'New Page', bot: true },
-				contextFor(wiki),
+				contextWritingTo(wiki),
 			);
 
-			expect(wiki.sentEdit().get('bot')).toBe('1');
+			expect(wiki.sentWrite().get('bot')).toBe('1');
 			expect(assertStructuredSuccess(result)).toContain('Bot marked: true');
 		});
 
@@ -194,7 +149,7 @@ describe('create-page', () => {
 
 			const result = await createPage.handle(
 				{ source: 'Hello', title: 'New Page', bot: true },
-				contextFor(wiki),
+				contextWritingTo(wiki),
 			);
 
 			expect(assertStructuredSuccess(result)).toContain('Bot marked: false');
