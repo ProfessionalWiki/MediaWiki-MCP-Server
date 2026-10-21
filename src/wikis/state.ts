@@ -22,6 +22,6 @@ export function createAppState(config: Config): AppState {
 	const uploadDirs = new UploadDirsImpl(config.uploadDirs);
 	const mwnProvider = new MwnProviderImpl(wikiRegistry, activeWiki, getRuntimeToken);
 	const siteInfoCache = new SiteInfoCacheImpl();
-	const wikiProbe = new WikiProbeImpl(wikiRegistry);
+	const wikiProbe = new WikiProbeImpl(wikiRegistry, mwnProvider);
 	return { wikiRegistry, activeWiki, uploadDirs, mwnProvider, siteInfoCache, wikiProbe };
 }

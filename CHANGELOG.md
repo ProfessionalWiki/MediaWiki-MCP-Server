@@ -50,6 +50,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `upload-file` and `upload-file-from-url` refuse to upload over an existing file whose title spells the File prefix another way, such as `Datei:` on a German wiki, `Image:` or `file:`, instead of overwriting it. With such a title, `get-file` and `get-file-data` find the file instead of reporting it missing, and `update-file` and `update-file-from-url` update it instead of refusing it as missing.
 - `get-file` and `get-file-data` return a file the wiki serves from a shared repository, such as Commons on Wikipedia or a wiki using InstantCommons, instead of reporting it missing.
 - `smw-query` and `smw-list-properties` refuse a `continueFrom` that is not a non-negative integer as `invalid_input`, instead of silently returning the first page again.
+- The server now offers the extension tools on a wiki that keeps anonymous users from reading, when the wiki has credentials in `config.json`, instead of hiding them. A wiki reached only through OAuth sign-in still gets none.
 
 ## [0.19.0] - 2026-09-25
 

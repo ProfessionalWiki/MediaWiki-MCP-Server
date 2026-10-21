@@ -1,9 +1,13 @@
 import { makeApiRequest } from '../transport/httpFetch.ts';
 import type { WikiRegistry } from './wikiRegistry.ts';
+import type { MwnProvider } from './mwnProvider.ts';
+import type { WikiConfig } from '../config/loadConfig.ts';
 import { normalizeServer } from './normalizeServer.ts';
 import { errorMessage } from '../errors/errorMessage.ts';
 import { logger } from '../runtime/logger.ts';
 import { monotonicNow } from '../runtime/clock.ts';
+import { withSharedWorkScope } from '../runtime/requestContext.ts';
+import { callDeadline } from '../runtime/callDeadline.ts';
 
 const TTL_SUCCESS_MS = 60 * 60 * 1000; // 1 hour
 const TTL_FAILURE_MS = 60 * 1000; // 60 seconds
@@ -30,11 +34,12 @@ export interface WikiIdentity {
 }
 
 /**
- * Anonymously probes a wiki's public siteinfo once, caches it (1 h on success,
- * 60 s on failure), and answers reachability, extension, and public-identity
- * questions from that snapshot. A single request fetches everything, so
- * gating, capability reporting, and list-wikis all share one network round-trip
- * per wiki without authenticating.
+ * Probes a wiki's siteinfo once, caches it (1 h on success, 60 s on failure),
+ * and answers reachability, extension, and public-identity questions from that
+ * snapshot. A single request fetches everything, so gating, capability
+ * reporting, and list-wikis all share one network round-trip per wiki. The
+ * probe is anonymous, except for a wiki that keeps anonymous users from
+ * reading, which it asks through the wiki's own session.
  */
 export interface WikiProbe {
 	/**
@@ -53,7 +58,15 @@ interface SiteInfoResponse {
 		extensions?: { name?: string }[];
 		general?: { server?: string; 'wikibase-sparql'?: string };
 	};
+	error?: { code?: string };
 }
+
+const SITEINFO_QUERY = {
+	action: 'query',
+	meta: 'siteinfo',
+	siprop: 'extensions|general',
+	format: 'json',
+};
 
 type CacheEntry =
 	| ({ kind: 'success'; extensions: Set<string>; expiresAt: number } & WikiIdentity)
@@ -65,6 +78,7 @@ export class WikiProbeImpl implements WikiProbe {
 
 	public constructor(
 		private readonly wikis: WikiRegistry,
+		private readonly sessions: MwnProvider,
 		private readonly now: () => number = monotonicNow,
 	) {}
 
@@ -114,18 +128,8 @@ export class WikiProbeImpl implements WikiProbe {
 			return failed;
 		}
 
-		const apiUrl = `${config.server}${config.scriptpath}/api.php`;
 		try {
-			const data = await makeApiRequest<SiteInfoResponse>(
-				apiUrl,
-				{
-					action: 'query',
-					meta: 'siteinfo',
-					siprop: 'extensions|general',
-					format: 'json',
-				},
-				{ signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) },
-			);
+			const data = await this.readSiteInfo(wikiKey, config);
 			// Extensions gate tool visibility, so a malformed list is a hard failure.
 			// General is best-effort public identity: absent fields simply leave the
 			// corresponding snapshot field undefined.
@@ -168,5 +172,29 @@ export class WikiProbeImpl implements WikiProbe {
 			this.cache.set(wikiKey, failed);
 			return failed;
 		}
+	}
+
+	// A wiki that keeps anonymous users from reading refuses siteinfo too, so it
+	// is asked through its own session: at once when configured private, otherwise
+	// once the anonymous probe is refused. Only then, so that a public wiki's
+	// credentials, which may run a command to resolve, are left alone.
+	private async readSiteInfo(
+		wikiKey: string,
+		config: Readonly<WikiConfig>,
+	): Promise<SiteInfoResponse> {
+		if (config.private !== true) {
+			const data = await makeApiRequest<SiteInfoResponse>(
+				`${config.server}${config.scriptpath}/api.php`,
+				SITEINFO_QUERY,
+				{ signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) },
+			);
+			if (data.error?.code !== 'readapidenied') {
+				return data;
+			}
+		}
+		return withSharedWorkScope(callDeadline(PROBE_TIMEOUT_MS, 'connecting'), async () => {
+			const mwn = await this.sessions.get(wikiKey);
+			return mwn.request(SITEINFO_QUERY);
+		});
 	}
 }
