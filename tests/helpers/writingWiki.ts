@@ -12,8 +12,12 @@ export interface WritingWiki {
 // A real Mwn with only its HTTP layer stubbed, so mwn's own parameter handling
 // runs and the assertions see the write as the wiki receives it, including any
 // default mwn adds on the way. It hands out a CSRF token, answers a rights query
-// with `rights`, and answers the write with `response`.
-export function writingWiki(response: object, rights: string[] = []): WritingWiki {
+// with `rights` and any other query with `read`, and answers the write with
+// `response`. mwn sends a query as a GET and every other action as a POST.
+export function writingWiki(
+	response: object,
+	wiki: { rights?: string[]; read?: object } = {},
+): WritingWiki {
 	const mwn = new Mwn({ apiUrl: 'https://test.wiki/w/api.php' });
 	let writeBody: string | undefined;
 	vi.spyOn(mwn, 'rawRequest').mockImplementation((async (request: {
@@ -24,7 +28,10 @@ export function writingWiki(response: object, rights: string[] = []): WritingWik
 			return { data: { query: { tokens: { csrftoken: 'csrf-token' } } } };
 		}
 		if (request.params?.meta === 'userinfo') {
-			return { data: { query: { userinfo: { rights } } } };
+			return { data: { query: { userinfo: { rights: wiki.rights ?? [] } } } };
+		}
+		if (request.data === undefined) {
+			return { data: wiki.read ?? {} };
 		}
 		writeBody = request.data;
 		return { data: response };

@@ -6,7 +6,8 @@ import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { assertAllowedPath, UploadValidationError } from '../transport/uploadGuard.ts';
 import { assertFileExists, FileNotFoundError } from '../transport/fileExistence.ts';
-import { formatEditComment, buildPageUrl } from '../wikis/utils.ts';
+import { formatEditComment } from '../wikis/utils.ts';
+import { uploadedFile } from '../wikis/fileUpload.ts';
 
 const inputSchema = {
 	filepath: z.string().describe('File path on the local disk'),
@@ -64,16 +65,6 @@ export const updateFile: Tool<typeof inputSchema> = {
 			params,
 		);
 
-		const imageinfo = (
-			data as ApiUploadResponse & {
-				imageinfo?: { descriptionurl?: string; url?: string };
-			}
-		).imageinfo;
-		const filename = data.filename ?? title.replace(/^File:/, '');
-		return ctx.format.ok({
-			filename,
-			pageUrl: imageinfo?.descriptionurl ?? (await buildPageUrl(ctx, `File:${filename}`)),
-			...(imageinfo?.url !== undefined ? { fileUrl: imageinfo.url } : {}),
-		});
+		return uploadedFile(ctx, data, title);
 	},
 };
