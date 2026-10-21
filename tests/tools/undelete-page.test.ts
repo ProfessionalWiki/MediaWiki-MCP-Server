@@ -1,95 +1,61 @@
-import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.ts';
-import { createMockMwnError } from '../helpers/mock-mwn-error.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { describe, it, expect } from 'vitest';
 import { undeletePage } from '../../src/tools/undelete-page.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { formatPayload } from '../../src/results/format.ts';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
+import { contextWritingTo, writingWiki } from '../helpers/writingWiki.ts';
 
-// The default fake EditService; each test spreads it and replaces only the
-// slice it exercises, so an unexpected call to another member still throws.
-const baseEdit = fakeContext().edit;
+const RESTORED = { undelete: { title: 'Restored Page', reason: 'oops', revisions: 12 } };
 
 describe('undelete-page', () => {
-	it('returns a structured payload on success', async () => {
-		const mock = createMockMwn({
-			undelete: vi.fn().mockResolvedValue({
-				title: 'Restored Page',
-				reason: 'oops',
-				revisions: 12,
-			}),
-		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+	it('restores the page and reports how many revisions came back', async () => {
+		const wiki = writingWiki(RESTORED);
 
-		const result = await undeletePage.handle({ title: 'Restored Page', comment: 'oops' }, ctx);
+		const result = await undeletePage.handle(
+			{ title: 'Restored Page', comment: 'oops' },
+			contextWritingTo(wiki),
+		);
 
-		const text = assertStructuredSuccess(result);
-		expect(text).toBe(
-			formatPayload({
-				title: 'Restored Page',
-				restored: true,
-				revisionCount: 12,
-			}),
+		expect(assertStructuredSuccess(result)).toBe(
+			formatPayload({ title: 'Restored Page', restored: true, revisionCount: 12 }),
 		);
-		expect(mock.undelete).toHaveBeenCalledWith(
-			'Restored Page',
-			expect.stringContaining('oops'),
-			expect.any(Object),
-		);
+		expect(wiki.sentWrite().get('action')).toBe('undelete');
+		expect(wiki.sentWrite().get('title')).toBe('Restored Page');
+		expect(wiki.sentWrite().get('reason')).toContain('oops');
 	});
 
 	it('works without a revision count', async () => {
-		const mock = createMockMwn({
-			undelete: vi.fn().mockResolvedValue({ title: 'Restored Page' }),
-		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const wiki = writingWiki({ undelete: { title: 'Restored Page' } });
 
-		const result = await undeletePage.handle({ title: 'Restored Page' }, ctx);
+		const result = await undeletePage.handle({ title: 'Restored Page' }, contextWritingTo(wiki));
 
-		const text = assertStructuredSuccess(result);
-		expect(text).not.toContain('Revision count:');
+		expect(assertStructuredSuccess(result)).not.toContain('Revision count:');
 	});
 
-	it('dispatches permissiondenied as permission_denied via dispatcher', async () => {
-		const mock = createMockMwn({
-			undelete: vi.fn().mockRejectedValue(createMockMwnError('permissiondenied')),
+	it('reports a refused restore as permission_denied', async () => {
+		const wiki = writingWiki({
+			error: { code: 'permissiondenied', info: 'You do not have permission to undelete pages.' },
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
 
-		const result = await dispatch(undeletePage, ctx)({ title: 'Protected' });
+		const result = await dispatch(undeletePage, contextWritingTo(wiki))({ title: 'Protected' });
 
 		assertStructuredError(result, 'permission_denied', 'permissiondenied');
 	});
 
-	it('dispatches generic upstream failures with the standard verb prefix', async () => {
-		const mock = createMockMwn({
-			undelete: vi.fn().mockRejectedValue(new Error('Network down')),
-		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+	it('reports an unrecognised failure with the standard verb prefix', async () => {
+		const wiki = writingWiki({ error: { code: 'somethingbroke', info: 'Database down' } });
 
-		const result = await dispatch(undeletePage, ctx)({ title: 'Some Page' });
+		const result = await dispatch(undeletePage, contextWritingTo(wiki))({ title: 'Some Page' });
 
 		const envelope = assertStructuredError(result, 'upstream_failure');
-		expect(envelope.message).toMatch(/Failed to undelete page: Network down/);
+		expect(envelope.message).toMatch(/^Failed to undelete page: .*Database down/);
 	});
 
-	it('forwards configured tags via ctx.edit.applyTags', async () => {
-		const mock = createMockMwn({
-			undelete: vi.fn().mockResolvedValue({ title: 'X' }),
-		});
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
-			edit: {
-				...baseEdit,
-				applyTags: <T extends Record<string, unknown>>(o: T) => ({ ...o, tags: 'mcp-edit' }),
-			},
-		});
+	it("tags the restore with the wiki's configured tags", async () => {
+		const wiki = writingWiki(RESTORED);
 
-		await undeletePage.handle({ title: 'X' }, ctx);
+		await undeletePage.handle({ title: 'X' }, contextWritingTo(wiki, 'mcp-edit'));
 
-		expect(mock.undelete).toHaveBeenCalledWith('X', expect.stringContaining('Automated edit'), {
-			tags: 'mcp-edit',
-		});
+		expect(wiki.sentWrite().get('tags')).toBe('mcp-edit');
 	});
 });

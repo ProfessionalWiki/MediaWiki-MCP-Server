@@ -1,11 +1,9 @@
 import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ApiMoveResponse } from 'mwn';
-import type { ApiMoveParams } from 'types-mediawiki-api';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { buildPageUrl, formatEditComment } from '../wikis/utils.ts';
-import type { PageWrites } from '../wikis/pageWrites.ts';
 
 const inputSchema = {
 	fromTitle: z.string().describe('Current title of the wiki page to move'),
@@ -51,28 +49,28 @@ export const movePage: Tool<typeof inputSchema> = {
 		const leaveRedirect = args.leaveRedirect ?? true;
 		const ignoreWarnings = args.ignoreWarnings ?? false;
 
-		const mwn: PageWrites = await ctx.mwn();
-		// mwn.move hard-defaults movetalk:true internally before spreading
-		// options, so we always pass movetalk explicitly to stay in control.
-		const options = ctx.edit.applyTags<ApiMoveParams>({
+		const mwn = await ctx.mwn();
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- action=move response shape; trusted at this boundary
+		const response = (await ctx.edit.submit(mwn, {
+			action: 'move',
+			from: args.fromTitle,
+			to: args.toTitle,
+			reason: formatEditComment(ctx, 'move-page', args.comment),
 			movetalk: moveTalk,
 			movesubpages: moveSubpages,
 			noredirect: !leaveRedirect,
 			ignorewarnings: ignoreWarnings,
-		});
-		const data: ApiMoveResponse & {
-			from?: string;
-			to?: string;
-			redirectcreated?: boolean;
-			talkfrom?: string;
-			talkto?: string;
-			subpages?: unknown[];
-		} = await mwn.move(
-			args.fromTitle,
-			args.toTitle,
-			formatEditComment(ctx, 'move-page', args.comment),
-			options,
-		);
+		})) as {
+			move: ApiMoveResponse & {
+				from?: string;
+				to?: string;
+				redirectcreated?: boolean;
+				talkfrom?: string;
+				talkto?: string;
+				subpages?: unknown[];
+			};
+		};
+		const data = response.move;
 
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
 		const to = data.to as string;

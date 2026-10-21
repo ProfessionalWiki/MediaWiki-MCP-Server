@@ -26,7 +26,7 @@ export interface EditService {
 		params: ApiUploadParams,
 	): Promise<ApiUploadResponse>;
 
-	/** Pure helper: returns options with tags injected from the targeted wiki's config. Used by callers of mwn's delete, undelete, move and uploadFromUrl. */
+	/** Pure helper: returns options with tags injected from the targeted wiki's config. Used by callers of mwn's uploadFromUrl. */
 	applyTags<T extends Record<string, unknown>>(options: T): T;
 
 	/**

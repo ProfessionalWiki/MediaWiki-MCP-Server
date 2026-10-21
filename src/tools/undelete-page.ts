@@ -1,11 +1,9 @@
 import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ApiUndeleteResponse } from 'mwn';
-import type { ApiUndeleteParams } from 'types-mediawiki-api';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { formatEditComment } from '../wikis/utils.ts';
-import type { PageWrites } from '../wikis/pageWrites.ts';
 
 const inputSchema = {
 	title: z.string().describe('Wiki page title'),
@@ -28,13 +26,14 @@ export const undeletePage: Tool<typeof inputSchema> = {
 	target: (a) => a.title,
 
 	async handle({ title, comment }, ctx: ToolContext): Promise<CallToolResult> {
-		const mwn: PageWrites = await ctx.mwn();
-		const options = ctx.edit.applyTags<ApiUndeleteParams>({});
-		const data: ApiUndeleteResponse & { revisions?: number } = await mwn.undelete(
+		const mwn = await ctx.mwn();
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- action=undelete response shape; trusted at this boundary
+		const response = (await ctx.edit.submit(mwn, {
+			action: 'undelete',
 			title,
-			formatEditComment(ctx, 'undelete-page', comment),
-			options,
-		);
+			reason: formatEditComment(ctx, 'undelete-page', comment),
+		})) as { undelete: ApiUndeleteResponse & { revisions?: number } };
+		const data = response.undelete;
 
 		return ctx.format.ok({
 			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
