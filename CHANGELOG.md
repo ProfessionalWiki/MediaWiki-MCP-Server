@@ -48,6 +48,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `compare-pages` names the page that does not exist, instead of reporting only "Page not found".
 - `cargo-query` and `cargo-describe-table` report a query or table that Cargo refuses as `invalid_input`, with Cargo's reason and a hint, instead of `upstream_failure`.
 - `upload-file` and `upload-file-from-url` refuse to upload over an existing file whose title spells the File prefix another way, such as `Datei:` on a German wiki, `Image:` or `file:`, instead of overwriting it. With such a title, `get-file` and `get-file-data` find the file instead of reporting it missing, and `update-file` and `update-file-from-url` update it instead of refusing it as missing.
+- `get-file` and `get-file-data` return a file the wiki serves from a shared repository, such as Commons on Wikipedia or a wiki using InstantCommons, instead of reporting it missing.
 
 ## [0.19.0] - 2026-09-25
 

@@ -77,13 +77,11 @@ export const getFileData: Tool<typeof inputSchema> = {
 
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
 		const page = response.query?.pages?.[0] as ApiPage | undefined;
-		if (!page || page.missing) {
+		// A file served from a shared repository such as Commons has no page on
+		// this wiki, so the wiki calls it missing while still describing the file.
+		const info: ImageInfo | undefined = page?.imageinfo?.[0];
+		if (page === undefined || info === undefined) {
 			return ctx.format.notFound(`File "${title}" not found`);
-		}
-
-		const info: ImageInfo | undefined = page.imageinfo?.[0];
-		if (!info) {
-			return ctx.format.notFound(`No file info available for "${title}"`);
 		}
 
 		// Let MediaWiki decide renderability: a thumburl means it rasterized the
