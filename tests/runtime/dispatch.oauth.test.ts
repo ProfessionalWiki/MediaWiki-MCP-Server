@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import type { Tool } from '../../src/runtime/tool.ts';
+import { listWikis } from '../../src/tools/list-wikis.ts';
 import { fakeContext, ctxForWiki } from '../helpers/fakeContext.ts';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 import { fakeBrowserDriver } from '../helpers/fakeBrowserDriver.ts';
@@ -179,13 +180,11 @@ describe('dispatch OAuth integration', () => {
 		expect(envelope.message).toContain('OAuth login required:');
 	});
 
-	it.each(['add-wiki', 'remove-wiki', 'oauth-status', 'oauth-logout'])(
-		'%s bypasses the OAuth gate even when the wiki has oauth2ClientId set',
-		async (toolName) => {
-			// Wiki points at a URL where nothing is listening — so if the dispatcher
-			// tried to acquire a token, it would fail with "authentication" just like
-			// the previous test. The bypass means the tool runs anyway.
-			const ctx = ctxForWiki(
+	describe('a wiki whose OAuth sign-in cannot complete', () => {
+		// Nothing listens at this server, so a sign-in attempt fails with an
+		// authentication error, as in the previous test.
+		const unreachableOauthWiki = (): ReturnType<typeof ctxForWiki> =>
+			ctxForWiki(
 				{
 					sitename: 'OAuth-Configured',
 					server: 'http://127.0.0.1:1',
@@ -196,25 +195,29 @@ describe('dispatch OAuth integration', () => {
 				'stdio',
 			);
 
-			let toolInvoked = false;
-			const bypassTool: Tool<Record<string, never>> = {
-				name: toolName,
+		it('runs a tool that is not wiki-scoped without OAuth sign-in', async () => {
+			const serverLocalTool: Tool<Record<string, never>> = {
+				name: 'server-local',
 				description: 'd',
 				inputSchema: {},
 				annotations: { readOnlyHint: true },
-				// add-wiki / remove-wiki / oauth-* are not wiki-scoped, so they skip
-				// per-call wiki resolution entirely.
 				wikiScoped: false,
 				async handle(): Promise<CallToolResult> {
-					toolInvoked = true;
 					return { content: [{ type: 'text', text: 'ran' }] };
 				},
 			};
 
-			const result = await dispatch(bypassTool, ctx)({});
-			expect(toolInvoked).toBe(true);
+			const result = await dispatch(serverLocalTool, unreachableOauthWiki())({});
+
 			expect(result.isError).toBeUndefined();
 			expect((result.content[0] as { text: string }).text).toBe('ran');
-		},
-	);
+		});
+
+		it('runs list-wikis without OAuth sign-in', async () => {
+			const result = await dispatch(listWikis, unreachableOauthWiki())({});
+
+			expect(result.isError).toBeUndefined();
+			expect(JSON.stringify(result.structuredContent)).toContain('wiki-key');
+		});
+	});
 });

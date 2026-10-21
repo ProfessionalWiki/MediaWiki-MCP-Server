@@ -33,6 +33,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - Page URLs for titles containing `?` now link to the page instead of to the title cut off at the `?`.
 - OAuth tokens saved at the same moment on stdio, such as two wikis refreshing at once, are all kept. Before, one could be lost, forcing a new browser sign-in, or the save failed.
 - `create-page` marks a page creation as a bot edit only when `bot` is set.
+- `list-wikis` no longer starts an OAuth sign-in on stdio when the default wiki uses OAuth.
 - `create-page` fails when the wiki refuses the creation without an error code, as it does for a CAPTCHA, instead of reporting success.
 
 ## [0.19.0] - 2026-09-25
