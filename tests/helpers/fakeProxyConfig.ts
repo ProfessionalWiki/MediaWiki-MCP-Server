@@ -9,6 +9,7 @@ import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig
 // `{ upstreamClientSecret: undefined }` to reach the public-client path.
 export function fakeProxyConfig(overrides: Partial<ProxyConfig> = {}): ProxyConfig {
 	return {
+		wikiKey: 'test',
 		issuer: 'https://wiki.example/mcp',
 		authorizeBase: 'https://wiki.example',
 		tokenExchangeBase: 'https://wiki.example',

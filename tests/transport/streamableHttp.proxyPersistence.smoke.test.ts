@@ -19,6 +19,7 @@ import { PersistentProxyStore } from '../../src/auth/authorizationServer/proxySt
 import { deriveKey } from '../../src/auth/authorizationServer/proxyStoreCrypto.ts';
 import { buildRedirectPolicy } from '../../src/auth/authorizationServer/redirectPolicy.ts';
 import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.ts';
+import { fakeProxyConfig } from '../helpers/fakeProxyConfig.ts';
 import { randomVerifier, s256 } from '../../src/auth/pkce.ts';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 import { runHostedFlow } from '../helpers/fakeMcpClient.ts';
@@ -46,19 +47,17 @@ function appState(fakeAsUrl: string) {
 }
 
 function proxyConfig(fakeAsUrl: string): ProxyConfig {
-	return {
+	return fakeProxyConfig({
 		issuer: ISSUER,
 		authorizeBase: fakeAsUrl,
 		tokenExchangeBase: fakeAsUrl,
-		scriptpath: '/w',
 		callbackUrl: `${ISSUER}/oauth/callback`,
 		upstreamClientId: 'UPSTREAM-CLIENT',
+		upstreamClientSecret: undefined,
 		signingKey: SIGNING_KEY,
 		consentTtlMs: 60_000,
 		tokenTtlMs: 55 * 60 * 1000,
-		redirectAllowlist: [],
-		cimdAllowedHosts: [],
-	};
+	});
 }
 
 function makeDeps(fakeAsUrl: string, store: ProxyStore, pc: ProxyConfig): BuildAppDeps {

@@ -119,7 +119,7 @@ export interface EmitToolCallOptions<TArgs> {
 	readonly outcome: ToolOutcome;
 	readonly upstreamStatus: number | undefined;
 	readonly errorMessage: string | undefined;
-	readonly runtimeToken: string | undefined;
+	readonly caller: string;
 	readonly wikiKey: string;
 }
 
@@ -135,7 +135,7 @@ export function emitToolCall<TArgs>(opts: EmitToolCallOptions<TArgs>): void {
 		wiki: opts.wikiKey,
 		outcome: opts.outcome,
 		duration_ms: durationMs,
-		caller: hashCaller(opts.runtimeToken),
+		caller: opts.caller,
 		truncated,
 	};
 	if (targetValue !== '') {

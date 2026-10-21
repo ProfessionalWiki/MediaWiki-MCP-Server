@@ -43,7 +43,9 @@ import { WikiRegistryImpl } from '../../src/wikis/wikiRegistry.ts';
 import { ActiveWikiImpl } from '../../src/wikis/activeWiki.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
 import { CredentialResolutionError } from '../../src/errors/credentialResolutionError.ts';
-import { withRequestFields } from '../../src/runtime/requestContext.ts';
+import { withRequestContext, withRequestFields } from '../../src/runtime/requestContext.ts';
+import { createAppState } from '../../src/wikis/state.ts';
+import type { MwnProvider } from '../../src/wikis/mwnProvider.ts';
 
 const sample = (name: string): WikiConfig => ({
 	sitename: name,
@@ -174,6 +176,42 @@ describe('MwnProviderImpl', () => {
 				OAuth2AccessToken: 'runtime-token',
 			}),
 		);
+	});
+
+	// Built as the server builds it, so the wiring between the request scope and
+	// the provider is what is tested.
+	describe("a request's token", () => {
+		function providerFor(...keys: string[]): MwnProvider {
+			return createAppState({
+				defaultWiki: keys[0],
+				wikis: Object.fromEntries(keys.map((key) => [key, sample(key)])),
+				uploadDirs: [],
+			}).mwnProvider;
+		}
+
+		it('is sent to the wiki it was issued for', async () => {
+			const provider = providerFor('home', 'added');
+
+			await withRequestContext({ value: 'USER-TOKEN', wikiKey: 'home' }, () =>
+				provider.get('home'),
+			);
+
+			expect(mockConstructor).toHaveBeenCalledWith(
+				expect.objectContaining({ OAuth2AccessToken: 'USER-TOKEN' }),
+			);
+		});
+
+		it('is not sent to a wiki it was not issued for', async () => {
+			const provider = providerFor('home', 'added');
+
+			await withRequestContext({ value: 'USER-TOKEN', wikiKey: 'home' }, () =>
+				provider.get('added'),
+			);
+
+			expect(mockConstructor).toHaveBeenCalledWith(
+				expect.not.objectContaining({ OAuth2AccessToken: expect.anything() }),
+			);
+		});
 	});
 
 	it('sets assert=user for BotPassword auth so mwn relogs in on session loss', async () => {

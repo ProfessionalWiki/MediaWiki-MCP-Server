@@ -2,15 +2,16 @@ import { describe, it, expect } from 'vitest';
 import { checkWikiCapability } from '../../src/runtime/wikiCapability.ts';
 import { fakeContext } from '../helpers/fakeContext.ts';
 import { withRequestFields } from '../../src/runtime/requestContext.ts';
-import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.ts';
+import { fakeProxyConfig } from '../helpers/fakeProxyConfig.ts';
+import { assertStructuredError } from '../helpers/structuredResult.ts';
 
-const PROXY = {
+const PROXY = fakeProxyConfig({
+	wikiKey: 'w',
 	issuer: 'https://mcp.example/mcp',
 	signingKey: 'k'.repeat(32),
 	tokenExchangeBase: 'http://wiki.svc',
-	scriptpath: '/w',
 	upstreamClientId: 'UP',
-} as unknown as ProxyConfig;
+});
 
 // An OAuth-only wiki (proxy requires oauth2ClientId on the default wiki).
 const oauthWiki = {
@@ -62,10 +63,19 @@ describe('checkWikiCapability proxy step-up', () => {
 	});
 
 	it('allows a write tool when a runtime token is present on a proxy-enabled wiki', async () => {
-		const result = await withRequestFields({ runtimeToken: 'upstream-tok' }, () =>
-			checkWikiCapability('update-page', 'w', ctx({ proxy: true })),
+		const result = await withRequestFields(
+			{ runtimeToken: { value: 'upstream-tok', wikiKey: 'w' } },
+			() => checkWikiCapability('update-page', 'w', ctx({ proxy: true })),
 		);
 		expect(result).toBeUndefined();
+	});
+
+	it("rejects a write on a proxy-enabled wiki the caller's token was not issued for", async () => {
+		const result = await withRequestFields(
+			{ runtimeToken: { value: 'upstream-tok', wikiKey: 'elsewhere' } },
+			() => checkWikiCapability('update-page', 'w', ctx({ proxy: true })),
+		);
+		assertStructuredError(result!, 'authentication');
 	});
 
 	it('rejects an extension write tool dispatched anonymously on a proxy-enabled wiki', async () => {

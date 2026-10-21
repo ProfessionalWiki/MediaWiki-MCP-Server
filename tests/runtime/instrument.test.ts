@@ -174,7 +174,7 @@ describe('emitToolCall', () => {
 			outcome: 'success',
 			upstreamStatus: undefined,
 			errorMessage: undefined,
-			runtimeToken: undefined,
+			caller: 'anonymous',
 			wikiKey: 'a.example',
 		});
 
@@ -198,7 +198,7 @@ describe('emitToolCall', () => {
 			outcome: 'success',
 			upstreamStatus: undefined,
 			errorMessage: undefined,
-			runtimeToken: undefined,
+			caller: 'anonymous',
 			wikiKey: 'a.example',
 		});
 
@@ -215,7 +215,7 @@ describe('emitToolCall', () => {
 			outcome: 'success',
 			upstreamStatus: undefined,
 			errorMessage: undefined,
-			runtimeToken: undefined,
+			caller: 'anonymous',
 			wikiKey: 'a.example',
 		});
 
@@ -232,7 +232,7 @@ describe('emitToolCall', () => {
 			outcome: 'success',
 			upstreamStatus: undefined,
 			errorMessage: undefined,
-			runtimeToken: undefined,
+			caller: 'anonymous',
 			wikiKey: 'a.example',
 		});
 
@@ -251,7 +251,7 @@ describe('emitToolCall', () => {
 			outcome: 'success',
 			upstreamStatus: undefined,
 			errorMessage: undefined,
-			runtimeToken: undefined,
+			caller: 'anonymous',
 			wikiKey: 'a.example',
 		});
 
@@ -276,7 +276,7 @@ describe('emitToolCall', () => {
 			outcome: category as Parameters<typeof emitToolCall>[0]['outcome'],
 			upstreamStatus: undefined,
 			errorMessage: 'msg',
-			runtimeToken: undefined,
+			caller: 'anonymous',
 			wikiKey: 'a.example',
 		});
 
@@ -296,7 +296,7 @@ describe('emitToolCall', () => {
 			outcome: 'rate_limited',
 			upstreamStatus: 429,
 			errorMessage: 'too many',
-			runtimeToken: undefined,
+			caller: 'anonymous',
 			wikiKey: 'a.example',
 		});
 
@@ -313,7 +313,7 @@ describe('emitToolCall', () => {
 			outcome: 'success',
 			upstreamStatus: undefined,
 			errorMessage: undefined,
-			runtimeToken: undefined,
+			caller: 'anonymous',
 			wikiKey: 'a.example',
 		});
 
@@ -330,14 +330,14 @@ describe('emitToolCall', () => {
 			outcome: 'success',
 			upstreamStatus: undefined,
 			errorMessage: undefined,
-			runtimeToken: undefined,
+			caller: 'anonymous',
 			wikiKey: 'a.example',
 		});
 
 		expect(captureToolCallLine(stderrSpy).truncated).toBe(false);
 	});
 
-	it('sets caller=anonymous when runtimeToken is undefined', () => {
+	it('logs the caller it is given', () => {
 		emitToolCall({
 			toolName: 'get-page',
 			target: undefined,
@@ -347,28 +347,11 @@ describe('emitToolCall', () => {
 			outcome: 'success',
 			upstreamStatus: undefined,
 			errorMessage: undefined,
-			runtimeToken: undefined,
+			caller: 'sha256:0123456789ab',
 			wikiKey: 'a.example',
 		});
 
-		expect(captureToolCallLine(stderrSpy).caller).toBe('anonymous');
-	});
-
-	it('sets caller=sha256:<12 hex> when a runtimeToken is provided', () => {
-		emitToolCall({
-			toolName: 'get-page',
-			target: undefined,
-			args: {},
-			started: performance.now(),
-			result: okResult(),
-			outcome: 'success',
-			upstreamStatus: undefined,
-			errorMessage: undefined,
-			runtimeToken: 'secret-token',
-			wikiKey: 'a.example',
-		});
-
-		expect(captureToolCallLine(stderrSpy).caller).toMatch(/^sha256:[0-9a-f]{12}$/);
+		expect(captureToolCallLine(stderrSpy).caller).toBe('sha256:0123456789ab');
 	});
 });
 
@@ -387,7 +370,7 @@ describe('emitToolCall — metrics integration', () => {
 			outcome: 'success',
 			upstreamStatus: 200,
 			errorMessage: undefined,
-			runtimeToken: undefined,
+			caller: 'anonymous',
 			wikiKey: 'example.org',
 		});
 		stderrSpy.mockRestore();
@@ -413,7 +396,7 @@ describe('emitToolCall — metrics integration', () => {
 			outcome: 'success',
 			upstreamStatus: undefined,
 			errorMessage: undefined,
-			runtimeToken: undefined,
+			caller: 'anonymous',
 			wikiKey: 'example.org',
 		});
 		stderrSpy.mockRestore();

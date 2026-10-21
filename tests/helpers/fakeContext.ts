@@ -117,19 +117,33 @@ export function ctxForWiki(
 	config: Record<string, unknown>,
 	transport: ToolContext['transport'],
 ): ToolContext {
-	const registry: Record<string, unknown> = { 'wiki-key': config };
+	return ctxForWikis({ 'wiki-key': config }, 'wiki-key', transport);
+}
+
+// The same for several wikis, so a test can tell the wiki a call resolves to
+// from the default.
+export function ctxForWikis(
+	registry: Record<string, Record<string, unknown>>,
+	defaultKey: string,
+	transport: ToolContext['transport'],
+): ToolContext {
+	const lookup = (key: string): Record<string, unknown> | undefined =>
+		Object.hasOwn(registry, key) ? registry[key] : undefined;
 	return fakeContext({
 		transport,
 		wikis: {
 			getAll: () => registry as never,
-			get: ((key: string) => registry[key]) as never,
+			get: lookup as never,
 			add: () => {},
 			remove: () => {},
 			isManagementAllowed: () => true,
 		},
 		activeWiki: {
-			get: () => ({ key: getRequestWiki() ?? 'wiki-key', config: config as never }),
-			getDefaultKey: () => 'wiki-key',
+			get: () => {
+				const key = getRequestWiki() ?? defaultKey;
+				return { key, config: lookup(key) as never };
+			},
+			getDefaultKey: () => defaultKey,
 		},
 	});
 }

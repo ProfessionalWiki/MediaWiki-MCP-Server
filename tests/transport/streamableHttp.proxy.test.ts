@@ -11,6 +11,7 @@ import { CimdResolver } from '../../src/auth/authorizationServer/cimd.ts';
 import type { CimdFetchResult } from '../../src/auth/authorizationServer/cimd.ts';
 import { verifyAccessToken } from '../../src/auth/authorizationServer/jwt.ts';
 import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.ts';
+import { fakeProxyConfig } from '../helpers/fakeProxyConfig.ts';
 import {
 	buildRedirectPolicy,
 	parseRedirectAllowlist,
@@ -49,19 +50,17 @@ function appState(fakeAsUrl: string) {
 // A ProxyConfig whose authorize + token-exchange bases both point at the fake AS
 // (so the in-process flow reaches it), as the task guidance prescribes.
 function proxyConfig(fakeAsUrl: string): ProxyConfig {
-	return {
+	return fakeProxyConfig({
 		issuer: ISSUER,
 		authorizeBase: fakeAsUrl,
 		tokenExchangeBase: fakeAsUrl,
-		scriptpath: '/w',
 		callbackUrl: `${ISSUER}/oauth/callback`,
 		upstreamClientId: 'UPSTREAM-CLIENT',
+		upstreamClientSecret: undefined,
 		signingKey: SIGNING_KEY,
 		consentTtlMs: 60_000,
 		tokenTtlMs: 55 * 60 * 1000,
-		redirectAllowlist: [],
-		cimdAllowedHosts: [],
-	};
+	});
 }
 
 function stubCreateServer(): McpServer {
@@ -237,7 +236,7 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		// The factory seam calls the wiki action API with the request's resolved
 		// runtime token, standing in for what mwn would send to /api.php.
 		const onServe = vi.fn(async () => {
-			const runtimeToken = getRuntimeToken();
+			const runtimeToken = getRuntimeToken('test');
 			await fetch(`${fakeAs!.url}/w/api.php?action=query&meta=tokens`, {
 				headers: runtimeToken ? { Authorization: `Bearer ${runtimeToken}` } : {},
 			});
@@ -320,7 +319,7 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		const captured: { token?: string; seen: boolean } = { seen: false };
 		const deps = makeDeps(fakeAs.url, store, pc, () => {
 			captured.seen = true;
-			captured.token = getRuntimeToken();
+			captured.token = getRuntimeToken('test');
 		});
 		const { app } = buildApp(deps);
 		const anonRes = await request(app)
@@ -1161,7 +1160,7 @@ describe('hosted OAuth proxy — upstream refresh on the /mcp path (e2e)', () =>
 	// per-request factory seam.
 	function apiCallingOnServe() {
 		return vi.fn(async () => {
-			const runtimeToken = getRuntimeToken();
+			const runtimeToken = getRuntimeToken('test');
 			await fetch(`${fakeAs!.url}/w/api.php?action=query&meta=tokens`, {
 				headers: runtimeToken ? { Authorization: `Bearer ${runtimeToken}` } : {},
 			});

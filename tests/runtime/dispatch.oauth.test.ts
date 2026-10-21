@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import type { Tool } from '../../src/runtime/tool.ts';
 import { listWikis } from '../../src/tools/list-wikis.ts';
-import { fakeContext, ctxForWiki } from '../helpers/fakeContext.ts';
+import { fakeContext, ctxForWiki, ctxForWikis } from '../helpers/fakeContext.ts';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 import { fakeBrowserDriver } from '../helpers/fakeBrowserDriver.ts';
 import { useTempTokenStore } from '../helpers/tempTokenStore.ts';
@@ -28,19 +28,19 @@ afterEach(async () => {
 	vi.clearAllMocks();
 });
 
-/** A dummy tool that returns whatever getRuntimeToken() sees at invocation time. */
+/** A dummy tool that returns the token its call may send to the wiki it resolved. */
 const tokenCaptureTool: Tool<Record<string, never>> = {
 	name: 'dummy',
 	description: 'd',
 	inputSchema: {},
 	annotations: { readOnlyHint: true },
 	async handle(): Promise<CallToolResult> {
-		return { content: [{ type: 'text', text: getRuntimeToken() ?? '' }] };
+		return { content: [{ type: 'text', text: getRuntimeToken(getRequestWiki() ?? '') ?? '' }] };
 	},
 };
 
 describe('dispatch OAuth integration', () => {
-	it('stdio + oauth2ClientId: binds token and tool sees getRuntimeToken()', async () => {
+	it('stdio + oauth2ClientId: acquires a token and the tool runs with it', async () => {
 		fakeAs = await startFakeAs();
 		vi.mocked(openMod).mockImplementation(
 			fakeBrowserDriver(fakeAs.url, 'consent') as typeof openMod,
@@ -102,6 +102,50 @@ describe('dispatch OAuth integration', () => {
 		expect(observedWiki).toBe('wiki-key');
 	});
 
+	it('stdio + oauth2ClientId: binds the token to the wiki it was acquired for', async () => {
+		fakeAs = await startFakeAs();
+		vi.mocked(openMod).mockImplementation(
+			fakeBrowserDriver(fakeAs.url, 'consent') as typeof openMod,
+		);
+		// The OAuth wiki is not the default, so a token bound to the default would show.
+		const ctx = ctxForWikis(
+			{
+				home: {
+					sitename: 'Home',
+					server: 'https://home.example',
+					articlepath: '/wiki',
+					scriptpath: '/w',
+				},
+				'wiki-key': {
+					sitename: 'Test',
+					server: fakeAs.url,
+					articlepath: '/wiki',
+					scriptpath: '/w',
+					oauth2ClientId: 'my-client',
+				},
+			},
+			'home',
+			'stdio',
+		);
+		const seen: { oauthWiki?: string; defaultWiki?: string } = {};
+		const captureTool: Tool<Record<string, never>> = {
+			name: 'binding-capture',
+			description: 'd',
+			inputSchema: {},
+			annotations: { readOnlyHint: true },
+			async handle(): Promise<CallToolResult> {
+				seen.oauthWiki = getRuntimeToken('wiki-key');
+				seen.defaultWiki = getRuntimeToken('home');
+				return { content: [{ type: 'text', text: 'ran' }] };
+			},
+		};
+
+		await dispatch(captureTool, ctx)({ wiki: 'wiki-key' } as never);
+
+		expect(seen.oauthWiki).toMatch(/^access-CODE-/);
+		expect(seen.defaultWiki).toBeUndefined();
+	});
+
 	it('stdio without oauth2ClientId: does not call acquireToken / open', async () => {
 		fakeAs = await startFakeAs();
 
@@ -112,7 +156,7 @@ describe('dispatch OAuth integration', () => {
 
 		const result = await dispatch(tokenCaptureTool, ctx)({});
 		expect(result.isError).toBeUndefined();
-		// No token bound — getRuntimeToken() returns undefined
+		// No token acquired, so the call holds none
 		const text = (result.content[0] as { text: string }).text;
 		expect(text).toBe('');
 		expect(vi.mocked(openMod)).not.toHaveBeenCalled();

@@ -455,8 +455,8 @@ describe('transport-emitted JSON-RPC error codes', () => {
 describe('withRequestContext', () => {
 	it('propagates the bearer token into the async store', async () => {
 		let observedToken: string | undefined;
-		await withRequestContext('tok123', async () => {
-			observedToken = getRuntimeToken();
+		await withRequestContext({ value: 'tok123', wikiKey: null }, async () => {
+			observedToken = getRuntimeToken('any-wiki');
 		});
 		expect(observedToken).toBe('tok123');
 	});
@@ -464,7 +464,7 @@ describe('withRequestContext', () => {
 	it('leaves the store tokenless when no bearer is supplied', async () => {
 		let observedToken: string | undefined;
 		await withRequestContext(undefined, async () => {
-			observedToken = getRuntimeToken();
+			observedToken = getRuntimeToken('any-wiki');
 		});
 		expect(observedToken).toBeUndefined();
 	});
