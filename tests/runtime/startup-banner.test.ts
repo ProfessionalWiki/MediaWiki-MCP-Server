@@ -2,6 +2,7 @@ import { type StderrWriteSpy } from '../helpers/stderrSpy.ts';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { emitStartupBanner } from '../../src/runtime/banner.ts';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
+import { UploadDirsImpl } from '../../src/wikis/uploadDirs.ts';
 import type { ActiveWiki } from '../../src/wikis/activeWiki.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
 
@@ -25,7 +26,7 @@ const mockActiveWiki: ActiveWiki = {
 	getDefaultKey: () => 'a.example',
 };
 
-const mockUploadDirs = { list: () => [] };
+const mockUploadDirs = new UploadDirsImpl([]);
 
 function captureLines(spy: StderrWriteSpy): Record<string, unknown>[] {
 	return spy.mock.calls

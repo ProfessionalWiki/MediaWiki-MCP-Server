@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import { dirname } from 'node:path';
 import type { Mwn } from 'mwn';
 import type { ToolContext, ManagementContext } from '../../src/runtime/context.ts';
 import { ResponseFormatterImpl } from '../../src/results/response.ts';
@@ -7,6 +8,7 @@ import { extensionErrorVocabulary, extensionPacks } from '../../src/tools/extens
 import { RevisionNormalizerImpl } from '../../src/services/revisionNormalize.ts';
 import { getRequestWiki } from '../../src/runtime/requestContext.ts';
 import type { WikiIdentity, WikiProbe } from '../../src/wikis/wikiProbe.ts';
+import { UploadDirsImpl, type UploadDirs } from '../../src/wikis/uploadDirs.ts';
 import { fakeLogger } from './fakeLogger.ts';
 import type { MockMwn } from './mock-mwn.ts';
 
@@ -46,6 +48,11 @@ export function probeReporting(identity: WikiIdentity): WikiProbe {
 	};
 }
 
+/** Upload directories that take any path to be `resolved`. */
+export function uploadDirsResolving(resolved: string): UploadDirs {
+	return { list: () => [dirname(resolved)], resolve: () => Promise.resolve(resolved) };
+}
+
 /**
  * A context whose wiki is `wiki`. A mock wiki stands in for the slice of mwn the
  * tools use, so it is handed over as one here, once, rather than cast in every
@@ -75,7 +82,7 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 			},
 			getDefaultKey: () => 'test-wiki',
 		},
-		uploadDirs: { list: () => [] },
+		uploadDirs: new UploadDirsImpl([]),
 		wikiCache: { invalidate: throws('wikiCache.invalidate') as never },
 		wikiProbe: probeReporting({}),
 		sections: {
