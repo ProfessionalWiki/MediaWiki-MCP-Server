@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
+import { flattenSubject, type SubjectData } from './subjects.ts';
 
 const inputSchema = {
 	id: z
@@ -12,22 +13,6 @@ const inputSchema = {
 			'Subject ID (starts with s…). Use neowiki-search-subjects to resolve one from a label.',
 		),
 } as const;
-
-interface SubjectStatement {
-	propertyType?: string;
-	value?: unknown;
-}
-
-export interface SubjectData {
-	id?: string;
-	label?: string | null;
-	displayName?: string;
-	schema?: string;
-	hostSubject?: unknown;
-	pageId?: number;
-	pageTitle?: string;
-	statements?: Record<string, SubjectStatement>;
-}
 
 interface GetSubjectResponse {
 	requestedId?: string;
@@ -70,33 +55,3 @@ export const neowikiGetSubject: Tool<typeof inputSchema> = {
 		}
 	},
 };
-
-export function flattenSubject(
-	subject: SubjectData,
-	fallbackId: string,
-): {
-	id: string;
-	label: string;
-	displayName: string;
-	schema: string;
-	hostSubject?: unknown;
-	pageId?: number;
-	pageTitle?: string;
-	statements: Array<{ property: string; type: string; value: unknown }>;
-} {
-	const statements = Object.entries(subject.statements ?? {}).map(([property, statement]) => ({
-		property,
-		type: typeof statement.propertyType === 'string' ? statement.propertyType : '',
-		value: statement.value,
-	}));
-	return {
-		id: subject.id ?? fallbackId,
-		label: subject.label ?? '',
-		displayName: subject.displayName ?? subject.label ?? '',
-		schema: subject.schema ?? '',
-		...(subject.hostSubject !== undefined ? { hostSubject: subject.hostSubject } : {}),
-		...(subject.pageId !== undefined ? { pageId: subject.pageId } : {}),
-		...(subject.pageTitle !== undefined ? { pageTitle: subject.pageTitle } : {}),
-		statements,
-	};
-}

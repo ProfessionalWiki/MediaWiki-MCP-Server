@@ -3,12 +3,7 @@ import { createMockMwn } from '../../../helpers/mock-mwn.ts';
 import { fakeContext } from '../../../helpers/fakeContext.ts';
 import { neowikiCypherQuery } from '../../../../src/tools/extensions/neowiki/neowiki-cypher-query.ts';
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
-
-function httpError(status: number, data: unknown): Error & { response: unknown } {
-	const err = new Error(`HTTP ${status}`) as Error & { response: unknown };
-	err.response = { status, data };
-	return err;
-}
+import { httpError } from '../../../helpers/httpError.ts';
 
 describe('neowiki-cypher-query', () => {
 	it('posts cypher + parameters and returns the result envelope', async () => {

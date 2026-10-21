@@ -3,7 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
-import { flattenSubject, type SubjectData } from './neowiki-get-subject.ts';
+import { flattenSubject, type SubjectData } from './subjects.ts';
 import { resolvePageId, hasOnePageRef } from './pageId.ts';
 
 const inputSchema = {

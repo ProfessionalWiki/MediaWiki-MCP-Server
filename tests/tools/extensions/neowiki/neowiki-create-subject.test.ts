@@ -4,19 +4,16 @@ import { fakeContext, withoutEditAttribution } from '../../../helpers/fakeContex
 import type { ToolContext } from '../../../../src/runtime/context.ts';
 import { neowikiCreateSubject } from '../../../../src/tools/extensions/neowiki/neowiki-create-subject.ts';
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
+import { httpError } from '../../../helpers/httpError.ts';
 
 const stmts = { Country: { propertyType: 'text', value: ['Germany'] } };
 
-function httpError(status: number, data: unknown): Error & { response: unknown } {
-	const err = new Error(`HTTP ${status}`) as Error & { response: unknown };
-	err.response = { status, data };
-	return err;
-}
+const created = { status: 'created', subjectId: 's1' };
 
-function contextWith(): { mock: MockMwn; ctx: ToolContext } {
+function contextWith(data: unknown): { mock: MockMwn; ctx: ToolContext } {
 	const mock = createMockMwn({
 		getCsrfToken: vi.fn().mockResolvedValue('tok'),
-		rawRequest: vi.fn().mockResolvedValue({ data: { status: 'created', subjectId: 's1' } }),
+		rawRequest: vi.fn().mockResolvedValue({ data }),
 	});
 	return { mock, ctx: fakeContext({ mwn: async () => mock as never }) };
 }
@@ -90,8 +87,12 @@ describe('neowiki-create-subject', () => {
 		assertStructuredError(result, 'conflict');
 	});
 
+	it('takes an empty label as no label', () => {
+		expect(neowikiCreateSubject.inputSchema.label.safeParse('').success).toBe(true);
+	});
+
 	it('creates a subject without a label when none is given', async () => {
-		const { mock, ctx } = contextWith();
+		const { mock, ctx } = contextWith(created);
 
 		await neowikiCreateSubject.handle({ pageId: 7, schema: 'City', statements: stmts }, ctx);
 
@@ -106,26 +107,20 @@ describe('neowiki-create-subject', () => {
 			severity: 'warning',
 			valuePartIndex: 0,
 		};
-		const mock = createMockMwn({
-			getCsrfToken: vi.fn().mockResolvedValue('tok'),
-			rawRequest: vi.fn().mockResolvedValue({
-				data: {
-					status: 'created',
-					subjectId: 's1demo',
-					violations: [violation],
-					subject: {
-						id: 's1demo',
-						label: 'Berlin',
-						displayName: 'Berlin',
-						schema: 'City',
-						pageId: 7,
-						pageTitle: 'Berlin',
-						statements: { Country: { propertyType: 'text', value: ['DE'] } },
-					},
-				},
-			}),
+		const { ctx } = contextWith({
+			status: 'created',
+			subjectId: 's1demo',
+			violations: [violation],
+			subject: {
+				id: 's1demo',
+				label: 'Berlin',
+				displayName: 'Berlin',
+				schema: 'City',
+				pageId: 7,
+				pageTitle: 'Berlin',
+				statements: { Country: { propertyType: 'text', value: ['DE'] } },
+			},
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
 		const result = await neowikiCreateSubject.handle(
 			{ pageId: 7, label: 'Berlin', schema: 'City', statements: stmts },
 			ctx,
@@ -162,7 +157,7 @@ describe('neowiki-create-subject', () => {
 	});
 
 	it('attributes the write to the tool that made it, after the caller comment', async () => {
-		const { mock, ctx } = contextWith();
+		const { mock, ctx } = contextWith(created);
 
 		await neowikiCreateSubject.handle(
 			{ pageId: 7, label: 'X', schema: 'City', statements: stmts, comment: 'seed the city' },
@@ -178,7 +173,7 @@ describe('neowiki-create-subject', () => {
 	});
 
 	it('attributes a write the caller gave no comment for', async () => {
-		const { mock, ctx } = contextWith();
+		const { mock, ctx } = contextWith(created);
 
 		await neowikiCreateSubject.handle(
 			{ pageId: 7, label: 'X', schema: 'City', statements: stmts },
@@ -191,7 +186,7 @@ describe('neowiki-create-subject', () => {
 	});
 
 	it('drops the attribution for a wiki that opts out of it', async () => {
-		const { mock, ctx } = contextWith();
+		const { mock, ctx } = contextWith(created);
 
 		await neowikiCreateSubject.handle(
 			{ pageId: 7, label: 'X', schema: 'City', statements: stmts, comment: 'seed the city' },
@@ -202,7 +197,7 @@ describe('neowiki-create-subject', () => {
 	});
 
 	it('sends no comment at all when a wiki opts out and the caller gave none', async () => {
-		const { mock, ctx } = contextWith();
+		const { mock, ctx } = contextWith(created);
 
 		await neowikiCreateSubject.handle(
 			{ pageId: 7, label: 'X', schema: 'City', statements: stmts },

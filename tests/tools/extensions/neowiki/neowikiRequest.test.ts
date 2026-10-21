@@ -8,13 +8,7 @@ import {
 } from '../../../../src/tools/extensions/neowiki/neowikiRequest.ts';
 import { WikiTimeoutError } from '../../../../src/errors/wikiTimeoutError.ts';
 import { rejectionOf } from '../../../helpers/rejectionOf.ts';
-
-// Builds an axios-style rejection: a thrown error carrying `.response`.
-function httpError(status: number, data: unknown): Error & { response: unknown } {
-	const err = new Error(`HTTP ${status}`) as Error & { response: unknown };
-	err.response = { status, data };
-	return err;
-}
+import { httpError } from '../../../helpers/httpError.ts';
 
 describe('neowikiRequest', () => {
 	it('derives the REST base from apiUrl and sends a GET with query string', async () => {
@@ -124,12 +118,11 @@ describe('neowikiRequest', () => {
 
 	it('maps a read-denied envelope to permission_denied', async () => {
 		const mock = createMockMwn({
-			rawRequest: vi.fn().mockRejectedValue(
-				httpError(403, {
-					error: 'rest-read-denied',
-					messageTranslations: { en: 'You need read permission to use this module.' },
-				}),
-			),
+			rawRequest: vi
+				.fn()
+				.mockRejectedValue(
+					httpError(403, { error: 'rest-read-denied', httpCode: 403, httpReason: 'Forbidden' }),
+				),
 		});
 		await expect(
 			neowikiRequest(mock as never, { method: 'GET', path: '/schemas' }),

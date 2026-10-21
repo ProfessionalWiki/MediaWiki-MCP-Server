@@ -21,7 +21,7 @@ const inputSchema = {
 			'Schema name to validate a NEW subject against. Required when id is omitted; ignored when id is given.',
 		),
 	statements: statementsSchema.describe(
-		'Proposed statement map (property name → { propertyType, value }). The key is propertyType, NOT the `type` read tools return.',
+		'Proposed statement map (property name → { propertyType, value }).',
 	),
 } as const;
 

@@ -138,7 +138,8 @@ function classifyNeoWikiError(err: unknown): NeoWikiApiError {
 			return new NeoWikiApiError(category, message);
 		}
 
-		// REST param-validation envelope: { error, messageTranslations: { en } }.
+		// MediaWiki REST envelope, from parameter validation or a read denial:
+		// { error, messageTranslations?: { en } }.
 		if (typeof record.error === 'string') {
 			const translations = record.messageTranslations;
 			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- messageTranslations sub-object shape at this boundary

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-export const VALUE_FORMATS =
-	'text/url/date/dateTime → array of strings (date "2020-12-31", dateTime "2020-12-31T14:30:00Z"); select → array of option IDs (resolve labels via neowiki-get-schema); number → a number; boolean → a boolean; relation → array of { target: "<subjectId>" }; monolingualText → array of { text, language }';
+const VALUE_FORMATS =
+	'text/url/date/dateTime → array of strings (date "2020-12-31", dateTime "2020-12-31T14:30:00Z", with Z or an offset); select → array of option IDs (resolve labels via neowiki-get-schema); number → a number; boolean → a boolean; relation → array of { target: "<subjectId>" }; monolingualText → array of { text, language }';
 
 // The write API reads `propertyType` (NOT the `type` key read tools return) and
 // silently drops entries without it, so require it here — a malformed statement
@@ -11,7 +11,7 @@ const statementSchema = z.object({
 		.string()
 		.min(1)
 		.describe(
-			'Property type: text, url, date, dateTime, select, number, boolean, relation, or monolingualText.',
+			"The property's type. The key is propertyType, NOT the `type` key read tools return.",
 		),
 	value: z.unknown().describe(`Value shaped by propertyType: ${VALUE_FORMATS}.`),
 });
