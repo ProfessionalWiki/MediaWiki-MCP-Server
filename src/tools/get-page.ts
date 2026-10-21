@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { buildPageUrl } from '../wikis/utils.ts';
+import { readPage } from '../wikis/readPage.ts';
 import { ContentFormat } from '../results/contentFormat.ts';
 import { truncateByBytes, type TruncationInfo } from '../results/truncation.ts';
 import { toOutlineLines, type SectionEntry } from '../services/sectionService.ts';
@@ -81,11 +82,11 @@ export const getPage: Tool<typeof inputSchema> = {
 			const rvprop = needsSource
 				? 'ids|timestamp|contentmodel|size|content'
 				: 'ids|timestamp|contentmodel|size';
-			const readParams: Record<string, string | number> = { rvprop };
-			if (needsSource && section !== undefined) {
-				readParams.rvsection = section;
-			}
-			const page = await mwn.read(title, readParams);
+			const page = await readPage(mwn, title, {
+				rvprop,
+				redirects: true,
+				...(needsSource && section !== undefined ? { rvsection: section } : {}),
+			});
 
 			if (page.missing) {
 				return ctx.format.notFound(`Page "${title}" not found`);

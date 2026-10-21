@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { Mwn } from 'mwn';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
 import { fakeContext } from '../helpers/fakeContext.ts';
+import { wikiAnswering } from '../helpers/wikiAnswering.ts';
 import { getPages, BatchContentFormat } from '../../src/tools/get-pages.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { SectionServiceImpl } from '../../src/services/sectionService.ts';
@@ -44,32 +44,6 @@ function massQueryResponse(options: {
 			},
 		},
 	];
-}
-
-interface FakeWiki {
-	mwn: Mwn;
-	sentQuery: () => URLSearchParams;
-}
-
-// A real Mwn with only its HTTP layer stubbed, so mwn's own batching runs and
-// the query is seen as the wiki receives it. massQuery reports a failed batch
-// in its result instead of rejecting, which a mocked massQuery hides.
-function fakeWiki(body: object): FakeWiki {
-	const mwn = new Mwn({ apiUrl: 'https://test.wiki/w/api.php' });
-	let sent: string | undefined;
-	vi.spyOn(mwn, 'rawRequest').mockImplementation((async (request: { data?: string }) => {
-		sent = request.data;
-		return { data: body };
-	}) as never);
-	return {
-		mwn,
-		sentQuery: () => {
-			if (sent === undefined) {
-				throw new Error('No query reached the wiki');
-			}
-			return new URLSearchParams(sent);
-		},
-	};
 }
 
 describe('get-pages', () => {
@@ -323,7 +297,7 @@ describe('get-pages', () => {
 		});
 
 		it("fails with the wiki's refusal instead of reporting the pages missing", async () => {
-			const wiki = fakeWiki({
+			const wiki = wikiAnswering({
 				error: { code: 'readapidenied', info: 'You need read permission to use this module.' },
 			});
 
@@ -490,7 +464,7 @@ describe('get-pages', () => {
 
 	describe('followRedirects=false', () => {
 		it('returns a redirect page as itself, without asking the wiki to follow it', async () => {
-			const wiki = fakeWiki({
+			const wiki = wikiAnswering({
 				query: { pages: [massQueryPage('Old Name', 7, 700, '#REDIRECT [[New Name]]')] },
 			});
 
@@ -514,7 +488,7 @@ describe('get-pages', () => {
 		});
 
 		it('returns a page asked for by a non-canonical title', async () => {
-			const wiki = fakeWiki({
+			const wiki = wikiAnswering({
 				query: {
 					normalized: [{ from: 'main_Page', to: 'Main Page' }],
 					pages: [massQueryPage('Main Page', 7, 700, 'Welcome')],
