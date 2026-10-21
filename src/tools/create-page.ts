@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
-import type { ApiEditPageParams } from 'types-mediawiki-api';
+import type { ApiEditResponse } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { buildPageUrl, formatEditComment } from '../wikis/utils.ts';
@@ -43,29 +43,35 @@ export const createPage: Tool<typeof inputSchema> = {
 		ctx: ToolContext,
 	): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
-		const baseOptions: ApiEditPageParams = {};
-		if (contentModel !== undefined) {
-			baseOptions.contentmodel = contentModel;
-		}
-		if (bot === true) {
-			baseOptions.bot = true;
-		}
-		const options = ctx.edit.applyTags<ApiEditPageParams>(baseOptions);
-		const result = await mwn.create(
+		// Not mwn.create(), which marks every edit as a bot edit unless told otherwise.
+		const params = {
+			action: 'edit',
 			title,
-			source,
-			formatEditComment(ctx, 'create-page', comment),
-			options,
-		);
+			text: source,
+			summary: formatEditComment(ctx, 'create-page', comment),
+			createonly: true,
+			...(contentModel !== undefined ? { contentmodel: contentModel } : {}),
+			...(bot === true ? { bot: true } : {}),
+		};
+		const response =
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
+			(await ctx.edit.submit(mwn, params)) as { edit?: ApiEditResponse } | undefined;
+		const edit = response?.edit;
+		if (!edit || edit.result !== 'Success') {
+			return ctx.format.error(
+				'upstream_failure',
+				`Failed to create page: ${JSON.stringify(edit ?? response)}`,
+			);
+		}
 
 		return ctx.format.ok({
-			pageId: result.pageid,
-			title: result.title,
-			latestRevisionId: result.newrevid,
-			latestRevisionTimestamp: result.newtimestamp,
-			contentModel: result.contentmodel,
+			pageId: edit.pageid,
+			title: edit.title,
+			latestRevisionId: edit.newrevid,
+			latestRevisionTimestamp: edit.newtimestamp,
+			contentModel: edit.contentmodel,
 			...(bot === true ? { botMarked: await ctx.edit.botRight(mwn) } : {}),
-			url: await buildPageUrl(ctx, result.title),
+			url: await buildPageUrl(ctx, edit.title),
 		});
 	},
 };
