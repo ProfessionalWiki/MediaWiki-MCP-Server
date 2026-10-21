@@ -166,7 +166,7 @@ describe('WikiProbeImpl', () => {
 			expect.objectContaining({
 				action: 'query',
 				meta: 'siteinfo',
-				siprop: 'extensions|general|rightsinfo',
+				siprop: 'extensions|general',
 				format: 'json',
 			}),
 			expect.objectContaining({ signal: expect.any(AbortSignal) }),
@@ -291,15 +291,11 @@ describe('WikiProbeImpl', () => {
 	});
 
 	describe('public identity', () => {
-		it('inspect surfaces server and license from siteinfo', async () => {
+		it('inspect surfaces the server from siteinfo', async () => {
 			vi.mocked(makeApiRequest).mockResolvedValueOnce({
 				query: {
 					extensions: [{ name: 'Cargo' }],
 					general: { server: 'https://public.example' },
-					rightsinfo: {
-						url: 'https://creativecommons.org/licenses/by-sa/4.0/',
-						text: 'CC BY-SA 4.0',
-					},
 				},
 			});
 			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
@@ -307,10 +303,6 @@ describe('WikiProbeImpl', () => {
 			const result = await probe.inspect('a');
 			expect(result.reachable).toBe(true);
 			expect(result.server).toBe('https://public.example');
-			expect(result.license).toEqual({
-				url: 'https://creativecommons.org/licenses/by-sa/4.0/',
-				title: 'CC BY-SA 4.0',
-			});
 		});
 
 		it('inspect surfaces the query service endpoint a Wikibase repository publishes', async () => {
@@ -358,16 +350,6 @@ describe('WikiProbeImpl', () => {
 			const result = await probe.inspect('a');
 			expect(result.reachable).toBe(true);
 			expect(result.server).toBeUndefined();
-			expect(result.license).toBeUndefined();
-		});
-
-		it('omits the license when rightsinfo lacks a url or text', async () => {
-			vi.mocked(makeApiRequest).mockResolvedValueOnce({
-				query: { extensions: [], rightsinfo: { text: 'All rights reserved' } },
-			});
-			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
-
-			expect((await probe.inspect('a')).license).toBeUndefined();
 		});
 
 		it('omits identity fields when the probe fails', async () => {
@@ -377,7 +359,6 @@ describe('WikiProbeImpl', () => {
 			const result = await probe.inspect('a');
 			expect(result.reachable).toBe(false);
 			expect(result.server).toBeUndefined();
-			expect(result.license).toBeUndefined();
 		});
 	});
 });
