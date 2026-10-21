@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import type { Mwn } from 'mwn';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
 import { fakeContext, contextOn } from '../helpers/fakeContext.ts';
 import { wikiAnswering } from '../helpers/wikiAnswering.ts';
@@ -8,10 +7,7 @@ import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
 import { assertRefusedArgument, callTool } from '../helpers/callTool.ts';
 import type { SectionEntry } from '../../src/services/sectionService.ts';
-
-// The default fake EditService; each test spreads it and replaces only the
-// slice it exercises, so an unexpected call to another member still throws.
-const baseEdit = fakeContext().edit;
+import { EditServiceImpl } from '../../src/services/editService.ts';
 
 function successResponse(overrides: Record<string, unknown> = {}) {
 	return {
@@ -28,26 +24,51 @@ function successResponse(overrides: Record<string, unknown> = {}) {
 	};
 }
 
-function fakeEdit(response: unknown = successResponse()) {
-	const request = vi.fn().mockResolvedValue(response);
+interface WikiState {
+	/** The account's rights, or the failure its rights check meets. Default: the bot right. */
+	rights?: string[] | Error;
+	/** The failure an edit meets, in place of `response`. */
+	editFailure?: Error;
+	/** The change tags the wiki is configured to add to every write. */
+	tags?: string;
+}
+
+// A mock wiki behind the real edit service. It answers an edit with `response`
+// and a rights check with the account's rights, and `edits()` lists the edits
+// it was sent, as the service sent them.
+function fakeEdit(response: unknown = successResponse(), wiki: WikiState = {}) {
+	const request = vi.fn(async (params: Record<string, unknown>) => {
+		if (params.meta === 'userinfo') {
+			if (wiki.rights instanceof Error) {
+				throw wiki.rights;
+			}
+			return { query: { userinfo: { rights: wiki.rights ?? ['bot'] } } };
+		}
+		if (params.action === 'edit') {
+			if (wiki.editFailure !== undefined) {
+				throw wiki.editFailure;
+			}
+			return response;
+		}
+		return {};
+	});
 	const mock = createMockMwn({
 		request,
 		getCsrfToken: vi.fn().mockResolvedValue('csrf-token'),
 	});
-	const submit = vi
-		.fn()
-		.mockImplementation(async (_m: Mwn, params: Record<string, unknown>) =>
-			request({ ...params, token: 'csrf-token', formatversion: '2' }),
-		);
-	const botRight = vi.fn().mockResolvedValue(true);
-	const ctx = contextOn(mock, {
-		edit: {
-			...baseEdit,
-			submit,
-			botRight,
+	const base = fakeContext();
+	const activeWiki = {
+		...base.activeWiki,
+		get: () => {
+			const { key, config } = base.activeWiki.get();
+			return { key, config: { ...config, tags: wiki.tags ?? null } };
 		},
-	});
-	return { mock, request, submit, botRight, ctx };
+	};
+	const ctx = contextOn(mock, { activeWiki, edit: new EditServiceImpl(activeWiki) });
+	const sent = (): Record<string, unknown>[] => request.mock.calls.map(([params]) => params);
+	const edits = () => sent().filter((params) => params.action === 'edit');
+	const rightsChecked = () => sent().some((params) => params.meta === 'userinfo');
+	return { mock, request, edits, rightsChecked, ctx };
 }
 
 const JAPAN_OUTLINE: SectionEntry[] = [
@@ -113,7 +134,7 @@ function fakeFindReplaceOf(page: object) {
 describe('update-page', () => {
 	describe('full-page replacement', () => {
 		it('sends text=source with nocreate and baserevid for conflict detection', async () => {
-			const { request, submit, ctx } = fakeEdit();
+			const { edits, ctx } = fakeEdit();
 
 			const result = await updatePage.handle(
 				{
@@ -132,7 +153,7 @@ describe('update-page', () => {
 			expect(text).toContain('Latest revision timestamp: 2026-01-02T00:00:00Z');
 			expect(text).toContain('Content model: wikitext');
 
-			const params = submit.mock.calls[0][1];
+			const params = edits()[0];
 			expect(params).toMatchObject({
 				action: 'edit',
 				title: 'My Page',
@@ -141,22 +162,11 @@ describe('update-page', () => {
 				baserevid: 41,
 			});
 			expect(params.summary).toContain('edit summary');
-			// submit() is responsible for adding token and formatversion;
-			// the handler must not add them itself.
-			expect(params).not.toHaveProperty('token');
-			expect(params).not.toHaveProperty('formatversion');
-
-			// Sanity check: submit forwarded to mwn.request with token + formatversion.
-			// The edit is the last request; the size guard probes before it.
-			const requestParams = request.mock.calls.at(-1)?.[0];
-			expect(requestParams).toMatchObject({
-				token: 'csrf-token',
-				formatversion: '2',
-			});
+			expect(params).toMatchObject({ token: 'csrf-token', formatversion: '2' });
 		});
 
 		it('omits baserevid when latestId is not supplied', async () => {
-			const { submit, ctx } = fakeEdit();
+			const { edits, ctx } = fakeEdit();
 
 			await updatePage.handle(
 				{
@@ -166,7 +176,7 @@ describe('update-page', () => {
 				ctx,
 			);
 
-			const params = submit.mock.calls[0][1];
+			const params = edits()[0];
 			expect(params).not.toHaveProperty('baserevid');
 		});
 
@@ -188,15 +198,7 @@ describe('update-page', () => {
 		});
 
 		it('dispatches generic upstream failures with the standard verb prefix', async () => {
-			const mock = createMockMwn({
-				getCsrfToken: vi.fn().mockResolvedValue('csrf-token'),
-			});
-			const ctx = contextOn(mock, {
-				edit: {
-					...baseEdit,
-					submit: vi.fn().mockRejectedValue(new Error('Edit conflict')),
-				},
-			});
+			const { ctx } = fakeEdit(successResponse(), { editFailure: new Error('Edit conflict') });
 
 			const result = await dispatch(
 				updatePage,
@@ -212,11 +214,8 @@ describe('update-page', () => {
 		});
 
 		it('surfaces the missingtitle error from mwn when page does not exist', async () => {
-			const ctx = contextOn(createMockMwn(), {
-				edit: {
-					...baseEdit,
-					submit: vi.fn().mockRejectedValue(new Error("The page you specified doesn't exist.")),
-				},
+			const { ctx } = fakeEdit(successResponse(), {
+				editFailure: new Error("The page you specified doesn't exist."),
 			});
 
 			const result = await dispatch(
@@ -234,25 +233,18 @@ describe('update-page', () => {
 	});
 
 	describe('tags', () => {
-		it('submit injects tags through ctx.edit (handler does not add tags directly)', async () => {
-			const { submit, ctx } = fakeEdit();
+		it("tags the edit with the wiki's configured tags", async () => {
+			const { edits, ctx } = fakeEdit(successResponse(), { tags: 'mcp-edit' });
 
-			await updatePage.handle(
-				{
-					title: 'Tagged',
-					source: 'content',
-				},
-				ctx,
-			);
+			await updatePage.handle({ title: 'Tagged', source: 'content' }, ctx);
 
-			const params = submit.mock.calls[0][1];
-			expect(params).not.toHaveProperty('tags');
+			expect(edits()[0]).toMatchObject({ tags: 'mcp-edit' });
 		});
 	});
 
 	describe('section editing', () => {
 		it("forwards section=2 as section='2' with text=source", async () => {
-			const { submit, ctx } = fakeEditWithOutline([]);
+			const { edits, ctx } = fakeEditWithOutline([]);
 
 			const result = await updatePage.handle(
 				{
@@ -265,12 +257,12 @@ describe('update-page', () => {
 			);
 
 			expect(result.isError).toBeFalsy();
-			const params = submit.mock.calls[0][1];
+			const params = edits()[0];
 			expect(params).toMatchObject({ section: '2', text: 'new section body' });
 		});
 
 		it("forwards section=0 (lead) as section='0'", async () => {
-			const { submit, ctx } = fakeEdit();
+			const { edits, ctx } = fakeEdit();
 
 			await updatePage.handle(
 				{
@@ -282,19 +274,19 @@ describe('update-page', () => {
 				ctx,
 			);
 
-			expect(submit.mock.calls[0][1]).toMatchObject({ section: '0' });
+			expect(edits()[0]).toMatchObject({ section: '0' });
 		});
 
 		it('maps nosuchsection error to a friendly message via dispatcher', async () => {
-			const ctx = contextOn(createMockMwn(), {
-				edit: {
-					...baseEdit,
-					submit: vi.fn().mockRejectedValue(new Error('nosuchsection: There is no section 99.')),
-				},
+			const wiki = fakeEdit(successResponse(), {
+				editFailure: new Error('nosuchsection: There is no section 99.'),
+			});
+			const ctx = {
+				...wiki.ctx,
 				// Section 99 does not exist, so a real outline would not contain it
 				// either; the guard must not fire and it must not eat this error.
 				sections: { list: vi.fn().mockResolvedValue([]), listInSource: vi.fn() },
-			});
+			};
 
 			const result = await dispatch(
 				updatePage,
@@ -313,7 +305,7 @@ describe('update-page', () => {
 
 	describe('section=new removal', () => {
 		it('refuses section=new and points at the replacement', async () => {
-			const { submit, ctx } = fakeEdit();
+			const { edits, ctx } = fakeEdit();
 
 			const result = await callTool(ctx, 'update-page', {
 				title: 'My Page',
@@ -322,11 +314,11 @@ describe('update-page', () => {
 			});
 
 			expect(assertRefusedArgument(result)).toContain("operation='append'");
-			expect(submit).not.toHaveBeenCalled();
+			expect(edits()).toHaveLength(0);
 		});
 
 		it("leaves zod's own message in place for a bad value other than 'new'", async () => {
-			const { submit, ctx } = fakeEdit();
+			const { edits, ctx } = fakeEdit();
 
 			const result = await callTool(ctx, 'update-page', {
 				title: 'My Page',
@@ -337,14 +329,14 @@ describe('update-page', () => {
 			const message = assertRefusedArgument(result);
 			expect(message).toContain('expected number');
 			expect(message).not.toContain('no longer creates sections');
-			expect(submit).not.toHaveBeenCalled();
+			expect(edits()).toHaveLength(0);
 		});
 
 		// Unknown keys are stripped by z.object rather than refused, so the old
 		// spelling cannot fail loudly here. What matters is that it never reaches
 		// the wiki as a sectiontitle parameter.
 		it('ignores a sectionTitle left over from the old spelling', async () => {
-			const { submit, ctx } = fakeEditWithOutline([]);
+			const { edits, ctx } = fakeEditWithOutline([]);
 
 			const result = await callTool(ctx, 'update-page', {
 				title: 'My Page',
@@ -355,11 +347,11 @@ describe('update-page', () => {
 			});
 
 			assertStructuredSuccess(result);
-			expect(submit.mock.calls[0][1]).not.toHaveProperty('sectiontitle');
+			expect(edits()[0]).not.toHaveProperty('sectiontitle');
 		});
 
 		it('accepts a numeric section over a real MCP call', async () => {
-			const { submit, ctx } = fakeEditWithOutline([]);
+			const { edits, ctx } = fakeEditWithOutline([]);
 
 			const result = await callTool(ctx, 'update-page', {
 				title: 'My Page',
@@ -369,13 +361,13 @@ describe('update-page', () => {
 			});
 
 			assertStructuredSuccess(result);
-			expect(submit.mock.calls[0][1]).toMatchObject({ section: '2', text: 'new section body' });
+			expect(edits()[0]).toMatchObject({ section: '2', text: 'new section body' });
 		});
 	});
 
 	describe('append/prepend mode', () => {
 		it('mode=append sends appendtext=source and omits text', async () => {
-			const { submit, ctx } = fakeEdit();
+			const { edits, ctx } = fakeEdit();
 
 			await updatePage.handle(
 				{
@@ -386,14 +378,14 @@ describe('update-page', () => {
 				ctx,
 			);
 
-			const params = submit.mock.calls[0][1];
+			const params = edits()[0];
 			expect(params).toMatchObject({ appendtext: '\n* New entry' });
 			expect(params).not.toHaveProperty('text');
 			expect(params).not.toHaveProperty('prependtext');
 		});
 
 		it('mode=prepend sends prependtext=source and omits text', async () => {
-			const { submit, ctx } = fakeEdit();
+			const { edits, ctx } = fakeEdit();
 
 			await updatePage.handle(
 				{
@@ -404,14 +396,14 @@ describe('update-page', () => {
 				ctx,
 			);
 
-			const params = submit.mock.calls[0][1];
+			const params = edits()[0];
 			expect(params).toMatchObject({ prependtext: 'intro\n' });
 			expect(params).not.toHaveProperty('text');
 			expect(params).not.toHaveProperty('appendtext');
 		});
 
 		it('mode=append composes with section=2', async () => {
-			const { submit, ctx } = fakeEdit();
+			const { edits, ctx } = fakeEdit();
 
 			await updatePage.handle(
 				{
@@ -423,7 +415,7 @@ describe('update-page', () => {
 				ctx,
 			);
 
-			const params = submit.mock.calls[0][1];
+			const params = edits()[0];
 			expect(params).toMatchObject({ section: '2', appendtext: '\n* row' });
 			expect(params).not.toHaveProperty('text');
 		});
@@ -431,22 +423,20 @@ describe('update-page', () => {
 
 	describe('bot flag', () => {
 		it('forwards bot=true and reports botMarked true when the account has the bot right', async () => {
-			const { submit, botRight, ctx } = fakeEdit();
+			const { edits, ctx } = fakeEdit(successResponse(), { rights: ['bot'] });
 
 			const result = await updatePage.handle(
 				{ title: 'My Page', source: 'content', bot: true },
 				ctx,
 			);
 
-			expect(submit.mock.calls[0][1]).toMatchObject({ bot: true });
+			expect(edits()[0]).toMatchObject({ bot: true });
 			const text = assertStructuredSuccess(result);
 			expect(text).toContain('Bot marked: true');
-			expect(botRight).toHaveBeenCalled();
 		});
 
 		it('reports botMarked false when the account lacks the bot right', async () => {
-			const { botRight, ctx } = fakeEdit();
-			botRight.mockResolvedValue(false);
+			const { ctx } = fakeEdit(successResponse(), { rights: [] });
 
 			const result = await updatePage.handle(
 				{ title: 'My Page', source: 'content', bot: true },
@@ -458,8 +448,7 @@ describe('update-page', () => {
 		});
 
 		it('omits botMarked when the rights probe fails', async () => {
-			const { botRight, ctx } = fakeEdit();
-			botRight.mockResolvedValue(undefined);
+			const { ctx } = fakeEdit(successResponse(), { rights: new Error('rights check failed') });
 
 			const result = await updatePage.handle(
 				{ title: 'My Page', source: 'content', bot: true },
@@ -471,32 +460,32 @@ describe('update-page', () => {
 		});
 
 		it('omits the bot param and skips the rights probe when bot is not requested', async () => {
-			const { submit, botRight, ctx } = fakeEdit();
+			const { edits, rightsChecked, ctx } = fakeEdit();
 
 			await updatePage.handle({ title: 'My Page', source: 'content' }, ctx);
 
-			expect(submit.mock.calls[0][1]).not.toHaveProperty('bot');
-			expect(botRight).not.toHaveBeenCalled();
+			expect(edits()[0]).not.toHaveProperty('bot');
+			expect(rightsChecked()).toBe(false);
 		});
 
 		it('treats bot=false like an unflagged edit', async () => {
-			const { submit, botRight, ctx } = fakeEdit();
+			const { edits, rightsChecked, ctx } = fakeEdit();
 
 			await updatePage.handle({ title: 'My Page', source: 'content', bot: false }, ctx);
 
-			expect(submit.mock.calls[0][1]).not.toHaveProperty('bot');
-			expect(botRight).not.toHaveBeenCalled();
+			expect(edits()[0]).not.toHaveProperty('bot');
+			expect(rightsChecked()).toBe(false);
 		});
 
 		it('composes with section and mode paths', async () => {
-			const { submit, ctx } = fakeEdit();
+			const { edits, ctx } = fakeEdit();
 
 			await updatePage.handle(
 				{ title: 'My Page', source: '\n* row', section: 2, mode: 'append', bot: true },
 				ctx,
 			);
 
-			expect(submit.mock.calls[0][1]).toMatchObject({
+			expect(edits()[0]).toMatchObject({
 				section: '2',
 				appendtext: '\n* row',
 				bot: true,
@@ -506,7 +495,7 @@ describe('update-page', () => {
 
 	describe('subsection guard', () => {
 		it('refuses a replace that would drop the subsections, naming them', async () => {
-			const { submit, ctx, listInSource } = fakeEditWithOutline(JAPAN_OUTLINE, [
+			const { edits, ctx, listInSource } = fakeEditWithOutline(JAPAN_OUTLINE, [
 				{ index: '1', level: 2, line: 'History', editable: true },
 			]);
 
@@ -520,7 +509,7 @@ describe('update-page', () => {
 			const envelope = assertStructuredError(result, 'invalid_input');
 			expect(envelope.message).toContain('Feudal era');
 			expect(envelope.message).toContain('removeSubsections');
-			expect(submit).not.toHaveBeenCalled();
+			expect(edits()).toHaveLength(0);
 			// The source the caller sent is what gets parsed, in the page's context.
 			expect(listInSource).toHaveBeenCalledWith(
 				expect.anything(),
@@ -530,7 +519,7 @@ describe('update-page', () => {
 		});
 
 		it('allows a replace that carries the subsections back', async () => {
-			const { submit, ctx } = fakeEditWithOutline(JAPAN_OUTLINE, [
+			const { edits, ctx } = fakeEditWithOutline(JAPAN_OUTLINE, [
 				{ index: '1', level: 2, line: 'History', editable: true },
 				{ index: '2', level: 3, line: 'Prehistoric to classical history', editable: true },
 				{ index: '3', level: 3, line: 'Feudal era', editable: true },
@@ -546,12 +535,12 @@ describe('update-page', () => {
 			});
 
 			assertStructuredSuccess(result);
-			expect(submit).toHaveBeenCalledTimes(1);
+			expect(edits()).toHaveLength(1);
 		});
 
 		// Counting rather than matching names is what lets a rename through.
 		it('allows a replace that renames a subsection', async () => {
-			const { submit, ctx } = fakeEditWithOutline(JAPAN_OUTLINE, [
+			const { edits, ctx } = fakeEditWithOutline(JAPAN_OUTLINE, [
 				{ index: '1', level: 2, line: 'History', editable: true },
 				{ index: '2', level: 3, line: 'Prehistory', editable: true },
 				{ index: '3', level: 3, line: 'Feudal period', editable: true },
@@ -567,14 +556,14 @@ describe('update-page', () => {
 			});
 
 			assertStructuredSuccess(result);
-			expect(submit).toHaveBeenCalledTimes(1);
+			expect(edits()).toHaveLength(1);
 		});
 
 		// A template in the source may expand to headings, but those are not
 		// content the caller wrote back — dropping three written subsections in
 		// favour of a template that renders three is still a removal.
 		it('does not count template-expanded headings as carried back', async () => {
-			const { submit, ctx } = fakeEditWithOutline(JAPAN_OUTLINE, [
+			const { edits, ctx } = fakeEditWithOutline(JAPAN_OUTLINE, [
 				{ index: '1', level: 2, line: 'History', editable: true },
 				{ index: 'T-1', level: 3, line: 'Expanded a', editable: false },
 				{ index: 'T-2', level: 3, line: 'Expanded b', editable: false },
@@ -589,11 +578,11 @@ describe('update-page', () => {
 			});
 
 			assertStructuredError(result, 'invalid_input');
-			expect(submit).not.toHaveBeenCalled();
+			expect(edits()).toHaveLength(0);
 		});
 
 		it('allows the destructive replace when removeSubsections is set', async () => {
-			const { submit, ctx } = fakeEditWithOutline();
+			const { edits, ctx } = fakeEditWithOutline();
 
 			const result = await callTool(ctx, 'update-page', {
 				title: 'Japan',
@@ -604,11 +593,11 @@ describe('update-page', () => {
 			});
 
 			assertStructuredSuccess(result);
-			expect(submit).toHaveBeenCalledTimes(1);
+			expect(edits()).toHaveLength(1);
 		});
 
 		it('does not guard a section that has no subsections', async () => {
-			const { submit, ctx, listInSource } = fakeEditWithOutline();
+			const { edits, ctx, listInSource } = fakeEditWithOutline();
 
 			const result = await callTool(ctx, 'update-page', {
 				title: 'Japan',
@@ -618,7 +607,7 @@ describe('update-page', () => {
 			});
 
 			assertStructuredSuccess(result);
-			expect(submit).toHaveBeenCalledTimes(1);
+			expect(edits()).toHaveLength(1);
 			// The source parse is the guard's second request; a leaf section must
 			// not pay for it.
 			expect(listInSource).not.toHaveBeenCalled();
@@ -635,7 +624,7 @@ describe('update-page', () => {
 				{ index: 'T-2', level: 3, line: 'Candidate B', editable: false },
 				{ index: '2', level: 2, line: 'Closed', editable: true },
 			];
-			const { submit, ctx, listInSource } = fakeEditWithOutline(outline);
+			const { edits, ctx, listInSource } = fakeEditWithOutline(outline);
 
 			const result = await callTool(ctx, 'update-page', {
 				title: 'Wikipedia:Requests for adminship',
@@ -645,7 +634,7 @@ describe('update-page', () => {
 			});
 
 			assertStructuredSuccess(result);
-			expect(submit).toHaveBeenCalledTimes(1);
+			expect(edits()).toHaveLength(1);
 			expect(listInSource).not.toHaveBeenCalled();
 		});
 
@@ -656,7 +645,7 @@ describe('update-page', () => {
 				{ index: 'T-1', level: 3, line: 'Candidate A', editable: false },
 				{ index: '3', level: 2, line: 'Closed', editable: true },
 			];
-			const { submit, ctx } = fakeEditWithOutline(outline, [
+			const { edits, ctx } = fakeEditWithOutline(outline, [
 				{ index: '1', level: 2, line: 'Nominations', editable: true },
 			]);
 
@@ -670,7 +659,7 @@ describe('update-page', () => {
 			const envelope = assertStructuredError(result, 'invalid_input');
 			expect(envelope.message).toContain('Discussion');
 			expect(envelope.message).not.toContain('Candidate A');
-			expect(submit).not.toHaveBeenCalled();
+			expect(edits()).toHaveLength(0);
 		});
 
 		// An append cannot remove existing content, so there is nothing to guard.
@@ -719,7 +708,7 @@ describe('update-page', () => {
 		// Failing closed means the edit must not proceed on a best-effort basis
 		// when the outline itself cannot be fetched.
 		it('fails closed and never submits when the outline fetch fails', async () => {
-			const { submit, ctx: base } = fakeEdit();
+			const { edits, ctx: base } = fakeEdit();
 			const ctx = fakeContext({
 				...base,
 				sections: {
@@ -737,13 +726,13 @@ describe('update-page', () => {
 
 			const envelope = assertStructuredError(result, 'upstream_failure');
 			expect(envelope.message).toContain('parse request failed');
-			expect(submit).not.toHaveBeenCalled();
+			expect(edits()).toHaveLength(0);
 		});
 
 		// The source parse is the guard's other request; its failure must not
 		// downgrade the guard to best-effort either.
 		it('fails closed and never submits when the source parse fails', async () => {
-			const { submit, ctx: base } = fakeEdit();
+			const { edits, ctx: base } = fakeEdit();
 			const ctx = fakeContext({
 				...base,
 				sections: {
@@ -761,14 +750,14 @@ describe('update-page', () => {
 
 			const envelope = assertStructuredError(result, 'upstream_failure');
 			expect(envelope.message).toContain('source parse failed');
-			expect(submit).not.toHaveBeenCalled();
+			expect(edits()).toHaveLength(0);
 		});
 	});
 });
 
 describe('update-page find-replace', () => {
 	it('rewrites the single match and submits the whole target', async () => {
-		const { submit, ctx } = fakeFindReplace();
+		const { edits, ctx } = fakeFindReplace();
 
 		const result = await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -778,7 +767,7 @@ describe('update-page find-replace', () => {
 		});
 
 		assertStructuredSuccess(result);
-		expect(submit.mock.calls[0][1]).toMatchObject({
+		expect(edits()[0]).toMatchObject({
 			text: PAGE.replace('founded in 1104', 'founded in 1105'),
 			nocreate: true,
 			// The base for the server's own splice is the revision it just read,
@@ -788,7 +777,7 @@ describe('update-page find-replace', () => {
 	});
 
 	it('leaves every byte outside the match alone', async () => {
-		const { submit, ctx } = fakeFindReplace();
+		const { edits, ctx } = fakeFindReplace();
 
 		await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -797,14 +786,14 @@ describe('update-page find-replace', () => {
 			replaceWith: 'The river runs west.',
 		});
 
-		const written = submit.mock.calls[0][1].text as string;
+		const written = edits()[0].text as string;
 		expect(written).toContain('Lead text.');
 		expect(written).toContain('The city was founded in 1104.');
 		expect(written.length).toBe(PAGE.length);
 	});
 
 	it('refuses when find matches nothing, and says where to copy it from', async () => {
-		const { submit, ctx } = fakeFindReplace();
+		const { edits, ctx } = fakeFindReplace();
 
 		const result = await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -816,13 +805,13 @@ describe('update-page find-replace', () => {
 		const envelope = assertStructuredError(result, 'invalid_input');
 		expect(envelope.message).toContain('did not appear');
 		expect(envelope.message).toContain('get-page');
-		expect(submit).not.toHaveBeenCalled();
+		expect(edits()).toHaveLength(0);
 	});
 
 	// A retried call whose first attempt landed looks exactly like a bad anchor,
 	// so the refusal distinguishes them.
 	it('reports that the replacement is already present when find is gone', async () => {
-		const { ctx, submit } = fakeFindReplace();
+		const { ctx, edits } = fakeFindReplace();
 
 		const result = await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -833,13 +822,13 @@ describe('update-page find-replace', () => {
 
 		const envelope = assertStructuredError(result, 'invalid_input');
 		expect(envelope.message).toContain('already present');
-		expect(submit).not.toHaveBeenCalled();
+		expect(edits()).toHaveLength(0);
 	});
 
 	// Claiming an edit already landed when it did not costs the caller its change,
 	// so a replacement that merely happens to occur does not earn the claim.
 	it('does not claim the edit landed when replaceWith is a short incidental match', async () => {
-		const { ctx, submit } = fakeFindReplace();
+		const { ctx, edits } = fakeFindReplace();
 
 		const result = await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -851,11 +840,11 @@ describe('update-page find-replace', () => {
 		const envelope = assertStructuredError(result, 'invalid_input');
 		expect(envelope.message).toContain('did not appear');
 		expect(envelope.message).not.toContain('already present');
-		expect(submit).not.toHaveBeenCalled();
+		expect(edits()).toHaveLength(0);
 	});
 
 	it('refuses when find matches more than once, naming the count', async () => {
-		const { submit, ctx } = fakeFindReplace('a\nrepeat me\nb\nrepeat me\nc\nrepeat me\n');
+		const { edits, ctx } = fakeFindReplace('a\nrepeat me\nb\nrepeat me\nc\nrepeat me\n');
 
 		const result = await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -866,11 +855,11 @@ describe('update-page find-replace', () => {
 
 		const envelope = assertStructuredError(result, 'invalid_input');
 		expect(envelope.message).toContain('3 times');
-		expect(submit).not.toHaveBeenCalled();
+		expect(edits()).toHaveLength(0);
 	});
 
 	it('narrows both the search and the write to one section', async () => {
-		const { submit, ctx, pageReads } = fakeFindReplace('== History ==\nThe river runs east.\n');
+		const { edits, ctx, pageReads } = fakeFindReplace('== History ==\nThe river runs east.\n');
 
 		await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -881,12 +870,12 @@ describe('update-page find-replace', () => {
 		});
 
 		expect(pageReads()).toEqual([expect.objectContaining({ rvsection: 1 })]);
-		expect(submit.mock.calls[0][1]).toMatchObject({ section: '1' });
+		expect(edits()[0]).toMatchObject({ section: '1' });
 	});
 
 	// String#replace reads $&, $1 and friends as references to the match.
 	it('writes replaceWith literally, including dollar sequences', async () => {
-		const { submit, ctx } = fakeFindReplace('Template call: {{foo}}\n');
+		const { edits, ctx } = fakeFindReplace('Template call: {{foo}}\n');
 
 		await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -895,11 +884,11 @@ describe('update-page find-replace', () => {
 			replaceWith: '{{bar|$1=$& and $$}}',
 		});
 
-		expect(submit.mock.calls[0][1].text).toBe('Template call: {{bar|$1=$& and $$}}\n');
+		expect(edits()[0].text).toBe('Template call: {{bar|$1=$& and $$}}\n');
 	});
 
 	it('deletes the matched text when replaceWith is empty', async () => {
-		const { submit, ctx } = fakeFindReplace('keep\ndrop this line\nkeep\n');
+		const { edits, ctx } = fakeFindReplace('keep\ndrop this line\nkeep\n');
 
 		await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -908,7 +897,7 @@ describe('update-page find-replace', () => {
 			replaceWith: '',
 		});
 
-		expect(submit.mock.calls[0][1].text).toBe('keep\nkeep\n');
+		expect(edits()[0].text).toBe('keep\nkeep\n');
 	});
 
 	it("fails with the wiki's refusal when the read is refused", async () => {
@@ -927,7 +916,7 @@ describe('update-page find-replace', () => {
 	});
 
 	it('reports a conflict when the page has moved on from the revision the caller read', async () => {
-		const { submit, ctx } = fakeFindReplace(PAGE, 99);
+		const { edits, ctx } = fakeFindReplace(PAGE, 99);
 
 		const result = await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -938,7 +927,7 @@ describe('update-page find-replace', () => {
 		});
 
 		assertStructuredError(result, 'conflict');
-		expect(submit).not.toHaveBeenCalled();
+		expect(edits()).toHaveLength(0);
 	});
 
 	// The wiki reports this as `nosuchsection` on a write, and the dispatcher
@@ -963,7 +952,7 @@ describe('update-page find-replace', () => {
 		const envelope = assertStructuredError(result, 'not_found');
 		expect(envelope.message).toBe('Section 9 does not exist');
 		expect(envelope.code).toBe('nosuchsection');
-		expect(base.submit).not.toHaveBeenCalled();
+		expect(base.edits()).toHaveLength(0);
 	});
 
 	// The edit goes to the title the caller named, so a read that followed the
@@ -985,7 +974,7 @@ describe('update-page find-replace', () => {
 	// A needle that can begin inside its own previous match names two different
 	// splices; String#split reports one of them.
 	it('refuses a find that overlaps itself', async () => {
-		const { submit, ctx } = fakeFindReplace('x}}\n}}\n}}y');
+		const { edits, ctx } = fakeFindReplace('x}}\n}}\n}}y');
 
 		const result = await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -996,11 +985,11 @@ describe('update-page find-replace', () => {
 
 		const envelope = assertStructuredError(result, 'invalid_input');
 		expect(envelope.message).toContain('2 times');
-		expect(submit).not.toHaveBeenCalled();
+		expect(edits()).toHaveLength(0);
 	});
 
 	it('carries the comment and the bot flag like every other write', async () => {
-		const { submit, ctx } = fakeFindReplace();
+		const { edits, ctx } = fakeFindReplace();
 
 		await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -1011,8 +1000,8 @@ describe('update-page find-replace', () => {
 			bot: true,
 		});
 
-		expect(submit.mock.calls[0][1]).toMatchObject({ bot: true });
-		expect(submit.mock.calls[0][1].summary).toContain('date correction');
+		expect(edits()[0]).toMatchObject({ bot: true });
+		expect(edits()[0].summary).toContain('date correction');
 	});
 
 	// The subsection guard exists for a replace, which takes the subtree with it.
@@ -1038,15 +1027,15 @@ describe('update-page find-replace', () => {
 
 describe('update-page operation', () => {
 	it('defaults to replacing the whole target', async () => {
-		const { submit, ctx } = fakeEdit();
+		const { edits, ctx } = fakeEdit();
 
 		await callTool(ctx, 'update-page', { title: 'My Page', source: 'Whole new page' });
 
-		expect(submit.mock.calls[0][1]).toMatchObject({ text: 'Whole new page' });
+		expect(edits()[0]).toMatchObject({ text: 'Whole new page' });
 	});
 
 	it("sends appendtext for operation='append'", async () => {
-		const { submit, ctx } = fakeEdit();
+		const { edits, ctx } = fakeEdit();
 
 		await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -1054,20 +1043,20 @@ describe('update-page operation', () => {
 			source: '\n* row',
 		});
 
-		expect(submit.mock.calls[0][1]).toMatchObject({ appendtext: '\n* row' });
+		expect(edits()[0]).toMatchObject({ appendtext: '\n* row' });
 	});
 
 	// mode is the older spelling and stays accepted for a release.
 	it('accepts mode as the older spelling of the same choice', async () => {
-		const { submit, ctx } = fakeEdit();
+		const { edits, ctx } = fakeEdit();
 
 		await callTool(ctx, 'update-page', { title: 'My Page', source: '\n* row', mode: 'append' });
 
-		expect(submit.mock.calls[0][1]).toMatchObject({ appendtext: '\n* row' });
+		expect(edits()[0]).toMatchObject({ appendtext: '\n* row' });
 	});
 
 	it('refuses a call whose operation and mode disagree', async () => {
-		const { submit, ctx } = fakeEdit();
+		const { edits, ctx } = fakeEdit();
 
 		const result = await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -1078,11 +1067,11 @@ describe('update-page operation', () => {
 
 		const envelope = assertStructuredError(result, 'invalid_input');
 		expect(envelope.message).toContain('mode');
-		expect(submit).not.toHaveBeenCalled();
+		expect(edits()).toHaveLength(0);
 	});
 
 	it('accepts operation and mode when they agree', async () => {
-		const { submit, ctx } = fakeEdit();
+		const { edits, ctx } = fakeEdit();
 
 		await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -1091,13 +1080,13 @@ describe('update-page operation', () => {
 			mode: 'append',
 		});
 
-		expect(submit.mock.calls[0][1]).toMatchObject({ appendtext: '\n* row' });
+		expect(edits()[0]).toMatchObject({ appendtext: '\n* row' });
 	});
 
 	// The flag confirms that a section replace is meant to drop the subsections
 	// it takes with it; no other operation takes them.
 	it('refuses removeSubsections outside a section replace', async () => {
-		const { submit, ctx } = fakeEdit();
+		const { edits, ctx } = fakeEdit();
 
 		const result = await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -1109,11 +1098,11 @@ describe('update-page operation', () => {
 
 		const envelope = assertStructuredError(result, 'invalid_input');
 		expect(envelope.message).toContain('removeSubsections');
-		expect(submit).not.toHaveBeenCalled();
+		expect(edits()).toHaveLength(0);
 	});
 
 	it('refuses find-replace without find', async () => {
-		const { submit, ctx } = fakeEdit();
+		const { edits, ctx } = fakeEdit();
 
 		const result = await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -1122,11 +1111,11 @@ describe('update-page operation', () => {
 		});
 
 		assertStructuredError(result, 'invalid_input');
-		expect(submit).not.toHaveBeenCalled();
+		expect(edits()).toHaveLength(0);
 	});
 
 	it('refuses find-replace that also carries source', async () => {
-		const { submit, ctx } = fakeEdit();
+		const { edits, ctx } = fakeEdit();
 
 		const result = await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -1138,16 +1127,16 @@ describe('update-page operation', () => {
 
 		const envelope = assertStructuredError(result, 'invalid_input');
 		expect(envelope.message).toContain('source');
-		expect(submit).not.toHaveBeenCalled();
+		expect(edits()).toHaveLength(0);
 	});
 
 	it('refuses a replace with no source', async () => {
-		const { submit, ctx } = fakeEdit();
+		const { edits, ctx } = fakeEdit();
 
 		const result = await callTool(ctx, 'update-page', { title: 'My Page' });
 
 		assertStructuredError(result, 'invalid_input');
-		expect(submit).not.toHaveBeenCalled();
+		expect(edits()).toHaveLength(0);
 	});
 });
 
@@ -1156,7 +1145,7 @@ describe('update-page operation', () => {
 // shifted addresses a different section.
 describe('update-page section base revision', () => {
 	it('refuses a section replace without latestId', async () => {
-		const { submit, ctx } = fakeEdit();
+		const { edits, ctx } = fakeEdit();
 
 		const result = await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -1167,23 +1156,23 @@ describe('update-page section base revision', () => {
 		const envelope = assertStructuredError(result, 'invalid_input');
 		expect(envelope.message).toContain('latestId');
 		expect(envelope.message).toContain('get-page');
-		expect(submit).not.toHaveBeenCalled();
+		expect(edits()).toHaveLength(0);
 	});
 
 	// The lead is always section 0, and no insertion moves it, so there is no
 	// ambiguity to resolve and nothing to require.
 	it('leaves a lead replace alone', async () => {
-		const { submit, ctx } = fakeEditWithOutline(JAPAN_OUTLINE, []);
+		const { edits, ctx } = fakeEditWithOutline(JAPAN_OUTLINE, []);
 
 		await callTool(ctx, 'update-page', { title: 'Japan', source: 'new lead', section: 0 });
 
-		expect(submit).toHaveBeenCalledTimes(1);
+		expect(edits()).toHaveLength(1);
 	});
 
 	// A delta put in the wrong section is misplaced, not lost, and shows in the
 	// diff, so it is not worth refusing a call over.
 	it.each(['append', 'prepend'])('leaves a %s scoped to a section alone', async (operation) => {
-		const { submit, ctx } = fakeEdit();
+		const { edits, ctx } = fakeEdit();
 
 		await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -1192,13 +1181,13 @@ describe('update-page section base revision', () => {
 			section: 2,
 		});
 
-		expect(submit).toHaveBeenCalledTimes(1);
+		expect(edits()).toHaveLength(1);
 	});
 
 	// The payoff of requiring it: the wiki resolves the index against this
 	// revision rather than against whichever is current.
 	it("forwards the caller's base revision on a section replace", async () => {
-		const { submit, ctx } = fakeEditWithOutline(JAPAN_OUTLINE, [
+		const { edits, ctx } = fakeEditWithOutline(JAPAN_OUTLINE, [
 			{ index: '1', level: 2, line: 'History', editable: true },
 			{ index: '2', level: 3, line: 'Prehistoric to classical history', editable: true },
 			{ index: '3', level: 3, line: 'Feudal era', editable: true },
@@ -1213,7 +1202,7 @@ describe('update-page section base revision', () => {
 			latestId: 41,
 		});
 
-		expect(submit.mock.calls[0][1]).toMatchObject({ section: '2', baserevid: 41 });
+		expect(edits()[0]).toMatchObject({ section: '2', baserevid: 41 });
 	});
 
 	// The subsection guard compares section numbers, so it has to read the
@@ -1234,7 +1223,7 @@ describe('update-page section base revision', () => {
 	// find-replace addresses its target by the text it matches, so a shifted
 	// index either fails to match or names text that genuinely holds the anchor.
 	it('does not require latestId for find-replace', async () => {
-		const { submit, ctx } = fakeFindReplace();
+		const { edits, ctx } = fakeFindReplace();
 
 		const result = await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -1245,15 +1234,15 @@ describe('update-page section base revision', () => {
 		});
 
 		assertStructuredSuccess(result);
-		expect(submit).toHaveBeenCalledTimes(1);
+		expect(edits()).toHaveLength(1);
 	});
 
 	it('leaves a whole-page write alone', async () => {
-		const { submit, ctx } = fakeEdit();
+		const { edits, ctx } = fakeEdit();
 
 		await callTool(ctx, 'update-page', { title: 'My Page', source: 'whole page' });
 
-		expect(submit).toHaveBeenCalledTimes(1);
+		expect(edits()).toHaveLength(1);
 	});
 });
 
@@ -1307,7 +1296,7 @@ describe('update-page unread content guard', () => {
 		request.mock.calls.filter((c) => c[0]?.prop === 'revisions');
 
 	it('refuses a whole-page replace that shortens a page too large to have been read', async () => {
-		const { submit, ctx } = fakeSizedEdit(150000);
+		const { edits, ctx } = fakeSizedEdit(150000);
 
 		const result = await callTool(ctx, 'update-page', { title: 'My Page', source: 'short' });
 
@@ -1315,28 +1304,28 @@ describe('update-page unread content guard', () => {
 		expect(envelope.message).toContain('150000');
 		expect(envelope.message).toContain("operation='find-replace'");
 		expect(envelope.message).toContain('removeUnreadContent');
-		expect(submit).not.toHaveBeenCalled();
+		expect(edits()).toHaveLength(0);
 	});
 
 	// The guard and the read cap have to agree on what "returned whole" means,
 	// and truncateByBytes cuts only above the cap.
 	it('allows a shortening replace of a page at exactly the cap', async () => {
 		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '1000');
-		const { submit, ctx } = fakeSizedEdit(1000);
+		const { edits, ctx } = fakeSizedEdit(1000);
 
 		assertStructuredSuccess(await callTool(ctx, 'update-page', { title: 'My Page', source: 'x' }));
-		expect(submit).toHaveBeenCalledTimes(1);
+		expect(edits()).toHaveLength(1);
 	});
 
 	it('refuses a shortening replace of a page one byte over the cap', async () => {
 		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '1000');
-		const { submit, ctx } = fakeSizedEdit(1001);
+		const { edits, ctx } = fakeSizedEdit(1001);
 
 		assertStructuredError(
 			await callTool(ctx, 'update-page', { title: 'My Page', source: 'x' }),
 			'invalid_input',
 		);
-		expect(submit).not.toHaveBeenCalled();
+		expect(edits()).toHaveLength(0);
 	});
 
 	// The probe must measure the page the write lands on, and mwn resolves
@@ -1353,7 +1342,7 @@ describe('update-page unread content guard', () => {
 	// and the target is measured in bytes.
 	it('compares source and target in bytes, not characters', async () => {
 		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '100');
-		const { submit, ctx } = fakeSizedEdit(150);
+		const { edits, ctx } = fakeSizedEdit(150);
 
 		// 60 characters, 180 bytes: longer than the 150-byte page it replaces.
 		const result = await callTool(ctx, 'update-page', {
@@ -1362,11 +1351,11 @@ describe('update-page unread content guard', () => {
 		});
 
 		assertStructuredSuccess(result);
-		expect(submit).toHaveBeenCalledTimes(1);
+		expect(edits()).toHaveLength(1);
 	});
 
 	it('allows the shortening replace when it is confirmed', async () => {
-		const { submit, ctx } = fakeSizedEdit(150000);
+		const { edits, ctx } = fakeSizedEdit(150000);
 
 		const result = await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -1375,7 +1364,7 @@ describe('update-page unread content guard', () => {
 		});
 
 		assertStructuredSuccess(result);
-		expect(submit).toHaveBeenCalledTimes(1);
+		expect(edits()).toHaveLength(1);
 	});
 
 	// Nothing is measured when the confirmation has already answered the question.
@@ -1392,7 +1381,7 @@ describe('update-page unread content guard', () => {
 	});
 
 	it('allows a replace that does not shorten the page', async () => {
-		const { submit, ctx } = fakeSizedEdit(150000);
+		const { edits, ctx } = fakeSizedEdit(150000);
 
 		const result = await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -1400,21 +1389,21 @@ describe('update-page unread content guard', () => {
 		});
 
 		assertStructuredSuccess(result);
-		expect(submit).toHaveBeenCalledTimes(1);
+		expect(edits()).toHaveLength(1);
 	});
 
 	it('allows a shortening replace of a page small enough to have been read whole', async () => {
-		const { submit, ctx } = fakeSizedEdit(500);
+		const { edits, ctx } = fakeSizedEdit(500);
 
 		const result = await callTool(ctx, 'update-page', { title: 'My Page', source: 'short' });
 
 		assertStructuredSuccess(result);
-		expect(submit).toHaveBeenCalledTimes(1);
+		expect(edits()).toHaveLength(1);
 	});
 
 	// No section of an under-cap page can be over it, so the section is never read.
 	it('does not measure a section of a page that fits within one read', async () => {
-		const { submit, ctx, request } = fakeSizedEdit(500);
+		const { edits, ctx, request } = fakeSizedEdit(500);
 
 		await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -1424,11 +1413,11 @@ describe('update-page unread content guard', () => {
 		});
 
 		expect(sectionReads(request)).toHaveLength(0);
-		expect(submit).toHaveBeenCalledTimes(1);
+		expect(edits()).toHaveLength(1);
 	});
 
 	it('measures the section itself on a page too large to have been read whole', async () => {
-		const { submit, ctx } = fakeSizedEdit(150000, 'y'.repeat(120000));
+		const { edits, ctx } = fakeSizedEdit(150000, 'y'.repeat(120000));
 
 		const result = await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -1440,7 +1429,7 @@ describe('update-page unread content guard', () => {
 		const envelope = assertStructuredError(result, 'invalid_input');
 		expect(envelope.message).toContain('Section 1');
 		expect(envelope.message).toContain('120000');
-		expect(submit).not.toHaveBeenCalled();
+		expect(edits()).toHaveLength(0);
 	});
 
 	// The write resolves the section number against latestId, so measuring the
@@ -1462,7 +1451,7 @@ describe('update-page unread content guard', () => {
 	// over the cap while its character count is well under it.
 	it('measures the section in bytes, not characters', async () => {
 		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '100');
-		const { submit, ctx } = fakeSizedEdit(150, '漢'.repeat(50));
+		const { edits, ctx } = fakeSizedEdit(150, '漢'.repeat(50));
 
 		const result = await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -1472,7 +1461,7 @@ describe('update-page unread content guard', () => {
 		});
 
 		assertStructuredError(result, 'invalid_input');
-		expect(submit).not.toHaveBeenCalled();
+		expect(edits()).toHaveLength(0);
 	});
 
 	// Neither probe may opt into redirect resolution: the write goes to the title
@@ -1488,7 +1477,7 @@ describe('update-page unread content guard', () => {
 	});
 
 	it('allows replacing a small section of a large page', async () => {
-		const { submit, ctx } = fakeSizedEdit(150000, 'y'.repeat(200));
+		const { edits, ctx } = fakeSizedEdit(150000, 'y'.repeat(200));
 
 		const result = await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -1498,7 +1487,7 @@ describe('update-page unread content guard', () => {
 		});
 
 		assertStructuredSuccess(result);
-		expect(submit).toHaveBeenCalledTimes(1);
+		expect(edits()).toHaveLength(1);
 	});
 
 	// A source that is a truncated prefix may appear to drop subsections that
@@ -1535,7 +1524,7 @@ describe('update-page unread content guard', () => {
 	});
 
 	it.each(['append', 'prepend'])('never measures anything for a %s', async (operation) => {
-		const { submit, ctx, request } = fakeSizedEdit(150000);
+		const { edits, ctx, request } = fakeSizedEdit(150000);
 
 		await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -1546,11 +1535,11 @@ describe('update-page unread content guard', () => {
 		});
 
 		expect(infoProbes(request)).toHaveLength(0);
-		expect(submit).toHaveBeenCalledTimes(1);
+		expect(edits()).toHaveLength(1);
 	});
 
 	it('refuses removeUnreadContent outside a replace', async () => {
-		const { submit, ctx } = fakeEdit();
+		const { edits, ctx } = fakeEdit();
 
 		const result = await callTool(ctx, 'update-page', {
 			title: 'My Page',
@@ -1561,6 +1550,6 @@ describe('update-page unread content guard', () => {
 
 		const envelope = assertStructuredError(result, 'invalid_input');
 		expect(envelope.message).toContain('removeUnreadContent');
-		expect(submit).not.toHaveBeenCalled();
+		expect(edits()).toHaveLength(0);
 	});
 });
