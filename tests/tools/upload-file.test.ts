@@ -17,12 +17,11 @@ const EXISTING_FILE = {
 };
 
 // A wiki that does not hold the file yet, so an upload to it goes ahead.
-function wikiWithoutFile(overrides: Partial<MockMwn> = {}): MockMwn {
+function wikiWithoutFile(): MockMwn {
 	return createMockMwn({
 		request: vi.fn().mockResolvedValue({
 			query: { pages: [{ title: 'File:Cat.jpg', missing: true }] },
 		}),
-		...overrides,
 	});
 }
 
@@ -32,7 +31,7 @@ describe('upload-file', () => {
 	});
 
 	it('refuses a path the upload directories reject as invalid_input, without uploading', async () => {
-		const mock = wikiWithoutFile({ upload: vi.fn() });
+		const mock = wikiWithoutFile();
 		const submitUpload = vi.fn();
 		const ctx = contextOn(mock, { edit: { ...baseEdit, submitUpload } });
 
@@ -48,11 +47,10 @@ describe('upload-file', () => {
 		const envelope = assertStructuredError(result, 'invalid_input');
 		expect(envelope.message).toMatch(/Failed to upload file: uploads are disabled/);
 		expect(submitUpload).not.toHaveBeenCalled();
-		expect(mock.upload).not.toHaveBeenCalled();
 	});
 
 	it('lets unexpected path-resolution errors fall through to the dispatcher', async () => {
-		const mock = wikiWithoutFile({ upload: vi.fn() });
+		const mock = wikiWithoutFile();
 		const submitUpload = vi.fn();
 		const ctx = contextOn(mock, {
 			edit: { ...baseEdit, submitUpload },
@@ -77,7 +75,7 @@ describe('upload-file', () => {
 	});
 
 	it('returns a structured payload on success and routes through ctx.edit.submitUpload', async () => {
-		const mock = wikiWithoutFile({ upload: vi.fn() });
+		const mock = wikiWithoutFile();
 		const submitUpload = vi.fn().mockResolvedValue({
 			result: 'Success',
 			filename: 'Cat.jpg',

@@ -8,7 +8,6 @@ export interface MockMwn {
 	delete: Mock;
 	undelete: Mock;
 	move: Mock;
-	upload: Mock;
 	uploadFromUrl: Mock;
 	request: Mock;
 	rawRequest: Mock;
@@ -33,7 +32,6 @@ export function createMockMwn(overrides: Partial<MockMwn> = {}): MockMwn {
 		delete: vi.fn(),
 		undelete: vi.fn(),
 		move: vi.fn(),
-		upload: vi.fn(),
 		uploadFromUrl: vi.fn(),
 		request: vi.fn(),
 		rawRequest: vi.fn(),
