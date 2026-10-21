@@ -6,6 +6,7 @@ import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { errorMessage } from '../errors/isErrnoException.ts';
 import { fetchFileBytes, shouldRescueToWiki } from '../transport/httpFetch.ts';
+import { fileExists } from '../transport/fileExistence.ts';
 import { formatEditComment, buildPageUrl } from '../wikis/utils.ts';
 
 const inputSchema = {
@@ -32,6 +33,14 @@ export const uploadFileFromUrl: Tool<typeof inputSchema> = {
 
 	async handle({ url, title, text, comment }, ctx: ToolContext): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
+		// The upload ignores the wiki's warnings, `exists` among them, so the wiki
+		// would replace the file rather than refuse.
+		if (await fileExists(mwn, title)) {
+			return ctx.format.conflict(
+				`File "${title}" already exists. To replace it with a new revision, use update-file-from-url.`,
+			);
+		}
+
 		const baseParams: ApiUploadParams = {
 			comment: formatEditComment(ctx, 'upload-file-from-url', comment),
 		};

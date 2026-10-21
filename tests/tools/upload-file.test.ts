@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { createMockMwn, type MockMwn } from '../helpers/mock-mwn.ts';
 import { createMockMwnError } from '../helpers/mock-mwn-error.ts';
 import { fakeContext } from '../helpers/fakeContext.ts';
 
@@ -21,6 +21,23 @@ import { assertStructuredError, assertStructuredSuccess } from '../helpers/struc
 // fakeContext's edit slice throws on any method a test leaves unstubbed.
 const baseEdit = fakeContext().edit;
 
+// The wiki's answer to an imageinfo query for a file it already holds.
+const EXISTING_FILE = {
+	query: {
+		pages: [{ title: 'File:Cat.jpg', imageinfo: [{ timestamp: '2026-01-01T00:00:00Z' }] }],
+	},
+};
+
+// A wiki that does not hold the file yet, so an upload to it goes ahead.
+function wikiWithoutFile(overrides: Partial<MockMwn> = {}): MockMwn {
+	return createMockMwn({
+		request: vi.fn().mockResolvedValue({
+			query: { pages: [{ title: 'File:Cat.jpg', missing: true }] },
+		}),
+		...overrides,
+	});
+}
+
 describe('upload-file', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -32,7 +49,7 @@ describe('upload-file', () => {
 				'"/etc/passwd" is not allowed by the configured upload directories.',
 			),
 		);
-		const mock = createMockMwn({ upload: vi.fn() });
+		const mock = wikiWithoutFile({ upload: vi.fn() });
 		const submitUpload = vi.fn();
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
@@ -57,7 +74,7 @@ describe('upload-file', () => {
 
 	it('lets unexpected guard errors fall through to the dispatcher', async () => {
 		vi.mocked(assertAllowedPath).mockRejectedValue(new Error('Connection refused'));
-		const mock = createMockMwn({ upload: vi.fn() });
+		const mock = wikiWithoutFile({ upload: vi.fn() });
 		const submitUpload = vi.fn();
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
@@ -81,7 +98,7 @@ describe('upload-file', () => {
 
 	it('returns a structured payload on success and routes through ctx.edit.submitUpload', async () => {
 		vi.mocked(assertAllowedPath).mockResolvedValue('/var/lib/uploads/cat.jpg');
-		const mock = createMockMwn({ upload: vi.fn() });
+		const mock = wikiWithoutFile({ upload: vi.fn() });
 		const submitUpload = vi.fn().mockResolvedValue({
 			result: 'Success',
 			filename: 'Cat.jpg',
@@ -123,7 +140,7 @@ describe('upload-file', () => {
 
 	it('passes ctx.uploadDirs.list() to the path guard', async () => {
 		vi.mocked(assertAllowedPath).mockResolvedValue('/home/user/uploads/x.jpg');
-		const mock = createMockMwn();
+		const mock = wikiWithoutFile();
 		const submitUpload = vi.fn().mockResolvedValue({ result: 'Success' });
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
@@ -145,9 +162,29 @@ describe('upload-file', () => {
 		]);
 	});
 
+	it('fails as conflict when the file already exists, without uploading over it', async () => {
+		vi.mocked(assertAllowedPath).mockResolvedValue('/home/user/uploads/cat.jpg');
+		const mock = createMockMwn({ request: vi.fn().mockResolvedValue(EXISTING_FILE) });
+		const submitUpload = vi.fn().mockResolvedValue({ result: 'Success', filename: 'Cat.jpg' });
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			edit: { ...baseEdit, submitUpload },
+			uploadDirs: { list: () => ['/home/user/uploads'] },
+		});
+
+		const result = await uploadFile.handle(
+			{ filepath: '/home/user/uploads/cat.jpg', title: 'File:Cat.jpg', text: 'A cat.' },
+			ctx,
+		);
+
+		const envelope = assertStructuredError(result, 'conflict');
+		expect(envelope.message).toContain('update-file');
+		expect(submitUpload).not.toHaveBeenCalled();
+	});
+
 	it('dispatches permissiondenied as permission_denied via dispatcher', async () => {
 		vi.mocked(assertAllowedPath).mockResolvedValue('/var/lib/uploads/cat.jpg');
-		const mock = createMockMwn();
+		const mock = wikiWithoutFile();
 		const submitUpload = vi.fn().mockRejectedValue(createMockMwnError('permissiondenied'));
 		const ctx = fakeContext({
 			mwn: async () => mock as never,

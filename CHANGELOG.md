@@ -36,6 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `list-wikis` no longer starts an OAuth sign-in on stdio when the default wiki uses OAuth.
 - `get-pages` with `followRedirects: false` returns a page asked for by a non-canonical title, such as `main_Page`, instead of reporting it missing.
 - `get-pages` fails with the wiki's error when the wiki refuses the read, instead of reporting every page missing.
+- `upload-file` and `upload-file-from-url` fail as `conflict` when a file with the target title already exists, instead of uploading a new version over it.
 - `create-page` fails when the wiki refuses the creation without an error code, as it does for a CAPTCHA, instead of reporting success.
 
 ## [0.19.0] - 2026-09-25

@@ -5,6 +5,7 @@ import type { ApiUploadResponse } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { assertAllowedPath, UploadValidationError } from '../transport/uploadGuard.ts';
+import { fileExists } from '../transport/fileExistence.ts';
 import { formatEditComment, buildPageUrl } from '../wikis/utils.ts';
 
 const inputSchema = {
@@ -41,6 +42,14 @@ export const uploadFile: Tool<typeof inputSchema> = {
 		}
 
 		const mwn = await ctx.mwn();
+		// The upload ignores the wiki's warnings, `exists` among them, so the wiki
+		// would replace the file rather than refuse.
+		if (await fileExists(mwn, title)) {
+			return ctx.format.conflict(
+				`File "${title}" already exists. To replace it with a new revision, use update-file.`,
+			);
+		}
+
 		const params: ApiUploadParams = {
 			comment: formatEditComment(ctx, 'upload-file', comment),
 		};

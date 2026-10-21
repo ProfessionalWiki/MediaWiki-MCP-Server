@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { FetchError } from 'node-fetch';
-import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { createMockMwn, type MockMwn } from '../helpers/mock-mwn.ts';
 import { createMockMwnError } from '../helpers/mock-mwn-error.ts';
 import { fakeContext } from '../helpers/fakeContext.ts';
 
@@ -32,6 +32,23 @@ const UPLOAD_OK = {
 // fakeContext's edit slice throws on any method a test leaves unstubbed.
 const baseEdit = fakeContext().edit;
 
+// The wiki's answer to an imageinfo query for a file it already holds.
+const EXISTING_FILE = {
+	query: {
+		pages: [{ title: 'File:Cat.jpg', imageinfo: [{ timestamp: '2026-01-01T00:00:00Z' }] }],
+	},
+};
+
+// A wiki that does not hold the file yet, so an upload to it goes ahead.
+function wikiWithoutFile(overrides: Partial<MockMwn> = {}): MockMwn {
+	return createMockMwn({
+		request: vi.fn().mockResolvedValue({
+			query: { pages: [{ title: 'File:Cat.jpg', missing: true }] },
+		}),
+		...overrides,
+	});
+}
+
 function ctxWithServerUpload(
 	mock: ReturnType<typeof createMockMwn>,
 	submitUploadFromBytes = vi.fn().mockResolvedValue(UPLOAD_OK),
@@ -49,7 +66,7 @@ describe('upload-file-from-url', () => {
 	});
 
 	it('server-first: fetches the bytes and uploads via multipart, not wiki copy-upload', async () => {
-		const mock = createMockMwn({ uploadFromUrl: vi.fn() });
+		const mock = wikiWithoutFile({ uploadFromUrl: vi.fn() });
 		const submit = vi.fn().mockResolvedValue(UPLOAD_OK);
 		const ctx = ctxWithServerUpload(mock, submit);
 
@@ -76,7 +93,7 @@ describe('upload-file-from-url', () => {
 
 	it('rescues to wiki copy-upload when the server cannot reach the URL', async () => {
 		vi.mocked(fetchFileBytes).mockRejectedValue(new FetchError('connect ECONNREFUSED', 'system'));
-		const mock = createMockMwn({ uploadFromUrl: vi.fn().mockResolvedValue(UPLOAD_OK) });
+		const mock = wikiWithoutFile({ uploadFromUrl: vi.fn().mockResolvedValue(UPLOAD_OK) });
 		const submit = vi.fn();
 		const ctx = ctxWithServerUpload(mock, submit);
 
@@ -97,7 +114,7 @@ describe('upload-file-from-url', () => {
 
 	it('rescues to wiki copy-upload when the file exceeds the size cap', async () => {
 		vi.mocked(fetchFileBytes).mockRejectedValue(new FileTooLargeError(200_000_000, 104_857_600));
-		const mock = createMockMwn({ uploadFromUrl: vi.fn().mockResolvedValue(UPLOAD_OK) });
+		const mock = wikiWithoutFile({ uploadFromUrl: vi.fn().mockResolvedValue(UPLOAD_OK) });
 		const ctx = ctxWithServerUpload(mock, vi.fn());
 
 		const result = await uploadFileFromUrl.handle(
@@ -113,7 +130,7 @@ describe('upload-file-from-url', () => {
 		vi.mocked(fetchFileBytes).mockRejectedValue(
 			new HttpStatusError(404, 'https://source.example/cat.jpg'),
 		);
-		const mock = createMockMwn({ uploadFromUrl: vi.fn() });
+		const mock = wikiWithoutFile({ uploadFromUrl: vi.fn() });
 		const ctx = ctxWithServerUpload(mock, vi.fn());
 
 		const result = await dispatch(
@@ -126,7 +143,7 @@ describe('upload-file-from-url', () => {
 	});
 
 	it('surfaces a permissiondenied from the server-side upload as permission_denied (no rescue)', async () => {
-		const mock = createMockMwn({ uploadFromUrl: vi.fn() });
+		const mock = wikiWithoutFile({ uploadFromUrl: vi.fn() });
 		const submit = vi
 			.fn()
 			.mockRejectedValue(createMockMwnError('permissiondenied', 'You do not have permission'));
@@ -143,7 +160,7 @@ describe('upload-file-from-url', () => {
 
 	it('when server cannot reach AND wiki copy-uploads disabled, returns a combined upstream_failure', async () => {
 		vi.mocked(fetchFileBytes).mockRejectedValue(new FetchError('timeout', 'system'));
-		const mock = createMockMwn({
+		const mock = wikiWithoutFile({
 			uploadFromUrl: vi
 				.fn()
 				.mockRejectedValue(
@@ -161,9 +178,29 @@ describe('upload-file-from-url', () => {
 		expect(envelope.message).toMatch(/could not reach it and the wiki has upload-by-URL disabled/);
 	});
 
+	it('fails as conflict when the file already exists, without fetching or uploading it', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue(EXISTING_FILE),
+			uploadFromUrl: vi.fn(),
+		});
+		const submit = vi.fn().mockResolvedValue(UPLOAD_OK);
+		const ctx = ctxWithServerUpload(mock, submit);
+
+		const result = await uploadFileFromUrl.handle(
+			{ url: 'https://source.example/cat.jpg', title: 'File:Cat.jpg', text: 'A cat.' },
+			ctx,
+		);
+
+		const envelope = assertStructuredError(result, 'conflict');
+		expect(envelope.message).toContain('update-file-from-url');
+		expect(fetchFileBytes).not.toHaveBeenCalled();
+		expect(submit).not.toHaveBeenCalled();
+		expect(mock.uploadFromUrl).not.toHaveBeenCalled();
+	});
+
 	it('forwards configured tags on the wiki-rescue path via applyTags', async () => {
 		vi.mocked(fetchFileBytes).mockRejectedValue(new FetchError('refused', 'system'));
-		const mock = createMockMwn({
+		const mock = wikiWithoutFile({
 			uploadFromUrl: vi.fn().mockResolvedValue({ result: 'Success', filename: 'Cat.jpg' }),
 		});
 		const ctx = fakeContext({
