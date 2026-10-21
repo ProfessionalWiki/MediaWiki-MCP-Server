@@ -3,7 +3,7 @@ import { basename } from 'node:path';
 import type { ApiParams, Mwn } from 'mwn';
 import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { ApiUploadResponse } from 'mwn';
-import type { ActiveWiki } from '../wikis/activeWiki.ts';
+import type { WikiConfig } from '../config/loadConfig.ts';
 
 export interface EditService {
 	/** Wraps mwn.request with CSRF + tag injection + formatversion=2. For action:edit and similar. */
@@ -40,7 +40,7 @@ export interface EditService {
 }
 
 export class EditServiceImpl implements EditService {
-	public constructor(private readonly activeWiki: ActiveWiki) {}
+	public constructor(private readonly tags: WikiConfig['tags']) {}
 
 	private readonly botRightCache = new WeakMap<Mwn, Promise<boolean>>();
 
@@ -77,7 +77,7 @@ export class EditServiceImpl implements EditService {
 
 	public async submit(mwn: Mwn, params: Record<string, unknown>): Promise<unknown> {
 		const token = await mwn.getCsrfToken();
-		const tags = this.activeWiki.get().config.tags;
+		const { tags } = this;
 		const fullParams: Record<string, unknown> = { ...params, token, formatversion: '2' };
 		if (tags !== null && tags !== undefined) {
 			fullParams.tags = tags;
@@ -115,7 +115,7 @@ export class EditServiceImpl implements EditService {
 		params: ApiUploadParams,
 	): Promise<ApiUploadResponse> {
 		const token = await mwn.getCsrfToken();
-		const tags = this.activeWiki.get().config.tags;
+		const { tags } = this;
 		const fullParams: Record<string, unknown> = {
 			action: 'upload',
 			file,

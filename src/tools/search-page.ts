@@ -116,8 +116,7 @@ async function resolveScope(
 		return { namespaces: requested, origin: 'caller', dropped: 0 };
 	}
 
-	const { key } = ctx.activeWiki.get();
-	const contentNamespaces = (await resolveSiteInfo(ctx, key)).contentNamespaces ?? [];
+	const contentNamespaces = (await resolveSiteInfo(ctx, ctx.wiki.key)).contentNamespaces ?? [];
 
 	return {
 		namespaces: contentNamespaces.slice(0, MAX_NAMESPACE_VALUES),

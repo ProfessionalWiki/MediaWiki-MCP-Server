@@ -3,7 +3,7 @@ import type { WikiRegistry } from './wikiRegistry.ts';
 import { getRequestWiki } from '../runtime/requestContext.ts';
 
 export interface ActiveWiki {
-	// The wiki for the current call: the request-context wiki, else the default.
+	// The request scope's wiki, else the default. A tool reads its call's wiki from `ctx.wiki`.
 	get(): { key: string; config: Readonly<WikiConfig> };
 	// The configured default wiki key (used to resolve calls with no `wiki` arg).
 	getDefaultKey(): string;

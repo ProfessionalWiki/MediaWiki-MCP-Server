@@ -3,7 +3,7 @@ import { vi } from 'vitest';
 import { Mwn } from 'mwn';
 import type { ToolContext } from '../../src/runtime/context.ts';
 import { EditServiceImpl } from '../../src/services/editService.ts';
-import { fakeContext, contextOn } from './fakeContext.ts';
+import { contextOn } from './fakeContext.ts';
 
 export interface WritingWiki {
 	mwn: Mwn;
@@ -108,16 +108,5 @@ function partsOf(body: string, boundary: string): URLSearchParams {
 
 /** A context writing to `wiki` through the real edit service, on a wiki configured with `tags`. */
 export function contextWritingTo(wiki: WritingWiki, tags: string | null = null): ToolContext {
-	const base = fakeContext();
-	const activeWiki = {
-		...base.activeWiki,
-		get: () => {
-			const { key, config } = base.activeWiki.get();
-			return { key, config: { ...config, tags } };
-		},
-	};
-	return contextOn(wiki.mwn, {
-		activeWiki,
-		edit: new EditServiceImpl(activeWiki),
-	});
+	return contextOn(wiki.mwn, { edit: new EditServiceImpl(tags) });
 }

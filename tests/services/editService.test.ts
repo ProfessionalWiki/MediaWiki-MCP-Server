@@ -6,21 +6,6 @@ import { createMockMwn } from '../helpers/mock-mwn.ts';
 import { UPLOADED } from '../helpers/uploadingWiki.ts';
 import { writingWiki } from '../helpers/writingWiki.ts';
 import { EditServiceImpl } from '../../src/services/editService.ts';
-import type { ActiveWiki } from '../../src/wikis/activeWiki.ts';
-
-const fakeActiveWiki = (tags: string | string[] | null = null): ActiveWiki => ({
-	get: () => ({
-		key: 'k',
-		config: {
-			server: 's',
-			articlepath: '/wiki',
-			scriptpath: '/w',
-			tags,
-			sitename: 'S',
-		} as never,
-	}),
-	getDefaultKey: () => 'k',
-});
 
 describe('EditServiceImpl', () => {
 	it('submit injects token, formatversion=2, and tags', async () => {
@@ -28,7 +13,7 @@ describe('EditServiceImpl', () => {
 			getCsrfToken: vi.fn().mockResolvedValue('CSRFTOKEN'),
 			request: vi.fn().mockResolvedValue({ ok: true }),
 		});
-		const edit = new EditServiceImpl(fakeActiveWiki('mcp-edit'));
+		const edit = new EditServiceImpl('mcp-edit');
 		await edit.submit(mock as never, { action: 'edit', title: 'Foo', text: 'bar' });
 		expect(mock.request).toHaveBeenCalledWith({
 			action: 'edit',
@@ -45,7 +30,7 @@ describe('EditServiceImpl', () => {
 			getCsrfToken: vi.fn().mockResolvedValue('CSRFTOKEN'),
 			request: vi.fn().mockResolvedValue({}),
 		});
-		const edit = new EditServiceImpl(fakeActiveWiki(null));
+		const edit = new EditServiceImpl(null);
 		await edit.submit(mock as never, { action: 'edit' });
 		expect(mock.request).toHaveBeenCalledWith({
 			action: 'edit',
@@ -71,7 +56,7 @@ describe('EditServiceImpl', () => {
 
 		it('sends the file with its title, text, a CSRF token, the params and the configured tags, ignoring warnings', async () => {
 			const wiki = writingWiki({ upload: UPLOADED });
-			const edit = new EditServiceImpl(fakeActiveWiki('mcp-upload'));
+			const edit = new EditServiceImpl('mcp-upload');
 
 			await edit.submitUpload(wiki.mwn, catFile, 'File:Cat.jpg', 'A cat.', { comment: 'c' });
 
@@ -88,7 +73,7 @@ describe('EditServiceImpl', () => {
 
 		it('sends no tags when the wiki configures none', async () => {
 			const wiki = writingWiki({ upload: UPLOADED });
-			const edit = new EditServiceImpl(fakeActiveWiki());
+			const edit = new EditServiceImpl(null);
 
 			await edit.submitUpload(wiki.mwn, catFile, 'File:Cat.jpg', 'A cat.', {});
 
@@ -97,7 +82,7 @@ describe('EditServiceImpl', () => {
 
 		it('sends the whole file again when the wiki asks for a fresh token', async () => {
 			const wiki = writingWiki([BAD_TOKEN, { upload: UPLOADED }]);
-			const edit = new EditServiceImpl(fakeActiveWiki());
+			const edit = new EditServiceImpl(null);
 
 			await edit.submitUpload(wiki.mwn, catFile, 'File:Cat.jpg', 'A cat.', {});
 
@@ -112,7 +97,7 @@ describe('EditServiceImpl', () => {
 					.fn()
 					.mockResolvedValue({ query: { userinfo: { rights: ['edit', 'bot', 'read'] } } }),
 			});
-			const edit = new EditServiceImpl(fakeActiveWiki());
+			const edit = new EditServiceImpl(null);
 			await expect(edit.botRight(mock as never)).resolves.toBe(true);
 			expect(mock.request).toHaveBeenCalledWith({
 				action: 'query',
@@ -126,14 +111,14 @@ describe('EditServiceImpl', () => {
 			const mock = createMockMwn({
 				request: vi.fn().mockResolvedValue({ query: { userinfo: { rights: ['edit', 'read'] } } }),
 			});
-			const edit = new EditServiceImpl(fakeActiveWiki());
+			const edit = new EditServiceImpl(null);
 			await expect(edit.botRight(mock as never)).resolves.toBe(false);
 		});
 
 		it('caches the probe per Mwn instance', async () => {
 			const request = vi.fn().mockResolvedValue({ query: { userinfo: { rights: ['bot'] } } });
 			const mock = createMockMwn({ request });
-			const edit = new EditServiceImpl(fakeActiveWiki());
+			const edit = new EditServiceImpl(null);
 			await edit.botRight(mock as never);
 			await edit.botRight(mock as never);
 			expect(request).toHaveBeenCalledTimes(1);
@@ -145,7 +130,7 @@ describe('EditServiceImpl', () => {
 				.mockRejectedValueOnce(new Error('network down'))
 				.mockResolvedValueOnce({ query: { userinfo: { rights: ['bot'] } } });
 			const mock = createMockMwn({ request });
-			const edit = new EditServiceImpl(fakeActiveWiki());
+			const edit = new EditServiceImpl(null);
 			await expect(edit.botRight(mock as never)).resolves.toBeUndefined();
 			await expect(edit.botRight(mock as never)).resolves.toBe(true);
 			expect(request).toHaveBeenCalledTimes(2);
@@ -154,7 +139,7 @@ describe('EditServiceImpl', () => {
 
 	it('submitUploadFromBytes sends the bytes with their title, text, a CSRF token, the params and the configured tags', async () => {
 		const wiki = writingWiki({ upload: UPLOADED });
-		const edit = new EditServiceImpl(fakeActiveWiki('mcp-upload'));
+		const edit = new EditServiceImpl('mcp-upload');
 
 		await edit.submitUploadFromBytes(
 			wiki.mwn,
@@ -178,7 +163,7 @@ describe('EditServiceImpl', () => {
 
 	it('returns the upload the wiki reports', async () => {
 		const wiki = writingWiki({ upload: UPLOADED });
-		const edit = new EditServiceImpl(fakeActiveWiki());
+		const edit = new EditServiceImpl(null);
 
 		const result = await edit.submitUploadFromBytes(
 			wiki.mwn,

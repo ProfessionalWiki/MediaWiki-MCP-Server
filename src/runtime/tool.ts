@@ -1,10 +1,10 @@
 import type { ZodRawShape, z } from 'zod';
 import type { ToolAnnotations, CallToolResult } from '@modelcontextprotocol/server';
-import type { ToolContext } from './context.ts';
+import type { SharedContext, ToolContext } from './context.ts';
 import type { ReconcileContext } from './reconcile.ts';
 import type { TailoredErrors } from '../errors/tailoredErrors.ts';
 
-export interface Tool<TSchema extends ZodRawShape, TCtx extends ToolContext = ToolContext> {
+export interface Tool<TSchema extends ZodRawShape, TCtx extends SharedContext = ToolContext> {
 	readonly name: string;
 	readonly description: string;
 	readonly inputSchema: TSchema;
@@ -34,9 +34,10 @@ export interface Tool<TSchema extends ZodRawShape, TCtx extends ToolContext = To
 	/**
 	 * Whether this tool operates on a wiki and therefore accepts the per-call
 	 * `wiki` argument. Defaults to `true` when omitted. Registry-management and
-	 * OAuth-store tools set this to `false`.
+	 * OAuth-store tools set this to `false`, which their `SharedContext`, holding
+	 * no wiki, requires.
 	 */
-	readonly wikiScoped?: boolean;
+	readonly wikiScoped?: TCtx extends ToolContext ? true : false;
 	/**
 	 * When the tool is offered in tools/list, on top of the gates every tool
 	 * shares (read-only wikis, extension packs). Omitted for a tool always offered.

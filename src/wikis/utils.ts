@@ -4,8 +4,7 @@ import { articlePathPattern } from './articlePath.ts';
 import { resolveSiteInfo } from './siteInfo.ts';
 
 export async function buildPageUrl(ctx: ToolContext, title: string): Promise<string> {
-	const { key } = ctx.activeWiki.get();
-	const { server, articlepath } = await resolveSiteInfo(ctx, key);
+	const { server, articlepath } = await resolveSiteInfo(ctx, ctx.wiki.key);
 	// A replacer function, since a title may contain '$$'.
 	return (
 		server + articlePathPattern(articlepath).replace('$1', () => Mwn.util.wikiUrlencode(title))
@@ -25,7 +24,7 @@ export function formatEditComment(
 	comment?: string,
 ): string | undefined {
 	const given = comment === '' ? undefined : comment;
-	if (ctx.activeWiki.get().config.attributeEdits === false) {
+	if (ctx.wiki.config.attributeEdits === false) {
 		return given;
 	}
 	const suffix = `(via ${tool} on MediaWiki MCP Server)`;

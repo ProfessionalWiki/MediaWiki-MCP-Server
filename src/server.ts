@@ -5,7 +5,7 @@ import { allTools, registerAllTools } from './tools/index.ts';
 import { registerAllResources } from './resources/index.ts';
 import { reconcileTools } from './runtime/reconcile.ts';
 import { extensionPacks } from './tools/extensions/index.ts';
-import type { ToolContext } from './runtime/context.ts';
+import type { SharedContext } from './runtime/context.ts';
 
 // https://github.com/nodejs/node/issues/51347#issuecomment-2111337854
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- compile-time JSON import; ESM `import ... assert { type: 'json' }` migration is a separate follow-up
@@ -47,7 +47,7 @@ export interface CreateServerOptions {
 const CACHE_HINT = { ttlMs: 60_000, cacheScope: 'private' } as const;
 
 export const createServer = async (
-	ctx: ToolContext,
+	ctx: SharedContext,
 	options: CreateServerOptions = {},
 ): Promise<McpServer> => {
 	const server = new McpServer(

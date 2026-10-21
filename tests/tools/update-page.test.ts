@@ -56,15 +56,7 @@ function fakeEdit(response: unknown = successResponse(), wiki: WikiState = {}) {
 		request,
 		getCsrfToken: vi.fn().mockResolvedValue('csrf-token'),
 	});
-	const base = fakeContext();
-	const activeWiki = {
-		...base.activeWiki,
-		get: () => {
-			const { key, config } = base.activeWiki.get();
-			return { key, config: { ...config, tags: wiki.tags ?? null } };
-		},
-	};
-	const ctx = contextOn(mock, { activeWiki, edit: new EditServiceImpl(activeWiki) });
+	const ctx = contextOn(mock, { edit: new EditServiceImpl(wiki.tags ?? null) });
 	const sent = (): Record<string, unknown>[] => request.mock.calls.map(([params]) => params);
 	const edits = () => sent().filter((params) => params.action === 'edit');
 	const rightsChecked = () => sent().some((params) => params.meta === 'userinfo');

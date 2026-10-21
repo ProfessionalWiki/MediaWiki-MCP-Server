@@ -1,6 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
-import type { ToolContext } from '../runtime/context.ts';
+import type { SharedContext } from '../runtime/context.ts';
 import { extensionPacks, packToolRefusal } from './extensions/index.ts';
 import { bearerPassthroughEnabled } from '../runtime/authShape.ts';
 import { fetchMetadata } from '../auth/metadata.ts';
@@ -21,7 +21,7 @@ interface WikiSummary {
 	authorizationServer?: string;
 }
 
-export const listWikis: Tool<Record<string, never>> = {
+export const listWikis: Tool<Record<string, never>, SharedContext> = {
 	name: 'list-wikis',
 	description:
 		'Lists every configured wiki: its key (pass as the `wiki` argument to other tools), sitename, server URL, whether it is read-only or the default, whether it is currently reachable, and which extension-gated tools work on it. Use to discover the configured wikis, their keys, and which extension tools each supports.',
@@ -38,7 +38,7 @@ export const listWikis: Tool<Record<string, never>> = {
 	offeredWhen: (c) => c.wikiCount >= 2,
 	failureVerb: 'list wikis',
 
-	async handle(_args, ctx: ToolContext): Promise<CallToolResult> {
+	async handle(_args, ctx: SharedContext): Promise<CallToolResult> {
 		const defaultKey = ctx.activeWiki.getDefaultKey();
 		const all = ctx.wikis.getAll();
 		const wikis: WikiSummary[] = await Promise.all(

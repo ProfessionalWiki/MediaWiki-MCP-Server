@@ -2,8 +2,15 @@ import { describe, it, expect } from 'vitest';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import type { Tool } from '../../src/runtime/tool.ts';
+import type { SharedContext } from '../../src/runtime/context.ts';
+import type { Mwn } from 'mwn';
 import { fakeContext } from '../helpers/fakeContext.ts';
-import { getRequestWiki } from '../../src/runtime/requestContext.ts';
+import { writingWiki } from '../helpers/writingWiki.ts';
+import { createSharedContext } from '../../src/runtime/createContext.ts';
+import { createAppState } from '../../src/wikis/state.ts';
+import type { MwnProvider } from '../../src/wikis/mwnProvider.ts';
+import { logger } from '../../src/runtime/logger.ts';
+import type { WikiConfig } from '../../src/config/loadConfig.ts';
 import { updatePage } from '../../src/tools/update-page.ts';
 import { getPage } from '../../src/tools/get-page.ts';
 import { cargoQuery } from '../../src/tools/extensions/cargo/cargo-query.ts';
@@ -15,7 +22,7 @@ const probe: Tool<Record<string, never>> = {
 	inputSchema: {},
 	annotations: {} as never,
 	async handle(_args, ctx): Promise<CallToolResult> {
-		return ctx.format.ok({ ranAgainst: getRequestWiki() });
+		return ctx.format.ok({ ranAgainst: ctx.wiki.key });
 	},
 };
 
@@ -72,9 +79,9 @@ describe('dispatch wiki resolution', () => {
 
 	it('isolates concurrent calls targeting different wikis', async () => {
 		const ctx = fakeContext();
-		// A tool that yields to a real macrotask before reading the request
-		// wiki, so both dispatches are suspended at the timer at the same time —
-		// a leaked or shared wikiKey store would surface here.
+		// A tool that yields to a real macrotask before reading its wiki, so both
+		// dispatches are suspended at the timer at the same time — a context
+		// shared between calls would surface here.
 		const slowProbe: Tool<Record<string, never>> = {
 			name: 'slow-probe',
 			description: 'test probe that yields before reading the wiki',
@@ -82,7 +89,7 @@ describe('dispatch wiki resolution', () => {
 			annotations: {} as never,
 			async handle(_args, ctx): Promise<CallToolResult> {
 				await new Promise((r) => setTimeout(r, 0));
-				return ctx.format.ok({ ranAgainst: getRequestWiki() });
+				return ctx.format.ok({ ranAgainst: ctx.wiki.key });
 			},
 		};
 		const [a, b] = await Promise.all([
@@ -91,6 +98,48 @@ describe('dispatch wiki resolution', () => {
 		]);
 		expect(ranAgainst(a)).toBe('fr.wikipedia.org');
 		expect(ranAgainst(b)).toBe('de.wikipedia.org');
+	});
+
+	it('writes to the wiki the call names, with its tags', async () => {
+		const site = (tags: string): WikiConfig => ({
+			sitename: 'S',
+			server: 'https://s.test',
+			articlepath: '/wiki',
+			scriptpath: '/w',
+			tags,
+		});
+		const main = writingWiki({ edit: { result: 'Success' } });
+		const other = writingWiki({ edit: { result: 'Success' } });
+		const reachable: Record<string, Mwn> = { main: main.mwn, other: other.mwn };
+		const mwnProvider: MwnProvider = {
+			get: async (key = 'main') => reachable[key],
+			invalidate: () => {},
+		};
+		const state = {
+			...createAppState({
+				defaultWiki: 'main',
+				wikis: { main: site('main-tag'), other: site('other-tag') },
+				uploadDirs: [],
+			}),
+			mwnProvider,
+		};
+		const writing: Tool<Record<string, never>> = {
+			...probe,
+			async handle(_args, c): Promise<CallToolResult> {
+				await c.edit.submit(await c.mwn(), { action: 'edit', title: 'X', text: 'y' });
+				return c.format.ok({});
+			},
+		};
+
+		await dispatch(
+			writing,
+			createSharedContext({ logger, state, transport: 'stdio' }),
+		)({
+			wiki: 'other',
+		} as never);
+
+		expect(other.sentWrite().get('tags')).toBe('other-tag');
+		expect(main.writes).toHaveLength(0);
 	});
 });
 
@@ -103,7 +152,7 @@ describe('dispatch wiki echo', () => {
 
 	it('does not stamp wiki onto a non-wiki-scoped tool', async () => {
 		const ctx = fakeContext();
-		const mgmt: Tool<Record<string, never>> = {
+		const mgmt: Tool<Record<string, never>, SharedContext> = {
 			name: 'mgmt-probe',
 			description: 'non wiki tool',
 			inputSchema: {},

@@ -4,7 +4,7 @@ import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { logger } from '../runtime/logger.ts';
 import { createServer } from '../server.ts';
 import { emitStartupBanner } from '../runtime/banner.ts';
-import { createToolContext } from '../runtime/createContext.ts';
+import { createSharedContext } from '../runtime/createContext.ts';
 import { registerShutdownHandlers } from '../runtime/shutdown.ts';
 import { loadConfigFromFile } from '../config/loadConfig.ts';
 import { createAppState } from '../wikis/state.ts';
@@ -20,7 +20,7 @@ async function main(): Promise<void> {
 			uploadDirs: state.uploadDirs,
 		},
 	);
-	const ctx = createToolContext({ logger, state, transport: 'stdio' });
+	const ctx = createSharedContext({ logger, state, transport: 'stdio' });
 
 	// serveStdio owns the connection: the opening exchange pins the era, one
 	// instance from the factory serves the connection's lifetime, and on a

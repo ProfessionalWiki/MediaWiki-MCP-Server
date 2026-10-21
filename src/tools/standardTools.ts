@@ -30,7 +30,7 @@ import { updateFileFromUrl } from './update-file-from-url.ts';
 import { oauthStatus } from './oauth-status.ts';
 import { oauthLogout } from './oauth-logout.ts';
 
-// Every tool that runs with a ToolContext: the core tools and each extension
+// Every tool but the wiki-management ones: the core tools and each extension
 // pack's. registerAllTools registers this list and the read-only gate reads it,
 // so the two cannot disagree.
 //
