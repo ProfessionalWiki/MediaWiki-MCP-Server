@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { contextOn } from '../../../helpers/fakeContext.ts';
 import { cargoListTables } from '../../../../src/tools/extensions/cargo/cargo-list-tables.ts';
 import { dispatch } from '../../../../src/runtime/dispatcher.ts';
 import {
@@ -15,7 +15,7 @@ describe('cargo-list-tables', () => {
 				cargotables: ['items', 'skill_levels', '_pageData'],
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await cargoListTables.handle({}, ctx);
 
@@ -39,7 +39,7 @@ describe('cargo-list-tables', () => {
 				cargotables: ['_pageData', '_fileData', 'items'],
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await cargoListTables.handle({}, ctx);
 
@@ -54,7 +54,7 @@ describe('cargo-list-tables', () => {
 				cargotables: ['items', null, 42, { name: 'malformed' }, '_pageData'],
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await cargoListTables.handle({}, ctx);
 
@@ -67,7 +67,7 @@ describe('cargo-list-tables', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await cargoListTables.handle({}, ctx);
 
@@ -78,7 +78,7 @@ describe('cargo-list-tables', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ cargotables: [] }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await cargoListTables.handle({}, ctx);
 
@@ -89,7 +89,7 @@ describe('cargo-list-tables', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockRejectedValue(new Error('cargotables network failure')),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(cargoListTables, ctx)({});
 

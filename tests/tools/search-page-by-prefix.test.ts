@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { contextOn } from '../helpers/fakeContext.ts';
 import { searchPageByPrefix } from '../../src/tools/search-page-by-prefix.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
@@ -12,7 +12,7 @@ describe('search-page-by-prefix', () => {
 				query: { allpages: [{ pageid: 1, ns: 0, title: 'Foo' }] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await searchPageByPrefix.handle({ prefix: 'F', limit: 50, namespace: 0 }, ctx);
 
@@ -37,7 +37,7 @@ describe('search-page-by-prefix', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await searchPageByPrefix.handle({ prefix: 'Alph' }, ctx);
 
@@ -55,7 +55,7 @@ describe('search-page-by-prefix', () => {
 				query: { allpages: [] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await searchPageByPrefix.handle({ prefix: 'Zzz' }, ctx);
 
@@ -71,7 +71,7 @@ describe('search-page-by-prefix', () => {
 				continue: { apcontinue: 'B', continue: '-||' },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await searchPageByPrefix.handle({ prefix: 'A', limit: 10 }, ctx);
 
@@ -89,7 +89,7 @@ describe('search-page-by-prefix', () => {
 				query: { allpages: [{ pageid: 1, ns: 0, title: 'A' }] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await searchPageByPrefix.handle({ prefix: 'A' }, ctx);
 
@@ -101,7 +101,7 @@ describe('search-page-by-prefix', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockRejectedValue(new Error('API error')),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(searchPageByPrefix, ctx)({ prefix: 'A' });
 

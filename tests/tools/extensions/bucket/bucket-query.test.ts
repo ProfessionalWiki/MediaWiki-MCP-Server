@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, type Mock } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { contextOn } from '../../../helpers/fakeContext.ts';
 import { bucketQuery } from '../../../../src/tools/extensions/bucket/bucket-query.ts';
 import { dispatch } from '../../../../src/runtime/dispatcher.ts';
 import {
@@ -32,7 +32,7 @@ describe('bucket-query', () => {
 				],
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await bucketQuery.handle(
 			{ query: 'bucket("drops").select("page_name","item").run()' },
@@ -72,7 +72,7 @@ describe('bucket-query', () => {
 				error: 'Bucket Exchange does not exist.',
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(
 			bucketQuery,
@@ -89,7 +89,7 @@ describe('bucket-query', () => {
 		const mock = createMockMwn({
 			rawRequest: vi.fn().mockRejectedValue(new Error('Bucket timeout')),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(
 			bucketQuery,
@@ -106,7 +106,7 @@ describe('bucket-query', () => {
 		const mock = createMockMwn({
 			rawRequest: rawRequestMock({ bucketQuery: '', bucket: [] }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await bucketQuery.handle({ query: 'bucket("drops").select("page_name").run()' }, ctx);
 
@@ -119,7 +119,7 @@ describe('bucket-query', () => {
 		const mock = createMockMwn({
 			rawRequest: rawRequestMock({ bucketQuery: '', bucket: [] }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await bucketQuery.handle(
 			{ query: 'bucket("drops").select("page_name").run()', limit: 50 },
@@ -135,7 +135,7 @@ describe('bucket-query', () => {
 		const mock = createMockMwn({
 			rawRequest: rawRequestMock({ bucketQuery: '', bucket: [] }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await bucketQuery.handle(
 			{
@@ -155,7 +155,7 @@ describe('bucket-query', () => {
 		const mock = createMockMwn({
 			rawRequest: rawRequestMock({ bucketQuery: '', bucket: [] }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await bucketQuery.handle(
 			{ query: 'bucket("drops").select("page_name").run()', limit: 50 },
@@ -169,7 +169,7 @@ describe('bucket-query', () => {
 		const mock = createMockMwn({
 			rawRequest: rawRequestMock({ bucketQuery: '', bucket: [] }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const variants = [
 			'bucket("drops").select("page_name").run()',
@@ -188,7 +188,7 @@ describe('bucket-query', () => {
 
 	it('rejects a query missing a trailing .run() with invalid_input', async () => {
 		const mock = createMockMwn({ rawRequest: vi.fn() });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(
 			bucketQuery,
@@ -204,7 +204,7 @@ describe('bucket-query', () => {
 
 	it('rejects a non-integer continueFrom with invalid_input', async () => {
 		const mock = createMockMwn({ rawRequest: vi.fn() });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(
 			bucketQuery,
@@ -226,7 +226,7 @@ describe('bucket-query', () => {
 		const mock = createMockMwn({
 			rawRequest: rawRequestMock({ bucketQuery: '', bucket: fullPage }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await bucketQuery.handle(
 			{ query: 'bucket("drops").select("page_name").run()', limit: 50 },
@@ -247,7 +247,7 @@ describe('bucket-query', () => {
 		const mock = createMockMwn({
 			rawRequest: rawRequestMock({ bucketQuery: '', bucket: fullPage }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await bucketQuery.handle(
 			{
@@ -269,7 +269,7 @@ describe('bucket-query', () => {
 		const mock = createMockMwn({
 			rawRequest: rawRequestMock({ bucketQuery: '', bucket: partial }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await bucketQuery.handle(
 			{ query: 'bucket("drops").select("page_name").run()', limit: 50 },
@@ -287,7 +287,7 @@ describe('bucket-query', () => {
 				bucket: { count: 42 },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await bucketQuery.handle(
 			{ query: 'bucket("drops").select(bucket.count("*")).run()' },
@@ -305,7 +305,7 @@ describe('bucket-query', () => {
 			usingOAuth2: true,
 			options: { apiUrl: 'https://test.wiki/w/api.php', OAuth2AccessToken: 'abc-token' },
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await bucketQuery.handle({ query: 'bucket("drops").select("page_name").run()' }, ctx);
 
@@ -320,7 +320,7 @@ describe('bucket-query', () => {
 		const mock = createMockMwn({
 			rawRequest: rawRequestMock({ bucketQuery: '', bucket: [] }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await bucketQuery.handle({ query: 'bucket("drops").select("page_name").run()' }, ctx);
 
@@ -335,7 +335,7 @@ describe('bucket-query', () => {
 		const mock = createMockMwn({
 			rawRequest: rawRequestMock({ bucketQuery: '', bucket: [] }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await bucketQuery.handle({ query: 'bucket("drops").limit(10).select("page_name").run()' }, ctx);
 
@@ -348,7 +348,7 @@ describe('bucket-query', () => {
 		const mock = createMockMwn({
 			rawRequest: rawRequestMock({ bucketQuery: '' }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await bucketQuery.handle(
 			{ query: 'bucket("drops").select("page_name").run()' },

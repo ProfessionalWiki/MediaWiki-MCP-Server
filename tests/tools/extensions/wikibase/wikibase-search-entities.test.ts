@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext, probeReporting } from '../../../helpers/fakeContext.ts';
+import { probeReporting, contextOn } from '../../../helpers/fakeContext.ts';
 import { toolArgs } from '../../../helpers/toolArgs.ts';
 import { wikibaseSearchEntities } from '../../../../src/tools/extensions/wikibase/wikibase-search-entities.ts';
 import { dispatch } from '../../../../src/runtime/dispatcher.ts';
@@ -28,8 +28,7 @@ const DOUGLAS_ADAMS = {
 
 function contextWith(response: unknown, lang?: string) {
 	const mock = createMockMwn({ request: vi.fn().mockResolvedValue(response) });
-	const ctx = fakeContext({
-		mwn: async () => mock as never,
+	const ctx = contextOn(mock, {
 		wikiProbe: probeReporting(lang === undefined ? {} : { lang }),
 	});
 	return { mock, ctx };
@@ -235,7 +234,7 @@ describe('wikibase-search-entities', () => {
 
 	it('surfaces upstream errors as upstream_failure via the dispatcher', async () => {
 		const mock = createMockMwn({ request: vi.fn().mockRejectedValue(new Error('wiki down')) });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(
 			wikibaseSearchEntities,

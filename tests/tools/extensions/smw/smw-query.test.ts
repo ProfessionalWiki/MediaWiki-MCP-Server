@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { contextOn } from '../../../helpers/fakeContext.ts';
 import { smwQuery } from '../../../../src/tools/extensions/smw/smw-query.ts';
 import { dispatch } from '../../../../src/runtime/dispatcher.ts';
 import {
@@ -39,7 +39,7 @@ describe('smw-query', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await smwQuery.handle(
 			{ query: '[[Category:Person]][[Born in::>1900]]|?Has occupation|?Born in' },
@@ -71,7 +71,7 @@ describe('smw-query', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(smwQuery, ctx)({ query: '[[Borked' });
 
@@ -89,7 +89,7 @@ describe('smw-query', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await smwQuery.handle({ query: '[[Category:DoesNotExist]]' }, ctx);
 
@@ -104,7 +104,7 @@ describe('smw-query', () => {
 				query: { results: {}, meta: { count: 0 }, printrequests: [] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await smwQuery.handle({ query: '[[Category:X]]|limit=10', limit: 50 }, ctx);
 
@@ -119,7 +119,7 @@ describe('smw-query', () => {
 				query: { results: {}, meta: { count: 0 }, printrequests: [] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await smwQuery.handle({ query: '[[Category:X]]|limit=10000' }, ctx);
 
@@ -134,7 +134,7 @@ describe('smw-query', () => {
 				query: { results: {}, meta: { count: 0 }, printrequests: [] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await smwQuery.handle({ query: '[[Category:X]]' }, ctx);
 
@@ -148,7 +148,7 @@ describe('smw-query', () => {
 				query: { results: {}, meta: { count: 0 }, printrequests: [] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await smwQuery.handle({ query: '[[Category:X]]', continueFrom: '40' }, ctx);
 
@@ -158,7 +158,7 @@ describe('smw-query', () => {
 
 	it('refuses a continueFrom it never handed out instead of returning the first page', async () => {
 		const mock = createMockMwn({ request: vi.fn() });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(
 			smwQuery,
@@ -183,7 +183,7 @@ describe('smw-query', () => {
 				'query-continue-offset': 1,
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await smwQuery.handle({ query: '[[Category:X]]', limit: 1 }, ctx);
 
@@ -213,7 +213,7 @@ describe('smw-query', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await smwQuery.handle({ query: 'q' }, ctx);
 
@@ -235,7 +235,7 @@ describe('smw-query', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockRejectedValue(new Error('SMW timeout')),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(smwQuery, ctx)({ query: '[[Category:X]]' });
 

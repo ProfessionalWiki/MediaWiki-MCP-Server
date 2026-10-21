@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, type Mock } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
 import { createMockMwnError } from '../helpers/mock-mwn-error.ts';
-import { fakeContext, withoutEditAttribution } from '../helpers/fakeContext.ts';
+import { fakeContext, withoutEditAttribution, contextOn } from '../helpers/fakeContext.ts';
 import { toolArgs } from '../helpers/toolArgs.ts';
 import { protectPage } from '../../src/tools/protect-page.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
@@ -48,7 +48,7 @@ function wikiWith(
 		),
 	});
 	const submit = vi.fn().mockResolvedValue(response);
-	const ctx = fakeContext({ mwn: async () => mock as never, edit: { ...baseEdit, submit } });
+	const ctx = contextOn(mock, { edit: { ...baseEdit, submit } });
 	return { ctx, submit };
 }
 

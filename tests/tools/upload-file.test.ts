@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockMwn, type MockMwn } from '../helpers/mock-mwn.ts';
 import { createMockMwnError } from '../helpers/mock-mwn-error.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { fakeContext, contextOn } from '../helpers/fakeContext.ts';
 
 vi.mock('../../src/transport/uploadGuard.ts', async () => {
 	const actual = await vi.importActual<typeof import('../../src/transport/uploadGuard.ts')>(
@@ -51,8 +51,7 @@ describe('upload-file', () => {
 		);
 		const mock = wikiWithoutFile({ upload: vi.fn() });
 		const submitUpload = vi.fn();
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			edit: { ...baseEdit, submitUpload },
 			uploadDirs: { list: () => ['/home/user/uploads'] },
 		});
@@ -76,8 +75,7 @@ describe('upload-file', () => {
 		vi.mocked(assertAllowedPath).mockRejectedValue(new Error('Connection refused'));
 		const mock = wikiWithoutFile({ upload: vi.fn() });
 		const submitUpload = vi.fn();
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			edit: { ...baseEdit, submitUpload },
 			uploadDirs: { list: () => ['/home/user/uploads'] },
 		});
@@ -107,8 +105,7 @@ describe('upload-file', () => {
 				url: 'https://test.wiki/images/Cat.jpg',
 			},
 		});
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			edit: { ...baseEdit, submitUpload },
 			uploadDirs: { list: () => ['/home/user/uploads'] },
 		});
@@ -142,8 +139,7 @@ describe('upload-file', () => {
 		vi.mocked(assertAllowedPath).mockResolvedValue('/home/user/uploads/x.jpg');
 		const mock = wikiWithoutFile();
 		const submitUpload = vi.fn().mockResolvedValue({ result: 'Success' });
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			edit: { ...baseEdit, submitUpload },
 			uploadDirs: { list: () => ['/home/user/uploads'] },
 		});
@@ -166,8 +162,7 @@ describe('upload-file', () => {
 		vi.mocked(assertAllowedPath).mockResolvedValue('/home/user/uploads/cat.jpg');
 		const mock = createMockMwn({ request: vi.fn().mockResolvedValue(EXISTING_FILE) });
 		const submitUpload = vi.fn().mockResolvedValue({ result: 'Success', filename: 'Cat.jpg' });
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			edit: { ...baseEdit, submitUpload },
 			uploadDirs: { list: () => ['/home/user/uploads'] },
 		});
@@ -186,8 +181,7 @@ describe('upload-file', () => {
 		vi.mocked(assertAllowedPath).mockResolvedValue('/var/lib/uploads/cat.jpg');
 		const mock = wikiWithoutFile();
 		const submitUpload = vi.fn().mockRejectedValue(createMockMwnError('permissiondenied'));
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			edit: { ...baseEdit, submitUpload },
 			uploadDirs: { list: () => ['/home/user/uploads'] },
 		});

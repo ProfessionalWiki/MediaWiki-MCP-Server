@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { contextOn } from '../helpers/fakeContext.ts';
 import { getPageHistory } from '../../src/tools/get-page-history.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import {
@@ -32,7 +32,7 @@ describe('get-page-history', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getPageHistory.handle({ title: 'Test Page' }, ctx);
 
@@ -77,7 +77,7 @@ describe('get-page-history', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getPageHistory.handle({ title: 'Test Page', olderThan: 100 }, ctx);
 
@@ -122,7 +122,7 @@ describe('get-page-history', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getPageHistory.handle({ title: 'Test Page', newerThan: 50 }, ctx);
 
@@ -157,7 +157,7 @@ describe('get-page-history', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await getPageHistory.handle({ title: 'Test Page', filter: 'mw-reverted' }, ctx);
 
@@ -170,7 +170,7 @@ describe('get-page-history', () => {
 				query: { pages: [{ missing: true, title: 'Nonexistent' }] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getPageHistory.handle({ title: 'Nonexistent' }, ctx);
 
@@ -184,7 +184,7 @@ describe('get-page-history', () => {
 				query: { pages: [{ revisions: [] }] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getPageHistory.handle({ title: 'Test Page' }, ctx);
 
@@ -208,7 +208,7 @@ describe('get-page-history', () => {
 				query: { pages: [{ revisions }] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getPageHistory.handle({ title: 'Test Page', olderThan: 100 }, ctx);
 
@@ -238,7 +238,7 @@ describe('get-page-history', () => {
 				query: { pages: [{ revisions }] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getPageHistory.handle({ title: 'Test Page', olderThan: 999 }, ctx);
 
@@ -269,7 +269,7 @@ describe('get-page-history', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await getPageHistory.handle({ title: 'Test Page' }, ctx);
 
@@ -280,7 +280,7 @@ describe('get-page-history', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockRejectedValue(new Error('API error')),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(getPageHistory, ctx)({ title: 'Test Page' });
 
@@ -320,7 +320,7 @@ describe('get-page-history', () => {
 				continue: { rvcontinue: '20260101000000|98', continue: '||' },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getPageHistory.handle({ title: 'Test Page' }, ctx);
 
@@ -367,7 +367,7 @@ describe('get-page-history', () => {
 				continue: { rvcontinue: '20260103000000|70', continue: '||' },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getPageHistory.handle({ title: 'Test Page', newerThan: 49 }, ctx);
 
@@ -420,7 +420,7 @@ describe('get-page-history', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		const data = assertStructuredData(await dispatch(getPageHistory, ctx)({ title: 'P' } as never));
 		const [r0, r1] = data.revisions as Record<string, unknown>[];
 		expect(r0).not.toHaveProperty('minor');
@@ -456,7 +456,7 @@ describe('get-page-history', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getPageHistory.handle({ title: 'Test Page' }, ctx);
 

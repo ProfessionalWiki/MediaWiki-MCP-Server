@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { contextOn } from '../helpers/fakeContext.ts';
 import { getRevision } from '../../src/tools/get-revision.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { ContentFormat } from '../../src/results/contentFormat.ts';
@@ -26,7 +26,7 @@ describe('get-revision', () => {
 
 		it('truncates source at the byte cap and says how much it withheld', async () => {
 			vi.stubEnv('MCP_CONTENT_MAX_BYTES', '500');
-			const ctx = fakeContext({ mwn: async () => revisionWith('x'.repeat(501)) as never });
+			const ctx = contextOn(revisionWith('x'.repeat(501)));
 
 			const result = await getRevision.handle(
 				{ revisionId: 42, content: ContentFormat.source, metadata: false },
@@ -43,7 +43,7 @@ describe('get-revision', () => {
 
 		it('leaves source alone at exactly the cap', async () => {
 			vi.stubEnv('MCP_CONTENT_MAX_BYTES', '500');
-			const ctx = fakeContext({ mwn: async () => revisionWith('x'.repeat(500)) as never });
+			const ctx = contextOn(revisionWith('x'.repeat(500)));
 
 			const result = await getRevision.handle(
 				{ revisionId: 42, content: ContentFormat.source, metadata: false },
@@ -61,7 +61,7 @@ describe('get-revision', () => {
 					parse: { title: 'Big', pageid: 1, text: '<p>' + 'x'.repeat(501) + '</p>' },
 				}),
 			});
-			const ctx = fakeContext({ mwn: async () => mock as never });
+			const ctx = contextOn(mock);
 
 			const result = await getRevision.handle(
 				{ revisionId: 42, content: ContentFormat.html, metadata: false },
@@ -80,9 +80,7 @@ describe('get-revision', () => {
 		// when the revision asked for is the current one.
 		it('sends a past revision to compare-pages', async () => {
 			vi.stubEnv('MCP_CONTENT_MAX_BYTES', '500');
-			const ctx = fakeContext({
-				mwn: async () => revisionWith('x'.repeat(501), 99) as never,
-			});
+			const ctx = contextOn(revisionWith('x'.repeat(501), 99));
 
 			const result = await getRevision.handle(
 				{ revisionId: 42, content: ContentFormat.source, metadata: false },
@@ -99,9 +97,7 @@ describe('get-revision', () => {
 		// landed is the current one, and section= reads exactly those bytes.
 		it('sends the current revision to get-page with a section', async () => {
 			vi.stubEnv('MCP_CONTENT_MAX_BYTES', '500');
-			const ctx = fakeContext({
-				mwn: async () => revisionWith('x'.repeat(501), 42) as never,
-			});
+			const ctx = contextOn(revisionWith('x'.repeat(501), 42));
 
 			const result = await getRevision.handle(
 				{ revisionId: 42, content: ContentFormat.source, metadata: false },
@@ -140,7 +136,7 @@ describe('get-revision', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getRevision.handle(
 			{ revisionId: 42, content: ContentFormat.source, metadata: false },
@@ -160,7 +156,7 @@ describe('get-revision', () => {
 				parse: { text: '<p>Hello</p>' },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getRevision.handle(
 			{ revisionId: 42, content: ContentFormat.html, metadata: false },
@@ -196,7 +192,7 @@ describe('get-revision', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getRevision.handle(
 			{ revisionId: 42, content: ContentFormat.none, metadata: true },
@@ -224,7 +220,7 @@ describe('get-revision', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getRevision.handle(
 			{ revisionId: 99999, content: ContentFormat.source, metadata: false },
@@ -239,7 +235,7 @@ describe('get-revision', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockRejectedValue(new Error('API error')),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(
 			getRevision,

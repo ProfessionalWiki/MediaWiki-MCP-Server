@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
-import { fakeContext, probeReporting } from '../helpers/fakeContext.ts';
+import { fakeContext, probeReporting, contextOn } from '../helpers/fakeContext.ts';
 import { wikiAnswering } from '../helpers/wikiAnswering.ts';
 import { getPage } from '../../src/tools/get-page.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
@@ -52,7 +52,7 @@ describe('get-page', () => {
 				],
 			},
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getPage.handle(
 			{
@@ -76,7 +76,7 @@ describe('get-page', () => {
 				parse: { text: '<p>Hello</p>' },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getPage.handle(
 			{
@@ -105,8 +105,7 @@ describe('get-page', () => {
 				],
 			},
 		});
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			sections: new SectionServiceImpl(),
 		});
 
@@ -136,7 +135,7 @@ describe('get-page', () => {
 				missing: true,
 			},
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getPage.handle(
 			{
@@ -166,8 +165,7 @@ describe('get-page', () => {
 				],
 			},
 		});
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			sections: new SectionServiceImpl(),
 		});
 
@@ -189,7 +187,7 @@ describe('get-page', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockRejectedValue(new Error('API error')),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(
 			getPage,
@@ -211,7 +209,7 @@ describe('get-page', () => {
 
 		const result = await dispatch(
 			getPage,
-			fakeContext({ mwn: async () => wiki.mwn }),
+			contextOn(wiki.mwn),
 		)({ title: 'Test Page', content: ContentFormat.source, metadata: false });
 
 		assertStructuredError(result, 'permission_denied', 'readapidenied');
@@ -232,7 +230,7 @@ describe('get-page', () => {
 				],
 			},
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getPage.handle(
 			{
@@ -254,7 +252,7 @@ describe('get-page', () => {
 			parse: { text: '<p>Section HTML</p>' },
 		});
 		const mock = createMockMwn({ request });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getPage.handle(
 			{
@@ -311,8 +309,7 @@ describe('get-page', () => {
 			},
 			sections: [{ line: 'History' }],
 		});
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			sections: new SectionServiceImpl(),
 		});
 
@@ -345,8 +342,7 @@ describe('get-page', () => {
 				],
 			},
 		});
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			sections: new SectionServiceImpl(),
 		});
 
@@ -382,8 +378,7 @@ describe('get-page', () => {
 				{ line: 'Background', number: '2', index: '2' },
 			],
 		});
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			sections: new SectionServiceImpl(),
 		});
 
@@ -418,8 +413,7 @@ describe('get-page', () => {
 			},
 			sections: [{ line: 'History', index: '1', level: '2' }],
 		});
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			sections: new SectionServiceImpl(),
 		});
 
@@ -460,7 +454,7 @@ describe('get-page', () => {
 				],
 			},
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getPage.handle(
 			{
@@ -485,8 +479,7 @@ describe('get-page', () => {
 				parse: { sections: [{ line: 'Heading', index: '1', level: '2' }] },
 			});
 		const mock = createMockMwn({ request });
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			sections: new SectionServiceImpl(),
 		});
 
@@ -527,8 +520,7 @@ describe('get-page', () => {
 				revisions: [{ revid: 42, contentmodel: 'wikitext', content: 'x'.repeat(75001) }],
 			},
 		});
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			sections: { list, listInSource: vi.fn() },
 		});
 
@@ -555,8 +547,7 @@ describe('get-page', () => {
 				revisions: [{ revid: 42, contentmodel: 'wikitext', content: 'x'.repeat(75001) }],
 			},
 		});
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			sections: { list, listInSource: vi.fn() },
 		});
 
@@ -586,8 +577,7 @@ describe('get-page', () => {
 				revisions: [{ revid: 42, contentmodel: 'wikitext', content: 'x'.repeat(75001) }],
 			},
 		});
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			sections: { list, listInSource: vi.fn() },
 		});
 
@@ -610,7 +600,7 @@ describe('get-page', () => {
 				revisions: [{ revid: 42, contentmodel: 'wikitext', content: '== One ==\nbody' }],
 			},
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getPage.handle(
 			{ title: 'Test Page', content: ContentFormat.source, metadata: false, section: 1 },
@@ -627,8 +617,7 @@ describe('get-page', () => {
 				parse: { text: '<p>Hello</p>', title: 'Test Page', pageid: 1 },
 			}),
 		});
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			wikiProbe: probeReporting({ server: 'https://public.example', articlepath: '/wiki' }),
 		});
 
@@ -655,8 +644,7 @@ describe('get-page', () => {
 			},
 			html: '<p>Hello</p>',
 		});
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			sections: new SectionServiceImpl(),
 		});
 

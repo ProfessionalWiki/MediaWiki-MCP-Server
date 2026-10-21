@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { contextOn } from '../helpers/fakeContext.ts';
 import { getLinksHere, LinkType, RedirectFilter } from '../../src/tools/get-links-here.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import {
@@ -31,7 +31,7 @@ describe('get-links-here', () => {
 				.fn()
 				.mockResolvedValue({ query: { backlinks: [{ pageid: 1, ns: 0, title: 'A' }] } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await getLinksHere.handle(args({ title: 'Target', expandRedirects: false }), ctx);
 
@@ -47,7 +47,7 @@ describe('get-links-here', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ query: { embeddedin: [] } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await getLinksHere.handle(args({ title: 'Tmpl', type: LinkType.transclusions }), ctx);
 
@@ -58,7 +58,7 @@ describe('get-links-here', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ query: { imageusage: [] } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await getLinksHere.handle(
 			args({ title: 'File:Bar.png', type: LinkType.fileusage, expandRedirects: false }),
@@ -75,7 +75,7 @@ describe('get-links-here', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ query: { backlinks: [] } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await getLinksHere.handle(
 			args({ namespaces: [0, 6], filter: RedirectFilter.redirects, expandRedirects: false }),
@@ -92,7 +92,7 @@ describe('get-links-here', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ query: { backlinks: [] } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await getLinksHere.handle(args({ filter: RedirectFilter.all, expandRedirects: false }), ctx);
 
@@ -116,7 +116,7 @@ describe('get-links-here', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getLinksHere.handle(args({ expandRedirects: true }), ctx);
 
@@ -135,7 +135,7 @@ describe('get-links-here', () => {
 				.fn()
 				.mockResolvedValue({ query: { embeddedin: [{ pageid: 1, ns: 0, title: 'User:Bob' }] } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getLinksHere.handle(
 			args({ type: LinkType.transclusions, expandRedirects: true }),
@@ -151,7 +151,7 @@ describe('get-links-here', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ query: { backlinks: [] } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await getLinksHere.handle(args({ limit: 500, expandRedirects: true }), ctx);
 
@@ -162,7 +162,7 @@ describe('get-links-here', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ query: { backlinks: [] } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await getLinksHere.handle(args({ limit: 500, expandRedirects: false }), ctx);
 
@@ -173,7 +173,7 @@ describe('get-links-here', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ query: { backlinks: [] } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await getLinksHere.handle(args({ continueFrom: '0|999', expandRedirects: false }), ctx);
 
@@ -187,7 +187,7 @@ describe('get-links-here', () => {
 				continue: { blcontinue: '0|123' },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getLinksHere.handle(args({ expandRedirects: false }), ctx);
 
@@ -204,7 +204,7 @@ describe('get-links-here', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ query: { backlinks: [] } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getLinksHere.handle(
 			args({ title: 'Nonexistent', expandRedirects: false }),
@@ -220,7 +220,7 @@ describe('get-links-here', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockRejectedValue(new Error('API boom')),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(getLinksHere, ctx)(args());
 
@@ -245,7 +245,7 @@ describe('get-links-here', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		const data = assertStructuredData(
 			await dispatch(getLinksHere, ctx)({ title: 'T', type: 'wikilinks' } as never),
 		);

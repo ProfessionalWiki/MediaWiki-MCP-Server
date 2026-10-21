@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { fakeContext, contextOn } from '../helpers/fakeContext.ts';
 import { wikiAnswering } from '../helpers/wikiAnswering.ts';
 import { getPages, BatchContentFormat } from '../../src/tools/get-pages.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
@@ -110,7 +110,7 @@ describe('get-pages', () => {
 				}),
 			);
 			const mock = createMockMwn({ massQuery });
-			const ctx = fakeContext({ mwn: async () => mock as never });
+			const ctx = contextOn(mock);
 
 			const result = await getPages.handle(
 				{
@@ -161,7 +161,7 @@ describe('get-pages', () => {
 				}),
 			);
 			const mock = createMockMwn({ massQuery });
-			const ctx = fakeContext({ mwn: async () => mock as never });
+			const ctx = contextOn(mock);
 
 			const result = await getPages.handle(
 				{
@@ -193,7 +193,7 @@ describe('get-pages', () => {
 				}),
 			);
 			const mock = createMockMwn({ massQuery });
-			const ctx = fakeContext({ mwn: async () => mock as never });
+			const ctx = contextOn(mock);
 
 			const result = await getPages.handle(
 				{
@@ -217,7 +217,7 @@ describe('get-pages', () => {
 				}),
 			);
 			const mock = createMockMwn({ massQuery });
-			const ctx = fakeContext({ mwn: async () => mock as never });
+			const ctx = contextOn(mock);
 
 			const result = await getPages.handle(
 				{
@@ -249,7 +249,7 @@ describe('get-pages', () => {
 				}),
 			);
 			const mock = createMockMwn({ massQuery });
-			const ctx = fakeContext({ mwn: async () => mock as never });
+			const ctx = contextOn(mock);
 
 			const result = await getPages.handle(
 				{
@@ -277,7 +277,7 @@ describe('get-pages', () => {
 				}),
 			);
 			const mock = createMockMwn({ massQuery });
-			const ctx = fakeContext({ mwn: async () => mock as never });
+			const ctx = contextOn(mock);
 
 			const result = await getPages.handle(
 				{
@@ -303,7 +303,7 @@ describe('get-pages', () => {
 
 			const result = await dispatch(
 				getPages,
-				fakeContext({ mwn: async () => wiki.mwn }),
+				contextOn(wiki.mwn),
 			)({
 				titles: ['Foo'],
 				content: BatchContentFormat.source,
@@ -322,7 +322,7 @@ describe('get-pages', () => {
 				}),
 			);
 			const mock = createMockMwn({ massQuery });
-			const ctx = fakeContext({ mwn: async () => mock as never });
+			const ctx = contextOn(mock);
 
 			const result = await getPages.handle(
 				{
@@ -353,7 +353,7 @@ describe('get-pages', () => {
 				}),
 			);
 			const mock = createMockMwn({ massQuery });
-			const ctx = fakeContext({ mwn: async () => mock as never });
+			const ctx = contextOn(mock);
 
 			const result = await getPages.handle(
 				{
@@ -384,7 +384,7 @@ describe('get-pages', () => {
 				}),
 			);
 			const mock = createMockMwn({ massQuery });
-			const ctx = fakeContext({ mwn: async () => mock as never });
+			const ctx = contextOn(mock);
 
 			const result = await getPages.handle(
 				{
@@ -414,7 +414,7 @@ describe('get-pages', () => {
 				}),
 			);
 			const mock = createMockMwn({ massQuery });
-			const ctx = fakeContext({ mwn: async () => mock as never });
+			const ctx = contextOn(mock);
 
 			const result = await getPages.handle(
 				{
@@ -442,7 +442,7 @@ describe('get-pages', () => {
 				}),
 			);
 			const mock = createMockMwn({ massQuery });
-			const ctx = fakeContext({ mwn: async () => mock as never });
+			const ctx = contextOn(mock);
 
 			const result = await getPages.handle(
 				{
@@ -475,7 +475,7 @@ describe('get-pages', () => {
 					metadata: false,
 					followRedirects: false,
 				},
-				fakeContext({ mwn: async () => wiki.mwn }),
+				contextOn(wiki.mwn),
 			);
 
 			expect(wiki.sentQuery().has('redirects')).toBe(false);
@@ -502,7 +502,7 @@ describe('get-pages', () => {
 					metadata: false,
 					followRedirects: false,
 				},
-				fakeContext({ mwn: async () => wiki.mwn }),
+				contextOn(wiki.mwn),
 			);
 
 			const data = assertStructuredData(result);
@@ -529,8 +529,7 @@ describe('get-pages', () => {
 				parse: { sections: [{ line: 'Overview', index: '1', level: '2' }] },
 			});
 			const mock = createMockMwn({ massQuery, request });
-			const ctx = fakeContext({
-				mwn: async () => mock as never,
+			const ctx = contextOn(mock, {
 				sections: new SectionServiceImpl(),
 			});
 
@@ -586,8 +585,7 @@ describe('get-pages', () => {
 				.fn()
 				.mockResolvedValue({ parse: { sections: [{ line: 'H', index: '1' }] } });
 			const mock = createMockMwn({ massQuery, request });
-			const ctx = fakeContext({
-				mwn: async () => mock as never,
+			const ctx = contextOn(mock, {
 				sections: new SectionServiceImpl(),
 			});
 
@@ -619,7 +617,7 @@ describe('get-pages', () => {
 			);
 			const request = vi.fn();
 			const mock = createMockMwn({ massQuery, request });
-			const ctx = fakeContext({ mwn: async () => mock as never });
+			const ctx = contextOn(mock);
 
 			const result = await getPages.handle(
 				{
@@ -663,7 +661,7 @@ describe('get-pages response budget', () => {
 		);
 		const request = vi.fn().mockResolvedValue({ parse: { sections: [] } });
 		const mock = createMockMwn({ massQuery, request });
-		return fakeContext({ mwn: async () => mock as never, sections: new SectionServiceImpl() });
+		return contextOn(mock, { sections: new SectionServiceImpl() });
 	}
 
 	async function read(ctx: ReturnType<typeof fakeContext>, titles: string[]) {
@@ -721,7 +719,7 @@ describe('get-pages response budget', () => {
 		);
 		const request = vi.fn().mockResolvedValue({ parse: { sections: [] } });
 		const mock = createMockMwn({ massQuery, request });
-		const ctx = fakeContext({ mwn: async () => mock as never, sections: new SectionServiceImpl() });
+		const ctx = contextOn(mock, { sections: new SectionServiceImpl() });
 
 		const text = assertStructuredSuccess(await read(ctx, ['P1', 'Gone', 'P3']));
 
@@ -770,7 +768,7 @@ describe('get-pages response budget', () => {
 		);
 		const request = vi.fn().mockResolvedValue({ parse: { sections: [] } });
 		const mock = createMockMwn({ massQuery, request });
-		const ctx = fakeContext({ mwn: async () => mock as never, sections: new SectionServiceImpl() });
+		const ctx = contextOn(mock, { sections: new SectionServiceImpl() });
 
 		const text = assertStructuredSuccess(await read(ctx, ['P1', 'Shortcut']));
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
 import { createMockMwnError } from '../../../helpers/mock-mwn-error.ts';
-import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { contextOn } from '../../../helpers/fakeContext.ts';
 import { cargoQuery } from '../../../../src/tools/extensions/cargo/cargo-query.ts';
 import { dispatch } from '../../../../src/runtime/dispatcher.ts';
 import {
@@ -10,9 +10,9 @@ import {
 } from '../../../helpers/structuredResult.ts';
 
 // A wiki whose API call fails with `error`.
-function ctxRejecting(error: Error): ReturnType<typeof fakeContext> {
+function ctxRejecting(error: Error): ReturnType<typeof contextOn> {
 	const mock = createMockMwn({ request: vi.fn().mockRejectedValue(error) });
-	return fakeContext({ mwn: async () => mock as never });
+	return contextOn(mock);
 }
 
 describe('cargo-query', () => {
@@ -25,7 +25,7 @@ describe('cargo-query', () => {
 				],
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await cargoQuery.handle(
 			{
@@ -66,7 +66,7 @@ describe('cargo-query', () => {
 				cargoquery: [{ title: { _pageName: 'Monster', xp: '42' } }],
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await cargoQuery.handle({ tables: 'combat' }, ctx);
 
@@ -79,7 +79,7 @@ describe('cargo-query', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await cargoQuery.handle({ tables: 'items' }, ctx);
 
@@ -90,7 +90,7 @@ describe('cargo-query', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ cargoquery: [] }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await cargoQuery.handle({ tables: 'items' }, ctx);
 
@@ -101,7 +101,7 @@ describe('cargo-query', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ cargoquery: [] }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await cargoQuery.handle({ tables: 'items' }, ctx);
 
@@ -114,7 +114,7 @@ describe('cargo-query', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ cargoquery: [] }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await cargoQuery.handle({ tables: 'items', limit: 42 }, ctx);
 
@@ -132,7 +132,7 @@ describe('cargo-query', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ cargoquery: [] }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await cargoQuery.handle({ tables: 'items', continueFrom: '100' }, ctx);
 
@@ -143,7 +143,7 @@ describe('cargo-query', () => {
 
 	it('rejects non-integer continueFrom with invalid_input', async () => {
 		const mock = createMockMwn({ request: vi.fn() });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(
 			cargoQuery,
@@ -157,7 +157,7 @@ describe('cargo-query', () => {
 
 	it('rejects negative continueFrom with invalid_input', async () => {
 		const mock = createMockMwn({ request: vi.fn() });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(cargoQuery, ctx)({ tables: 'items', continueFrom: '-1' });
 
@@ -173,7 +173,7 @@ describe('cargo-query', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ cargoquery: fullPage }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await cargoQuery.handle({ tables: 'items', limit: 50 }, ctx);
 
@@ -191,7 +191,7 @@ describe('cargo-query', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ cargoquery: fullPage }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await cargoQuery.handle({ tables: 'items', limit: 50, continueFrom: '50' }, ctx);
 
@@ -206,7 +206,7 @@ describe('cargo-query', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ cargoquery: partial }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await cargoQuery.handle({ tables: 'items', limit: 50 }, ctx);
 
@@ -220,7 +220,7 @@ describe('cargo-query', () => {
 				cargoquery: [{ title: { 'Item Name': 'Abyssal whip' } }],
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await cargoQuery.handle({ tables: 'items', fields: 'name=Item Name' }, ctx);
 
@@ -244,7 +244,7 @@ describe('cargo-query', () => {
 					),
 				),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(cargoQuery, ctx)({ tables: 'nonexistent' });
 
@@ -287,7 +287,7 @@ describe('cargo-query', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockRejectedValue(new Error('cargoquery network failure')),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(cargoQuery, ctx)({ tables: 'items' });
 
@@ -299,7 +299,7 @@ describe('cargo-query', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ cargoquery: [] }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await cargoQuery.handle({ tables: 'items' }, ctx);
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { contextOn } from '../../../helpers/fakeContext.ts';
 import { neowikiGetPageSubjects } from '../../../../src/tools/extensions/neowiki/neowiki-get-page-subjects.ts';
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
 
@@ -28,7 +28,7 @@ describe('neowiki-get-page-subjects', () => {
 				.mockResolvedValue({ query: { pages: [{ pageid: 65, title: 'Rijksmuseum' }] } }),
 			rawRequest: vi.fn().mockResolvedValue(pageSubjectsBody),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		const result = await neowikiGetPageSubjects.handle({ title: 'Rijksmuseum' }, ctx);
 
 		expect((mock.request.mock.calls[0][0] as Record<string, unknown>).titles).toBe('Rijksmuseum');
@@ -57,20 +57,20 @@ describe('neowiki-get-page-subjects', () => {
 				.fn()
 				.mockResolvedValue({ data: { pageId: 65, mainSubjectId: null, subjects: {} } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		const result = await neowikiGetPageSubjects.handle({ pageId: 65 }, ctx);
 		expect(mock.request).not.toHaveBeenCalled();
 		expect(result.structuredContent).toMatchObject({ subjects: [] });
 	});
 
 	it('rejects when neither title nor pageId is given', async () => {
-		const ctx = fakeContext({ mwn: async () => createMockMwn() as never });
+		const ctx = contextOn(createMockMwn());
 		const result = await neowikiGetPageSubjects.handle({}, ctx);
 		assertStructuredError(result, 'invalid_input');
 	});
 
 	it('rejects when both title and pageId are given', async () => {
-		const ctx = fakeContext({ mwn: async () => createMockMwn() as never });
+		const ctx = contextOn(createMockMwn());
 		const result = await neowikiGetPageSubjects.handle({ title: 'X', pageId: 1 }, ctx);
 		assertStructuredError(result, 'invalid_input');
 	});
@@ -79,7 +79,7 @@ describe('neowiki-get-page-subjects', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ query: { pages: [{ title: 'Nope', missing: true }] } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		const result = await neowikiGetPageSubjects.handle({ title: 'Nope' }, ctx);
 		assertStructuredError(result, 'not_found');
 	});

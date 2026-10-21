@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockMwn, type MockMwn } from '../helpers/mock-mwn.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { contextOn } from '../helpers/fakeContext.ts';
 import type { ToolContext } from '../../src/runtime/context.ts';
 import { getRecentChanges } from '../../src/tools/get-recent-changes.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
@@ -16,7 +16,7 @@ function setup(response: unknown): { mock: MockMwn; ctx: ToolContext } {
 	const mock = createMockMwn({
 		request: vi.fn().mockResolvedValue(response),
 	});
-	const ctx = fakeContext({ mwn: async () => mock as never });
+	const ctx = contextOn(mock);
 	return { mock, ctx };
 }
 
@@ -152,7 +152,7 @@ describe('get-recent-changes — error handling', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockRejectedValue(new Error('badtimestamp')),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(getRecentChanges, ctx)({ since: 'garbage' });
 
@@ -430,7 +430,7 @@ describe('get-recent-changes — field trimming', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		const data = assertStructuredData(await dispatch(getRecentChanges, ctx)({} as never));
 		const [a, b] = data.changes as Record<string, unknown>[];
 		expect(a).not.toHaveProperty('minor');

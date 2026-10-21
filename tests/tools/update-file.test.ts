@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Mock } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { fakeContext, contextOn } from '../helpers/fakeContext.ts';
 
 vi.mock('../../src/transport/uploadGuard.ts', async () => {
 	const actual = await vi.importActual<typeof import('../../src/transport/uploadGuard.ts')>(
@@ -40,8 +40,7 @@ function ctxWith(
 ) {
 	const mwn = opts.mwn ?? createMockMwn();
 	const submitUpload = opts.submitUpload ?? vi.fn();
-	const ctx = fakeContext({
-		mwn: async () => mwn as never,
+	const ctx = contextOn(mwn, {
 		edit: { ...baseEdit, submitUpload },
 		uploadDirs: { list: () => ['/home/user/uploads'] },
 	});

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { contextOn } from '../helpers/fakeContext.ts';
 import { getFile } from '../../src/tools/get-file.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { formatPayload } from '../../src/results/format.ts';
@@ -32,7 +32,7 @@ describe('get-file', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getFile.handle({ title: 'Example.png' }, ctx);
 
@@ -55,7 +55,7 @@ describe('get-file', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ query: { pages: [{ title: 'Datei:Example.png' }] } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await getFile.handle({ title: 'Datei:Example.png' }, ctx);
 
@@ -84,7 +84,7 @@ describe('get-file', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getFile.handle({ title: 'Example.jpg' }, ctx);
 
@@ -106,7 +106,7 @@ describe('get-file', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getFile.handle({ title: 'Missing.png' }, ctx);
 
@@ -118,7 +118,7 @@ describe('get-file', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockRejectedValue(new Error('API error')),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(getFile, ctx)({ title: 'Example.png' });
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { contextOn } from '../../../helpers/fakeContext.ts';
 import { neowikiCypherQuery } from '../../../../src/tools/extensions/neowiki/neowiki-cypher-query.ts';
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
 import { httpError } from '../../../helpers/httpError.ts';
@@ -19,7 +19,7 @@ describe('neowiki-cypher-query', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		const result = await neowikiCypherQuery.handle(
 			{ cypher: 'MATCH (s:Subject:Company) RETURN s.name AS name', parameters: { x: 1 } },
 			ctx,
@@ -43,7 +43,7 @@ describe('neowiki-cypher-query', () => {
 				.fn()
 				.mockResolvedValue({ data: { columns: [], rows: [], resultCount: 0, truncated: false } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		await neowikiCypherQuery.handle({ cypher: 'RETURN 1' }, ctx);
 		const call = mock.rawRequest.mock.calls[0][0] as { data: string };
 		expect(JSON.parse(call.data)).toEqual({ cypher: 'RETURN 1' });
@@ -55,7 +55,7 @@ describe('neowiki-cypher-query', () => {
 				data: { columns: ['n'], rows: [{ n: 1 }], resultCount: 1, durationMs: 5, truncated: true },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		const result = await neowikiCypherQuery.handle({ cypher: 'MATCH (s) RETURN s.name AS n' }, ctx);
 		expect(result.structuredContent).toMatchObject({
 			truncation: { reason: 'capped-no-continuation' },
@@ -70,7 +70,7 @@ describe('neowiki-cypher-query', () => {
 					httpError(422, { errorType: 'writeQueryRejected', message: 'Query is not read-only.' }),
 				),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		const result = await dispatch(neowikiCypherQuery, ctx)({ cypher: 'CREATE (x)' });
 		assertStructuredError(result, 'invalid_input');
 	});

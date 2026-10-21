@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { contextOn } from '../../../helpers/fakeContext.ts';
 import { neowikiValidateSubject } from '../../../../src/tools/extensions/neowiki/neowiki-validate-subject.ts';
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
 
@@ -11,7 +11,7 @@ describe('neowiki-validate-subject', () => {
 		const mock = createMockMwn({
 			rawRequest: vi.fn().mockResolvedValue({ data: { violations: [] } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		const result = await neowikiValidateSubject.handle(
 			{ schema: 'Company', statements: stmts },
 			ctx,
@@ -34,7 +34,7 @@ describe('neowiki-validate-subject', () => {
 				.fn()
 				.mockResolvedValue({ data: { violations: [{ property: 'Founded', message: 'bad' }] } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		const result = await neowikiValidateSubject.handle({ id: 's1demo', statements: stmts }, ctx);
 		const call = mock.rawRequest.mock.calls[0][0] as { url: string; data: string };
 		expect(call.url).toBe('https://test.wiki/w/rest.php/neowiki/v0/subject/s1demo/validate');
@@ -45,7 +45,7 @@ describe('neowiki-validate-subject', () => {
 	});
 
 	it('rejects a new-subject validation with no schema', async () => {
-		const ctx = fakeContext({ mwn: async () => createMockMwn() as never });
+		const ctx = contextOn(createMockMwn());
 		const result = await neowikiValidateSubject.handle({ statements: stmts }, ctx);
 		assertStructuredError(result, 'invalid_input');
 	});

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { contextOn } from '../../../helpers/fakeContext.ts';
 import { smwListProperties } from '../../../../src/tools/extensions/smw/smw-list-properties.ts';
 import { dispatch } from '../../../../src/runtime/dispatcher.ts';
 import {
@@ -55,7 +55,7 @@ describe('smw-list-properties', () => {
 					]),
 				),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await smwListProperties.handle({}, ctx);
 
@@ -88,7 +88,7 @@ describe('smw-list-properties', () => {
 				.fn()
 				.mockResolvedValue(smwBrowseResponse([smwBrowseProp('Bare_property', { usageCount: 0 })])),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await smwListProperties.handle({}, ctx);
 
@@ -106,7 +106,7 @@ describe('smw-list-properties', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue(smwBrowseResponse([smwBrowseProp('Some_property')])),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await smwListProperties.handle({}, ctx);
 
@@ -124,7 +124,7 @@ describe('smw-list-properties', () => {
 					smwBrowseResponse([smwBrowseProp('Manufacturer', { usageCount: 6190 })]),
 				),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await smwListProperties.handle({}, ctx);
 
@@ -142,7 +142,7 @@ describe('smw-list-properties', () => {
 				'query-continue-offset': 0,
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await smwListProperties.handle({}, ctx);
 
@@ -154,7 +154,7 @@ describe('smw-list-properties', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue(smwBrowseResponse([])),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await smwListProperties.handle({ search: 'manufacturer' }, ctx);
 
@@ -164,7 +164,7 @@ describe('smw-list-properties', () => {
 
 	it('refuses a continueFrom it never handed out instead of returning the first page', async () => {
 		const mock = createMockMwn({ request: vi.fn() });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(smwListProperties, ctx)({ continueFrom: 'next' });
 
@@ -177,7 +177,7 @@ describe('smw-list-properties', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue(smwBrowseResponse([])),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await smwListProperties.handle({ limit: 25, continueFrom: '100' }, ctx);
 
@@ -190,7 +190,7 @@ describe('smw-list-properties', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue(smwBrowseResponse([])),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await smwListProperties.handle({}, ctx);
 
@@ -206,7 +206,7 @@ describe('smw-list-properties', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue(smwBrowseResponse(entries, 50)),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await smwListProperties.handle({ limit: 50 }, ctx);
 
@@ -224,7 +224,7 @@ describe('smw-list-properties', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue(smwBrowseResponse(entries, 0)),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await smwListProperties.handle({ limit: 50 }, ctx);
 
@@ -239,7 +239,7 @@ describe('smw-list-properties', () => {
 				'query-continue-offset': 0,
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await smwListProperties.handle({ search: 'no-match-anywhere' }, ctx);
 
@@ -259,7 +259,7 @@ describe('smw-list-properties', () => {
 				'query-continue-offset': 0,
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await smwListProperties.handle({}, ctx);
 
@@ -272,7 +272,7 @@ describe('smw-list-properties', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockRejectedValue(new Error('smwbrowse 500')),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(smwListProperties, ctx)({});
 
