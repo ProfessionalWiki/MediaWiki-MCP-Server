@@ -44,9 +44,8 @@ export const listWikis: Tool<Record<string, never>> = {
 		const wikis: WikiSummary[] = await Promise.all(
 			Object.keys(all).map(async (key): Promise<WikiSummary> => {
 				const config = all[key];
-				// Discovery reads only the anonymous probe — no credential
-				// resolution or login. The probe reports the wiki's live public
-				// server; fall back to the configured server when it is unreachable.
+				// The probe reads a public wiki anonymously, without resolving its
+				// credentials, and reports the public server it last read.
 				const identity = await ctx.wikiProbe.inspect(key);
 				const { reachable } = identity;
 				const publicServer = identity.server ?? config.server;

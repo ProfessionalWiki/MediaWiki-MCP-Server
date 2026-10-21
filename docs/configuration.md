@@ -32,7 +32,7 @@ Covers configuration topics beyond the basic `config.json` shape documented in [
 | `tags` | No | Change tag(s) to apply to every write (string or array). The tag must exist and be active at `Special:Tags` — see [change tags](#change-tags-tags) for details. |
 | `attributeEdits` | No | Whether writes carry the `(via <tool> on MediaWiki MCP Server)` suffix in their edit summary. Default: `true`. See [edit attribution](#edit-attribution-attributeedits). |
 
-URLs returned to the caller — page links, and the `server` field in `list-wikis` and `mcp://wikis` resources — are built from the wiki's public address, so an internal `server` hostname does not leak into links. If the wiki cannot be reached, they fall back to the configured `server`.
+URLs returned to the caller — page links, and the `server` field in `list-wikis` and `mcp://wikis` resources — are built from the public address the wiki reports, so an internal `server` hostname does not leak into links. Until the server has read that address, they use the configured `server`; a wiki on an internal host is only read once the host is listed in [`MCP_TRUSTED_HOSTS`](deployment.md#outbound-ssrf-guard).
 
 ## Environment variable substitution
 

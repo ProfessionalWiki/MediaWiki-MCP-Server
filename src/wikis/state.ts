@@ -4,7 +4,6 @@ import { WikiRegistryImpl, type WikiRegistry } from './wikiRegistry.ts';
 import { ActiveWikiImpl, type ActiveWiki } from './activeWiki.ts';
 import { UploadDirsImpl, type UploadDirs } from './uploadDirs.ts';
 import { MwnProviderImpl, type MwnProvider } from './mwnProvider.ts';
-import { SiteInfoCacheImpl, type SiteInfoCache } from './siteInfoCache.ts';
 import { WikiProbeImpl, type WikiProbe } from './wikiProbe.ts';
 
 export interface AppState {
@@ -12,7 +11,6 @@ export interface AppState {
 	readonly activeWiki: ActiveWiki;
 	readonly uploadDirs: UploadDirs;
 	readonly mwnProvider: MwnProvider;
-	readonly siteInfoCache: SiteInfoCache;
 	readonly wikiProbe: WikiProbe;
 }
 
@@ -21,7 +19,6 @@ export function createAppState(config: Config): AppState {
 	const activeWiki = new ActiveWikiImpl(config.defaultWiki, wikiRegistry);
 	const uploadDirs = new UploadDirsImpl(config.uploadDirs);
 	const mwnProvider = new MwnProviderImpl(wikiRegistry, activeWiki, getRuntimeToken);
-	const siteInfoCache = new SiteInfoCacheImpl();
 	const wikiProbe = new WikiProbeImpl(wikiRegistry, mwnProvider);
-	return { wikiRegistry, activeWiki, uploadDirs, mwnProvider, siteInfoCache, wikiProbe };
+	return { wikiRegistry, activeWiki, uploadDirs, mwnProvider, wikiProbe };
 }

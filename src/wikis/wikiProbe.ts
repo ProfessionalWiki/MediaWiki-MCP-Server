@@ -3,10 +3,11 @@ import type { WikiRegistry } from './wikiRegistry.ts';
 import type { MwnProvider } from './mwnProvider.ts';
 import type { WikiConfig } from '../config/loadConfig.ts';
 import { normalizeServer } from './normalizeServer.ts';
+import { normalizeArticlePath } from './articlePath.ts';
+import { withCallBounds } from './abortableMwn.ts';
 import { errorMessage } from '../errors/errorMessage.ts';
 import { logger } from '../runtime/logger.ts';
 import { monotonicNow } from '../runtime/clock.ts';
-import { withSharedWorkScope } from '../runtime/requestContext.ts';
 import { callDeadline } from '../runtime/callDeadline.ts';
 
 const TTL_SUCCESS_MS = 60 * 60 * 1000; // 1 hour
@@ -25,6 +26,16 @@ const PROBE_TIMEOUT_MS = 5_000;
 export interface WikiIdentity {
 	/** Public server base, normalized to https; absent if siteinfo omitted it. */
 	server?: string;
+	/** The article path, as `normalizeArticlePath` keeps it; absent if siteinfo omitted it. */
+	articlepath?: string;
+	/** The wiki's content language ($wgLanguageCode). */
+	lang?: string;
+	license?: LicenseInfo;
+	/**
+	 * Namespace IDs the wiki counts as content ($wgContentNamespaces), ascending;
+	 * absent when siteinfo reported no namespace map.
+	 */
+	contentNamespaces?: readonly number[];
 	/**
 	 * SPARQL endpoint of the query service backing this wiki's Wikibase
 	 * repository. Published in siteinfo as `wikibase-sparql` by a repository
@@ -33,19 +44,21 @@ export interface WikiIdentity {
 	sparqlEndpoint?: string;
 }
 
+export type LicenseInfo = { url: string; title: string };
+
 /**
  * Probes a wiki's siteinfo once, caches it (1 h on success, 60 s on failure),
- * and answers reachability, extension, and public-identity questions from that
- * snapshot. A single request fetches everything, so gating, capability
- * reporting, and list-wikis all share one network round-trip per wiki. The
+ * and answers reachability, extension, and identity questions from that
+ * snapshot: the one siteinfo source, which extension gating, list-wikis, links,
+ * search scope, the content language and the wiki resources all read. The
  * probe is anonymous, except for a wiki that keeps anonymous users from
  * reading, which it asks through the wiki's own session.
  */
 export interface WikiProbe {
 	/**
-	 * Per-wiki snapshot for capability and discovery reporting. `reachable` is
-	 * false when the siteinfo probe failed, in which case `extensions` is empty
-	 * and the identity fields are absent.
+	 * Per-wiki snapshot. `reachable` is false when the latest probe failed, in
+	 * which case `extensions` is empty and the identity fields are those the
+	 * last successful probe read, absent if none has succeeded.
 	 */
 	inspect(wikiKey: string): Promise<WikiInspection>;
 	invalidate(wikiKey: string): void;
@@ -53,10 +66,23 @@ export interface WikiProbe {
 
 export type WikiInspection = { reachable: boolean; extensions: ReadonlySet<string> } & WikiIdentity;
 
+/** A siteinfo `extensions` entry, as MediaWiki reports it. */
+export type SiteinfoExtension = { name?: string };
+
+/** Siteinfo `rightsinfo`: empty strings on a wiki without a license. */
+export type SiteinfoRights = { url?: string; text?: string };
+
 interface SiteInfoResponse {
 	query?: {
-		extensions?: { name?: string }[];
-		general?: { server?: string; 'wikibase-sparql'?: string };
+		extensions?: SiteinfoExtension[];
+		general?: {
+			server?: string;
+			articlepath?: string;
+			lang?: string;
+			'wikibase-sparql'?: string;
+		};
+		rightsinfo?: SiteinfoRights;
+		namespaces?: Record<string, { id?: number; content?: boolean }>;
 	};
 	error?: { code?: string };
 }
@@ -64,13 +90,17 @@ interface SiteInfoResponse {
 const SITEINFO_QUERY = {
 	action: 'query',
 	meta: 'siteinfo',
-	siprop: 'extensions|general',
+	siprop: 'extensions|general|namespaces|rightsinfo',
 	format: 'json',
+	formatversion: '2',
 };
 
-type CacheEntry =
-	| ({ kind: 'success'; extensions: Set<string>; expiresAt: number } & WikiIdentity)
-	| { kind: 'failed'; expiresAt: number };
+type CacheEntry = {
+	reachable: boolean;
+	extensions: ReadonlySet<string>;
+	identity: WikiIdentity;
+	expiresAt: number;
+};
 
 export class WikiProbeImpl implements WikiProbe {
 	private readonly cache = new Map<string, CacheEntry>();
@@ -83,16 +113,8 @@ export class WikiProbeImpl implements WikiProbe {
 	) {}
 
 	public async inspect(wikiKey: string): Promise<WikiInspection> {
-		const entry = await this.resolveEntry(wikiKey);
-		if (entry.kind === 'failed') {
-			return { reachable: false, extensions: new Set() };
-		}
-		return {
-			reachable: true,
-			extensions: entry.extensions,
-			...(entry.server !== undefined ? { server: entry.server } : {}),
-			...(entry.sparqlEndpoint !== undefined ? { sparqlEndpoint: entry.sparqlEndpoint } : {}),
-		};
+		const { reachable, extensions, identity } = await this.resolveEntry(wikiKey);
+		return { reachable, extensions, ...identity };
 	}
 
 	public invalidate(wikiKey: string): void {
@@ -117,49 +139,28 @@ export class WikiProbeImpl implements WikiProbe {
 		return probe;
 	}
 
-	// Never throws — failures are caught and surfaced as `failed` cache entries
-	// with a TTL_FAILURE_MS backoff. Callers (notably reconcile's rule
-	// predicates) depend on this totality to keep Promise.all from rejecting.
+	// Never throws — a failure is cached as an unreachable entry with a
+	// TTL_FAILURE_MS backoff. Callers (notably reconcile's rule predicates)
+	// depend on this totality to keep Promise.all from rejecting.
 	private async probe(wikiKey: string): Promise<CacheEntry> {
 		const config = this.wikis.get(wikiKey);
 		if (!config) {
-			const failed: CacheEntry = { kind: 'failed', expiresAt: this.now() + TTL_FAILURE_MS };
-			this.cache.set(wikiKey, failed);
-			return failed;
+			return this.recordFailure(wikiKey);
 		}
 
 		try {
 			const data = await this.readSiteInfo(wikiKey, config);
 			// Extensions gate tool visibility, so a malformed list is a hard failure.
-			// General is best-effort public identity: absent fields simply leave the
-			// corresponding snapshot field undefined.
 			const list = data.query?.extensions;
 			if (!Array.isArray(list)) {
 				throw new Error('Malformed siteinfo extensions response');
 			}
-			const names = new Set<string>();
-			for (const ext of list) {
-				if (typeof ext.name === 'string' && ext.name !== '') {
-					names.add(ext.name);
-				}
-			}
-
-			const general = data.query?.general;
-			const server =
-				typeof general?.server === 'string' && general.server !== ''
-					? normalizeServer(general.server)
-					: undefined;
-			const sparqlEndpoint =
-				typeof general?.['wikibase-sparql'] === 'string' && general['wikibase-sparql'] !== ''
-					? general['wikibase-sparql']
-					: undefined;
 
 			const entry: CacheEntry = {
-				kind: 'success',
-				extensions: names,
+				reachable: true,
+				extensions: new Set(extensionNames(list)),
+				identity: readIdentity(data),
 				expiresAt: this.now() + TTL_SUCCESS_MS,
-				...(server !== undefined ? { server } : {}),
-				...(sparqlEndpoint !== undefined ? { sparqlEndpoint } : {}),
 			};
 			this.cache.set(wikiKey, entry);
 			return entry;
@@ -168,10 +169,21 @@ export class WikiProbeImpl implements WikiProbe {
 				wikiKey,
 				error: errorMessage(error),
 			});
-			const failed: CacheEntry = { kind: 'failed', expiresAt: this.now() + TTL_FAILURE_MS };
-			this.cache.set(wikiKey, failed);
-			return failed;
+			return this.recordFailure(wikiKey);
 		}
+	}
+
+	// A failed probe keeps the identity it last read, so links stay public through
+	// a blip while the extension tools follow the wiki's current state.
+	private recordFailure(wikiKey: string): CacheEntry {
+		const failed: CacheEntry = {
+			reachable: false,
+			extensions: new Set(),
+			identity: this.cache.get(wikiKey)?.identity ?? {},
+			expiresAt: this.now() + TTL_FAILURE_MS,
+		};
+		this.cache.set(wikiKey, failed);
+		return failed;
 	}
 
 	// A wiki that keeps anonymous users from reading refuses siteinfo too, so it
@@ -192,9 +204,64 @@ export class WikiProbeImpl implements WikiProbe {
 				return data;
 			}
 		}
-		return withSharedWorkScope(callDeadline(PROBE_TIMEOUT_MS, 'connecting'), async () => {
-			const mwn = await this.sessions.get(wikiKey);
-			return mwn.request(SITEINFO_QUERY);
-		});
+		// Bounded on a budget of its own rather than the caller's, since the
+		// answer is shared with every caller that joins it.
+		const session = withCallBounds(
+			await this.sessions.get(wikiKey),
+			callDeadline(PROBE_TIMEOUT_MS, 'connecting'),
+		);
+		return session.request(SITEINFO_QUERY);
 	}
+}
+
+export function extensionNames(list: readonly SiteinfoExtension[]): string[] {
+	return list
+		.map((extension) => extension.name)
+		.filter((name): name is string => typeof name === 'string' && name !== '');
+}
+
+export function licenseOf(rights: SiteinfoRights | undefined): LicenseInfo | undefined {
+	return rights?.url && rights.text ? { url: rights.url, title: rights.text } : undefined;
+}
+
+// General, rights and namespaces are best-effort identity: a field siteinfo
+// omits leaves the snapshot without it.
+function readIdentity(data: SiteInfoResponse): WikiIdentity {
+	const general = data.query?.general;
+	const license = licenseOf(data.query?.rightsinfo);
+	const contentNamespaces = readContentNamespaces(data.query?.namespaces);
+	return {
+		...(typeof general?.server === 'string' && general.server !== ''
+			? { server: normalizeServer(general.server) }
+			: {}),
+		...(typeof general?.articlepath === 'string'
+			? { articlepath: normalizeArticlePath(general.articlepath) }
+			: {}),
+		...(typeof general?.lang === 'string' && general.lang !== '' ? { lang: general.lang } : {}),
+		...(license !== undefined ? { license } : {}),
+		...(contentNamespaces.length > 0 ? { contentNamespaces } : {}),
+		...(typeof general?.['wikibase-sparql'] === 'string' && general['wikibase-sparql'] !== ''
+			? { sparqlEndpoint: general['wikibase-sparql'] }
+			: {}),
+	};
+}
+
+// MediaWiki always flags the main namespace as content, so an empty result means
+// the wiki reported no namespace map rather than that it holds no content. The
+// negative namespaces (Media, Special) are dropped because the search API
+// refuses them, and one refused value costs the whole scope.
+function readContentNamespaces(
+	namespaces: Record<string, { id?: number; content?: boolean }> | undefined,
+): number[] {
+	if (!namespaces) {
+		return [];
+	}
+
+	const ids = new Set<number>();
+	for (const entry of Object.values(namespaces)) {
+		if (entry.content === true && typeof entry.id === 'number' && entry.id >= 0) {
+			ids.add(entry.id);
+		}
+	}
+	return [...ids].sort((a, b) => a - b);
 }

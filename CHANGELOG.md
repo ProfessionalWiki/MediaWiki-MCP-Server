@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - The NeoWiki read tools return a subject's display name and, for a Dependent Subject, the subject it belongs to; `neowiki-get-subject` also returns the page holding it. `neowiki-search-subjects` searches every schema when none is given, and returns each match's page title. `neowiki-get-schema` and `neowiki-list-schemas` mark a schema whose subjects are dependent.
 - The NeoWiki tool descriptions cover monolingual text values, Dependent Subjects, and the current graph model, including whole nodes, which Cypher queries can now return.
 - Failure messages from the NeoWiki tools and `wikibase-query` now start with "Failed to <action>:", as other tools' do. The server logs these failures as `Tool failed`, and tool-call telemetry records the HTTP status the service answered with.
+- Links in tool results take a wiki's public address from the same siteinfo check that decides its extension tools. A wiki on an internal host needs the host in `MCP_TRUSTED_HOSTS` for public links, as it already did for its extension tools. A wiki slower than 5 seconds to answer, rather than 30, gets links from its configured server until a check a minute later succeeds.
 
 ### Fixed
 
@@ -51,6 +52,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `get-file` and `get-file-data` return a file the wiki serves from a shared repository, such as Commons on Wikipedia or a wiki using InstantCommons, instead of reporting it missing.
 - `smw-query` and `smw-list-properties` refuse a `continueFrom` that is not a non-negative integer as `invalid_input`, instead of silently returning the first page again.
 - The server now offers the extension tools on a wiki that keeps anonymous users from reading, when the wiki has credentials in `config.json`, instead of hiding them. A wiki reached only through OAuth sign-in still gets none.
+- `get-site-info` lists a wiki's extensions even when the server cannot check them itself, as on a private wiki reached only through OAuth sign-in.
 
 ## [0.19.0] - 2026-09-25
 

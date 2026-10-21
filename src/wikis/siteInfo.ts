@@ -1,139 +1,20 @@
 import type { ToolContext } from '../runtime/context.ts';
-import type { SiteInfo, LicenseInfo, SiteInfoCache } from './siteInfoCache.ts';
-import { normalizeServer } from './normalizeServer.ts';
-import { normalizeArticlePath } from './articlePath.ts';
-import { withSharedWorkScope } from '../runtime/requestContext.ts';
-import { callDeadline, WIKI_CONNECT_TIMEOUT_MS } from '../runtime/callDeadline.ts';
+import type { WikiIdentity } from './wikiProbe.ts';
 
-interface SiteInfoApiResponse {
-	query?: {
-		general?: {
-			server?: string;
-			articlepath?: string;
-			lang?: string;
-			'wikibase-sparql'?: string;
-		};
-		rightsinfo?: { url?: string; text?: string };
-		namespaces?: Record<string, { id?: number; content?: boolean }>;
-	};
-}
+export type SiteInfo = WikiIdentity & { server: string; articlepath: string };
 
-// In-flight resolutions, so concurrent cache misses for the same wiki
-// (e.g. a get-pages or search-page batch building one URL per result) share a
-// single siteinfo request instead of issuing one each. Mirrors the inflight
-// idiom in wikiProbe.ts. Keyed by the cache instance via a WeakMap so
-// each ToolContext — and each test — is isolated, and entries are dropped with
-// their cache rather than leaking.
-const inflightByCache = new WeakMap<SiteInfoCache, Map<string, Promise<SiteInfo>>>();
-
-async function fetchSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInfo> {
-	// config.server/articlepath are required strings on a known wiki, so the
-	// '' sentinels only apply to an unknown wikiKey. The sole production caller
-	// (the wikis resource) early-returns on unknown keys before reaching here,
-	// so an empty-string base never escapes today; it's a defensive default.
-	const config = ctx.wikis.get(wikiKey);
-	const configured: SiteInfo = {
-		server: config?.server ?? '',
-		articlepath: config?.articlepath ?? '',
-	};
-	// A failed refetch keeps serving the siteinfo last fetched, and is retried a
-	// minute later rather than on every call.
-	const fallBack = (): SiteInfo => {
-		ctx.siteInfoCache.deferRefetch(wikiKey);
-		return ctx.siteInfoCache.get(wikiKey) ?? configured;
-	};
-
-	try {
-		const mwn = await ctx.mwn(wikiKey);
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn.request returns ApiResponse; narrow to the siteinfo shape we requested
-		const response = (await mwn.request({
-			action: 'query',
-			meta: 'siteinfo',
-			siprop: 'general|rightsinfo|namespaces',
-			formatversion: '2',
-		})) as SiteInfoApiResponse;
-
-		// An empty server would yield relative links, so treat it as a failed
-		// fetch.
-		const general = response.query?.general;
-		if (!general || typeof general.server !== 'string' || general.server === '') {
-			return fallBack();
-		}
-
-		const rights = response.query?.rightsinfo;
-		const license: LicenseInfo | undefined =
-			rights?.url && rights.text ? { url: rights.url, title: rights.text } : undefined;
-
-		const contentNamespaces = readContentNamespaces(response.query?.namespaces);
-
-		const resolved: SiteInfo = {
-			server: normalizeServer(general.server),
-			articlepath:
-				typeof general.articlepath === 'string'
-					? normalizeArticlePath(general.articlepath)
-					: configured.articlepath,
-			...(typeof general.lang === 'string' && general.lang !== '' ? { lang: general.lang } : {}),
-			...(typeof general['wikibase-sparql'] === 'string' && general['wikibase-sparql'] !== ''
-				? { sparqlEndpoint: general['wikibase-sparql'] }
-				: {}),
-			...(license ? { license } : {}),
-			...(contentNamespaces.length > 0 ? { contentNamespaces } : {}),
-		};
-		ctx.siteInfoCache.set(wikiKey, resolved);
-		return resolved;
-	} catch {
-		return fallBack();
-	}
-}
-
-// Resolves the wiki's own public base (and license) from meta=siteinfo,
-// cached per wiki and refetched once an hour old. Never throws: a failed first
-// fetch falls back to the configured server/articlepath without caching, so a
-// transiently-unreachable wiki is retried on the next call.
+// The wiki's identity as its probe last read it, with the configured server and
+// article path standing in until the wiki has answered.
 export async function resolveSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInfo> {
-	const cached = ctx.siteInfoCache.get(wikiKey);
-	if (cached && ctx.siteInfoCache.isFresh(wikiKey)) {
-		return cached;
-	}
-
-	let inflight = inflightByCache.get(ctx.siteInfoCache);
-	if (!inflight) {
-		inflight = new Map();
-		inflightByCache.set(ctx.siteInfoCache, inflight);
-	}
-	const existing = inflight.get(wikiKey);
-	if (existing) {
-		return existing;
-	}
-
-	// Handed to every concurrent caller, so it runs detached from the one that
-	// triggered it and on its own budget — see `withSharedWorkScope`. The extra
-	// request an abandoned caller leaves behind populates the cache anyway.
-	const promise = withSharedWorkScope(callDeadline(WIKI_CONNECT_TIMEOUT_MS, 'connecting'), () =>
-		fetchSiteInfo(ctx, wikiKey),
-	).finally(() => {
-		inflight.delete(wikiKey);
-	});
-	inflight.set(wikiKey, promise);
-	return promise;
-}
-
-// MediaWiki always flags the main namespace as content, so an empty result means
-// the wiki reported no namespace map rather than that it holds no content. The
-// negative namespaces (Media, Special) are dropped because the search API
-// refuses them, and one refused value costs the whole scope.
-function readContentNamespaces(
-	namespaces: Record<string, { id?: number; content?: boolean }> | undefined,
-): number[] {
-	if (!namespaces) {
-		return [];
-	}
-
-	const ids = new Set<number>();
-	for (const entry of Object.values(namespaces)) {
-		if (entry.content === true && typeof entry.id === 'number' && entry.id >= 0) {
-			ids.add(entry.id);
-		}
-	}
-	return [...ids].sort((a, b) => a - b);
+	const {
+		reachable: _reachable,
+		extensions: _extensions,
+		...identity
+	} = await ctx.wikiProbe.inspect(wikiKey);
+	const config = ctx.wikis.get(wikiKey);
+	return {
+		...identity,
+		server: identity.server ?? config?.server ?? '',
+		articlepath: identity.articlepath ?? config?.articlepath ?? '',
+	};
 }

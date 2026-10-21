@@ -69,15 +69,3 @@ export function withRequestFields<T>(
 	const current = runtimeTokenStore.getStore() ?? {};
 	return runtimeTokenStore.run({ ...current, ...fields }, fn);
 }
-
-/**
- * Runs `fn` detached from the caller that happened to trigger it, on `deadline`
- * rather than that caller's cancellation and remaining time.
- *
- * For work shared between concurrent callers: the first caller's cancellation
- * would fail every other waiter, and its leftover budget is just as arbitrary —
- * a joiner would inherit it, making its answer depend on an unrelated clock.
- */
-export function withSharedWorkScope<T>(deadline: CallDeadline, fn: () => Promise<T>): Promise<T> {
-	return withRequestFields({ signal: undefined, deadline }, fn);
-}

@@ -2,13 +2,18 @@ import { describe, it, expect, vi, type Mock } from 'vitest';
 import { getSiteInfo } from '../../src/tools/get-site-info.ts';
 import { fakeContext } from '../helpers/fakeContext.ts';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { siteinfoAnswer } from '../helpers/siteinfoAnswer.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { assertStructuredData, assertStructuredError } from '../helpers/structuredResult.ts';
-import type { LicenseInfo } from '../../src/wikis/siteInfoCache.ts';
 
-function siteinfoResponse(generalOverrides: Record<string, unknown> = {}) {
+// The wiki's whole siteinfo; `answering` gives back only what a request asks for.
+function siteinfoResponse(
+	generalOverrides: Record<string, unknown> = {},
+	reported: Record<string, unknown> = {},
+) {
 	return {
 		query: {
+			...reported,
 			general: {
 				sitename: 'Example',
 				generator: 'MediaWiki 1.43.0',
@@ -27,37 +32,31 @@ function siteinfoResponse(generalOverrides: Record<string, unknown> = {}) {
 	};
 }
 
-function ctxWith(
-	request: Mock,
-	opts: { extensions?: Set<string>; license?: LicenseInfo; reachable?: boolean } = {},
-) {
+function answering(response: { query: Record<string, unknown> }): Mock {
+	return vi
+		.fn()
+		.mockImplementation(async (params: Record<string, unknown>) =>
+			siteinfoAnswer(response.query, params),
+		);
+}
+
+function ctxWith(request: Mock) {
 	const mwn = createMockMwn({ request });
-	const ctx = fakeContext({
-		mwn: () => Promise.resolve(mwn as never),
-		wikiProbe: {
-			inspect: (async () => ({
-				reachable: opts.reachable ?? true,
-				extensions: opts.extensions ?? new Set<string>(),
-			})) as never,
-			invalidate: (() => {}) as never,
-		},
-	});
-	// Pre-populate so resolveSiteInfo short-circuits (issues no extra request).
-	ctx.siteInfoCache.set('test-wiki', {
-		server: 'https://example',
-		articlepath: '/wiki',
-		...(opts.license ? { license: opts.license } : {}),
-	});
-	return ctx;
+	return fakeContext({ mwn: () => Promise.resolve(mwn as never) });
 }
 
 describe('get-site-info', () => {
 	it('returns the curated static set', async () => {
-		const request = vi.fn().mockResolvedValue(siteinfoResponse());
-		const ctx = ctxWith(request, {
-			extensions: new Set(['VisualEditor', 'Cargo']),
-			license: { url: 'https://x/license', title: 'CC BY-SA 4.0' },
-		});
+		const request = answering(
+			siteinfoResponse(
+				{},
+				{
+					extensions: [{ name: 'VisualEditor' }, { name: 'Cargo' }],
+					rightsinfo: { url: 'https://x/license', text: 'CC BY-SA 4.0' },
+				},
+			),
+		);
+		const ctx = ctxWith(request);
 
 		const data = assertStructuredData(await dispatch(getSiteInfo, ctx)({} as never));
 
@@ -74,7 +73,7 @@ describe('get-site-info', () => {
 	});
 
 	it('compacts namespaces: aliases attached, default content/case omitted', async () => {
-		const request = vi.fn().mockResolvedValue(siteinfoResponse());
+		const request = answering(siteinfoResponse());
 		const ctx = ctxWith(request);
 
 		const data = assertStructuredData(await dispatch(getSiteInfo, ctx)({} as never));
@@ -90,7 +89,7 @@ describe('get-site-info', () => {
 	it('keeps namespace case only when it differs from general.case', async () => {
 		const resp = siteinfoResponse();
 		resp.query.namespaces[10].case = 'case-sensitive';
-		const request = vi.fn().mockResolvedValue(resp);
+		const request = answering(resp);
 		const ctx = ctxWith(request);
 
 		const data = assertStructuredData(await dispatch(getSiteInfo, ctx)({} as never));
@@ -99,9 +98,7 @@ describe('get-site-info', () => {
 	});
 
 	it('includes readonlyreason only when readonly', async () => {
-		const request = vi
-			.fn()
-			.mockResolvedValue(siteinfoResponse({ readonly: true, readonlyreason: 'maintenance' }));
+		const request = answering(siteinfoResponse({ readonly: true, readonlyreason: 'maintenance' }));
 		const ctx = ctxWith(request);
 
 		const data = assertStructuredData(await dispatch(getSiteInfo, ctx)({} as never));
@@ -110,8 +107,8 @@ describe('get-site-info', () => {
 		expect(data.general.readonlyreason).toBe('maintenance');
 	});
 
-	it('omits license when resolveSiteInfo returns none', async () => {
-		const request = vi.fn().mockResolvedValue(siteinfoResponse());
+	it('omits the license when the wiki has none', async () => {
+		const request = answering(siteinfoResponse({}, { rightsinfo: { url: '', text: '' } }));
 		const ctx = ctxWith(request);
 
 		const data = assertStructuredData(await dispatch(getSiteInfo, ctx)({} as never));
@@ -125,7 +122,7 @@ describe('get-site-info', () => {
 			{ id: 10, alias: 'T' },
 			{ id: 10, alias: 'Tpl' },
 		];
-		const request = vi.fn().mockResolvedValue(resp);
+		const request = answering(resp);
 		const ctx = ctxWith(request);
 
 		const data = assertStructuredData(await dispatch(getSiteInfo, ctx)({} as never));
@@ -133,23 +130,20 @@ describe('get-site-info', () => {
 		expect(data.namespaces['10'].aliases).toEqual(['T', 'Tpl']);
 	});
 
-	it('omits statistics by default and makes one siteinfo request', async () => {
-		const request = vi.fn().mockResolvedValue(siteinfoResponse());
+	it('omits statistics by default', async () => {
+		const request = answering(siteinfoResponse());
 		const ctx = ctxWith(request);
 
 		const data = assertStructuredData(await dispatch(getSiteInfo, ctx)({} as never));
 
 		expect(data.statistics).toBeUndefined();
-		expect(request).toHaveBeenCalledTimes(1);
-		expect(request.mock.calls[0][0].siprop).not.toContain('statistics');
 	});
 
-	it('fetches statistics live when includeStatistics is true', async () => {
-		const request = vi
-			.fn()
-			.mockResolvedValueOnce(siteinfoResponse())
-			.mockResolvedValueOnce({
-				query: {
+	it('fetches statistics live, in the same request, when includeStatistics is true', async () => {
+		const request = answering(
+			siteinfoResponse(
+				{},
+				{
 					statistics: {
 						pages: 10,
 						articles: 4,
@@ -160,7 +154,8 @@ describe('get-site-info', () => {
 						admins: 1,
 					},
 				},
-			});
+			),
+		);
 		const ctx = ctxWith(request);
 
 		const data = assertStructuredData(
@@ -176,8 +171,7 @@ describe('get-site-info', () => {
 			activeusers: 3,
 			admins: 1,
 		});
-		expect(request).toHaveBeenCalledTimes(2);
-		expect(request.mock.calls[1][0].siprop).toBe('statistics');
+		expect(request).toHaveBeenCalledTimes(1);
 	});
 
 	it('fails with upstream_failure when the siteinfo response lacks general data', async () => {
@@ -187,14 +181,5 @@ describe('get-site-info', () => {
 		const result = await dispatch(getSiteInfo, ctx)({} as never);
 
 		assertStructuredError(result, 'upstream_failure');
-	});
-
-	it('returns empty extensions when the wiki is unreachable for extension probing', async () => {
-		const request = vi.fn().mockResolvedValue(siteinfoResponse());
-		const ctx = ctxWith(request, { reachable: false });
-
-		const data = assertStructuredData(await dispatch(getSiteInfo, ctx)({} as never));
-
-		expect(data.extensions).toEqual([]);
 	});
 });

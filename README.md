@@ -170,7 +170,7 @@ Create a `config.json` file to configure wiki connections. Use the `config.examp
 }
 ```
 
-**Internal vs public address.** The `server` you configure may be an internal hostname (e.g. `http://mediawiki` in Docker); URLs handed back to the caller are built from the wiki's public address, so internal hostnames don't leak into links. See [docs/configuration.md — per-wiki fields](docs/configuration.md#per-wiki-fields).
+**Internal vs public address.** The `server` you configure may be an internal hostname (e.g. `http://mediawiki` in Docker); URLs handed back to the caller are built from the wiki's public address, so internal hostnames don't leak into links, once the internal host is listed in `MCP_TRUSTED_HOSTS`. See [docs/configuration.md — per-wiki fields](docs/configuration.md#per-wiki-fields).
 
 For the full field reference, env-var substitution, secret sources, change tags, upload directories, and authentication options, see [docs/configuration.md](docs/configuration.md).
 

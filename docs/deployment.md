@@ -280,9 +280,9 @@ The split exists because the browser must reach a **public** authorize URL (the 
 
 ### Outbound SSRF guard
 
-The server makes a few outbound fetches: the anonymous siteinfo probe (which gates extension tools and fills the `extensions` field of `get-site-info`), wiki discovery, `*-file-from-url` uploads, and the SPARQL queries `wikibase-query` sends to the query service a wiki publishes in its siteinfo. These are SSRF-guarded: a destination resolving to a private, loopback, or other non-public address is refused. This stops a client-supplied URL from steering the server at internal infrastructure or cloud metadata.
+The server makes a few outbound fetches: the anonymous siteinfo probe (which gates extension tools and supplies the public address used in links), wiki discovery, `*-file-from-url` uploads, and the SPARQL queries `wikibase-query` sends to the query service a wiki publishes in its siteinfo. These are SSRF-guarded: a destination resolving to a private, loopback, or other non-public address is refused. This stops a client-supplied URL from steering the server at internal infrastructure or cloud metadata.
 
-Running deliberately against an internal host trips this guard. The common case is Docker, where a wiki's `server` is a network alias such as `http://mediawiki.svc` chosen to bypass a public reverse proxy. The probe is refused, so extension tools silently disappear and `get-site-info` reports no extensions. List the host in `MCP_TRUSTED_HOSTS` to exempt it from the public-IP check. Entries are comma-separated and match exactly (case-folded, no wildcards or suffixes):
+Running deliberately against an internal host trips this guard. The common case is Docker, where a wiki's `server` is a network alias such as `http://mediawiki.svc` chosen to bypass a public reverse proxy. The probe is refused, so extension tools silently disappear and links are built from the internal `server` instead of the wiki's public address. List the host in `MCP_TRUSTED_HOSTS` to exempt it from the public-IP check. Entries are comma-separated and match exactly (case-folded, no wildcards or suffixes):
 
 - a **bare host** (`mediawiki.svc`) matches any port;
 - a **`host:port`** entry matches only that port.

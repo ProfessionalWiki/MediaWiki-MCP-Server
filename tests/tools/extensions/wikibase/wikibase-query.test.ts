@@ -8,8 +8,7 @@ vi.mock('../../../../src/transport/httpFetch.ts', async () => {
 });
 
 import { postForm, HttpStatusError } from '../../../../src/transport/httpFetch.ts';
-import { fakeContext } from '../../../helpers/fakeContext.ts';
-import type { SiteInfo } from '../../../../src/wikis/siteInfoCache.ts';
+import { fakeContext, probeReporting } from '../../../helpers/fakeContext.ts';
 import { toolArgs } from '../../../helpers/toolArgs.ts';
 import { wikibaseQuery } from '../../../../src/tools/extensions/wikibase/wikibase-query.ts';
 import { assertStructuredData, assertStructuredError } from '../../../helpers/structuredResult.ts';
@@ -21,31 +20,12 @@ const CATS = 'SELECT ?item WHERE { ?item wdt:P31 wd:Q146 } LIMIT 3';
 // The endpoint comes from the wiki's own siteinfo. A wiki publishing none never
 // reaches the handler: the pack's wikiGate refuses it centrally, which
 // tests/runtime/wikiCapability.test.ts covers.
-function contextWithSiteInfo(siteInfo: SiteInfo) {
-	const ctx = fakeContext({
-		wikiProbe: {
-			invalidate: () => {},
-			inspect: async () => ({
-				reachable: true,
-				extensions: new Set(['WikibaseRepository']),
-				sparqlEndpoint: siteInfo.sparqlEndpoint,
-			}),
-		},
-	});
-	ctx.siteInfoCache.set('test-wiki', siteInfo);
-	return ctx;
-}
-
 function contextWithEndpoint() {
-	return contextWithSiteInfo({
-		server: 'https://test.wiki',
-		articlepath: '/wiki',
-		sparqlEndpoint: ENDPOINT,
-	});
+	return fakeContext({ wikiProbe: probeReporting({ sparqlEndpoint: ENDPOINT }) });
 }
 
 function contextWithoutEndpoint() {
-	return contextWithSiteInfo({ server: 'https://test.wiki', articlepath: '/wiki' });
+	return fakeContext();
 }
 
 function selectResults(bindings: unknown[], vars: string[] = ['item']): string {

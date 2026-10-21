@@ -138,8 +138,8 @@ export class MwnProviderImpl implements MwnProvider {
 			// bound three round-trips that each fund a fresh retry ladder. The
 			// branch is ours to make because the provider only ever sets an OAuth 2
 			// token or a bot-password pair. No cancellation: `getInstance` hands
-			// this promise to every concurrent caller — shared work, see
-			// `withSharedWorkScope`.
+			// this promise to every concurrent caller, and one caller walking away
+			// must not fail the others.
 			const connecting = withCallBounds(
 				instance,
 				callDeadline(WIKI_CONNECT_TIMEOUT_MS, 'connecting'),

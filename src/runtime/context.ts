@@ -3,7 +3,6 @@ import type { WikiRegistry } from '../wikis/wikiRegistry.ts';
 import type { ActiveWiki } from '../wikis/activeWiki.ts';
 import type { UploadDirs } from '../wikis/uploadDirs.ts';
 import type { WikiCache } from '../wikis/wikiCache.ts';
-import type { SiteInfoCache } from '../wikis/siteInfoCache.ts';
 import type { WikiProbe } from '../wikis/wikiProbe.ts';
 import type { SectionService } from '../services/sectionService.ts';
 import type { EditService } from '../services/editService.ts';
@@ -19,7 +18,6 @@ export interface ToolContext {
 	readonly activeWiki: ActiveWiki;
 	readonly uploadDirs: UploadDirs;
 	readonly wikiCache: WikiCache;
-	readonly siteInfoCache: SiteInfoCache;
 	readonly wikiProbe: WikiProbe;
 	readonly sections: SectionService;
 	readonly edit: EditService;

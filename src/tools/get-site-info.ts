@@ -2,7 +2,12 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
-import { resolveSiteInfo } from '../wikis/siteInfo.ts';
+import {
+	extensionNames,
+	licenseOf,
+	type SiteinfoExtension,
+	type SiteinfoRights,
+} from '../wikis/wikiProbe.ts';
 
 const inputSchema = {
 	includeStatistics: z
@@ -43,6 +48,9 @@ interface SiteInfoResponse {
 		general?: RawGeneral;
 		namespaces?: Record<string, RawNamespace>;
 		namespacealiases?: RawNamespaceAlias[];
+		extensions?: SiteinfoExtension[];
+		rightsinfo?: SiteinfoRights;
+		statistics?: Partial<Statistics>;
 	};
 }
 
@@ -54,10 +62,6 @@ interface Statistics {
 	users: number;
 	activeusers: number;
 	admins: number;
-}
-
-interface StatisticsResponse {
-	query?: { statistics?: Partial<Statistics> };
 }
 
 function pickStatistics(raw: Partial<Statistics>): Statistics {
@@ -151,14 +155,17 @@ export const getSiteInfo: Tool<typeof inputSchema> = {
 	failureVerb: 'fetch site info',
 
 	async handle(args: GetSiteInfoArgs, ctx: ToolContext): Promise<CallToolResult> {
-		const { key } = ctx.activeWiki.get();
 		const mwn = await ctx.mwn();
 
+		const siprop = ['general', 'namespaces', 'namespacealiases', 'extensions', 'rightsinfo'];
+		if (args.includeStatistics === true) {
+			siprop.push('statistics');
+		}
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
 		const response = (await mwn.request({
 			action: 'query',
 			meta: 'siteinfo',
-			siprop: 'general|namespaces|namespacealiases',
+			siprop: siprop.join('|'),
 			formatversion: '2',
 		})) as SiteInfoResponse;
 
@@ -174,27 +181,17 @@ export const getSiteInfo: Tool<typeof inputSchema> = {
 			general.case,
 		);
 
-		const { extensions } = await ctx.wikiProbe.inspect(key);
-		const siteInfo = await resolveSiteInfo(ctx, key);
-
 		const result: Record<string, unknown> = {
 			general,
 			namespaces,
-			extensions: [...extensions].sort(),
+			extensions: extensionNames(query.extensions ?? []).sort(),
 		};
-		if (siteInfo.license) {
-			result.license = siteInfo.license;
+		const license = licenseOf(query.rightsinfo);
+		if (license !== undefined) {
+			result.license = license;
 		}
-
 		if (args.includeStatistics === true) {
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
-			const statsResponse = (await mwn.request({
-				action: 'query',
-				meta: 'siteinfo',
-				siprop: 'statistics',
-				formatversion: '2',
-			})) as StatisticsResponse;
-			result.statistics = pickStatistics(statsResponse.query?.statistics ?? {});
+			result.statistics = pickStatistics(query.statistics ?? {});
 		}
 
 		return ctx.format.ok(result);

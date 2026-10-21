@@ -6,6 +6,10 @@ describe('normalizeArticlePath', () => {
 		expect(normalizeArticlePath('/wiki/$1')).toBe('/wiki');
 	});
 
+	it('reduces a root article path to the empty string', () => {
+		expect(normalizeArticlePath('/$1')).toBe('');
+	});
+
 	it('keeps the $1 of a query-string article path', () => {
 		expect(normalizeArticlePath('/w/index.php?title=$1')).toBe('/w/index.php?title=$1');
 	});

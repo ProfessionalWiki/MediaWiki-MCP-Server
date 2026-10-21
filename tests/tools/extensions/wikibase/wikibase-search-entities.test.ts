@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { fakeContext, probeReporting } from '../../../helpers/fakeContext.ts';
 import { toolArgs } from '../../../helpers/toolArgs.ts';
 import { wikibaseSearchEntities } from '../../../../src/tools/extensions/wikibase/wikibase-search-entities.ts';
 import { dispatch } from '../../../../src/runtime/dispatcher.ts';
@@ -28,14 +28,10 @@ const DOUGLAS_ADAMS = {
 
 function contextWith(response: unknown, lang?: string) {
 	const mock = createMockMwn({ request: vi.fn().mockResolvedValue(response) });
-	const ctx = fakeContext({ mwn: async () => mock as never });
-	if (lang !== undefined) {
-		ctx.siteInfoCache.set('test-wiki', {
-			server: 'https://test.wiki',
-			articlepath: '/wiki',
-			lang,
-		});
-	}
+	const ctx = fakeContext({
+		mwn: async () => mock as never,
+		wikiProbe: probeReporting(lang === undefined ? {} : { lang }),
+	});
 	return { mock, ctx };
 }
 
