@@ -31,7 +31,7 @@ interface SetMainResponse {
 export const neowikiSetMainSubject: Tool<typeof inputSchema> = {
 	name: 'neowiki-set-main-subject',
 	description:
-		'Sets which existing Subject on a wiki page is its Main Subject, or clears it. Enabled only when the wiki has NeoWiki installed. Pass subjectId to promote a Subject that already exists on the page, or null to clear the Main Subject. This differs from neowiki-create-subject with isMain, which creates a NEW main Subject. Requires the edit right. Pre-1.0: the NeoWiki API may change without notice.',
+		"Sets which existing Subject on a wiki page is its Main Subject, or clears it. Enabled only when the wiki has NeoWiki installed. Pass subjectId to promote one of the page's other Subjects, or null to clear the Main Subject. A Dependent Subject cannot be a Main Subject. This differs from neowiki-create-subject with isMain, which creates a NEW main Subject. Requires the edit right. Pre-1.0: the NeoWiki API may change without notice.",
 	inputSchema,
 	annotations: {
 		title: 'Set NeoWiki main subject',

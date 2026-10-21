@@ -4,12 +4,7 @@ import { fakeContext, withoutEditAttribution } from '../../../helpers/fakeContex
 import type { ToolContext } from '../../../../src/runtime/context.ts';
 import { neowikiDeleteSubject } from '../../../../src/tools/extensions/neowiki/neowiki-delete-subject.ts';
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
-
-function httpError(status: number, data: unknown): Error & { response: unknown } {
-	const err = new Error(`HTTP ${status}`) as Error & { response: unknown };
-	err.response = { status, data };
-	return err;
-}
+import { httpError } from '../../../helpers/httpError.ts';
 
 function contextWith(): { mock: MockMwn; ctx: ToolContext } {
 	const mock = createMockMwn({

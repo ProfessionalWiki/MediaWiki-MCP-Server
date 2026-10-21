@@ -4,42 +4,30 @@ import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
 import { formatEditComment } from '../../../wikis/utils.ts';
-
-const statementSchema = z.object({
-	propertyType: z
-		.string()
-		.min(1)
-		.describe('Property type: text, url, date, datetime, select, number, boolean, or relation.'),
-	value: z
-		.unknown()
-		.describe(
-			'text/url/date/datetime → array of strings; select → array of option IDs; number → number; boolean → boolean; relation → array of { target: subjectId }.',
-		),
-});
+import { writeResult, type SubjectWriteResponse } from './subjects.ts';
+import { statementsSchema } from './statements.ts';
 
 const inputSchema = {
 	id: z
 		.string()
 		.min(1)
 		.describe('Subject ID to replace (starts with s…). Resolve one with neowiki-search-subjects.'),
-	label: z.string().min(1).describe('New display label. Required, non-empty.'),
-	statements: z
-		.record(z.string(), statementSchema)
+	label: z
+		.string()
+		.optional()
 		.describe(
-			'Full replacement statement map (property name → { propertyType, value }). Property names absent from this map are deleted; pass {} to clear all statements. The key is propertyType, NOT the `type` read tools return.',
+			'New display label. Omit it, or pass an empty string, to clear the label, as a Dependent Subject (one with hostSubject) requires.',
 		),
+	statements: statementsSchema.describe(
+		'Full replacement statement map (property name → { propertyType, value }). Property names absent from this map are deleted; pass {} to clear all statements.',
+	),
 	comment: z.string().optional().describe('Optional edit summary.'),
 } as const;
-
-interface UpdateResponse {
-	status?: string;
-	subjectId?: string;
-}
 
 export const neowikiUpdateSubject: Tool<typeof inputSchema> = {
 	name: 'neowiki-update-subject',
 	description:
-		'Replaces a NeoWiki Subject\'s label and statements — a FULL replace: property names absent from `statements` are deleted, and {} clears all statements. Enabled only when the wiki has NeoWiki installed. The Subject\'s id and schema are immutable. Requires the edit right. Read the current state with neowiki-get-subject first. Each statement is keyed by property name as { propertyType, value } — the key is propertyType, NOT the `type` key read tools return. Value by type: text/url/date/datetime → array of strings; select → array of option IDs (resolve via neowiki-get-schema); number → a number; boolean → a boolean; relation → array of { target: "<subjectId>" }. Pre-validate with neowiki-validate-subject. Pre-1.0: the NeoWiki API may change without notice.',
+		"Replaces a NeoWiki Subject's label and statements — a FULL replace: an omitted or empty label is cleared, property names absent from `statements` are deleted, and {} clears all statements. Returns the violations of its Schema the Subject was saved with, and the Subject as saved. Enabled only when the wiki has NeoWiki installed. The Subject's id, schema and page are immutable. Requires the edit right. Read the current state with neowiki-get-subject first. Dropping the last relation to a Dependent Subject deletes that Dependent Subject. A write that breaks a rule for Dependent Subjects is refused; other violations are warnings unless the wiki enforces validation, which refuses a write that introduces an error-severity one. Pre-validate with neowiki-validate-subject. Pre-1.0: the NeoWiki API may change without notice.",
 	inputSchema,
 	annotations: {
 		title: 'Update NeoWiki subject',
@@ -61,9 +49,14 @@ export const neowikiUpdateSubject: Tool<typeof inputSchema> = {
 				path: `/subject/${encodeURIComponent(id)}`,
 				csrf: true,
 				body: { label, statements, ...(editComment !== undefined ? { comment: editComment } : {}) },
-			})) as UpdateResponse;
+			})) as SubjectWriteResponse;
 
-			return ctx.format.ok({ subjectId: data.subjectId ?? id, status: data.status ?? 'updated' });
+			const subjectId = data.subjectId ?? id;
+			return ctx.format.ok({
+				subjectId,
+				status: data.status ?? 'updated',
+				...writeResult(data, subjectId),
+			});
 		} catch (err) {
 			return neowikiErrorResult(err, ctx);
 		}

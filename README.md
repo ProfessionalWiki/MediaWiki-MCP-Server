@@ -70,10 +70,10 @@ Each pack's tools register only on wikis where its extension is installed.
 | `neowiki-list-schemas` | List schemas (entity types) and their property counts. |
 | `neowiki-get-schema` | Get one schema's property definitions, relations, and select options. |
 | `neowiki-cypher-query` | Run a read-only Cypher query against the knowledge graph. |
-| `neowiki-search-subjects` | Find subject IDs by label within a schema. |
+| `neowiki-search-subjects` | Find subject IDs by name, in one schema or all. |
 | `neowiki-get-subject` | Fetch one subject's structured data by ID. |
 | `neowiki-get-page-subjects` | List the subjects attached to a wiki page. |
-| `neowiki-create-subject` | Create a subject (child or main) on a page. Requires the `edit` right. |
+| `neowiki-create-subject` | Create a subject (main or other) on a page. Requires the `edit` right. |
 | `neowiki-update-subject` | Replace a subject's label and statements. Requires the `edit` right. |
 | `neowiki-delete-subject` | Delete a subject by ID. Requires the `edit` right. |
 | `neowiki-set-main-subject` | Set or clear a page's main subject. Requires the `edit` right. |

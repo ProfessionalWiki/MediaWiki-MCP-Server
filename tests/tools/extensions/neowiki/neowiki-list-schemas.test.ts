@@ -1,26 +1,20 @@
-import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { describe, it, expect } from 'vitest';
+import { contextReturning, requestedUrl } from '../../../helpers/rawRequest.ts';
 import { neowikiListSchemas } from '../../../../src/tools/extensions/neowiki/neowiki-list-schemas.ts';
 import { assertStructuredSuccess } from '../../../helpers/structuredResult.ts';
 
 describe('neowiki-list-schemas', () => {
-	it('requests /schemas and returns the schema summaries', async () => {
-		const mock = createMockMwn({
-			rawRequest: vi.fn().mockResolvedValue({
-				data: {
-					schemas: [{ name: 'Company', description: '', propertyCount: 10 }],
-					totalRows: 1,
-				},
-			}),
+	it('requests the first page of /schemas and returns the schema summaries', async () => {
+		const { mock, ctx } = contextReturning({
+			schemas: [{ name: 'Company', description: '', propertyCount: 10 }],
+			nextCursor: null,
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
 		const result = await neowikiListSchemas.handle({}, ctx);
 
-		const url = (mock.rawRequest.mock.calls[0][0] as { url: string }).url;
-		expect(url).toContain('/rest.php/neowiki/v0/schemas?');
-		expect(url).toContain('limit=50');
-		expect(url).toContain('offset=0');
+		const url = requestedUrl(mock);
+		expect(url.pathname).toBe('/w/rest.php/neowiki/v0/schemas');
+		expect(url.searchParams.get('limit')).toBe('50');
+		expect(url.searchParams.has('cursor')).toBe(false);
 		expect(assertStructuredSuccess(result)).toContain('Company');
 		expect(result.structuredContent).toMatchObject({
 			schemas: [{ name: 'Company', propertyCount: 10 }],
@@ -28,33 +22,43 @@ describe('neowiki-list-schemas', () => {
 		expect(result.structuredContent).not.toHaveProperty('truncation');
 	});
 
-	it('emits a more-available truncation when totalRows exceeds the returned page', async () => {
-		const mock = createMockMwn({
-			rawRequest: vi.fn().mockResolvedValue({
-				data: { schemas: [{ name: 'A', description: '', propertyCount: 1 }], totalRows: 17 },
-			}),
+	it('flags only the schemas whose subjects are dependent', async () => {
+		const { ctx } = contextReturning({
+			schemas: [
+				{ name: 'Person', description: '', propertyCount: 3, subjectsAreDependent: false },
+				{ name: 'Birth', description: '', propertyCount: 2, subjectsAreDependent: true },
+			],
+			nextCursor: null,
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
 		const result = await neowikiListSchemas.handle({}, ctx);
+
+		expect(result.structuredContent).toEqual({
+			schemas: [
+				{ name: 'Person', description: '', propertyCount: 3 },
+				{ name: 'Birth', description: '', propertyCount: 2, subjectsAreDependent: true },
+			],
+		});
+	});
+
+	it('hands back the next cursor as continueFrom while more schemas remain', async () => {
+		const { ctx } = contextReturning({
+			schemas: [{ name: 'A', description: '', propertyCount: 1 }],
+			nextCursor: '1462',
+		});
+		const result = await neowikiListSchemas.handle({}, ctx);
+
 		expect(result.structuredContent).toMatchObject({
-			truncation: { reason: 'more-available', continueWith: { param: 'continueFrom', value: '1' } },
+			truncation: {
+				reason: 'more-available',
+				continueWith: { param: 'continueFrom', value: '1462' },
+			},
 		});
 	});
 
-	it('does not emit truncation when the page is empty even if totalRows is higher', async () => {
-		const mock = createMockMwn({
-			rawRequest: vi.fn().mockResolvedValue({ data: { schemas: [], totalRows: 17 } }),
-		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
-		const result = await neowikiListSchemas.handle({}, ctx);
-		expect(result.structuredContent).not.toHaveProperty('truncation');
-	});
+	it('passes continueFrom back as the cursor', async () => {
+		const { mock, ctx } = contextReturning({ schemas: [], nextCursor: null });
+		await neowikiListSchemas.handle({ continueFrom: '1462' }, ctx);
 
-	it('rejects a non-integer continueFrom', async () => {
-		const mock = createMockMwn({ rawRequest: vi.fn() });
-		const ctx = fakeContext({ mwn: async () => mock as never });
-		const result = await neowikiListSchemas.handle({ continueFrom: 'abc' }, ctx);
-		expect(result.isError).toBe(true);
-		expect(mock.rawRequest).not.toHaveBeenCalled();
+		expect(requestedUrl(mock).searchParams.get('cursor')).toBe('1462');
 	});
 });
