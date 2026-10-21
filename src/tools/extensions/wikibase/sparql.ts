@@ -2,6 +2,7 @@ import { ClassifiedError, type ErrorCategory } from '../../../errors/classifyErr
 import { FileTooLargeError, HttpStatusError, postForm } from '../../../transport/httpFetch.ts';
 import { RedirectDropsBodyError } from '../../../transport/requestChain.ts';
 import { getRequestSignal } from '../../../runtime/requestContext.ts';
+import { errorMessage } from '../../../errors/errorMessage.ts';
 
 /** Matches the query timeout most Wikibase query services enforce themselves. */
 const QUERY_TIMEOUT_MS = 60_000;
@@ -159,7 +160,7 @@ function classifyQueryFailure(err: unknown, endpoint: string): ClassifiedError {
 			`The query service did not answer within ${QUERY_TIMEOUT_MS / 1000} seconds.`,
 		);
 	}
-	const message = err instanceof Error ? err.message : String(err);
+	const message = errorMessage(err);
 	return new ClassifiedError('upstream_failure', transportMessage(message, endpoint));
 }
 

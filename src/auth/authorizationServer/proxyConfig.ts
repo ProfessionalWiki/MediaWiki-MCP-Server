@@ -1,5 +1,6 @@
 import { parseRedirectAllowlist, type RedirectAllowlist } from './redirectPolicy.ts';
 import { parseCimdAllowedHosts } from './cimd.ts';
+import { errorMessage } from '../../errors/errorMessage.ts';
 
 export class ProxyConfigError extends Error {
 	public constructor(message: string) {
@@ -116,18 +117,14 @@ export function resolveProxyConfig(
 	try {
 		redirectAllowlist = parseRedirectAllowlist(env.MCP_OAUTH_ALLOWED_REDIRECTS);
 	} catch (e) {
-		throw new ProxyConfigError(
-			`MCP_OAUTH_ALLOWED_REDIRECTS: ${e instanceof Error ? e.message : String(e)}`,
-		);
+		throw new ProxyConfigError(`MCP_OAUTH_ALLOWED_REDIRECTS: ${errorMessage(e)}`);
 	}
 
 	let cimdAllowedHosts: string[];
 	try {
 		cimdAllowedHosts = parseCimdAllowedHosts(env.MCP_OAUTH_CIMD_ALLOWED_HOSTS);
 	} catch (e) {
-		throw new ProxyConfigError(
-			`MCP_OAUTH_CIMD_ALLOWED_HOSTS: ${e instanceof Error ? e.message : String(e)}`,
-		);
+		throw new ProxyConfigError(`MCP_OAUTH_CIMD_ALLOWED_HOSTS: ${errorMessage(e)}`);
 	}
 
 	return {

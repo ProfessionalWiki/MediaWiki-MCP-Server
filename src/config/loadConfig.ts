@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from '../runtime/logger.ts';
-import { errorMessage } from '../errors/isErrnoException.ts';
+import { errorMessage } from '../errors/errorMessage.ts';
 import { wikiKeyProblem, wikiKeyProblemMessage } from '../runtime/wikiKey.ts';
 
 export interface WikiConfig {

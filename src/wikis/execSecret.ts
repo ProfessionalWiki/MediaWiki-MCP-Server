@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import type { ExecSecret } from '../config/loadConfig.ts';
 import { CredentialResolutionError } from '../errors/credentialResolutionError.ts';
+import { errorMessage } from '../errors/errorMessage.ts';
 
 const TIMEOUT_MS = 30_000;
 const STDERR_LIMIT = 200;
@@ -21,7 +22,7 @@ function failureMessage(err: unknown, stderr: string, command: string, descripto
 			return `Could not resolve ${descriptor}: command "${command}" exited with status ${code}. stderr: ${stderr.slice(0, STDERR_LIMIT)}`;
 		}
 	}
-	return `Could not resolve ${descriptor}: ${err instanceof Error ? err.message : typeof err === 'string' ? err : String(err)}`;
+	return `Could not resolve ${descriptor}: ${errorMessage(err)}`;
 }
 
 // Serialize exec-secret command runs process-wide. An interactive credential

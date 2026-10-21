@@ -16,7 +16,3 @@ type ErrnoLike = NodeJS.ErrnoException & {
 export function isErrnoException(err: unknown): err is ErrnoLike {
 	return err instanceof Error;
 }
-
-export function errorMessage(err: unknown, fallback = 'Unknown error'): string {
-	return err instanceof Error ? err.message : fallback;
-}

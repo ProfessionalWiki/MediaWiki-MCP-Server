@@ -3,7 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from './tool.ts';
 import type { ToolContext } from './context.ts';
 import { tailoredError } from '../errors/tailoredErrors.ts';
-import { errorMessage } from '../errors/isErrnoException.ts';
+import { errorMessage } from '../errors/errorMessage.ts';
 import { getCallerId, getRequestSignal, withRequestFields } from './requestContext.ts';
 import { callDeadline, WIKI_CALL_TIMEOUT_MS } from './callDeadline.ts';
 import { WikiTimeoutError } from '../errors/wikiTimeoutError.ts';
@@ -74,7 +74,7 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext =
 							typeof wiki.oauth2CallbackPort === 'number' ? wiki.oauth2CallbackPort : undefined,
 					});
 				} catch (err: unknown) {
-					const message = err instanceof Error ? err.message : String(err);
+					const message = errorMessage(err);
 					return ctx.format.error('authentication', `OAuth login required: ${message}`);
 				}
 				// withRequestFields (not withRequestContext) so the resolved wikiKey
