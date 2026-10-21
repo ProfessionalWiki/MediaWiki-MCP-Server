@@ -19,19 +19,6 @@ import { structuredResult } from '../results/response.ts';
 import { checkWikiCapability, isWriteTool } from './wikiCapability.ts';
 import { monotonicNow } from './clock.ts';
 
-// Tools that operate on server-local state (the wiki registry, the OAuth token
-// store) rather than a wiki's API. They must not be blocked by an OAuth gate
-// keyed on the resolved wiki — otherwise a wiki whose OAuth has gone stale would
-// render remove-wiki and the oauth-* tools unreachable, with no way for the
-// caller to escape it. add-wiki targets a different wiki entirely and equally
-// has no business borrowing the resolved wiki's token.
-const TOOLS_BYPASSING_ACTIVE_WIKI_AUTH: ReadonlySet<string> = new Set([
-	'add-wiki',
-	'remove-wiki',
-	'oauth-status',
-	'oauth-logout',
-]);
-
 // The budget can expire before a write is submitted or after it is in flight,
 // and the server cannot tell which. A caller that replays an append assuming it
 // never landed would add the content twice.
@@ -68,9 +55,12 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext =
 
 		const body = async (): Promise<CallToolResult> => {
 			const { key: wikiKey, config: wiki } = ctx.activeWiki.get();
+			// Only a wiki-scoped tool acts on the wiki it resolves, so only it needs
+			// that wiki's token. The rest work on server-local state or anonymous
+			// probes, and must stay reachable while that wiki's sign-in is broken.
 			const useOauth =
 				ctx.transport === 'stdio' &&
-				!TOOLS_BYPASSING_ACTIVE_WIKI_AUTH.has(tool.name) &&
+				isWikiScoped(tool) &&
 				typeof wiki.oauth2ClientId === 'string' &&
 				wiki.oauth2ClientId.trim() !== '';
 
