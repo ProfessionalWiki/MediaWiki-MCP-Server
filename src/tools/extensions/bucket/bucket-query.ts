@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import type { TruncationInfo } from '../../../results/truncation.ts';
+import { MALFORMED_CONTINUE_FROM, offsetFrom } from '../../../results/offsetCursor.ts';
 
 const HARD_LIMIT = 500;
 
@@ -47,7 +48,11 @@ export const bucketQuery: Tool<typeof inputSchema> = {
 	target: (a) => a.query,
 
 	async handle({ query, limit, continueFrom }, ctx: ToolContext): Promise<CallToolResult> {
-		const rendered = renderQuery(query, limit, continueFrom);
+		const offset = offsetFrom(continueFrom);
+		if (offset === undefined) {
+			return ctx.format.invalidInput(MALFORMED_CONTINUE_FROM);
+		}
+		const rendered = renderQuery(query, limit, offset);
 		if (rendered.kind === 'error') {
 			return ctx.format.invalidInput(rendered.message);
 		}
@@ -85,7 +90,6 @@ export const bucketQuery: Tool<typeof inputSchema> = {
 
 		const rows = extractRows(response.bucket, ctx);
 		const effectiveLimit = Math.min(limit ?? HARD_LIMIT, HARD_LIMIT);
-		const currentOffset = continueFrom !== undefined ? Number.parseInt(continueFrom, 10) : 0;
 
 		// `>=` rather than `===` — defensive against a Bucket version that
 		// returns more rows than the injected `.limit()` requested.
@@ -98,7 +102,7 @@ export const bucketQuery: Tool<typeof inputSchema> = {
 						toolName: 'bucket-query',
 						continueWith: {
 							param: 'continueFrom',
-							value: String(currentOffset + rows.length),
+							value: String(offset + rows.length),
 						},
 					}
 				: null;
@@ -121,7 +125,7 @@ const RUN_AT_END = /\.\s*run\s*\(\s*\)\s*$/;
 function renderQuery(
 	rawQuery: string,
 	schemaLimit: number | undefined,
-	continueFrom: string | undefined,
+	offset: number,
 ): RenderResult {
 	const trimmed = rawQuery.replace(/\s+$/, '');
 	const match = trimmed.match(RUN_AT_END);
@@ -130,14 +134,7 @@ function renderQuery(
 	}
 
 	const effectiveLimit = Math.min(schemaLimit ?? HARD_LIMIT, HARD_LIMIT);
-	let offsetSuffix = '';
-	if (continueFrom !== undefined) {
-		const parsed = Number.parseInt(continueFrom, 10);
-		if (!Number.isFinite(parsed) || parsed < 0 || String(parsed) !== continueFrom) {
-			return { kind: 'error', message: 'continueFrom must be a non-negative integer' };
-		}
-		offsetSuffix = `.offset(${parsed})`;
-	}
+	const offsetSuffix = offset > 0 ? `.offset(${offset})` : '';
 
 	const head = trimmed.slice(0, match.index);
 	return {

@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import type { TruncationInfo } from '../../../results/truncation.ts';
+import { MALFORMED_CONTINUE_FROM, offsetFrom } from '../../../results/offsetCursor.ts';
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -64,7 +65,10 @@ export const smwListProperties: Tool<typeof inputSchema> = {
 	failureVerb: 'list SMW properties',
 
 	async handle({ search, limit, continueFrom }, ctx: ToolContext): Promise<CallToolResult> {
-		const offset = continueFrom !== undefined ? parsePositiveInt(continueFrom) : 0;
+		const offset = offsetFrom(continueFrom);
+		if (offset === undefined) {
+			return ctx.format.invalidInput(MALFORMED_CONTINUE_FROM);
+		}
 		const effectiveLimit = limit ?? DEFAULT_LIMIT;
 
 		const params = {
@@ -157,9 +161,4 @@ function parseUsageCount(value: string | number | undefined): number | undefined
 	}
 	const n = Number.parseInt(value, 10);
 	return Number.isFinite(n) && n >= 0 ? n : undefined;
-}
-
-function parsePositiveInt(value: string): number {
-	const n = Number.parseInt(value, 10);
-	return Number.isFinite(n) && n >= 0 ? n : 0;
 }

@@ -162,6 +162,17 @@ describe('smw-list-properties', () => {
 		expect(sentParams.search).toBe('manufacturer');
 	});
 
+	it('refuses a continueFrom it never handed out instead of returning the first page', async () => {
+		const mock = createMockMwn({ request: vi.fn() });
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		const result = await dispatch(smwListProperties, ctx)({ continueFrom: 'next' });
+
+		const envelope = assertStructuredError(result, 'invalid_input');
+		expect(envelope.message).toBe('continueFrom must be a non-negative integer');
+		expect(mock.request).not.toHaveBeenCalled();
+	});
+
 	it('forwards limit and offset to smwbrowse params', async () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue(smwBrowseResponse([])),
