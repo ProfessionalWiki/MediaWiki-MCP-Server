@@ -47,6 +47,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - A wiki error whose code is a JavaScript built-in name, such as `constructor`, is reported as `upstream_failure` instead of as an error with no category.
 - `compare-pages` names the page that does not exist, instead of reporting only "Page not found".
 - `cargo-query` and `cargo-describe-table` report a query or table that Cargo refuses as `invalid_input`, with Cargo's reason and a hint, instead of `upstream_failure`.
+- `upload-file` and `upload-file-from-url` refuse to upload over an existing file whose title spells the File prefix another way, such as `Datei:` on a German wiki, `Image:` or `file:`, instead of overwriting it. With such a title, `get-file` and `get-file-data` find the file instead of reporting it missing, and `update-file` and `update-file-from-url` update it instead of refusing it as missing.
 
 ## [0.19.0] - 2026-09-25
 

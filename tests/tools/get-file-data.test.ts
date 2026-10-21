@@ -74,6 +74,15 @@ describe('get-file-data', () => {
 		);
 	});
 
+	it("looks up a title with a File prefix in the wiki's language as given", async () => {
+		const mock = mwnWith(IMAGE_INFO);
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		await getFileData.handle({ title: 'Datei:Example.png', format: 'image' }, ctx);
+
+		expect((mock.request.mock.calls[0][0] as { titles: string }).titles).toBe('Datei:Example.png');
+	});
+
 	it('attaches the OAuth2 bearer when the file is same-origin as the wiki API', async () => {
 		const mock = mwnWith(IMAGE_INFO);
 		mock.usingOAuth2 = true;

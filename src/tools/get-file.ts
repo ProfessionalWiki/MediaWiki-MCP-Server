@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ApiPage, ImageInfo } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
+import { fileTitle } from '../wikis/fileTitle.ts';
 
 const inputSchema = {
 	title: z.string().describe('File title (with or without the "File:" prefix)'),
@@ -26,11 +27,9 @@ export const getFile: Tool<typeof inputSchema> = {
 	async handle({ title }, ctx: ToolContext): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
 
-		const fileTitle = title.startsWith('File:') ? title : `File:${title}`;
-
 		const response = await mwn.request({
 			action: 'query',
-			titles: fileTitle,
+			titles: fileTitle(title),
 			prop: 'imageinfo',
 			iiprop: 'url|size|mime|timestamp|user',
 			iiurlwidth: 200,
