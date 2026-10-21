@@ -28,7 +28,7 @@ afterEach(async () => {
 function makeCtx(tokenEndpoint: string): RefreshContext {
 	return {
 		clientId: 'test-client',
-		metadata: { token_endpoint: tokenEndpoint },
+		metadata: { token_endpoint: tokenEndpoint, issuer: 'https://wiki.example' },
 	};
 }
 
@@ -90,6 +90,21 @@ describe('refreshIfNeeded', () => {
 		const stored = creds.tokens['my-wiki'];
 		expect(stored?.access_token).toBe('access-refreshed');
 		expect(stored?.refresh_token).toBe('refresh-rotated');
+	});
+
+	it('records the issuer on the refreshed token', async () => {
+		const clock = fakeClock();
+		vi.setSystemTime(clock.now());
+		fakeAs = await startFakeAs();
+		const store = createTokenStore();
+		await store.put(
+			'my-wiki',
+			storedToken({ expires_at: new Date(clock.now() + 30_000).toISOString() }),
+		);
+
+		await refreshIfNeeded('my-wiki', makeCtx(`${fakeAs.url}/w/rest.php/oauth2/access_token`));
+
+		expect((await store.read()).tokens['my-wiki']?.issuer).toBe('https://wiki.example');
 	});
 
 	it('honours a rotated refresh_token from the AS response', async () => {

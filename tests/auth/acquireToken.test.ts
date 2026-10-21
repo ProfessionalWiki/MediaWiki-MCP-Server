@@ -67,6 +67,40 @@ describe('acquireToken', () => {
 		expect(token).toMatch(/^access-CODE-/);
 	});
 
+	it('signs in again when the stored token came from another issuer', async () => {
+		fakeAs = await startFakeAs();
+		vi.mocked(openMod).mockImplementation(
+			fakeBrowserDriver(fakeAs.url, 'consent') as typeof openMod,
+		);
+		await createTokenStore().put('my-wiki', {
+			access_token: 'token-from-elsewhere',
+			refresh_token: 'refresh-from-elsewhere',
+			expires_at: futureIso(5 * 60 * 1000),
+			scopes: ['edit'],
+			obtained_at: new Date().toISOString(),
+			issuer: 'https://elsewhere.example',
+		});
+
+		const token = await acquireToken('my-wiki', {
+			wiki: makeWiki(fakeAs.url),
+			oauth2ClientId: 'my-client',
+		});
+
+		expect(token).toMatch(/^access-CODE-/);
+	});
+
+	it('records the issuer of a token it signs in for', async () => {
+		fakeAs = await startFakeAs();
+		vi.mocked(openMod).mockImplementation(
+			fakeBrowserDriver(fakeAs.url, 'consent') as typeof openMod,
+		);
+
+		await acquireToken('my-wiki', { wiki: makeWiki(fakeAs.url), oauth2ClientId: 'my-client' });
+
+		const stored = (await createTokenStore().read()).tokens['my-wiki'];
+		expect(stored?.issuer).toBe(fakeAs.url);
+	});
+
 	it('invalid_grant on refresh: falls through to browser dance and returns fresh token', async () => {
 		fakeAs = await startFakeAs({
 			token: (req, res) => {

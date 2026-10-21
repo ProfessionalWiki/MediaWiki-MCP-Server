@@ -8,7 +8,7 @@ const REFRESH_THRESHOLD_MS = 60_000;
 
 export interface RefreshContext {
 	clientId: string;
-	metadata: Pick<UpstreamAsMetadata, 'token_endpoint'>;
+	metadata: Pick<UpstreamAsMetadata, 'token_endpoint' | 'issuer'>;
 }
 
 const inFlight = new Map<string, Promise<string>>();
@@ -95,6 +95,7 @@ async function doRefresh(
 		expires_at: expiresAtIso,
 		scopes: tok.scope !== undefined ? tok.scope.split(' ') : currentScopes,
 		obtained_at: nowIso,
+		issuer: ctx.metadata.issuer,
 	});
 
 	return tok.access_token;
