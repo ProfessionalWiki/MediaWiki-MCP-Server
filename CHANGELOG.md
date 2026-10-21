@@ -45,6 +45,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - On stdio, a wiki whose configuration now points at a different OAuth issuer asks for a new sign-in instead of reusing the token stored under its key. Tokens stored before this release are not affected.
 - A wiki error whose code is a JavaScript built-in name, such as `constructor`, is reported as `upstream_failure` instead of as an error with no category.
 - `compare-pages` names the page that does not exist, instead of reporting only "Page not found".
+- `cargo-query` and `cargo-describe-table` report a query or table that Cargo refuses as `invalid_input`, with Cargo's reason and a hint, instead of `upstream_failure`.
 
 ## [0.19.0] - 2026-09-25
 

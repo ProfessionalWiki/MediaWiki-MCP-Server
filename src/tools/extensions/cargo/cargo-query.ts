@@ -3,6 +3,10 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import type { TruncationInfo } from '../../../results/truncation.ts';
+import { cargoRefusal } from './cargoRefusal.ts';
+
+const QUERY_HINT =
+	'Verify table and field names with cargo-list-tables / cargo-describe-table, or inspect Special:CargoTables.';
 
 const HARD_LIMIT = 500;
 
@@ -69,9 +73,17 @@ export const cargoQuery: Tool<typeof inputSchema> = {
 	tailoredErrors: {
 		internal_api_error_MWException: () => ({
 			category: 'invalid_input',
-			message:
-				'Cargo could not parse the query. Verify table and field names with cargo-list-tables / cargo-describe-table, or inspect Special:CargoTables.',
+			message: `Cargo could not parse the query. ${QUERY_HINT}`,
 		}),
+		db_error: (message) => {
+			const reason = cargoRefusal(message);
+			return reason === undefined
+				? undefined
+				: {
+						category: 'invalid_input',
+						message: `Cargo refused the query: ${reason} ${QUERY_HINT}`,
+					};
+		},
 	},
 	target: (a) => a.tables,
 

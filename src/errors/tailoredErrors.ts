@@ -6,8 +6,13 @@ export interface TailoredError {
 	readonly message: string;
 }
 
-/** A tool's wordings, by the wiki's error code; each receives the wiki's message. */
-export type TailoredErrors = Readonly<Record<string, (message: string) => TailoredError>>;
+/**
+ * A tool's wordings, by the wiki's error code; each receives the wiki's message,
+ * and returns undefined to leave an error it does not recognise to the default.
+ */
+export type TailoredErrors = Readonly<
+	Record<string, (message: string) => TailoredError | undefined>
+>;
 
 function pickFromMessage(message: string, pattern: RegExp): string | undefined {
 	return message.match(pattern)?.[1];

@@ -11,4 +11,7 @@ export const cargoPack: ExtensionPack = {
 	id: 'cargo',
 	extensionNames: CARGO_EXTENSION_NAMES,
 	tools: [cargoListTables, cargoDescribeTable, cargoQuery],
+	// Cargo's API reports every failed query or table lookup, its own refusals
+	// included, as `db_error`; the tools word the refusals.
+	errorCodes: { db_error: 'upstream_failure' },
 };
