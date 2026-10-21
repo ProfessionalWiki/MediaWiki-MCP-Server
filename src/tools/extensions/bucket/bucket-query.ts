@@ -4,6 +4,7 @@ import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import type { TruncationInfo } from '../../../results/truncation.ts';
 import { MALFORMED_CONTINUE_FROM, offsetFrom } from '../../../results/offsetCursor.ts';
+import { wikiAuthorization } from '../../../wikis/wikiAuthorization.ts';
 
 const HARD_LIMIT = 500;
 
@@ -62,15 +63,11 @@ export const bucketQuery: Tool<typeof inputSchema> = {
 		// `request()` checks for a top-level `error` field and throws MwnError, but
 		// Bucket's string shape doesn't match the standard `{code, info}` object
 		// MwnError expects, so the resulting message is empty. `rawRequest` skips
-		// that processing — but it also skips mwn's `applyAuthentication`, so we
-		// inject the OAuth2 bearer header ourselves. BotPassword cookies still
-		// flow via mwn's axios interceptor.
+		// that processing.
 		const headers: Record<string, string> = {
 			'Content-Type': 'application/x-www-form-urlencoded',
+			...wikiAuthorization(mwn, mwn.options.apiUrl),
 		};
-		if (mwn.usingOAuth2 && typeof mwn.options.OAuth2AccessToken === 'string') {
-			headers.Authorization = `Bearer ${mwn.options.OAuth2AccessToken}`;
-		}
 		const axiosResponse = await mwn.rawRequest({
 			url: mwn.options.apiUrl,
 			method: 'POST',
