@@ -53,10 +53,9 @@ export function withCallBounds(bot: Mwn, deadline: CallDeadline, cancellation?: 
 		get(target, prop, receiver): unknown {
 			if (prop === 'massQuery') {
 				// `massQuery` puts per-batch errors IN its result array instead of
-				// rejecting, so a stopped batch arrives as data: `get-pages` skips an
-				// entry with no `query` and reports every page as missing, and
-				// `mwn.read` dereferences it into a TypeError. Ordinary per-batch
-				// failures are left alone, as mwn intends.
+				// rejecting, so a stopped batch arrives as data, which `mwn.read`
+				// dereferences into a TypeError. Ordinary per-batch failures are left
+				// to the caller, as mwn intends.
 				return async (...args: Parameters<Mwn['massQuery']>): Promise<unknown> => {
 					// Applied to the receiver so the internal `this.request` hop stays
 					// bounded.
