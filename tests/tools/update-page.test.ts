@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { Mwn } from 'mwn';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { fakeContext, contextOn } from '../helpers/fakeContext.ts';
 import { wikiAnswering } from '../helpers/wikiAnswering.ts';
 import { updatePage } from '../../src/tools/update-page.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
@@ -40,8 +40,7 @@ function fakeEdit(response: unknown = successResponse()) {
 			request({ ...params, token: 'csrf-token', formatversion: '2' }),
 		);
 	const botRight = vi.fn().mockResolvedValue(true);
-	const ctx = fakeContext({
-		mwn: async () => mock as never,
+	const ctx = contextOn(mock, {
 		edit: {
 			...baseEdit,
 			submit,
@@ -75,8 +74,7 @@ function fakeEditWithOutline(
 					throw new Error('fakeEditWithOutline: listInSource called but not stubbed');
 				})
 			: vi.fn().mockResolvedValue(sourceSections);
-	const ctx = fakeContext({
-		mwn: async () => base.mock as never,
+	const ctx = contextOn(base.mock, {
 		edit: base.ctx.edit,
 		sections: { list, listInSource },
 	});
@@ -106,7 +104,7 @@ function fakeFindReplaceOf(page: object) {
 		request,
 		getCsrfToken: vi.fn().mockResolvedValue('csrf-token'),
 	});
-	const ctx = fakeContext({ mwn: async () => mock as never, edit: base.ctx.edit });
+	const ctx = contextOn(mock, { edit: base.ctx.edit });
 	const pageReads = (): Record<string, unknown>[] =>
 		request.mock.calls.map(([params]) => params).filter((params) => params.action === 'query');
 	return { ...base, ctx, pageReads };
@@ -193,8 +191,7 @@ describe('update-page', () => {
 			const mock = createMockMwn({
 				getCsrfToken: vi.fn().mockResolvedValue('csrf-token'),
 			});
-			const ctx = fakeContext({
-				mwn: async () => mock as never,
+			const ctx = contextOn(mock, {
 				edit: {
 					...baseEdit,
 					submit: vi.fn().mockRejectedValue(new Error('Edit conflict')),
@@ -215,8 +212,7 @@ describe('update-page', () => {
 		});
 
 		it('surfaces the missingtitle error from mwn when page does not exist', async () => {
-			const ctx = fakeContext({
-				mwn: async () => createMockMwn() as never,
+			const ctx = contextOn(createMockMwn(), {
 				edit: {
 					...baseEdit,
 					submit: vi.fn().mockRejectedValue(new Error("The page you specified doesn't exist.")),
@@ -290,8 +286,7 @@ describe('update-page', () => {
 		});
 
 		it('maps nosuchsection error to a friendly message via dispatcher', async () => {
-			const ctx = fakeContext({
-				mwn: async () => createMockMwn() as never,
+			const ctx = contextOn(createMockMwn(), {
 				edit: {
 					...baseEdit,
 					submit: vi.fn().mockRejectedValue(new Error('nosuchsection: There is no section 99.')),
@@ -921,7 +916,7 @@ describe('update-page find-replace', () => {
 			error: { code: 'readapidenied', info: 'You need read permission to use this module.' },
 		});
 
-		const result = await callTool(fakeContext({ mwn: async () => wiki.mwn }), 'update-page', {
+		const result = await callTool(contextOn(wiki.mwn), 'update-page', {
 			title: 'My Page',
 			operation: 'find-replace',
 			find: 'founded in 1104',
@@ -1299,8 +1294,7 @@ describe('update-page unread content guard', () => {
 			return base.request(params);
 		});
 		const mock = createMockMwn({ request, getCsrfToken: vi.fn().mockResolvedValue('t') });
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			edit: base.ctx.edit,
 			sections: { list: vi.fn().mockResolvedValue([]), listInSource: vi.fn() },
 		});
@@ -1523,8 +1517,7 @@ describe('update-page unread content guard', () => {
 			return base.request(params);
 		});
 		const mock = createMockMwn({ request, getCsrfToken: vi.fn().mockResolvedValue('t') });
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			edit: base.ctx.edit,
 			sections: { list: vi.fn().mockResolvedValue(JAPAN_OUTLINE), listInSource: vi.fn() },
 		});

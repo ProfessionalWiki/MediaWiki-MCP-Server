@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { contextOn } from '../../../helpers/fakeContext.ts';
 import { neowikiMintSubjectIds } from '../../../../src/tools/extensions/neowiki/neowiki-mint-subject-ids.ts';
 
 describe('neowiki-mint-subject-ids', () => {
@@ -10,7 +10,7 @@ describe('neowiki-mint-subject-ids', () => {
 				.fn()
 				.mockResolvedValue({ data: { subjectIds: ['s1demo6sssssss1', 's1demo6sssssss2'] } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		const result = await neowikiMintSubjectIds.handle({ count: 2 }, ctx);
 
 		const call = mock.rawRequest.mock.calls[0][0] as {

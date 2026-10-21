@@ -113,7 +113,7 @@ See [docs/distribution.md](docs/distribution.md) for the install channels, the C
 
 ## Testing
 
-Tool tests build a `ToolContext` via `fakeContext()` from `tests/helpers/fakeContext.ts` and dispatch through `dispatch( descriptor, ctx )`. Provide an `mwn` factory (typically `createMockMwn()` from `tests/helpers/mock-mwn.ts`) and override only the slices the test exercises. See [docs/testing.md](docs/testing.md) for the full pattern, MCP Inspector CLI examples, and the bot-password setup required to exercise authenticated tools against a local wiki.
+Tool tests build a `ToolContext` via `contextOn( mwn )` from `tests/helpers/fakeContext.ts`, around a mock wiki (typically `createMockMwn()` from `tests/helpers/mock-mwn.ts`), and dispatch through `dispatch( descriptor, ctx )`. Override only the slices the test exercises. See [docs/testing.md](docs/testing.md) for the full pattern, MCP Inspector CLI examples, and the bot-password setup required to exercise authenticated tools against a local wiki.
 
 ## Releasing
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext, withoutEditAttribution } from '../../../helpers/fakeContext.ts';
+import { fakeContext, withoutEditAttribution, contextOn } from '../../../helpers/fakeContext.ts';
 import { toolArgs } from '../../../helpers/toolArgs.ts';
 import { wikibaseEditEntity } from '../../../../src/tools/extensions/wikibase/wikibase-edit-entity.ts';
 import { dispatch } from '../../../../src/runtime/dispatcher.ts';
@@ -13,8 +13,7 @@ const baseEdit = fakeContext().edit;
 
 function contextWith(submit = vi.fn().mockResolvedValue(SAVED)) {
 	const mock = createMockMwn();
-	const ctx = fakeContext({
-		mwn: async () => mock as never,
+	const ctx = contextOn(mock, {
 		edit: { ...baseEdit, submit },
 	});
 	return { mock, ctx, submit };

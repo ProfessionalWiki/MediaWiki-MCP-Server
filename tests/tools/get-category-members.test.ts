@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { contextOn } from '../helpers/fakeContext.ts';
 import { getCategoryMembers } from '../../src/tools/get-category-members.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import {
@@ -16,7 +16,7 @@ describe('get-category-members', () => {
 				query: { categorymembers: [{ pageid: 1, ns: 0, title: 'Foo' }] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await getCategoryMembers.handle({ category: 'Living people' }, ctx);
 
@@ -34,7 +34,7 @@ describe('get-category-members', () => {
 				query: { categorymembers: [] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await getCategoryMembers.handle({ category: 'Category:Foo' }, ctx);
 
@@ -47,7 +47,7 @@ describe('get-category-members', () => {
 				query: { categorymembers: [] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await getCategoryMembers.handle(
 			{
@@ -82,7 +82,7 @@ describe('get-category-members', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getCategoryMembers.handle({ category: 'Foo' }, ctx);
 
@@ -111,7 +111,7 @@ describe('get-category-members', () => {
 				query: { categorymembers: [{ pageid: 1, ns: 0, title: 'Alpha' }] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getCategoryMembers.handle({ category: 'Foo' }, ctx);
 
@@ -129,7 +129,7 @@ describe('get-category-members', () => {
 				continue: { cmcontinue: 'page|DOE|456', continue: '-||' },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getCategoryMembers.handle({ category: 'Foo' }, ctx);
 
@@ -150,7 +150,7 @@ describe('get-category-members', () => {
 				query: { categorymembers: [{ pageid: 1, ns: 0, title: 'A' }] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await getCategoryMembers.handle({ category: 'Foo' }, ctx);
 
@@ -162,7 +162,7 @@ describe('get-category-members', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockRejectedValue(new Error('API error')),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(getCategoryMembers, ctx)({ category: 'Foo' });
 
@@ -182,7 +182,7 @@ describe('get-category-members', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		const data = assertStructuredData(
 			await dispatch(getCategoryMembers, ctx)({ category: 'C' } as never),
 		);

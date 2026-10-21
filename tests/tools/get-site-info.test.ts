@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, type Mock } from 'vitest';
 import { getSiteInfo } from '../../src/tools/get-site-info.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { contextOn } from '../helpers/fakeContext.ts';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
 import { siteinfoAnswer } from '../helpers/siteinfoAnswer.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
@@ -42,7 +42,7 @@ function answering(response: { query: Record<string, unknown> }): Mock {
 
 function ctxWith(request: Mock) {
 	const mwn = createMockMwn({ request });
-	return fakeContext({ mwn: () => Promise.resolve(mwn as never) });
+	return contextOn(mwn);
 }
 
 describe('get-site-info', () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn, type MockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext, withoutEditAttribution } from '../../../helpers/fakeContext.ts';
+import { withoutEditAttribution, contextOn } from '../../../helpers/fakeContext.ts';
 import type { ToolContext } from '../../../../src/runtime/context.ts';
 import { neowikiUpdateSubject } from '../../../../src/tools/extensions/neowiki/neowiki-update-subject.ts';
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
@@ -22,7 +22,7 @@ function contextWith(data: unknown): { mock: MockMwn; ctx: ToolContext } {
 		getCsrfToken: vi.fn().mockResolvedValue('tok'),
 		rawRequest: vi.fn().mockResolvedValue({ data }),
 	});
-	return { mock, ctx: fakeContext({ mwn: async () => mock as never }) };
+	return { mock, ctx: contextOn(mock) };
 }
 
 function sentBody(mock: MockMwn): Record<string, unknown> {
@@ -37,7 +37,7 @@ describe('neowiki-update-subject', () => {
 			getCsrfToken: vi.fn().mockResolvedValue('tok'),
 			rawRequest: vi.fn().mockResolvedValue({ data: { status: 'updated', subjectId: 's1demo' } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		const result = await neowikiUpdateSubject.handle(
 			{ id: 's1demo', label: 'ACME', statements: stmts, comment: 'tidy' },
 			ctx,
@@ -160,7 +160,7 @@ describe('neowiki-update-subject', () => {
 			getCsrfToken: vi.fn().mockResolvedValue('tok'),
 			rawRequest: vi.fn().mockRejectedValue(httpError(404, { status: 'error', message: 'gone' })),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		const result = await dispatch(
 			neowikiUpdateSubject,
 			ctx,

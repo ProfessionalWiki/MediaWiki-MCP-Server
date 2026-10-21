@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext, withoutEditAttribution } from '../../../helpers/fakeContext.ts';
+import { fakeContext, withoutEditAttribution, contextOn } from '../../../helpers/fakeContext.ts';
 import { toolArgs } from '../../../helpers/toolArgs.ts';
 import { wikibaseAddStatement } from '../../../../src/tools/extensions/wikibase/wikibase-add-statement.ts';
 import { assertStructuredData, assertStructuredError } from '../../../helpers/structuredResult.ts';
@@ -20,8 +20,7 @@ function contextWith(datatype: string, submit = vi.fn().mockResolvedValue(CREATE
 			entities: { P31: { id: 'P31', type: 'property', datatype } },
 		}),
 	});
-	const ctx = fakeContext({
-		mwn: async () => mock as never,
+	const ctx = contextOn(mock, {
 		edit: { ...baseEdit, submit },
 	});
 	return { mock, ctx, submit };
@@ -131,7 +130,7 @@ describe('wikibase-add-statement', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ entities: { P999: { id: 'P999', missing: '' } } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never, edit: { ...baseEdit } });
+		const ctx = contextOn(mock, { edit: { ...baseEdit } });
 
 		const result = await wikibaseAddStatement.handle(
 			toolArgs(wikibaseAddStatement, { entityId: 'Q42', propertyId: 'P999', value: 'Q5' }),
@@ -146,7 +145,7 @@ describe('wikibase-add-statement', () => {
 			request: vi.fn().mockResolvedValue({ entities: { P31: { id: 'P31', type: 'property' } } }),
 		});
 		const submit = vi.fn();
-		const ctx = fakeContext({ mwn: async () => mock as never, edit: { ...baseEdit, submit } });
+		const ctx = contextOn(mock, { edit: { ...baseEdit, submit } });
 
 		const result = await wikibaseAddStatement.handle(
 			toolArgs(wikibaseAddStatement, { entityId: 'Q42', propertyId: 'P31', value: 'Q5' }),

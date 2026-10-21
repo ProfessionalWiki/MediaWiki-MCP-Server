@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import type { Mwn } from 'mwn';
 import type { ToolContext, ManagementContext } from '../../src/runtime/context.ts';
 import { ResponseFormatterImpl } from '../../src/results/response.ts';
 import { ErrorClassifierImpl } from '../../src/errors/classifyError.ts';
@@ -7,6 +8,7 @@ import { RevisionNormalizerImpl } from '../../src/services/revisionNormalize.ts'
 import { getRequestWiki } from '../../src/runtime/requestContext.ts';
 import type { WikiIdentity, WikiProbe } from '../../src/wikis/wikiProbe.ts';
 import { fakeLogger } from './fakeLogger.ts';
+import type { MockMwn } from './mock-mwn.ts';
 
 const throws = (label: string) => () => {
 	throw new Error(`fakeContext: ${label} called but not stubbed`);
@@ -42,6 +44,15 @@ export function probeReporting(identity: WikiIdentity): WikiProbe {
 		}),
 		invalidate: throws('wikiProbe.invalidate') as never,
 	};
+}
+
+/**
+ * A context whose wiki is `wiki`. A mock wiki stands in for the slice of mwn the
+ * tools use, so it is handed over as one here, once, rather than cast in every
+ * test.
+ */
+export function contextOn(wiki: MockMwn | Mwn, overrides: Partial<ToolContext> = {}): ToolContext {
+	return fakeContext({ mwn: async () => wiki as never, ...overrides });
 }
 
 export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {

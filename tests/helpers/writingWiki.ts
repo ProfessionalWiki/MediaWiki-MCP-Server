@@ -2,7 +2,7 @@ import { vi } from 'vitest';
 import { Mwn } from 'mwn';
 import type { ToolContext } from '../../src/runtime/context.ts';
 import { EditServiceImpl } from '../../src/services/editService.ts';
-import { fakeContext } from './fakeContext.ts';
+import { fakeContext, contextOn } from './fakeContext.ts';
 
 export interface WritingWiki {
 	mwn: Mwn;
@@ -57,8 +57,7 @@ export function contextWritingTo(wiki: WritingWiki, tags: string | null = null):
 			return { key, config: { ...config, tags } };
 		},
 	};
-	return fakeContext({
-		mwn: async () => wiki.mwn,
+	return contextOn(wiki.mwn, {
 		activeWiki,
 		edit: new EditServiceImpl(activeWiki),
 	});

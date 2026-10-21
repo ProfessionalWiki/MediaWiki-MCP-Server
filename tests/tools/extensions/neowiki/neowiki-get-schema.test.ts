@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { contextOn } from '../../../helpers/fakeContext.ts';
 import { contextReturning } from '../../../helpers/rawRequest.ts';
 import { neowikiGetSchema } from '../../../../src/tools/extensions/neowiki/neowiki-get-schema.ts';
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
@@ -24,7 +24,7 @@ describe('neowiki-get-schema', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		const result = await neowikiGetSchema.handle({ name: 'Company' }, ctx);
 
 		expect((mock.rawRequest.mock.calls[0][0] as { url: string }).url).toContain('/schema/Company');
@@ -60,14 +60,14 @@ describe('neowiki-get-schema', () => {
 
 	it('returns not_found when the response has no schema', async () => {
 		const mock = createMockMwn({ rawRequest: vi.fn().mockResolvedValue({ data: {} }) });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		const result = await neowikiGetSchema.handle({ name: 'Nope' }, ctx);
 		assertStructuredError(result, 'not_found');
 	});
 
 	it('URL-encodes the schema name', async () => {
 		const mock = createMockMwn({ rawRequest: vi.fn().mockResolvedValue({ data: { schema: {} } }) });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		await neowikiGetSchema.handle({ name: 'Schema Name' }, ctx);
 		expect((mock.rawRequest.mock.calls[0][0] as { url: string }).url).toContain(
 			'/schema/Schema%20Name',

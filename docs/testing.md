@@ -9,25 +9,25 @@ Reference for unit tests, integration testing against a real wiki, and the local
 
 Tests use [Vitest](https://vitest.dev/). Each tool exports a `Tool<TSchema>` descriptor from `src/tools/<name>.ts`; tests import the descriptor and route through `dispatch( descriptor, ctx )` from `src/runtime/dispatcher.ts`.
 
-Build a `ToolContext` per test via `fakeContext()` from `tests/helpers/fakeContext.ts`. Override only the slices the test exercises — by default unstubbed methods throw, so tests fail loudly when they reach for something they didn't mean to:
+Build a `ToolContext` per test via `contextOn( mwn )` from `tests/helpers/fakeContext.ts`, which hands the tool a mock wiki, or `fakeContext()` for a test that needs no wiki. Override only the slices the test exercises — by default unstubbed methods throw, so tests fail loudly when they reach for something they didn't mean to:
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { contextOn } from '../helpers/fakeContext.ts';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { getPage } from '../../src/tools/get-page.ts';
 
 it( 'returns page source', async () => {
-	const mwn = createMockMwn( { read: vi.fn().mockResolvedValue( /* … */ ) } );
-	const ctx = fakeContext( { mwn: async () => mwn as never } );
+	const mwn = createMockMwn( { request: vi.fn().mockResolvedValue( /* … */ ) } );
+	const ctx = contextOn( mwn );
 	const result = await getPage.handle( { title: 'Foo' /* … */ }, ctx );
 	// assertions
 } );
 
 it( 'maps missingtitle to not_found via the dispatcher', async () => {
-	const mwn = createMockMwn( { read: vi.fn().mockRejectedValue( /* … */ ) } );
-	const ctx = fakeContext( { mwn: async () => mwn as never } );
+	const mwn = createMockMwn( { request: vi.fn().mockRejectedValue( /* … */ ) } );
+	const ctx = contextOn( mwn );
 	const result = await dispatch( getPage, ctx )( { title: 'Missing' } );
 	// assertions
 } );

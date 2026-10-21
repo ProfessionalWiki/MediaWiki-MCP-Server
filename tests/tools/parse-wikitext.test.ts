@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { contextOn } from '../helpers/fakeContext.ts';
 import { parseWikitext } from '../../src/tools/parse-wikitext.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { formatPayload } from '../../src/results/format.ts';
@@ -13,7 +13,7 @@ describe('parse-wikitext', () => {
 				parse: { text: '<p>Hello</p>', parsewarnings: [] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await parseWikitext.handle(
 			{ wikitext: "'''Hello'''", applyPreSaveTransform: true },
@@ -33,7 +33,7 @@ describe('parse-wikitext', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await parseWikitext.handle(
 			{ wikitext: 'anything', applyPreSaveTransform: true },
@@ -50,7 +50,7 @@ describe('parse-wikitext', () => {
 				parse: { text: '<p>x</p>', parsewarnings: [] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await parseWikitext.handle({ wikitext: 'x', applyPreSaveTransform: true }, ctx);
 
@@ -71,7 +71,7 @@ describe('parse-wikitext', () => {
 				parse: { text: '<p>x</p>', parsewarnings: [] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await parseWikitext.handle(
 			{ wikitext: 'x', title: 'Custom Title', applyPreSaveTransform: true },
@@ -91,7 +91,7 @@ describe('parse-wikitext', () => {
 				parse: { text: '<p>x</p>', parsewarnings: [] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await parseWikitext.handle({ wikitext: 'x', applyPreSaveTransform: false }, ctx);
 
@@ -106,7 +106,7 @@ describe('parse-wikitext', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockRejectedValue(new Error('Network down')),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(
 			parseWikitext,
@@ -133,7 +133,7 @@ describe('parse-wikitext', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await parseWikitext.handle({ wikitext: 'x', applyPreSaveTransform: true }, ctx);
 
@@ -157,7 +157,7 @@ describe('parse-wikitext', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await parseWikitext.handle({ wikitext: 'x', applyPreSaveTransform: true }, ctx);
 
@@ -182,7 +182,7 @@ describe('parse-wikitext', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await parseWikitext.handle({ wikitext: 'x', applyPreSaveTransform: true }, ctx);
 
@@ -204,7 +204,7 @@ describe('parse-wikitext', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await parseWikitext.handle({ wikitext: 'x', applyPreSaveTransform: true }, ctx);
 
@@ -222,7 +222,7 @@ describe('parse-wikitext', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await parseWikitext.handle(
 			{ wikitext: 'x', title: 'Custom Title', applyPreSaveTransform: true },
@@ -243,7 +243,7 @@ describe('parse-wikitext', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await parseWikitext.handle({ wikitext: 'x', applyPreSaveTransform: true }, ctx);
 
@@ -265,7 +265,7 @@ describe('parse-wikitext', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await parseWikitext.handle({ wikitext: 'x', applyPreSaveTransform: true }, ctx);
 
@@ -284,7 +284,7 @@ describe('parse-wikitext', () => {
 				},
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await parseWikitext.handle({ wikitext: 'x', applyPreSaveTransform: true }, ctx);
 
@@ -306,7 +306,7 @@ describe('parse-wikitext', () => {
 				parse: { text: exact, parsewarnings: [] },
 			}),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await parseWikitext.handle({ wikitext: 'x', applyPreSaveTransform: true }, ctx);
 

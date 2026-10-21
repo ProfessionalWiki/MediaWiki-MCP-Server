@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext, probeReporting } from '../../../helpers/fakeContext.ts';
+import { probeReporting, contextOn } from '../../../helpers/fakeContext.ts';
 import { toolArgs } from '../../../helpers/toolArgs.ts';
 import { wikibaseGetEntity } from '../../../../src/tools/extensions/wikibase/wikibase-get-entity.ts';
 import { dispatch } from '../../../../src/runtime/dispatcher.ts';
@@ -71,7 +71,7 @@ describe('wikibase-get-entity', () => {
 
 	it('renders a header and one statement line per property', async () => {
 		const mock = routedMwn(Q42);
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q42' }),
@@ -88,7 +88,7 @@ describe('wikibase-get-entity', () => {
 
 	it('resolves every referenced property and item label in one batched follow-up', async () => {
 		const mock = routedMwn(Q42);
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await wikibaseGetEntity.handle(toolArgs(wikibaseGetEntity, { entityId: 'Q42' }), ctx);
 
@@ -102,7 +102,7 @@ describe('wikibase-get-entity', () => {
 				Q1: { type: 'item', id: 'Q1', labels: { en: { language: 'en', value: 'Universe' } } },
 			},
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q1' }),
@@ -124,7 +124,7 @@ describe('wikibase-get-entity', () => {
 				},
 			},
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'P31' }),
@@ -136,7 +136,7 @@ describe('wikibase-get-entity', () => {
 
 	it('renders only the requested property when property is set', async () => {
 		const mock = routedMwn(Q42);
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q42', property: 'P106' }),
@@ -150,7 +150,7 @@ describe('wikibase-get-entity', () => {
 
 	it('accepts a lowercase property filter', async () => {
 		const mock = routedMwn(Q42);
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q42', property: 'p106' }),
@@ -164,7 +164,7 @@ describe('wikibase-get-entity', () => {
 
 	it('requests every entity field the rendering reads', async () => {
 		const mock = routedMwn(Q42);
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await wikibaseGetEntity.handle(toolArgs(wikibaseGetEntity, { entityId: 'Q42' }), ctx);
 
@@ -178,8 +178,7 @@ describe('wikibase-get-entity', () => {
 
 	it('requests the entity in the wiki content language with fallback', async () => {
 		const mock = routedMwn(Q42);
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
+		const ctx = contextOn(mock, {
 			wikiProbe: probeReporting({ lang: 'de' }),
 		});
 
@@ -195,7 +194,7 @@ describe('wikibase-get-entity', () => {
 
 	it('reports a missing entity as not_found', async () => {
 		const mock = routedMwn({ entities: { Q999: { id: 'Q999', missing: '' } } });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q999' }),
@@ -207,7 +206,7 @@ describe('wikibase-get-entity', () => {
 
 	it('returns an empty statement list for a property the entity does not use', async () => {
 		const mock = routedMwn(Q42);
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q42', property: 'P999' }),
@@ -222,7 +221,7 @@ describe('wikibase-get-entity', () => {
 			code: 'no-such-entity',
 		});
 		const mock = createMockMwn({ request: vi.fn().mockRejectedValue(error) });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await dispatch(
 			wikibaseGetEntity,
@@ -234,7 +233,7 @@ describe('wikibase-get-entity', () => {
 
 	it('caps the number of properties rendered and points at the property filter', async () => {
 		const mock = routedMwn(entityWithProperties(60), { entities: {} });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q42' }),
@@ -253,7 +252,7 @@ describe('wikibase-get-entity', () => {
 
 	it('splits the label lookup into requests the wiki accepts', async () => {
 		const mock = routedMwn(entityWithProperties(60), { entities: {} });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await wikibaseGetEntity.handle(toolArgs(wikibaseGetEntity, { entityId: 'Q42' }), ctx);
 
@@ -263,7 +262,7 @@ describe('wikibase-get-entity', () => {
 
 	it('stops looking up labels past the budget and leaves those ids bare', async () => {
 		const mock = routedMwn(entityWithProperties(50, 4), { entities: {} });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q42' }),
@@ -281,7 +280,7 @@ describe('wikibase-get-entity', () => {
 		// 85 bytes covers eight `P<n>: Q<nnnn>` lines and five characters of the ninth.
 		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '85');
 		const mock = routedMwn(entityWithProperties(40), { entities: {} });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q42' }),
@@ -311,7 +310,7 @@ describe('wikibase-get-entity', () => {
 				},
 			},
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q12937355' }),
@@ -325,7 +324,7 @@ describe('wikibase-get-entity', () => {
 
 	it('reports no redirect for an id that is its own entity', async () => {
 		const mock = routedMwn(Q42);
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q42' }),
@@ -339,7 +338,7 @@ describe('wikibase-get-entity', () => {
 	// for the codes that are shaped like one and still name no language.
 	it('refuses a language code the wiki did not recognise', async () => {
 		const mock = routedMwn(everyLanguage());
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q42', language: 'english' }),
@@ -361,7 +360,7 @@ describe('wikibase-get-entity', () => {
 	// and a label batch asking for the same code multiplies that by fifty ids.
 	it('spends no label lookup on a language code the wiki did not recognise', async () => {
 		const mock = routedMwn(everyLanguage());
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q42', language: 'english' }),
@@ -377,7 +376,7 @@ describe('wikibase-get-entity', () => {
 				Q93822343: { type: 'item', id: 'Q93822343', labels: {}, descriptions: {}, aliases: {} },
 			},
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q93822343' }),
@@ -401,7 +400,7 @@ describe('wikibase-get-entity', () => {
 				},
 			},
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'L1' }),
@@ -425,7 +424,7 @@ describe('wikibase-get-entity', () => {
 
 	it('accepts a lowercase item id', async () => {
 		const mock = routedMwn(Q42);
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'q42' }),
@@ -437,7 +436,7 @@ describe('wikibase-get-entity', () => {
 
 	it('spends no label lookup on values the per-property cap hides', async () => {
 		const mock = routedMwn(entityWithValues(45), { entities: {} });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		await wikibaseGetEntity.handle(toolArgs(wikibaseGetEntity, { entityId: 'Q64' }), ctx);
 
@@ -450,7 +449,7 @@ describe('wikibase-get-entity', () => {
 
 	it('renders every value of the filtered property, past the per-property cap', async () => {
 		const mock = routedMwn(entityWithValues(45), { entities: {} });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q64', property: 'P1082' }),
@@ -464,7 +463,7 @@ describe('wikibase-get-entity', () => {
 
 	it('caps the values of an unfiltered property and says how to read it in full', async () => {
 		const mock = routedMwn(entityWithValues(45), { entities: {} });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q64' }),
@@ -484,7 +483,7 @@ describe('wikibase-get-entity', () => {
 
 	it('names the property that lost the most values, not the first one', async () => {
 		const mock = routedMwn(entityWithUnevenValues(), { entities: {} });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q64' }),
@@ -498,7 +497,7 @@ describe('wikibase-get-entity', () => {
 
 	it('counts the values the whole response rendered, not one property’s', async () => {
 		const mock = routedMwn(entityWithUnevenValues(), { entities: {} });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q64' }),
@@ -511,7 +510,7 @@ describe('wikibase-get-entity', () => {
 
 	it('states the hidden values as well when the property cap fires', async () => {
 		const mock = routedMwn(entityWithProperties(60, 12), { entities: {} });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q42' }),
@@ -529,7 +528,7 @@ describe('wikibase-get-entity', () => {
 	it('truncates the statement block at the content byte cap', async () => {
 		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '80');
 		const mock = routedMwn(entityWithProperties(40), { entities: {} });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q42' }),
@@ -544,7 +543,7 @@ describe('wikibase-get-entity', () => {
 	it('names the properties the property cap dropped when the byte cap fires as well', async () => {
 		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '80');
 		const mock = routedMwn(entityWithProperties(60), { entities: {} });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q42' }),
@@ -559,7 +558,7 @@ describe('wikibase-get-entity', () => {
 	it('names the values the value cap hid when the byte cap fires as well', async () => {
 		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '40');
 		const mock = routedMwn(entityWithValues(45), { entities: {} });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q64' }),
@@ -574,7 +573,7 @@ describe('wikibase-get-entity', () => {
 	it('states both count caps in one remedy when the byte cap fires as well', async () => {
 		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '80');
 		const mock = routedMwn(entityWithProperties(60, 12), { entities: {} });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q42' }),
@@ -589,7 +588,7 @@ describe('wikibase-get-entity', () => {
 	it('states that nothing reaches the rest when the byte cap cuts the filtered property', async () => {
 		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '40');
 		const mock = routedMwn(entityWithValues(45), { entities: {} });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q64', property: 'p1082' }),
@@ -604,7 +603,7 @@ describe('wikibase-get-entity', () => {
 	it('leaves the byte-cap remedy alone when no count cap was in play', async () => {
 		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '80');
 		const mock = routedMwn(entityWithProperties(40), { entities: {} });
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 
 		const result = await wikibaseGetEntity.handle(
 			toolArgs(wikibaseGetEntity, { entityId: 'Q42' }),

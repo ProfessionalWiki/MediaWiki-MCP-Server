@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, type Mock } from 'vitest';
 import { whoami } from '../../src/tools/whoami.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { contextOn } from '../helpers/fakeContext.ts';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { assertStructuredData, assertStructuredError } from '../helpers/structuredResult.ts';
 
 function ctxWith(request: Mock) {
 	const mwn = createMockMwn({ request });
-	return fakeContext({ mwn: () => Promise.resolve(mwn as never) });
+	return contextOn(mwn);
 }
 
 function userinfoResponse(overrides: Record<string, unknown> = {}) {

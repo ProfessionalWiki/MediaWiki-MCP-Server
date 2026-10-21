@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn, type MockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext, withoutEditAttribution } from '../../../helpers/fakeContext.ts';
+import { withoutEditAttribution, contextOn } from '../../../helpers/fakeContext.ts';
 import type { ToolContext } from '../../../../src/runtime/context.ts';
 import { neowikiCreateSubject } from '../../../../src/tools/extensions/neowiki/neowiki-create-subject.ts';
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
@@ -22,7 +22,7 @@ function contextWith(data: unknown): { mock: MockMwn; ctx: ToolContext } {
 		getCsrfToken: vi.fn().mockResolvedValue('tok'),
 		rawRequest: vi.fn().mockResolvedValue({ data }),
 	});
-	return { mock, ctx: fakeContext({ mwn: async () => mock as never }) };
+	return { mock, ctx: contextOn(mock) };
 }
 
 function sentBody(mock: MockMwn): Record<string, unknown> {
@@ -38,7 +38,7 @@ describe('neowiki-create-subject', () => {
 			getCsrfToken: vi.fn().mockResolvedValue('tok'),
 			rawRequest: vi.fn().mockResolvedValue({ data: { status: 'created', subjectId: 's1demo' } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		const result = await neowikiCreateSubject.handle(
 			{ title: 'Berlin', label: 'Berlin', schema: 'City', statements: stmts },
 			ctx,
@@ -69,7 +69,7 @@ describe('neowiki-create-subject', () => {
 			getCsrfToken: vi.fn().mockResolvedValue('tok'),
 			rawRequest: vi.fn().mockResolvedValue({ data: { status: 'created', subjectId: 's1' } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		await neowikiCreateSubject.handle(
 			{ pageId: 7, isMain: true, label: 'X', schema: 'City', statements: stmts },
 			ctx,
@@ -86,7 +86,7 @@ describe('neowiki-create-subject', () => {
 				.fn()
 				.mockRejectedValue(httpError(409, { status: 'error', message: 'Subject already exists' })),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		const result = await dispatch(
 			neowikiCreateSubject,
 			ctx,
@@ -154,7 +154,7 @@ describe('neowiki-create-subject', () => {
 	});
 
 	it('rejects when neither title nor pageId is given', async () => {
-		const ctx = fakeContext({ mwn: async () => createMockMwn() as never });
+		const ctx = contextOn(createMockMwn());
 		const result = await neowikiCreateSubject.handle(
 			{ label: 'X', schema: 'City', statements: stmts },
 			ctx,
@@ -166,7 +166,7 @@ describe('neowiki-create-subject', () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({ query: { pages: [{ missing: true, title: 'Nope' }] } }),
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
+		const ctx = contextOn(mock);
 		const result = await neowikiCreateSubject.handle(
 			{ title: 'Nope', label: 'X', schema: 'City', statements: stmts },
 			ctx,
