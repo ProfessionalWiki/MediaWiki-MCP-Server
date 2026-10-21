@@ -211,19 +211,14 @@ export interface McpRouteOptions {
 type Caller = AdmittedCaller | { refusal: 'unauthenticated' | 'unavailable' };
 
 interface AdmittedCaller {
-	/** The wiki token the request acts with; absent for an anonymous caller. */
 	token?: RuntimeToken;
-	/**
-	 * The caller's own rate-limit bucket, set only once the caller is verified, so
-	 * an invalid bearer never mints one; anonymous callers share a bucket.
-	 */
+	/** Absent for anonymous callers, who share one bucket. */
 	rateLimitKey?: string;
 }
 
 const ANONYMOUS: AdmittedCaller = {};
 const UNAUTHENTICATED: Caller = { refusal: 'unauthenticated' };
 
-/** The hosted OAuth proxy, when it is enabled and has its store. */
 interface HostedProxy {
 	config: ProxyConfig;
 	store: ProxyStore;
@@ -236,10 +231,7 @@ async function resolveCaller(
 ): Promise<Caller> {
 	const { wikiRegistry, defaultWikiKey, refresh } = options;
 
-	// A `private` wiki disallows anonymous reads, so the deployment requires
-	// auth for everything: challenge any tokenless request up front — including
-	// `initialize` — so an OAuth-capable client signs in at connect. This
-	// connection-time 401 is the broadly client-compatible trigger.
+	// Challenged at `initialize` too, so a client signs in when it connects.
 	if (
 		!bearer &&
 		defaultWikiKey !== undefined &&
@@ -248,26 +240,13 @@ async function resolveCaller(
 		return UNAUTHENTICATED;
 	}
 
-	// With the proxy, a bearer is a proxy JWT standing for an upstream wiki
-	// token. A tokenless request is served anonymously: step-up for write tools
-	// happens later in checkWikiCapability, not as a transport 401.
+	// A tokenless caller is asked to sign in only by a write, in checkWikiCapability.
 	if (proxy) {
 		return bearer ? signedInCaller(bearer, proxy, refresh) : ANONYMOUS;
 	}
 
-	// Without the proxy, a bearer was issued by the wiki's authorization server,
-	// not for this server, so it is refused unless forwarding is opted into:
-	// accepting a token minted for another audience is what the passthrough
-	// prohibition is about, and silently ignoring it would be worse — the caller
-	// would believe it is acting as itself while the request ran anonymously or
-	// as a configured identity.
-	//
-	// Not conditioned on whether a wiki sets `oauth2ClientId`: that describes
-	// how THIS server runs browser sign-in, not whether the wiki accepts
-	// bearers. Any wiki with Extension:OAuth does, so a forwarded token would
-	// authenticate as the caller there regardless of our own configuration.
-	// A caller whose bearer is meant for something else is what the opt-in is
-	// for; the server cannot tell the two apart and must not guess.
+	// A bearer here was issued for the wiki, not for this server, so it is
+	// refused rather than ignored, whatever the wikis' `oauth2ClientId`.
 	if (!bearerPassthroughEnabled()) {
 		return bearer ? UNAUTHENTICATED : ANONYMOUS;
 	}
@@ -275,10 +254,7 @@ async function resolveCaller(
 		return forwardedCaller(bearer);
 	}
 
-	// While forwarding is available, a tokenless request to a set of wikis that
-	// all require OAuth can be answered by the caller supplying one. Without
-	// passthrough there is nothing a client can do, so the condition is an
-	// operator misconfiguration rather than a 401.
+	// A 401 only helps while the caller can answer it by forwarding a token.
 	return wikiRegistry && everyWikiNeedsAuth(wikiRegistry) ? UNAUTHENTICATED : ANONYMOUS;
 }
 
@@ -294,17 +270,14 @@ async function signedInCaller(
 			rateLimitKey: `user:${resolved.upstreamTokenId}`,
 		};
 	} catch (err) {
-		// A transient upstream refresh failure is retryable: the client should
-		// retry, not re-authenticate. Everything else (bad/expired JWT, dead
-		// refresh token) is a genuine auth failure.
+		// A transient refresh failure asks the client to retry, not to sign in again.
 		return err instanceof UpstreamBearerError && err.retryable
 			? { refusal: 'unavailable' }
 			: UNAUTHENTICATED;
 	}
 }
 
-// A forwarded bearer is never verified by this server, so a digest of the
-// token is the only identity available.
+// Never verified, so the token's digest is its only identity.
 function forwardedCaller(bearer: string): AdmittedCaller {
 	const digest = createHash('sha256').update(bearer).digest('hex').slice(0, 32);
 	return { token: { value: bearer, wikiKey: null }, rateLimitKey: `bearer:${digest}` };
