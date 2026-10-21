@@ -68,8 +68,8 @@ function ctxWithArticlePath(articlepath: string): ToolContext {
 
 describe('buildPageUrl', () => {
 	it('appends the title to an article path without a $1 placeholder', async () => {
-		const url = await buildPageUrl(ctxWithArticlePath('/wiki'), 'Main Page');
-		expect(url).toBe('https://test.wiki/wiki/Main_Page');
+		const url = await buildPageUrl(ctxWithArticlePath('/wiki'), 'List of cities');
+		expect(url).toBe('https://test.wiki/wiki/List_of_cities');
 	});
 
 	it('puts the title in place of $1 in a query-string article path', async () => {
@@ -88,11 +88,8 @@ describe('buildPageUrl', () => {
 	});
 
 	it('keeps namespace colons and subpage slashes readable', async () => {
-		const url = await buildPageUrl(
-			ctxWithArticlePath('/w/index.php?title=$1'),
-			'Help:Editing/Tables',
-		);
-		expect(url).toBe('https://test.wiki/w/index.php?title=Help:Editing/Tables');
+		const url = await buildPageUrl(ctxWithArticlePath('/wiki'), 'Help:Editing/Tables');
+		expect(url).toBe('https://test.wiki/wiki/Help:Editing/Tables');
 	});
 
 	it('keeps dollar signs in the title literal', async () => {

@@ -11,8 +11,8 @@ export async function buildPageUrl(ctx: ToolContext, title: string): Promise<str
 	return server + pattern.replace('$1', () => encodeTitle(title));
 }
 
-// Mirrors MediaWiki's wfUrlencode: the encoded title is safe in a path or a
-// query value, and keeps ';@$,/:' readable.
+// Safe in a path or a query value, and keeps ';@$,/:' unencoded, as MediaWiki's
+// wfUrlencode does.
 function encodeTitle(title: string): string {
 	return encodeURIComponent(title.replace(/ /g, '_')).replace(
 		/%(?:3B|40|24|2C|2F|3A)/g,
