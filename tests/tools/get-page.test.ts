@@ -1,13 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { fakeContext, probeReporting } from '../helpers/fakeContext.ts';
 import { wikiAnswering } from '../helpers/wikiAnswering.ts';
 import { getPage } from '../../src/tools/get-page.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { ContentFormat } from '../../src/results/contentFormat.ts';
 import { SectionServiceImpl } from '../../src/services/sectionService.ts';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
-import { SiteInfoCacheImpl } from '../../src/wikis/siteInfoCache.ts';
 
 type MockMwn = ReturnType<typeof createMockMwn>;
 
@@ -624,21 +623,13 @@ describe('get-page', () => {
 
 	it('builds the page URL from the public siteinfo server, not the configured server', async () => {
 		const mock = createMockMwn({
-			request: vi.fn().mockImplementation((params: { meta?: string; action?: string }) => {
-				if (params.meta === 'siteinfo') {
-					return Promise.resolve({
-						query: { general: { server: 'https://public.example', articlepath: '/wiki/$1' } },
-					});
-				}
-				// action=parse response for html content
-				return Promise.resolve({
-					parse: { text: '<p>Hello</p>', title: 'Test Page', pageid: 1 },
-				});
+			request: vi.fn().mockResolvedValue({
+				parse: { text: '<p>Hello</p>', title: 'Test Page', pageid: 1 },
 			}),
 		});
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: new SiteInfoCacheImpl(),
+			wikiProbe: probeReporting({ server: 'https://public.example', articlepath: '/wiki' }),
 		});
 
 		const result = await getPage.handle(

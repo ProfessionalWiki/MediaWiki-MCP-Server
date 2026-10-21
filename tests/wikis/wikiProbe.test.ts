@@ -5,6 +5,9 @@ import type { WikiConfig } from '../../src/config/loadConfig.ts';
 import type { MwnProvider } from '../../src/wikis/mwnProvider.ts';
 import { fakeClock } from '../helpers/fakeClock.ts';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { withRequestFields } from '../../src/runtime/requestContext.ts';
+import { siteinfoAnswer } from '../helpers/siteinfoAnswer.ts';
+import { wikiAnswering } from '../helpers/wikiAnswering.ts';
 
 vi.mock('../../src/transport/httpFetch.ts', () => ({
 	makeApiRequest: vi.fn(),
@@ -110,18 +113,26 @@ describe('WikiProbeImpl', () => {
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(1);
 	});
 
-	it('re-probes after the 1-hour TTL', async () => {
+	it('re-probes after the 1-hour TTL, taking up what the wiki now reports', async () => {
 		vi.mocked(makeApiRequest)
-			.mockResolvedValueOnce({ query: { extensions: [{ name: 'SemanticMediaWiki' }] } })
-			.mockResolvedValueOnce({ query: { extensions: [] } });
+			.mockResolvedValueOnce({
+				query: {
+					extensions: [{ name: 'SemanticMediaWiki' }],
+					general: { server: 'https://old.example' },
+				},
+			})
+			.mockResolvedValueOnce({
+				query: { extensions: [], general: { server: 'https://new.example' } },
+			});
 		const clock = fakeClock();
 		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions, clock.now);
 
 		expect(await has(probe, 'a', 'SemanticMediaWiki')).toBe(true);
 		clock.advance(60 * 60 * 1000 + 1); // 1h + 1ms
-		expect(await has(probe, 'a', 'SemanticMediaWiki')).toBe(false);
+		const refreshed = await probe.inspect('a');
 
-		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledTimes(2);
+		expect(refreshed.extensions.has('SemanticMediaWiki')).toBe(false);
+		expect(refreshed.server).toBe('https://new.example');
 	});
 
 	it('caches a failed sentinel for 60 seconds on probe failure', async () => {
@@ -190,12 +201,7 @@ describe('WikiProbeImpl', () => {
 
 		expect(vi.mocked(makeApiRequest)).toHaveBeenCalledWith(
 			'https://test.wiki/w/api.php',
-			expect.objectContaining({
-				action: 'query',
-				meta: 'siteinfo',
-				siprop: 'extensions|general',
-				format: 'json',
-			}),
+			expect.objectContaining({ action: 'query', meta: 'siteinfo' }),
 			expect.objectContaining({ signal: expect.any(AbortSignal) }),
 		);
 	});
@@ -280,6 +286,24 @@ describe('WikiProbeImpl', () => {
 			expect(makeApiRequest).not.toHaveBeenCalled();
 		});
 
+		// Handed to every concurrent caller, so it runs on a budget of its own: a
+		// joiner must not be dropped onto a failure by a caller that walked away.
+		it('bounds the session read with a budget of its own, not the caller that started it', async () => {
+			vi.mocked(makeApiRequest).mockResolvedValueOnce(READ_REFUSED);
+			const session = wikiAnswering(CARGO_SITEINFO);
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), {
+				get: async () => session.mwn,
+				invalidate: () => {},
+			});
+			const caller = new AbortController();
+			caller.abort();
+
+			await withRequestFields({ signal: caller.signal }, () => probe.inspect('a'));
+
+			expect(session.sentSignal()).toBeInstanceOf(AbortSignal);
+			expect(session.sentSignal()?.aborted).toBe(false);
+		});
+
 		it('reports the wiki unreachable when its own session is refused too', async () => {
 			vi.mocked(makeApiRequest).mockResolvedValueOnce(READ_REFUSED);
 			const refusingSession: MwnProvider = {
@@ -356,13 +380,105 @@ describe('WikiProbeImpl', () => {
 			expect(result.server).toBeUndefined();
 		});
 
-		it('omits identity fields when the probe fails', async () => {
+		it('omits identity fields when the wiki has never answered', async () => {
 			vi.mocked(makeApiRequest).mockRejectedValueOnce(new Error('network down'));
 			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions);
 
 			const result = await probe.inspect('a');
 			expect(result.reachable).toBe(false);
 			expect(result.server).toBeUndefined();
+		});
+
+		it('inspect surfaces the article path, content language and license', async () => {
+			vi.mocked(makeApiRequest).mockImplementation(async (_url, params) =>
+				siteinfoAnswer(
+					{
+						extensions: [],
+						general: { server: 'https://public.example', articlepath: '/wiki/$1', lang: 'de' },
+						rightsinfo: {
+							url: 'https://creativecommons.org/licenses/by-sa/4.0/',
+							text: 'CC BY-SA 4.0',
+						},
+					},
+					params,
+				),
+			);
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions);
+
+			expect(await probe.inspect('a')).toMatchObject({
+				articlepath: '/wiki',
+				lang: 'de',
+				license: { url: 'https://creativecommons.org/licenses/by-sa/4.0/', title: 'CC BY-SA 4.0' },
+			});
+		});
+
+		it('omits the license when the wiki has none', async () => {
+			vi.mocked(makeApiRequest).mockResolvedValueOnce({
+				query: { extensions: [], rightsinfo: { url: '', text: '' } },
+			});
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions);
+
+			expect((await probe.inspect('a')).license).toBeUndefined();
+		});
+
+		// An empty server would make every link relative.
+		it('leaves out a server siteinfo reports as empty', async () => {
+			vi.mocked(makeApiRequest).mockResolvedValueOnce({
+				query: { extensions: [], general: { server: '' } },
+			});
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions);
+
+			expect((await probe.inspect('a')).server).toBeUndefined();
+		});
+
+		it('keeps the namespaces the wiki counts as content, leaving out those the search API refuses', async () => {
+			vi.mocked(makeApiRequest).mockImplementation(async (_url, params) =>
+				siteinfoAnswer(
+					{
+						extensions: [],
+						namespaces: {
+							'-1': { id: -1, content: true },
+							'0': { id: 0, content: true },
+							'4': { id: 4, content: false },
+							'120': { id: 120, content: true },
+						},
+					},
+					params,
+				),
+			);
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions);
+
+			expect((await probe.inspect('a')).contentNamespaces).toEqual([0, 120]);
+		});
+
+		it('omits the content namespaces when siteinfo reports no namespace map', async () => {
+			vi.mocked(makeApiRequest).mockResolvedValueOnce({ query: { extensions: [] } });
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions);
+
+			expect((await probe.inspect('a')).contentNamespaces).toBeUndefined();
+		});
+
+		// Links stay public through a blip, while the extension tools follow the
+		// wiki's current state.
+		it('keeps the identity it last read when a refetch fails', async () => {
+			vi.mocked(makeApiRequest)
+				.mockResolvedValueOnce({
+					query: { extensions: [{ name: 'Cargo' }], general: { server: 'https://public.example' } },
+				})
+				.mockRejectedValueOnce(new Error('network down'))
+				.mockRejectedValueOnce(new Error('network down'));
+			const clock = fakeClock();
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions, clock.now);
+
+			await probe.inspect('a');
+			clock.advance(60 * 60 * 1000 + 1);
+			await probe.inspect('a');
+			clock.advance(60 * 1000 + 1);
+			const result = await probe.inspect('a');
+
+			expect(result.reachable).toBe(false);
+			expect(result.extensions.size).toBe(0);
+			expect(result.server).toBe('https://public.example');
 		});
 	});
 });

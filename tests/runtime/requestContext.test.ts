@@ -1,16 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
 	runtimeTokenStore,
-	getRequestDeadline,
-	getRequestSignal,
 	getCallerId,
 	getRequestWiki,
 	getRuntimeToken,
-	withSharedWorkScope,
 	withRequestContext,
 	withRequestFields,
 } from '../../src/runtime/requestContext.ts';
-import { callDeadline } from '../../src/runtime/callDeadline.ts';
 
 describe('requestContext', () => {
 	it('holds no token outside a run', () => {
@@ -114,25 +110,5 @@ describe('request context wiki', () => {
 				},
 			);
 		});
-	});
-});
-
-describe('scoping work shared between callers', () => {
-	it('takes neither the caller cancellation nor the caller budget', async () => {
-		// The assertions live inside the callback, which might never be invoked.
-		expect.assertions(3);
-		const callerDeadline = callDeadline(60_000, 'calling');
-		const sharedDeadline = callDeadline(60_000, 'calling');
-
-		await withRequestFields(
-			{ signal: new AbortController().signal, deadline: callerDeadline },
-			async () => {
-				await withSharedWorkScope(sharedDeadline, async () => {
-					expect(getRequestSignal()).toBeUndefined();
-					expect(getRequestDeadline()).toBe(sharedDeadline);
-					expect(getRequestDeadline()).not.toBe(callerDeadline);
-				});
-			},
-		);
 	});
 });

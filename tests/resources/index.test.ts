@@ -8,10 +8,7 @@ import {
 } from '@modelcontextprotocol/server';
 import type { Resource, ResourceTemplate } from '@modelcontextprotocol/server';
 import { registerAllResources } from '../../src/resources/index.ts';
-import { createMockMwn } from '../helpers/mock-mwn.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
-import { SiteInfoCacheImpl } from '../../src/wikis/siteInfoCache.ts';
-import { fakeClock } from '../helpers/fakeClock.ts';
+import { fakeContext, probeReporting } from '../helpers/fakeContext.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
 
 type ReadHandler = (
@@ -65,9 +62,6 @@ function ctxWithWikis(keys: string[]) {
 		registry[key] = config;
 	}
 	return fakeContext({
-		mwn: async () =>
-			createMockMwn({ request: vi.fn().mockRejectedValue(new Error('down')) }) as never,
-		siteInfoCache: new SiteInfoCacheImpl(),
 		wikis: {
 			getAll: () => registry as never,
 			get: ((key: string) => (Object.hasOwn(registry, key) ? registry[key] : undefined)) as never,
@@ -80,17 +74,12 @@ function ctxWithWikis(keys: string[]) {
 
 describe('wikis resource', () => {
 	it('exposes the public server and license from siteinfo', async () => {
-		const mock = createMockMwn({
-			request: vi.fn().mockResolvedValue({
-				query: {
-					general: { server: 'https://public.example', articlepath: '/wiki/$1' },
-					rightsinfo: { url: 'https://example.org/license', text: 'Example License' },
-				},
-			}),
-		});
 		const ctx = fakeContext({
-			mwn: async () => mock as never,
-			siteInfoCache: new SiteInfoCacheImpl(),
+			wikiProbe: probeReporting({
+				server: 'https://public.example',
+				articlepath: '/w/index.php?title=$1',
+				license: { url: 'https://example.org/license', title: 'Example License' },
+			}),
 		});
 		const handler = captureHandler(ctx);
 
@@ -101,35 +90,16 @@ describe('wikis resource', () => {
 		const payload = JSON.parse(result.contents[0].text) as Record<string, unknown>;
 
 		expect(payload.server).toBe('https://public.example');
-		expect(payload.articlepath).toBe('/wiki');
+		expect(payload.articlepath).toBe('/w/index.php?title=$1');
 		expect(payload.license).toEqual({
 			url: 'https://example.org/license',
 			title: 'Example License',
 		});
 	});
 
-	it('falls back to the configured server and omits license when siteinfo is unavailable', async () => {
-		const mock = createMockMwn({ request: vi.fn().mockRejectedValue(new Error('down')) });
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
-			siteInfoCache: new SiteInfoCacheImpl(),
-		});
-		const handler = captureHandler(ctx);
-
-		const result = await handler(
-			{ toString: () => 'mcp://wikis/test-wiki' },
-			{ wikiKey: 'test-wiki' },
-		);
-		const payload = JSON.parse(result.contents[0].text) as Record<string, unknown>;
-
-		expect(payload.server).toBe('https://test.wiki');
-		expect(payload.license).toBeUndefined();
-	});
-
 	// Every credential and server-side setting at once: the published body is an
 	// allowlist, so a field added to WikiConfig later cannot leak by default.
 	it('publishes only the public fields, never credentials or operational settings', async () => {
-		const mock = createMockMwn({ request: vi.fn().mockRejectedValue(new Error('down')) });
 		const loaded = {
 			sitename: 'Secretive',
 			server: 'https://internal.svc',
@@ -148,8 +118,6 @@ describe('wikis resource', () => {
 			attributeEdits: false,
 		};
 		const ctx = fakeContext({
-			mwn: async () => mock as never,
-			siteInfoCache: new SiteInfoCacheImpl(),
 			wikis: {
 				getAll: () => ({ 'test-wiki': loaded }) as never,
 				get: ((key: string) => (key === 'test-wiki' ? loaded : undefined)) as never,
@@ -292,13 +260,11 @@ describe('wikis resource', () => {
 		}
 	});
 
-	it('keeps describing a wiki by its public server after the cached siteinfo expires', async () => {
-		const clock = fakeClock();
-		const siteInfoCache = new SiteInfoCacheImpl(clock.now);
-		siteInfoCache.set('test-wiki', { server: 'https://public.example', articlepath: '/wiki' });
-		const { template } = captureResource({ ...ctxWithWikis(['test-wiki']), siteInfoCache });
-
-		clock.advance(60 * 60 * 1000 + 1);
+	it('describes a wiki by the public server its probe read', async () => {
+		const { template } = captureResource({
+			...ctxWithWikis(['test-wiki']),
+			wikiProbe: probeReporting({ server: 'https://public.example' }),
+		});
 
 		const [resource] = await listedResources(template);
 		expect(resource.description).toContain('https://public.example');

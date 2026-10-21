@@ -1,10 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { fakeContext, probeReporting } from '../helpers/fakeContext.ts';
 import { searchPage } from '../../src/tools/search-page.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
-import { SiteInfoCacheImpl } from '../../src/wikis/siteInfoCache.ts';
 import { toolArgs } from '../helpers/toolArgs.ts';
 
 type SearchRow = {
@@ -62,17 +61,14 @@ function searchParams(mock: ReturnType<typeof createMockMwn>): Record<string, un
 	return call![0] as Record<string, unknown>;
 }
 
-// fakeContext seeds a siteinfo cache with no content namespaces, so every test
-// that does not call this exercises the unresolved path and proves nothing
-// about the wiki-derived default.
+// fakeContext's wiki reports no content namespaces, so every test that does not
+// call this exercises the unresolved path and proves nothing about the
+// wiki-derived default.
 function contextKnowing(mock: ReturnType<typeof createMockMwn>, contentNamespaces: number[]) {
-	const ctx = fakeContext({ mwn: async () => mock as never });
-	ctx.siteInfoCache.set('test-wiki', {
-		server: 'https://test.wiki',
-		articlepath: '/wiki',
-		contentNamespaces,
+	return fakeContext({
+		mwn: async () => mock as never,
+		wikiProbe: probeReporting({ contentNamespaces }),
 	});
-	return ctx;
 }
 
 describe('search-page', () => {
@@ -192,31 +188,24 @@ describe('search-page', () => {
 
 	it('builds result URLs from the public siteinfo server', async () => {
 		const mock = createMockMwn({
-			request: vi.fn().mockImplementation((params: { meta?: string }) => {
-				if (params.meta === 'siteinfo') {
-					return Promise.resolve({
-						query: { general: { server: 'https://public.example', articlepath: '/wiki/$1' } },
-					});
-				}
-				return Promise.resolve({
-					query: {
-						search: [
-							{
-								ns: 0,
-								title: 'Test Page',
-								pageid: 1,
-								size: 1,
-								snippet: 's',
-								timestamp: '2026-01-01T00:00:00Z',
-							},
-						],
-					},
-				});
+			request: vi.fn().mockResolvedValue({
+				query: {
+					search: [
+						{
+							ns: 0,
+							title: 'Test Page',
+							pageid: 1,
+							size: 1,
+							snippet: 's',
+							timestamp: '2026-01-01T00:00:00Z',
+						},
+					],
+				},
 			}),
 		});
 		const ctx = fakeContext({
 			mwn: async () => mock as never,
-			siteInfoCache: new SiteInfoCacheImpl(),
+			wikiProbe: probeReporting({ server: 'https://public.example', articlepath: '/wiki' }),
 		});
 
 		const result = await searchPage.handle({ query: 'test', limit: 10 }, ctx);

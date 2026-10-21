@@ -5,7 +5,7 @@ import { ErrorClassifierImpl } from '../../src/errors/classifyError.ts';
 import { extensionErrorVocabulary, extensionPacks } from '../../src/tools/extensions/index.ts';
 import { RevisionNormalizerImpl } from '../../src/services/revisionNormalize.ts';
 import { getRequestWiki } from '../../src/runtime/requestContext.ts';
-import { SiteInfoCacheImpl } from '../../src/wikis/siteInfoCache.ts';
+import type { WikiIdentity, WikiProbe } from '../../src/wikis/wikiProbe.ts';
 import { fakeLogger } from './fakeLogger.ts';
 
 const throws = (label: string) => () => {
@@ -26,6 +26,23 @@ const testWikiRegistry: Record<string, typeof testWikiConfig> = {
 	'fr.wikipedia.org': testWikiConfig,
 	'de.wikipedia.org': testWikiConfig,
 };
+
+/**
+ * A probe that finds every wiki reachable with every pack's extension, so a pack
+ * tool runs unless a test says otherwise, and reporting `identity`: with none,
+ * a wiki's links use its configured server, and it has no query service, so a
+ * gated tool does not run.
+ */
+export function probeReporting(identity: WikiIdentity): WikiProbe {
+	return {
+		inspect: async () => ({
+			reachable: true,
+			extensions: new Set(extensionPacks.flatMap((pack) => pack.extensionNames)),
+			...identity,
+		}),
+		invalidate: throws('wikiProbe.invalidate') as never,
+	};
+}
 
 export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 	return {
@@ -49,22 +66,7 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 		},
 		uploadDirs: { list: () => [] },
 		wikiCache: { invalidate: throws('wikiCache.invalidate') as never },
-		siteInfoCache: (() => {
-			const cache = new SiteInfoCacheImpl();
-			for (const key of Object.keys(testWikiRegistry)) {
-				cache.set(key, { server: 'https://test.wiki', articlepath: '/wiki' });
-			}
-			return cache;
-		})(),
-		wikiProbe: {
-			// A reachable wiki with every pack's extension, so a pack tool runs unless a
-			// test says otherwise, and no query service, so a gated tool does not.
-			inspect: (async () => ({
-				reachable: true,
-				extensions: new Set(extensionPacks.flatMap((pack) => pack.extensionNames)),
-			})) as never,
-			invalidate: throws('wikiProbe.invalidate') as never,
-		},
+		wikiProbe: probeReporting({}),
 		sections: {
 			list: throws('sections.list') as never,
 			listInSource: throws('sections.listInSource') as never,

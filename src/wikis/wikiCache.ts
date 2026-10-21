@@ -1,5 +1,4 @@
 import type { MwnProvider } from './mwnProvider.ts';
-import type { SiteInfoCache } from './siteInfoCache.ts';
 import type { WikiProbe } from './wikiProbe.ts';
 
 /**
@@ -14,13 +13,11 @@ export interface WikiCache {
 export class WikiCacheImpl implements WikiCache {
 	public constructor(
 		private readonly mwnProvider: Pick<MwnProvider, 'invalidate'>,
-		private readonly siteInfoCache: Pick<SiteInfoCache, 'delete'>,
 		private readonly wikiProbe: Pick<WikiProbe, 'invalidate'>,
 	) {}
 
 	public invalidate(wikiKey: string): void {
 		this.mwnProvider.invalidate(wikiKey);
-		this.siteInfoCache.delete(wikiKey);
 		this.wikiProbe.invalidate(wikiKey);
 	}
 }

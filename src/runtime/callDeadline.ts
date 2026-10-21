@@ -12,7 +12,8 @@ export const WIKI_CALL_TIMEOUT_MS = 150_000;
 /**
  * The budget for reaching a wiki the first time; mwn's login is three
  * sub-second round-trips. Independent of the call's budget rather than nested
- * inside it, because the connection is shared work — see `withSharedWorkScope`.
+ * inside it, because the connection is shared with every caller that joins it:
+ * the first caller's leftover budget, or its cancellation, would fail them all.
  */
 export const WIKI_CONNECT_TIMEOUT_MS = 30_000;
 

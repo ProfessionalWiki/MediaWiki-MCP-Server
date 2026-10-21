@@ -4,6 +4,8 @@ import { Mwn } from 'mwn';
 export interface AnsweringWiki {
 	mwn: Mwn;
 	sentQuery: () => URLSearchParams;
+	/** The abort signal the last request carried, if any. */
+	sentSignal: () => AbortSignal | undefined;
 }
 
 // A real Mwn with only its HTTP layer stubbed, answering every request with
@@ -12,8 +14,13 @@ export interface AnsweringWiki {
 export function wikiAnswering(body: object): AnsweringWiki {
 	const mwn = new Mwn({ apiUrl: 'https://test.wiki/w/api.php' });
 	let sent: string | undefined;
-	vi.spyOn(mwn, 'rawRequest').mockImplementation((async (request: { data?: string }) => {
+	let signal: AbortSignal | undefined;
+	vi.spyOn(mwn, 'rawRequest').mockImplementation((async (request: {
+		data?: string;
+		signal?: AbortSignal;
+	}) => {
 		sent = request.data;
+		signal = request.signal;
 		return { data: body };
 	}) as never);
 	return {
@@ -24,5 +31,6 @@ export function wikiAnswering(body: object): AnsweringWiki {
 			}
 			return new URLSearchParams(sent);
 		},
+		sentSignal: () => signal,
 	};
 }

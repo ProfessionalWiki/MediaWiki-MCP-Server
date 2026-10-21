@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { fakeContext, probeReporting } from '../../../helpers/fakeContext.ts';
 import { toolArgs } from '../../../helpers/toolArgs.ts';
 import { wikibaseGetEntity } from '../../../../src/tools/extensions/wikibase/wikibase-get-entity.ts';
 import { dispatch } from '../../../../src/runtime/dispatcher.ts';
@@ -178,11 +178,9 @@ describe('wikibase-get-entity', () => {
 
 	it('requests the entity in the wiki content language with fallback', async () => {
 		const mock = routedMwn(Q42);
-		const ctx = fakeContext({ mwn: async () => mock as never });
-		ctx.siteInfoCache.set('test-wiki', {
-			server: 'https://test.wiki',
-			articlepath: '/wiki',
-			lang: 'de',
+		const ctx = fakeContext({
+			mwn: async () => mock as never,
+			wikiProbe: probeReporting({ lang: 'de' }),
 		});
 
 		await wikibaseGetEntity.handle(toolArgs(wikibaseGetEntity, { entityId: 'Q42' }), ctx);

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { ToolContext } from '../../src/runtime/context.ts';
 import { buildPageUrl, formatEditComment } from '../../src/wikis/utils.ts';
-import { fakeContext } from '../helpers/fakeContext.ts';
+import { fakeContext, probeReporting } from '../helpers/fakeContext.ts';
 
 function ctxWithAttribution(attributeEdits?: boolean): ToolContext {
 	return fakeContext({
@@ -61,9 +61,7 @@ describe('formatEditComment', () => {
 });
 
 function ctxWithArticlePath(articlepath: string): ToolContext {
-	const ctx = fakeContext();
-	ctx.siteInfoCache.set('test-wiki', { server: 'https://test.wiki', articlepath });
-	return ctx;
+	return fakeContext({ wikiProbe: probeReporting({ server: 'https://test.wiki', articlepath }) });
 }
 
 describe('buildPageUrl', () => {
