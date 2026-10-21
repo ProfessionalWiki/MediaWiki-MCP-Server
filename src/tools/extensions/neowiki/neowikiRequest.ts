@@ -2,6 +2,7 @@ import type { Mwn } from 'mwn';
 import { ClassifiedError, type ErrorCategory } from '../../../errors/classifyError.ts';
 import { WikiTimeoutError } from '../../../errors/wikiTimeoutError.ts';
 import { errorMessage } from '../../../errors/errorMessage.ts';
+import { wikiAuthorization } from '../../../wikis/wikiAuthorization.ts';
 
 export interface NeoWikiRequestSpec {
 	readonly method: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -75,15 +76,12 @@ export async function neowikiRequest(mwn: Mwn, spec: NeoWikiRequestSpec): Promis
 		url += `?${new URLSearchParams(spec.query).toString()}`;
 	}
 
-	const headers: Record<string, string> = { Accept: 'application/json' };
+	const headers: Record<string, string> = {
+		Accept: 'application/json',
+		...wikiAuthorization(mwn, url),
+	};
 	if (spec.body !== undefined) {
 		headers['Content-Type'] = 'application/json';
-	}
-	// rawRequest skips mwn.applyAuthentication, so inject the OAuth2 bearer
-	// ourselves (same-origin by construction). Bot-password cookies still flow
-	// via mwn's axios interceptor.
-	if (mwn.usingOAuth2 && typeof mwn.options.OAuth2AccessToken === 'string') {
-		headers.Authorization = `Bearer ${mwn.options.OAuth2AccessToken}`;
 	}
 	if (spec.csrf === true) {
 		headers['X-CSRF-TOKEN'] = await mwn.getCsrfToken();
