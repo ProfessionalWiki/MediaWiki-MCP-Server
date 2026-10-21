@@ -251,6 +251,28 @@ describe('get-file-data', () => {
 		expect(envelope.message.toLowerCase()).toContain('width');
 	});
 
+	it('returns a file the wiki serves from a shared repository such as Commons', async () => {
+		const mock = mwnWith(IMAGE_INFO);
+		mock.request.mockResolvedValue({
+			query: {
+				pages: [
+					{
+						title: 'File:Example.png',
+						missing: true,
+						known: true,
+						imagerepository: 'shared',
+						imageinfo: [IMAGE_INFO],
+					},
+				],
+			},
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		const result = await getFileData.handle({ title: 'Example.png', format: 'image' }, ctx);
+
+		expect((result.content[1] as ImageContent).data).toBe(FAKE_BYTES.toString('base64'));
+	});
+
 	it('returns not_found for a missing file', async () => {
 		const mock = mwnWith({}, { missing: true });
 		const ctx = fakeContext({ mwn: async () => mock as never });

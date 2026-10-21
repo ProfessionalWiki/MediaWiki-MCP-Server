@@ -62,6 +62,37 @@ describe('get-file', () => {
 		expect((mock.request.mock.calls[0][0] as { titles: string }).titles).toBe('Datei:Example.png');
 	});
 
+	it('returns a file the wiki serves from a shared repository such as Commons', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				query: {
+					pages: [
+						{
+							title: 'File:Example.jpg',
+							missing: true,
+							known: true,
+							imagerepository: 'shared',
+							imageinfo: [
+								{
+									url: 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Example.jpg',
+									descriptionurl: 'https://commons.wikimedia.org/wiki/File:Example.jpg',
+									mime: 'image/jpeg',
+								},
+							],
+						},
+					],
+				},
+			}),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		const result = await getFile.handle({ title: 'Example.jpg' }, ctx);
+
+		expect(assertStructuredSuccess(result)).toContain(
+			'https://upload.wikimedia.org/wikipedia/commons/a/a9/Example.jpg',
+		);
+	});
+
 	it('handles missing files', async () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({
