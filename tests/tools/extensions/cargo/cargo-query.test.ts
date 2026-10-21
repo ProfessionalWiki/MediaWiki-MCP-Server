@@ -9,6 +9,12 @@ import {
 	assertStructuredSuccess,
 } from '../../../helpers/structuredResult.ts';
 
+// A wiki whose API call fails with `error`.
+function ctxRejecting(error: Error): ReturnType<typeof fakeContext> {
+	const mock = createMockMwn({ request: vi.fn().mockRejectedValue(error) });
+	return fakeContext({ mwn: async () => mock as never });
+}
+
 describe('cargo-query', () => {
 	it('forwards tables and optional params to action=cargoquery and unwraps rows', async () => {
 		const mock = createMockMwn({
@@ -247,6 +253,34 @@ describe('cargo-query', () => {
 			'Cargo could not parse the query. Verify table and field names with cargo-list-tables / cargo-describe-table, or inspect Special:CargoTables.',
 		);
 		expect(envelope.code).toBe('internal_api_error_MWException');
+	});
+
+	it('reports a query current Cargo refuses as invalid_input, with Cargo’s reason', async () => {
+		const ctx = ctxRejecting(
+			createMockMwnError(
+				'db_error',
+				'db_error: ⧼Error: The SQL function "TITLE()" is not allowed.⧽',
+			),
+		);
+
+		const result = await dispatch(cargoQuery, ctx)({ tables: 'Books', fields: 'Title((' });
+
+		const envelope = assertStructuredError(result, 'invalid_input', 'db_error');
+		expect(envelope.message).toContain('The SQL function "TITLE()" is not allowed.');
+		expect(envelope.message).toContain('cargo-list-tables');
+	});
+
+	it('reports any other database error as upstream_failure', async () => {
+		const ctx = ctxRejecting(
+			createMockMwnError(
+				'db_error',
+				'db_error: ⧼Cannot access the database: no reachable server.⧽',
+			),
+		);
+
+		const result = await dispatch(cargoQuery, ctx)({ tables: 'Books' });
+
+		assertStructuredError(result, 'upstream_failure', 'db_error');
 	});
 
 	it('surfaces network failures as upstream_failure via dispatcher', async () => {
