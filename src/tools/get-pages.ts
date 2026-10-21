@@ -129,16 +129,6 @@ async function fetchPages(
 		aliasTo: new Map(),
 		redirectFrom: new Set(),
 	};
-	if (!args.followRedirects) {
-		// mwn.read() defaults to following redirects, which would rewrite the requested
-		// title to the target and break our lookup. Emit the redirect pseudo-page as-is.
-		const response = await mwn.read(args.titles, { rvprop, redirects: false });
-		const pages: ApiPageLike[] = Array.isArray(response) ? response : [response];
-		for (const page of pages) {
-			result.byResolvedTitle.set(page.title, normalisePage(page, ctx));
-		}
-		return result;
-	}
 	const responses = await mwn.massQuery(
 		{
 			action: 'query',
@@ -146,12 +136,16 @@ async function fetchPages(
 			prop: 'revisions',
 			rvprop,
 			rvslots: 'main',
-			redirects: true,
+			redirects: args.followRedirects,
 			formatversion: '2',
 		},
 		'titles',
 	);
 	for (const response of responses) {
+		// massQuery hands back a failed batch as an entry instead of rejecting.
+		if (response instanceof Error) {
+			throw response;
+		}
 		const query = response?.query;
 		if (!query) {
 			continue;
@@ -304,9 +298,11 @@ async function assembleEntries(
 	const missingSeen = new Set<string>();
 	const pending: PendingTruncation[] = [];
 	for (const requested of args.titles) {
-		const { resolved, viaRedirect } = args.followRedirects
-			? resolveChain(requested, fetched.aliasTo, fetched.redirectFrom)
-			: { resolved: requested, viaRedirect: false };
+		const { resolved, viaRedirect } = resolveChain(
+			requested,
+			fetched.aliasTo,
+			fetched.redirectFrom,
+		);
 		const page = fetched.byResolvedTitle.get(resolved);
 		if (!page || page.missing) {
 			if (!missingSeen.has(requested)) {

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { Mwn } from 'mwn';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
 import { fakeContext } from '../helpers/fakeContext.ts';
 import { getPages, BatchContentFormat } from '../../src/tools/get-pages.ts';
@@ -45,18 +46,29 @@ function massQueryResponse(options: {
 	];
 }
 
-function readPage(title: string, pageid: number, revid: number, content?: string) {
+interface FakeWiki {
+	mwn: Mwn;
+	sentQuery: () => URLSearchParams;
+}
+
+// A real Mwn with only its HTTP layer stubbed, so mwn's own batching runs and
+// the query is seen as the wiki receives it. massQuery reports a failed batch
+// in its result instead of rejecting, which a mocked massQuery hides.
+function fakeWiki(body: object): FakeWiki {
+	const mwn = new Mwn({ apiUrl: 'https://test.wiki/w/api.php' });
+	let sent: string | undefined;
+	vi.spyOn(mwn, 'rawRequest').mockImplementation((async (request: { data?: string }) => {
+		sent = request.data;
+		return { data: body };
+	}) as never);
 	return {
-		pageid,
-		title,
-		revisions: [
-			{
-				revid,
-				timestamp: '2026-04-01T00:00:00Z',
-				contentmodel: 'wikitext',
-				...(content !== undefined ? { content } : {}),
-			},
-		],
+		mwn,
+		sentQuery: () => {
+			if (sent === undefined) {
+				throw new Error('No query reached the wiki');
+			}
+			return new URLSearchParams(sent);
+		},
 	};
 }
 
@@ -310,14 +322,14 @@ describe('get-pages', () => {
 			expect(data.pages[0]).not.toHaveProperty('requestedTitle');
 		});
 
-		it('mwn.massQuery throws → isError with wrapped message via dispatcher', async () => {
-			const massQuery = vi.fn().mockRejectedValue(new Error('API error'));
-			const mock = createMockMwn({ massQuery });
-			const ctx = fakeContext({ mwn: async () => mock as never });
+		it("fails with the wiki's refusal instead of reporting the pages missing", async () => {
+			const wiki = fakeWiki({
+				error: { code: 'readapidenied', info: 'You need read permission to use this module.' },
+			});
 
 			const result = await dispatch(
 				getPages,
-				ctx,
+				fakeContext({ mwn: async () => wiki.mwn }),
 			)({
 				titles: ['Foo'],
 				content: BatchContentFormat.source,
@@ -325,9 +337,7 @@ describe('get-pages', () => {
 				followRedirects: true,
 			});
 
-			const envelope = assertStructuredError(result, 'upstream_failure');
-			expect(envelope.message).toContain('Failed to retrieve pages');
-			expect(envelope.message).toContain('API error');
+			assertStructuredError(result, 'permission_denied', 'readapidenied');
 		});
 
 		it('redirect followed: entry has redirectedFrom and target title', async () => {
@@ -478,58 +488,56 @@ describe('get-pages', () => {
 		});
 	});
 
-	describe('followRedirects=false (via mwn.read)', () => {
-		it('passes redirects: false to mwn.read and emits pseudo-page wikitext under requested title', async () => {
-			const read = vi
-				.fn()
-				.mockResolvedValue([readPage('Main Page', 7, 700, '#REDIRECT [[Target]]')]);
-			const mock = createMockMwn({ read });
-			const ctx = fakeContext({ mwn: async () => mock as never });
+	describe('followRedirects=false', () => {
+		it('returns a redirect page as itself, without asking the wiki to follow it', async () => {
+			const wiki = fakeWiki({
+				query: { pages: [massQueryPage('Old Name', 7, 700, '#REDIRECT [[New Name]]')] },
+			});
 
 			const result = await getPages.handle(
 				{
-					titles: ['Main Page'],
+					titles: ['Old Name'],
 					content: BatchContentFormat.source,
-					metadata: true,
+					metadata: false,
 					followRedirects: false,
 				},
-				ctx,
+				fakeContext({ mwn: async () => wiki.mwn }),
 			);
 
-			expect(read).toHaveBeenCalledTimes(1);
-			expect(read).toHaveBeenCalledWith(
-				['Main Page'],
-				expect.objectContaining({ redirects: false }),
-			);
-
-			const text = assertStructuredSuccess(result);
-			// No requestedTitle when it equals the resolved title.
-			expect(text).not.toContain('Requested title:');
-			expect(text).toContain('Title: Main Page');
-			expect(text).toContain('Source: #REDIRECT [[Target]]');
-			expect(text).not.toContain('Redirected from:');
+			expect(wiki.sentQuery().has('redirects')).toBe(false);
 			const data = assertStructuredData(result);
-			expect(data.pages[0]).not.toHaveProperty('requestedTitle');
+			expect(data.pages[0]).toMatchObject({
+				title: 'Old Name',
+				source: '#REDIRECT [[New Name]]',
+			});
+			expect(data.pages[0]).not.toHaveProperty('redirectedFrom');
 		});
 
-		it('mwn.read throws → isError with wrapped message via dispatcher', async () => {
-			const read = vi.fn().mockRejectedValue(new Error('read error'));
-			const mock = createMockMwn({ read });
-			const ctx = fakeContext({ mwn: async () => mock as never });
-
-			const result = await dispatch(
-				getPages,
-				ctx,
-			)({
-				titles: ['Foo'],
-				content: BatchContentFormat.source,
-				metadata: false,
-				followRedirects: false,
+		it('returns a page asked for by a non-canonical title', async () => {
+			const wiki = fakeWiki({
+				query: {
+					normalized: [{ from: 'main_Page', to: 'Main Page' }],
+					pages: [massQueryPage('Main Page', 7, 700, 'Welcome')],
+				},
 			});
 
-			const envelope = assertStructuredError(result, 'upstream_failure');
-			expect(envelope.message).toContain('Failed to retrieve pages');
-			expect(envelope.message).toContain('read error');
+			const result = await getPages.handle(
+				{
+					titles: ['main_Page'],
+					content: BatchContentFormat.source,
+					metadata: false,
+					followRedirects: false,
+				},
+				fakeContext({ mwn: async () => wiki.mwn }),
+			);
+
+			const data = assertStructuredData(result);
+			expect(data.pages[0]).toMatchObject({
+				title: 'Main Page',
+				requestedTitle: 'main_Page',
+				source: 'Welcome',
+			});
+			expect(data).not.toHaveProperty('missing');
 		});
 	});
 
