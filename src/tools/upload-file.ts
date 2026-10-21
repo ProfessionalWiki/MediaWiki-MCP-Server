@@ -5,7 +5,7 @@ import type { ApiUploadResponse } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { assertAllowedPath, UploadValidationError } from '../transport/uploadGuard.ts';
-import { fileExists } from '../transport/fileExistence.ts';
+import { fileExists } from '../wikis/fileExistence.ts';
 import { formatEditComment } from '../wikis/utils.ts';
 import { uploadedFile } from '../wikis/fileUpload.ts';
 

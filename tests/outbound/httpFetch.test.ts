@@ -8,9 +8,9 @@ vi.mock('node-fetch', async () => {
 	};
 });
 
-vi.mock('../../src/transport/ssrfGuard.ts', async () => {
-	const actual = await vi.importActual<typeof import('../../src/transport/ssrfGuard.ts')>(
-		'../../src/transport/ssrfGuard.ts',
+vi.mock('../../src/outbound/ssrfGuard.ts', async () => {
+	const actual = await vi.importActual<typeof import('../../src/outbound/ssrfGuard.ts')>(
+		'../../src/outbound/ssrfGuard.ts',
 	);
 	return { ...actual, assertPublicDestination: vi.fn(), buildPinnedAgent: vi.fn() };
 });
@@ -20,7 +20,7 @@ import {
 	assertPublicDestination,
 	buildPinnedAgent,
 	SsrfValidationError,
-} from '../../src/transport/ssrfGuard.ts';
+} from '../../src/outbound/ssrfGuard.ts';
 import {
 	makeApiRequest,
 	postForm,
@@ -29,7 +29,7 @@ import {
 	shouldRescueToWiki,
 	HttpStatusError,
 	FileTooLargeError,
-} from '../../src/transport/httpFetch.ts';
+} from '../../src/outbound/httpFetch.ts';
 import { USER_AGENT } from '../../src/runtime/constants.ts';
 
 describe('utils.fetchCore (via makeApiRequest / fetchPageHtml)', () => {

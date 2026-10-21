@@ -10,9 +10,9 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
  * rejected and been handled. Only the SSRF guard is stubbed, since a loopback
  * destination is what a local test server is.
  */
-vi.mock('../../src/transport/ssrfGuard.ts', async () => {
-	const actual = await vi.importActual<typeof import('../../src/transport/ssrfGuard.ts')>(
-		'../../src/transport/ssrfGuard.ts',
+vi.mock('../../src/outbound/ssrfGuard.ts', async () => {
+	const actual = await vi.importActual<typeof import('../../src/outbound/ssrfGuard.ts')>(
+		'../../src/outbound/ssrfGuard.ts',
 	);
 	return {
 		...actual,
@@ -22,8 +22,8 @@ vi.mock('../../src/transport/ssrfGuard.ts', async () => {
 });
 
 import { createServer, type Server } from 'node:http';
-import { assertPublicDestination } from '../../src/transport/ssrfGuard.ts';
-import { makeApiRequest, postForm } from '../../src/transport/httpFetch.ts';
+import { assertPublicDestination } from '../../src/outbound/ssrfGuard.ts';
+import { makeApiRequest, postForm } from '../../src/outbound/httpFetch.ts';
 
 let server: Server;
 let origin: string;

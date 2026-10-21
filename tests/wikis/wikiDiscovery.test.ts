@@ -1,17 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { LookupAddress } from 'node:dns';
 
-vi.mock('../../src/transport/httpFetch.ts', () => ({
+vi.mock('../../src/outbound/httpFetch.ts', () => ({
 	makeApiRequest: vi.fn(),
 	fetchPageHtml: vi.fn(),
 }));
 
-vi.mock('../../src/transport/ssrfGuard.ts', () => ({
+vi.mock('../../src/outbound/ssrfGuard.ts', () => ({
 	assertPublicDestination: vi.fn(),
 }));
 
-import { makeApiRequest, fetchPageHtml } from '../../src/transport/httpFetch.ts';
-import { assertPublicDestination } from '../../src/transport/ssrfGuard.ts';
+import { makeApiRequest, fetchPageHtml } from '../../src/outbound/httpFetch.ts';
+import { assertPublicDestination } from '../../src/outbound/ssrfGuard.ts';
 import { discoverWiki } from '../../src/wikis/wikiDiscovery.ts';
 import { WikiTimeoutError } from '../../src/errors/wikiTimeoutError.ts';
 import { callDeadline, WIKI_CONNECT_TIMEOUT_MS } from '../../src/runtime/callDeadline.ts';

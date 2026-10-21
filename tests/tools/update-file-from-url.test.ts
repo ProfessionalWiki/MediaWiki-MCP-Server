@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { FetchError } from 'node-fetch';
 
-vi.mock('../../src/transport/httpFetch.ts', async () => {
-	const actual = await vi.importActual<typeof import('../../src/transport/httpFetch.ts')>(
-		'../../src/transport/httpFetch.ts',
+vi.mock('../../src/outbound/httpFetch.ts', async () => {
+	const actual = await vi.importActual<typeof import('../../src/outbound/httpFetch.ts')>(
+		'../../src/outbound/httpFetch.ts',
 	);
 	return { ...actual, fetchFileBytes: vi.fn() };
 });
 
-import { fetchFileBytes } from '../../src/transport/httpFetch.ts';
+import { fetchFileBytes } from '../../src/outbound/httpFetch.ts';
 import { updateFileFromUrl } from '../../src/tools/update-file-from-url.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { Agent as HttpsAgent } from 'node:https';
-import type { assertPublicDestination, buildPinnedAgent } from '../../src/transport/ssrfGuard.ts';
+import type { assertPublicDestination, buildPinnedAgent } from '../../../src/outbound/ssrfGuard.ts';
 
 // Held in top-level variables (like fetchMock below) rather than created inline
 // in the vi.mock factory: a mock function referenced only through a dynamically
@@ -13,9 +13,9 @@ const assertPublicDestinationMock = vi.fn<typeof assertPublicDestination>(async 
 	{ address: '93.184.216.34', family: 4 },
 ]);
 const buildPinnedAgentMock = vi.fn<typeof buildPinnedAgent>(() => new HttpsAgent());
-vi.mock('../../src/transport/ssrfGuard.ts', async () => {
-	const actual = await vi.importActual<typeof import('../../src/transport/ssrfGuard.ts')>(
-		'../../src/transport/ssrfGuard.ts',
+vi.mock('../../../src/outbound/ssrfGuard.ts', async () => {
+	const actual = await vi.importActual<typeof import('../../../src/outbound/ssrfGuard.ts')>(
+		'../../../src/outbound/ssrfGuard.ts',
 	);
 	return {
 		...actual,
@@ -28,8 +28,11 @@ vi.mock('../../src/transport/ssrfGuard.ts', async () => {
 const fetchMock = vi.fn();
 vi.mock('node-fetch', () => ({ default: (...a: unknown[]) => fetchMock(...a) }));
 
-import { fetchCimdDocument, CimdFetchError } from '../../src/transport/cimdFetch.ts';
-import { SsrfValidationError } from '../../src/transport/ssrfGuard.ts';
+import {
+	fetchCimdDocument,
+	CimdFetchError,
+} from '../../../src/auth/authorizationServer/cimdFetch.ts';
+import { SsrfValidationError } from '../../../src/outbound/ssrfGuard.ts';
 
 function bodyOf(text: string) {
 	return (async function* () {

@@ -8,9 +8,9 @@ import { describe, it, expect, vi, beforeAll, beforeEach, afterAll } from 'vites
  * strands the socket. Only the SSRF guard is stubbed, since a loopback
  * destination is what a local test server is.
  */
-vi.mock('../../src/transport/ssrfGuard.ts', async () => {
-	const actual = await vi.importActual<typeof import('../../src/transport/ssrfGuard.ts')>(
-		'../../src/transport/ssrfGuard.ts',
+vi.mock('../../src/outbound/ssrfGuard.ts', async () => {
+	const actual = await vi.importActual<typeof import('../../src/outbound/ssrfGuard.ts')>(
+		'../../src/outbound/ssrfGuard.ts',
 	);
 	return {
 		...actual,
@@ -21,8 +21,8 @@ vi.mock('../../src/transport/ssrfGuard.ts', async () => {
 
 import { createServer, type Server } from 'node:http';
 import type { Socket } from 'node:net';
-import { fetchFileBytes, postForm, FileTooLargeError } from '../../src/transport/httpFetch.ts';
-import { RedirectDropsBodyError } from '../../src/transport/requestChain.ts';
+import { fetchFileBytes, postForm, FileTooLargeError } from '../../src/outbound/httpFetch.ts';
+import { RedirectDropsBodyError } from '../../src/outbound/requestChain.ts';
 
 let server: Server;
 let origin: string;

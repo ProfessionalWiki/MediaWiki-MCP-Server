@@ -7,7 +7,7 @@ vi.mock('node:dns/promises', () => ({
 import { Agent as HttpAgent } from 'node:http';
 import { Agent as HttpsAgent } from 'node:https';
 import { lookup } from 'node:dns/promises';
-import { assertPublicDestination, buildPinnedAgent } from '../../src/transport/ssrfGuard.ts';
+import { assertPublicDestination, buildPinnedAgent } from '../../src/outbound/ssrfGuard.ts';
 import { mockedLookupAll } from '../helpers/mockDnsLookup.ts';
 
 async function refusalMessage(urlString: string): Promise<string> {

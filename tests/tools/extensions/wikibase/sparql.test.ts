@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../../../src/transport/httpFetch.ts', async () => {
-	const actual = await vi.importActual<typeof import('../../../../src/transport/httpFetch.ts')>(
-		'../../../../src/transport/httpFetch.ts',
+vi.mock('../../../../src/outbound/httpFetch.ts', async () => {
+	const actual = await vi.importActual<typeof import('../../../../src/outbound/httpFetch.ts')>(
+		'../../../../src/outbound/httpFetch.ts',
 	);
 	return { ...actual, postForm: vi.fn() };
 });
@@ -12,8 +12,8 @@ import {
 	FileTooLargeError,
 	HttpStatusError,
 	postForm,
-} from '../../../../src/transport/httpFetch.ts';
-import { RedirectDropsBodyError } from '../../../../src/transport/requestChain.ts';
+} from '../../../../src/outbound/httpFetch.ts';
+import { RedirectDropsBodyError } from '../../../../src/outbound/requestChain.ts';
 import { runSparqlQuery } from '../../../../src/tools/extensions/wikibase/sparql.ts';
 import { ClassifiedError } from '../../../../src/errors/classifyError.ts';
 import { withRequestFields } from '../../../../src/runtime/requestContext.ts';

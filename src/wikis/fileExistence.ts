@@ -1,5 +1,5 @@
 import type { ApiPage, Mwn } from 'mwn';
-import { fileTitle } from '../wikis/fileTitle.ts';
+import { fileTitle } from './fileTitle.ts';
 
 export class FileNotFoundError extends Error {
 	public constructor(public readonly title: string) {

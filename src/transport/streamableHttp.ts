@@ -45,7 +45,7 @@ import { createProxyStore } from '../auth/authorizationServer/proxyStorePersiste
 import { mountAuthorizationServer } from '../auth/authorizationServer/router.ts';
 import { buildRedirectPolicy } from '../auth/authorizationServer/redirectPolicy.ts';
 import { buildCimdHostPredicate, CimdResolver } from '../auth/authorizationServer/cimd.ts';
-import { fetchCimdDocument } from './cimdFetch.ts';
+import { fetchCimdDocument } from '../auth/authorizationServer/cimdFetch.ts';
 import { createAppState, type AppState } from '../wikis/state.ts';
 import { createServer, type ChangePublisher, type CreateServerOptions } from '../server.ts';
 import { emitStartupBanner } from '../runtime/banner.ts';

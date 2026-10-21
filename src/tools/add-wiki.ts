@@ -4,7 +4,7 @@ import type { Tool } from '../runtime/tool.ts';
 import type { ManagementContext } from '../runtime/context.ts';
 import { discoverWiki } from '../wikis/wikiDiscovery.ts';
 import { callDeadline, WIKI_CONNECT_TIMEOUT_MS } from '../runtime/callDeadline.ts';
-import { SsrfValidationError } from '../transport/ssrfGuard.ts';
+import { SsrfValidationError } from '../outbound/ssrfGuard.ts';
 import { DuplicateWikiKeyError } from '../wikis/wikiRegistry.ts';
 
 const inputSchema = {
