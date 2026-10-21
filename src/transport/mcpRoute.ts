@@ -13,6 +13,7 @@ import {
 	RATE_LIMITED_ERROR_CODE,
 	UPSTREAM_UNAVAILABLE_ERROR_CODE,
 } from './errorCodes.ts';
+import { sendJsonRpcError } from './jsonRpcError.ts';
 import type { RateLimitDecision, RateLimiter } from './rateLimit.ts';
 import type { ProxyConfig } from '../auth/authorizationServer/proxyConfig.ts';
 import type { ProxyStore } from '../auth/authorizationServer/proxyStore.ts';
@@ -55,11 +56,7 @@ function wikiNeedsAuth(cfg: WikiConfig, fallbackAllowed: boolean): boolean {
 // Null while the hosted OAuth proxy is disabled.
 export type ProxyConfigGetter = () => ProxyConfig | null;
 
-// The id an error emitted before dispatch may echo, following the same rule as the
-// SDK's own echoableRequestId: only a single JSON-RPC request object with a string
-// method carries an id this layer can attribute the error to. A batch, a
-// notification, a posted response and a body-less method do not, and the 2026-07-28
-// error shape has no admissible value for "unknown", so the field is omitted.
+// The SDK's rule: only a single request object with a string method has an id to echo.
 function echoableRequestId(body: unknown): string | number | undefined {
 	if (typeof body !== 'object' || body === null || Array.isArray(body)) {
 		return undefined;
@@ -72,11 +69,6 @@ function echoableRequestId(body: unknown): string | number | undefined {
 	}
 	const id: unknown = body.id;
 	return typeof id === 'string' || typeof id === 'number' ? id : undefined;
-}
-
-function echoedId(req: Request): { id?: string | number } {
-	const id = echoableRequestId(req.body);
-	return id === undefined ? {} : { id };
 }
 
 // `hasMetadata`: whether this server serves a protected-resource document. A
@@ -93,26 +85,28 @@ function emit401Challenge(req: Request, res: Response, hasMetadata: boolean): vo
 			? `Bearer error="invalid_token", realm="MediaWiki MCP Server", resource_metadata="${metadataUrl}"`
 			: `Bearer error="invalid_token", realm="MediaWiki MCP Server"`,
 	);
-	res.status(401).json({
-		jsonrpc: '2.0',
-		error: {
+	sendJsonRpcError(
+		res,
+		401,
+		{
 			code: AUTHENTICATION_REQUIRED_ERROR_CODE,
 			message: 'Authentication required. See WWW-Authenticate header.',
 		},
-		...echoedId(req),
-	});
+		echoableRequestId(req.body),
+	);
 }
 
 // No WWW-Authenticate: the client should retry, not sign in again.
 function emit503Unavailable(req: Request, res: Response): void {
-	res.status(503).json({
-		jsonrpc: '2.0',
-		error: {
+	sendJsonRpcError(
+		res,
+		503,
+		{
 			code: UPSTREAM_UNAVAILABLE_ERROR_CODE,
 			message: 'Upstream authorization temporarily unavailable. Please retry.',
 		},
-		...echoedId(req),
-	});
+		echoableRequestId(req.body),
+	);
 }
 
 // Forwarded bearers are unverified, so a fresh random one per request would
@@ -132,14 +126,15 @@ function worstOf(a: RateLimitDecision, b: RateLimitDecision): RateLimitDecision 
 
 function emit429RateLimited(req: Request, res: Response, retryAfterSeconds: number): void {
 	res.set('Retry-After', String(retryAfterSeconds));
-	res.status(429).json({
-		jsonrpc: '2.0',
-		error: {
+	sendJsonRpcError(
+		res,
+		429,
+		{
 			code: RATE_LIMITED_ERROR_CODE,
 			message: `Rate limit exceeded. Retry after ${retryAfterSeconds}s.`,
 		},
-		...echoedId(req),
-	});
+		echoableRequestId(req.body),
+	);
 }
 
 // Only tools/call reaches the wiki; a held-open listen stream would keep its token.

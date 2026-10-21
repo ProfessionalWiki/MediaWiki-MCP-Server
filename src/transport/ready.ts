@@ -16,16 +16,6 @@ interface ReadyCacheEntry {
 const READY_CACHE_TTL_MS = 5_000;
 // Exported so the probe tests can size their fixtures against the real budget.
 export const READY_PROBE_TIMEOUT_MS = 3_000;
-let readyCache: ReadyCacheEntry | null = null;
-// The probe currently running, shared by every request that arrives while it is
-// still going. The cache alone cannot do this: it only fills once a probe
-// finishes, which is the whole window a slow wiki spends in.
-let readyProbeInFlight: Promise<ReadyCacheEntry> | null = null;
-
-export function __resetReadyCacheForTesting(): void {
-	readyCache = null;
-	readyProbeInFlight = null;
-}
 
 // Both halves of the check as one promise, so the race spans the whole of it:
 // resolving the provider can log in, which alone can outlast the budget.
@@ -91,6 +81,12 @@ export function mountReadyEndpoint(
 		mwnProvider: MwnProvider;
 	},
 ): void {
+	let readyCache: ReadyCacheEntry | null = null;
+	// The probe currently running, shared by every request that arrives while it is
+	// still going. The cache alone cannot do this: it only fills once a probe
+	// finishes, which is the whole window a slow wiki spends in.
+	let readyProbeInFlight: Promise<ReadyCacheEntry> | null = null;
+
 	app.get('/ready', async (_req, res) => {
 		let entry = readyCache;
 		if (!entry || monotonicNow() >= entry.expiresAt) {
