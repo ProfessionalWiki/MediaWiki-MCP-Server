@@ -291,11 +291,11 @@ describe('WikiProbeImpl', () => {
 	});
 
 	describe('public identity', () => {
-		it('inspect surfaces server, articlepath, and license from siteinfo', async () => {
+		it('inspect surfaces server and license from siteinfo', async () => {
 			vi.mocked(makeApiRequest).mockResolvedValueOnce({
 				query: {
 					extensions: [{ name: 'Cargo' }],
-					general: { server: 'https://public.example', articlepath: '/wiki/$1' },
+					general: { server: 'https://public.example' },
 					rightsinfo: {
 						url: 'https://creativecommons.org/licenses/by-sa/4.0/',
 						text: 'CC BY-SA 4.0',
@@ -307,7 +307,6 @@ describe('WikiProbeImpl', () => {
 			const result = await probe.inspect('a');
 			expect(result.reachable).toBe(true);
 			expect(result.server).toBe('https://public.example');
-			expect(result.articlepath).toBe('/wiki');
 			expect(result.license).toEqual({
 				url: 'https://creativecommons.org/licenses/by-sa/4.0/',
 				title: 'CC BY-SA 4.0',
@@ -359,7 +358,6 @@ describe('WikiProbeImpl', () => {
 			const result = await probe.inspect('a');
 			expect(result.reachable).toBe(true);
 			expect(result.server).toBeUndefined();
-			expect(result.articlepath).toBeUndefined();
 			expect(result.license).toBeUndefined();
 		});
 
@@ -379,7 +377,6 @@ describe('WikiProbeImpl', () => {
 			const result = await probe.inspect('a');
 			expect(result.reachable).toBe(false);
 			expect(result.server).toBeUndefined();
-			expect(result.articlepath).toBeUndefined();
 			expect(result.license).toBeUndefined();
 		});
 	});
