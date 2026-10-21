@@ -41,6 +41,15 @@ export interface UpstreamToken {
 	// from disk: requiring it would make the type a lie at runtime and sign
 	// those users out on the deploy that added it.
 	clientId?: string;
+	// The wiki the proxy signed this user in to, so the token is neither sent to
+	// nor refreshed at a wiki the proxy serves later. Optional for the same reason
+	// as clientId.
+	wikiKey?: string;
+}
+
+/** Whether the token may be used for `wikiKey`; a record predating the field may. */
+export function issuedFor(token: UpstreamToken, wikiKey: string): boolean {
+	return token.wikiKey === undefined || token.wikiKey === wikiKey;
 }
 
 export interface DurableSnapshot {

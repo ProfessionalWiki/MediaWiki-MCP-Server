@@ -107,6 +107,7 @@ export async function handleCallback(
 		// at redemption: putUpstreamToken is the record's only write on this path,
 		// so binding it costs no extra store flush.
 		clientId: txn.clientId,
+		wikiKey: pc.wikiKey,
 	});
 	const clientCode = randomUUID();
 	store.putCode(clientCode, {

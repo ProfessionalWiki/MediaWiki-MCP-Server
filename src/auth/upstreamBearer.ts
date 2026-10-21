@@ -4,7 +4,7 @@ import {
 	type RefreshArgs,
 } from './oauthFlow.ts';
 import type { ProxyConfig } from './authorizationServer/proxyConfig.ts';
-import type { ProxyStore } from './authorizationServer/proxyStore.ts';
+import { issuedFor, type ProxyStore } from './authorizationServer/proxyStore.ts';
 import { verifyAccessToken } from './authorizationServer/jwt.ts';
 import { mwOauth2TokenEndpoint } from './mwOauth2Endpoints.ts';
 
@@ -111,6 +111,9 @@ export async function resolveUpstreamBearer(
 	const upstream = store.getUpstreamToken(upstreamTokenId);
 	if (!upstream) {
 		throw new Error('upstream token not found');
+	}
+	if (!issuedFor(upstream, pc.wikiKey)) {
+		throw new Error('upstream token was issued for another wiki');
 	}
 	if (!(upstream.expiresAt <= Date.now() + UPSTREAM_REFRESH_SKEW_MS && upstream.refreshToken)) {
 		return { accessToken: upstream.accessToken, upstreamTokenId };

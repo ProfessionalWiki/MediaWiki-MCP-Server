@@ -303,6 +303,28 @@ describe('handleToken refresh_token', () => {
 		expect(store.getUpstreamToken(upstreamTokenId)?.clientId).toBe('client-A');
 	});
 
+	it('refuses to refresh a token issued while the proxy signed users in to another wiki', async () => {
+		const store = new InMemoryProxyStore();
+		const { rt } = await stage(store, {
+			accessToken: 'OLD',
+			refreshToken: 'WR',
+			expiresAt: Date.now(),
+			wikiKey: 'elsewhere',
+		});
+		const refresh = vi.fn();
+
+		const r = await handleToken(
+			{ grant_type: 'refresh_token', refresh_token: rt },
+			pc,
+			store,
+			refresh,
+		);
+
+		expect(r.status).toBe(400);
+		expect(r.body).toMatchObject({ error: 'invalid_grant' });
+		expect(refresh).not.toHaveBeenCalled();
+	});
+
 	it('tolerates an omitted client_id, and a record predating the binding', async () => {
 		const store = new InMemoryProxyStore();
 		const bound = await stage(store, {
