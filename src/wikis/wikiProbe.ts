@@ -1,8 +1,6 @@
 import { makeApiRequest } from '../transport/httpFetch.ts';
 import type { WikiRegistry } from './wikiRegistry.ts';
-import type { LicenseInfo } from './siteInfoCache.ts';
 import { normalizeServer } from './normalizeServer.ts';
-import { normalizeArticlePath } from './articlePath.ts';
 import { errorMessage } from '../errors/isErrnoException.ts';
 import { logger } from '../runtime/logger.ts';
 import { monotonicNow } from '../runtime/clock.ts';
@@ -23,10 +21,6 @@ const PROBE_TIMEOUT_MS = 5_000;
 export interface WikiIdentity {
 	/** Public server base, normalized to https; absent if siteinfo omitted it. */
 	server?: string;
-	/** Article path with a trailing `/$1` stripped; absent if omitted. */
-	articlepath?: string;
-	/** Content license from rightsinfo; absent unless both url and title exist. */
-	license?: LicenseInfo;
 	/**
 	 * SPARQL endpoint of the query service backing this wiki's Wikibase
 	 * repository. Published in siteinfo as `wikibase-sparql` by a repository
@@ -65,8 +59,7 @@ export interface WikiProbe {
 interface SiteInfoResponse {
 	query?: {
 		extensions?: { name?: string }[];
-		general?: { server?: string; articlepath?: string; 'wikibase-sparql'?: string };
-		rightsinfo?: { url?: string; text?: string };
+		general?: { server?: string; 'wikibase-sparql'?: string };
 	};
 }
 
@@ -118,8 +111,6 @@ export class WikiProbeImpl implements WikiProbe {
 			reachable: true,
 			extensions: entry.extensions,
 			...(entry.server !== undefined ? { server: entry.server } : {}),
-			...(entry.articlepath !== undefined ? { articlepath: entry.articlepath } : {}),
-			...(entry.license !== undefined ? { license: entry.license } : {}),
 			...(entry.sparqlEndpoint !== undefined ? { sparqlEndpoint: entry.sparqlEndpoint } : {}),
 		};
 	}
@@ -164,14 +155,14 @@ export class WikiProbeImpl implements WikiProbe {
 				{
 					action: 'query',
 					meta: 'siteinfo',
-					siprop: 'extensions|general|rightsinfo',
+					siprop: 'extensions|general',
 					format: 'json',
 				},
 				{ signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) },
 			);
 			// Extensions gate tool visibility, so a malformed list is a hard failure.
-			// General and rightsinfo are best-effort public identity: absent fields
-			// simply leave the corresponding snapshot field undefined.
+			// General is best-effort public identity: absent fields simply leave the
+			// corresponding snapshot field undefined.
 			const list = data.query?.extensions;
 			if (!Array.isArray(list)) {
 				throw new Error('Malformed siteinfo extensions response');
@@ -188,25 +179,16 @@ export class WikiProbeImpl implements WikiProbe {
 				typeof general?.server === 'string' && general.server !== ''
 					? normalizeServer(general.server)
 					: undefined;
-			const articlepath =
-				typeof general?.articlepath === 'string'
-					? normalizeArticlePath(general.articlepath)
-					: undefined;
 			const sparqlEndpoint =
 				typeof general?.['wikibase-sparql'] === 'string' && general['wikibase-sparql'] !== ''
 					? general['wikibase-sparql']
 					: undefined;
-			const rights = data.query?.rightsinfo;
-			const license: LicenseInfo | undefined =
-				rights?.url && rights.text ? { url: rights.url, title: rights.text } : undefined;
 
 			const entry: CacheEntry = {
 				kind: 'success',
 				extensions: names,
 				expiresAt: this.now() + TTL_SUCCESS_MS,
 				...(server !== undefined ? { server } : {}),
-				...(articlepath !== undefined ? { articlepath } : {}),
-				...(license !== undefined ? { license } : {}),
 				...(sparqlEndpoint !== undefined ? { sparqlEndpoint } : {}),
 			};
 			this.cache.set(wikiKey, entry);
