@@ -31,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - A NeoWiki write refused for its violations now fails as `invalid_input` and lists the violations, instead of `upstream_failure`. A NeoWiki read refused because the wiki requires login to read now fails as `permission_denied` instead of `invalid_input`.
 - Page URLs in tool results no longer contain a literal `$1`, as in `/index.php?title=$1/Main_Page`, on a wiki whose `$wgArticlePath` puts the title in a query string.
 - Page URLs for titles containing `?` now link to the page instead of to the title cut off at the `?`.
+- OAuth tokens saved at the same moment on stdio, such as two wikis refreshing at once, are all kept. Before, one could be lost, forcing a new browser sign-in, or the save failed.
 
 ## [0.19.0] - 2026-09-25
 

@@ -77,4 +77,13 @@ describe('tokenStore', () => {
 		const got = await store.read();
 		expect(Object.keys(got.tokens)).toHaveLength(25);
 	});
+	it('keeps every token when separate stores write concurrently', async () => {
+		await Promise.all(
+			Array.from({ length: 25 }, (_, i) =>
+				createTokenStore().put(`wiki-${i}`, { ...sample, access_token: `tok-${i}` }),
+			),
+		);
+		const got = await createTokenStore().read();
+		expect(Object.keys(got.tokens)).toHaveLength(25);
+	});
 });
