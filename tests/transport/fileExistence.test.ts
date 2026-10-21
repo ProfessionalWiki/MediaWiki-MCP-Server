@@ -61,6 +61,14 @@ describe('fileExists', () => {
 		expect((mock.request.mock.calls[0][0] as { titles: string }).titles).toBe('File:Cat.jpg');
 	});
 
+	it("keeps a File prefix in the wiki's language", async () => {
+		const mock = wikiAnswering(EXISTING_FILE);
+
+		await fileExists(mock as never, 'Datei:Cat.jpg');
+
+		expect((mock.request.mock.calls[0][0] as { titles: string }).titles).toBe('Datei:Cat.jpg');
+	});
+
 	it('re-throws errors from the wiki', async () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockRejectedValue(new Error('Connection refused')),

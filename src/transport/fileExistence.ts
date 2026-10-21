@@ -1,4 +1,5 @@
 import type { ApiPage, Mwn } from 'mwn';
+import { fileTitle } from '../wikis/fileTitle.ts';
 
 export class FileNotFoundError extends Error {
 	public constructor(public readonly title: string) {
@@ -14,11 +15,9 @@ export async function assertFileExists(mwn: Mwn, title: string): Promise<void> {
 }
 
 export async function fileExists(mwn: Mwn, title: string): Promise<boolean> {
-	const fileTitle = title.startsWith('File:') ? title : `File:${title}`;
-
 	const response = await mwn.request({
 		action: 'query',
-		titles: fileTitle,
+		titles: fileTitle(title),
 		prop: 'imageinfo',
 		iiprop: 'timestamp',
 		formatversion: '2',

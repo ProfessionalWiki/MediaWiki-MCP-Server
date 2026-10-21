@@ -3,6 +3,7 @@ import type { CallToolResult, ImageContent, TextContent } from '@modelcontextpro
 import type { ApiPage, ImageInfo } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
+import { fileTitle } from '../wikis/fileTitle.ts';
 
 const DEFAULT_IMAGE_WIDTH = 1024;
 const DEFAULT_TEXT_WIDTH = 512;
@@ -60,7 +61,6 @@ export const getFileData: Tool<typeof inputSchema> = {
 
 	async handle({ title, width, format }, ctx: ToolContext): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
-		const fileTitle = title.startsWith('File:') ? title : `File:${title}`;
 		const effectiveWidth = Math.min(
 			width ?? (format === 'text' ? DEFAULT_TEXT_WIDTH : DEFAULT_IMAGE_WIDTH),
 			MAX_WIDTH,
@@ -68,7 +68,7 @@ export const getFileData: Tool<typeof inputSchema> = {
 
 		const response = await mwn.request({
 			action: 'query',
-			titles: fileTitle,
+			titles: fileTitle(title),
 			prop: 'imageinfo',
 			iiprop: 'url|size|mime',
 			iiurlwidth: effectiveWidth,

@@ -51,6 +51,17 @@ describe('get-file', () => {
 		);
 	});
 
+	it("looks up a title with a File prefix in the wiki's language as given", async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({ query: { pages: [{ title: 'Datei:Example.png' }] } }),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		await getFile.handle({ title: 'Datei:Example.png' }, ctx);
+
+		expect((mock.request.mock.calls[0][0] as { titles: string }).titles).toBe('Datei:Example.png');
+	});
+
 	it('handles missing files', async () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({
