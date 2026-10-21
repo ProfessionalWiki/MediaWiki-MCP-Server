@@ -204,7 +204,7 @@ export function mountAuthorizationServer(
 			sendAuthError(res, 400, resolved.error);
 			return;
 		}
-		const plan = planAuthorize(q, consent, pc, store, defaultWikiSitename, resolved.client);
+		const plan = planAuthorize(q, consent, pc, store, resolved.client);
 		if (plan.kind === 'error') {
 			sendAuthError(res, plan.status, errorReason(plan.body, 'invalid request'));
 			return;
@@ -296,7 +296,7 @@ export function mountAuthorizationServer(
 		);
 
 		const consent: ConsentClaims = { clientId: q.client_id, redirectHost, wiki: defaultWikiKey };
-		const plan = planAuthorize(q, consent, pc, store, defaultWikiSitename, client);
+		const plan = planAuthorize(q, consent, pc, store, client);
 		if (plan.kind === 'error') {
 			sendAuthError(res, plan.status, errorReason(plan.body, 'invalid request'));
 			return;

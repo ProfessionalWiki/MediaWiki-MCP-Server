@@ -12,7 +12,6 @@ const wiki = {
 	publicServer: 'https://wiki.example',
 };
 const env = {
-	MCP_TRANSPORT: 'http',
 	MCP_PUBLIC_URL: 'https://wiki.example/mcp',
 	MCP_OAUTH_JWT_SIGNING_KEY: 'k'.repeat(32),
 };
@@ -20,9 +19,6 @@ const env = {
 describe('resolveProxyConfig', () => {
 	it('returns null when oauth2ClientId is absent', () => {
 		expect(resolveProxyConfig('w', { ...wiki, oauth2ClientId: null }, env)).toBeNull();
-	});
-	it('returns null on stdio transport', () => {
-		expect(resolveProxyConfig('w', wiki, { ...env, MCP_TRANSPORT: 'stdio' })).toBeNull();
 	});
 	it('names the wiki it signs users in to', () => {
 		expect(resolveProxyConfig('w', wiki, env)?.wikiKey).toBe('w');

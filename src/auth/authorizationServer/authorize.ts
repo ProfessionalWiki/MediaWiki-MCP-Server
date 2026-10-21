@@ -68,17 +68,12 @@ function errorRedirectTo(
  *
  * The transaction binds the downstream client's PKCE challenge + state + scopes
  * to the proxy's own verifier so the /mcp/oauth/callback handler can complete both legs.
- *
- * `_wikiName` is the human-readable sitename, threaded through for symmetry with
- * the Express glue (which uses it for the consent page); the planner itself does
- * not need it because consent is bound cryptographically by the caller.
  */
 export function planAuthorize(
 	q: AuthorizeQuery,
 	consent: ConsentClaims | undefined,
 	pc: ProxyConfig,
 	store: ProxyStore,
-	_wikiName: string,
 	client: ClientRecord | undefined,
 ): AuthorizePlan {
 	const err = (d: string): AuthorizePlan => ({
