@@ -14,7 +14,7 @@ const inputSchema = {
 		.min(1)
 		.optional()
 		.describe(
-			'Limits matches to Subjects of this Schema. Omit to search every Schema. Use neowiki-list-schemas to discover names.',
+			'Limits matches to Subjects of this Schema, named exactly, with matching case. Omit to search every Schema. Use neowiki-list-schemas to discover names.',
 		),
 	search: z.string().min(1).describe('Name prefix to match, case-insensitively.'),
 } as const;
@@ -28,7 +28,7 @@ interface SubjectLabel {
 export const neowikiSearchSubjects: Tool<typeof inputSchema> = {
 	name: 'neowiki-search-subjects',
 	description:
-		"Finds NeoWiki Subjects whose name starts with the given text, returning each match's opaque Subject ID (s…), its label, and the page title of the wiki page holding it. Enabled only when the wiki has NeoWiki installed. A Subject's name is its label, or for a Main Subject without one, its page title; Dependent Subjects and other Subjects without a label are not found. Subject IDs are not human-readable, so use this to resolve a name to an ID for neowiki-get-subject or a parameterized neowiki-cypher-query. Returns at most 50 matches. Pre-1.0: the NeoWiki API may change without notice.",
+		"Finds NeoWiki Subjects whose name starts with the given text, returning each match's opaque Subject ID (s…), its name as `label`, and the page title of the wiki page holding it. Enabled only when the wiki has NeoWiki installed. A Subject's name is its label, or for a Main Subject without one, its page title; Dependent Subjects and other Subjects without a label are not found. Subject IDs are not human-readable, so use this to resolve a name to an ID for neowiki-get-subject or a parameterized neowiki-cypher-query. Returns at most 50 matches. Pre-1.0: the NeoWiki API may change without notice.",
 	inputSchema,
 	annotations: {
 		title: 'Search NeoWiki subjects',
