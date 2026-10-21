@@ -27,9 +27,8 @@ export interface ExtensionPack {
 	 *  matches the tool-name prefix shared by tools in the pack. */
 	readonly id: string;
 
-	/** MediaWiki extension names accepted as proof the pack applies to the
-	 *  active wiki. Multiple entries handle aliases (Cargo / LIBRARIAN). The
-	 *  pack is allowed iff `wikiProbe.hasAnyExtension(activeWikiKey, extensionNames)`. */
+	/** MediaWiki extension names accepted as proof the pack applies to a wiki.
+	 *  Multiple entries handle aliases (Cargo / LIBRARIAN); see packToolRefusal. */
 	readonly extensionNames: readonly string[];
 
 	/** Tools provided by this pack. The unifying property is the gate, not the

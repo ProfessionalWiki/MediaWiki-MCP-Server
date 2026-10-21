@@ -92,6 +92,10 @@ describe('classifyError', () => {
 		expect(classifyError(err)).toEqual({ category: 'upstream_failure' });
 	});
 
+	it('treats a code naming a built-in object property as unknown', () => {
+		expect(classifyError({ code: 'constructor', message: 'x' }).category).toBe('upstream_failure');
+	});
+
 	it('falls back to upstream_failure for unknown codes', () => {
 		const err = createMockMwnError('somethingnew', 'A new kind of error');
 		expect(classifyError(err)).toEqual({ category: 'upstream_failure' });

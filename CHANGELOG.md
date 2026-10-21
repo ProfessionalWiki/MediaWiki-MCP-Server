@@ -43,6 +43,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - With hosted OAuth sign-in, a write to a wiki other than the one sign-in covers fails as `permission_denied`, naming that wiki, instead of asking the caller to authenticate.
 - Hosted OAuth sign-in signs users out when the default wiki changes, instead of sending their token for the previous wiki to the new one. Sessions started before this release are not affected.
 - On stdio, a wiki whose configuration now points at a different OAuth issuer asks for a new sign-in instead of reusing the token stored under its key. Tokens stored before this release are not affected.
+- A wiki error whose code is a JavaScript built-in name, such as `constructor`, is reported as `upstream_failure` instead of as an error with no category.
 
 ## [0.19.0] - 2026-09-25
 

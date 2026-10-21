@@ -1,6 +1,8 @@
 import type { ZodRawShape, z } from 'zod';
 import type { ToolAnnotations, CallToolResult } from '@modelcontextprotocol/server';
 import type { ToolContext } from './context.ts';
+import type { ReconcileContext } from './reconcile.ts';
+import type { TailoredErrors } from '../errors/tailoredErrors.ts';
 
 export interface Tool<TSchema extends ZodRawShape, TCtx extends ToolContext = ToolContext> {
 	readonly name: string;
@@ -18,6 +20,11 @@ export interface Tool<TSchema extends ZodRawShape, TCtx extends ToolContext = To
 	 */
 	readonly failureVerb?: string;
 	/**
+	 * Wordings for some of the wiki's errors, by error code, that replace the
+	 * "Failed to <verb>: <message>" the dispatcher otherwise reports.
+	 */
+	readonly tailoredErrors?: TailoredErrors;
+	/**
 	 * Extracts a single identifier from the tool's input args (typically a page
 	 * title, search query, or URL) for the `target` field of the `tool_call`
 	 * telemetry event. Omitted for tools that don't have a single canonical
@@ -30,5 +37,10 @@ export interface Tool<TSchema extends ZodRawShape, TCtx extends ToolContext = To
 	 * OAuth-store tools set this to `false`.
 	 */
 	readonly wikiScoped?: boolean;
+	/**
+	 * When the tool is offered in tools/list, on top of the gates every tool
+	 * shares (read-only wikis, extension packs). Omitted for a tool always offered.
+	 */
+	readonly offeredWhen?: (context: ReconcileContext) => boolean;
 	readonly handle: (args: z.infer<z.ZodObject<TSchema>>, ctx: TCtx) => Promise<CallToolResult>;
 }

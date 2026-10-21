@@ -13,7 +13,7 @@ Project context for AI coding agents working on this repo. For human users, star
 - `src/config/` — `config.json` loader and substitution.
 - `src/services/` — section, edit, revision, response services consumed via `ToolContext`.
 - `src/results/` — response shaping (truncation, format, schemas).
-- `src/errors/` — error classifier + per-tool special cases.
+- `src/errors/` — error classifier + wordings tools declare for some error codes (`tailoredErrors`).
 - `src/resources/` — MCP resources exposing `mcp://wikis/{wikiKey}`.
 - `src/server.ts`, `src/index.ts` — server factory and bootstrap.
 - `tests/` — vitest suites mirroring the source tree; shared helpers in `tests/helpers/`.

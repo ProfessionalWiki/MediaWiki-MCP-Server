@@ -37,24 +37,16 @@ export interface WikiIdentity {
  * per wiki without authenticating.
  */
 export interface WikiProbe {
-	hasExtension(wikiKey: string, extensionName: string): Promise<boolean>;
-	/**
-	 * True when the wiki advertises ANY of the given extension names. Useful for
-	 * extensions that ship under multiple names — e.g. Cargo is rebranded as
-	 * `LIBRARIAN` on wiki.gg-hosted wikis (Helldivers, Terraria, Ark, etc.).
-	 */
-	hasAnyExtension(wikiKey: string, extensionNames: readonly string[]): Promise<boolean>;
 	/**
 	 * Per-wiki snapshot for capability and discovery reporting. `reachable` is
 	 * false when the siteinfo probe failed, in which case `extensions` is empty
-	 * and the identity fields are absent. Shares the same probe cache as
-	 * hasExtension()/hasAnyExtension().
+	 * and the identity fields are absent.
 	 */
-	inspect(
-		wikiKey: string,
-	): Promise<{ reachable: boolean; extensions: ReadonlySet<string> } & WikiIdentity>;
+	inspect(wikiKey: string): Promise<WikiInspection>;
 	invalidate(wikiKey: string): void;
 }
+
+export type WikiInspection = { reachable: boolean; extensions: ReadonlySet<string> } & WikiIdentity;
 
 interface SiteInfoResponse {
 	query?: {
@@ -76,33 +68,7 @@ export class WikiProbeImpl implements WikiProbe {
 		private readonly now: () => number = monotonicNow,
 	) {}
 
-	public async hasExtension(wikiKey: string, extensionName: string): Promise<boolean> {
-		const entry = await this.resolveEntry(wikiKey);
-		if (entry.kind === 'failed') {
-			return false;
-		}
-		return entry.extensions.has(extensionName);
-	}
-
-	public async hasAnyExtension(
-		wikiKey: string,
-		extensionNames: readonly string[],
-	): Promise<boolean> {
-		const entry = await this.resolveEntry(wikiKey);
-		if (entry.kind === 'failed') {
-			return false;
-		}
-		for (const name of extensionNames) {
-			if (entry.extensions.has(name)) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	public async inspect(
-		wikiKey: string,
-	): Promise<{ reachable: boolean; extensions: ReadonlySet<string> } & WikiIdentity> {
+	public async inspect(wikiKey: string): Promise<WikiInspection> {
 		const entry = await this.resolveEntry(wikiKey);
 		if (entry.kind === 'failed') {
 			return { reachable: false, extensions: new Set() };

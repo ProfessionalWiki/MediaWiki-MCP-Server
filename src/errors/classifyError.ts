@@ -112,6 +112,15 @@ export interface ExtensionErrorVocabulary {
 
 const NO_EXTENSION_CODES: ExtensionErrorVocabulary = { codes: {}, prefixes: [] };
 
+// Own keys only: a code that names an Object.prototype member, such as
+// `constructor`, would otherwise read as a category.
+function categoryOf(
+	vocabulary: Readonly<Record<string, ErrorCategory>>,
+	code: string,
+): ErrorCategory | undefined {
+	return Object.hasOwn(vocabulary, code) ? vocabulary[code] : undefined;
+}
+
 export function classifyError(
 	err: unknown,
 	extensions: ExtensionErrorVocabulary = NO_EXTENSION_CODES,
@@ -129,7 +138,7 @@ export function classifyError(
 		if (typeof code === 'string') {
 			// Core first: a pack cannot reinterpret a code the wiki already defines,
 			// and registration rejects an overlap before it could try.
-			const mapped = MW_CODE_TO_CATEGORY[code] ?? extensions.codes[code];
+			const mapped = categoryOf(MW_CODE_TO_CATEGORY, code) ?? categoryOf(extensions.codes, code);
 			if (mapped) {
 				return { category: mapped, code };
 			}

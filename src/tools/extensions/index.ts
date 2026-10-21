@@ -6,6 +6,7 @@ import { neowikiPack } from './neowiki/index.ts';
 import { wikibasePack } from './wikibase/index.ts';
 
 export type { ExtensionPack } from './types.ts';
+import type { WikiInspection } from '../../wikis/wikiProbe.ts';
 import type { ErrorCategory, ExtensionErrorVocabulary } from '../../errors/classifyError.ts';
 import { coreErrorCodes } from '../../errors/classifyError.ts';
 
@@ -63,6 +64,31 @@ export function extensionErrorVocabulary(
 	}
 
 	return { codes, prefixes };
+}
+
+/**
+ * Why a pack's tool cannot run on a wiki with this identity, or undefined when
+ * it can. Reconcile offers the tool while some wiki allows it, the per-call
+ * guard refuses a call with the reason, and list-wikis reports it per wiki.
+ */
+export function packToolRefusal(
+	pack: ExtensionPack,
+	toolName: string,
+	identity: WikiInspection,
+	wikiKey: string,
+): string | undefined {
+	if (!pack.extensionNames.some((name) => identity.extensions.has(name))) {
+		const extension = pack.extensionNames[0];
+		const reason = identity.reachable
+			? `The ${extension} extension is not installed on wiki "${wikiKey}".`
+			: `Wiki "${wikiKey}" could not be reached to check for the ${extension} extension.`;
+		return `${reason} Use list-wikis to see which wikis support it.`;
+	}
+	const gate = pack.wikiGate;
+	if (gate !== undefined && gate.tools.includes(toolName) && !gate.isSatisfied(identity)) {
+		return gate.refusal(wikiKey);
+	}
+	return undefined;
 }
 
 export const extensionPacks: readonly ExtensionPack[] = [

@@ -13,6 +13,7 @@ const inputSchema = {
 export const removeWiki: Tool<typeof inputSchema, ManagementContext> = {
 	name: 'remove-wiki',
 	wikiScoped: false,
+	offeredWhen: (c) => c.allowManagement && c.wikiCount >= 2,
 	description:
 		'Removes a wiki from the MCP resources. Clears any cached credentials and license metadata for the wiki. Fails if the specified wiki is the configured default wiki.',
 	inputSchema,

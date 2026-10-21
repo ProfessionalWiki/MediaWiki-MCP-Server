@@ -42,8 +42,6 @@ function ctxWith(
 		// accidental credential resolution is caught.
 		mwn: mwnSpy as never,
 		wikiProbe: {
-			hasExtension: (async () => false) as never,
-			hasAnyExtension: (async () => false) as never,
 			invalidate: (() => {}) as never,
 			inspect: (async (k: string) => ({
 				reachable: !unreachable.has(k),

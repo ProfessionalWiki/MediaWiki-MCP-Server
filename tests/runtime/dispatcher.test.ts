@@ -16,6 +16,7 @@ import { WikiTimeoutError } from '../../src/errors/wikiTimeoutError.ts';
 import { getPage } from '../../src/tools/get-page.ts';
 import { ContentFormat } from '../../src/results/contentFormat.ts';
 import { assertStructuredError } from '../helpers/structuredResult.ts';
+import { sectionNotFound } from '../../src/errors/tailoredErrors.ts';
 
 const noopTool = (handle: Tool<{ x: z.ZodString }>['handle']): Tool<{ x: z.ZodString }> => ({
 	name: 'get-page',
@@ -62,18 +63,31 @@ describe('dispatcher', () => {
 		expect(envelope.code).toBe('permissiondenied');
 	});
 
-	it('applies special case for nosuchsection', async () => {
+	it('words an error the way its tool declares for that code', async () => {
 		const ctx = fakeContext();
-		const tool = noopTool(async () => {
-			throw Object.assign(new Error('section 7 does not exist'), {
-				code: 'nosuchsection',
-			});
-		});
-		(tool as { name: string }).name = 'update-page';
+		const tool = {
+			...noopTool(async () => {
+				throw Object.assign(new Error('section 7 does not exist'), { code: 'nosuchsection' });
+			}),
+			tailoredErrors: { nosuchsection: sectionNotFound },
+		};
 		const result = await dispatch(tool, ctx)({ x: 'y' });
-		const envelope = JSON.parse((result.content[0] as { text: string }).text);
+		const envelope = assertStructuredError(result, 'not_found', 'nosuchsection');
 		expect(envelope.message).toBe('Section 7 does not exist');
-		expect(envelope.code).toBe('nosuchsection');
+	});
+
+	it('does not take a built-in object property for a declared wording', async () => {
+		const ctx = fakeContext();
+		const tool = {
+			...noopTool(async () => {
+				throw Object.assign(new Error('boom'), { code: 'constructor' });
+			}),
+			failureVerb: 'get page',
+			tailoredErrors: {},
+		};
+		const result = await dispatch(tool, ctx)({ x: 'y' });
+		const envelope = assertStructuredError(result, 'upstream_failure');
+		expect(envelope.message).toBe('Failed to get page: boom');
 	});
 
 	it('logs the failure with tool name and category', async () => {

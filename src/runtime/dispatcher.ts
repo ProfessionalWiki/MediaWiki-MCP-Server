@@ -2,7 +2,7 @@ import type { ZodRawShape, z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from './tool.ts';
 import type { ToolContext } from './context.ts';
-import { applySpecialCase } from '../errors/specialCases.ts';
+import { tailoredError } from '../errors/tailoredErrors.ts';
 import { errorMessage } from '../errors/isErrnoException.ts';
 import { getCallerId, getRequestSignal, withRequestFields } from './requestContext.ts';
 import { callDeadline, WIKI_CALL_TIMEOUT_MS } from './callDeadline.ts';
@@ -130,18 +130,15 @@ async function runDispatchInner<TSchema extends ZodRawShape, TCtx extends ToolCo
 		}
 	} catch (err) {
 		const classified = ctx.errors.classify(err);
-		const overridden = applySpecialCase(tool.name, classified, err);
+		const rawMessage = errorMessage(err);
+		const tailored = tailoredError(tool.tailoredErrors, classified.code, rawMessage);
+		const category = tailored?.category ?? classified.category;
 
-		outcome = overridden.category;
+		outcome = category;
 		upstreamStatus = extractUpstreamStatus(err);
 
-		// If a special case produced a tailored message (e.g. "Section X does not exist"),
-		// use it verbatim. Otherwise prepend the standard "Failed to <verb>: " prefix to
-		// the raw error message — matching today's per-tool conventions.
-		const rawMessage = errorMessage(err);
-		const tailored = overridden.message !== rawMessage;
 		const verb = tool.failureVerb ?? tool.name;
-		let finalMessage = tailored ? overridden.message : `Failed to ${verb}: ${overridden.message}`;
+		let finalMessage = tailored?.message ?? `Failed to ${verb}: ${rawMessage}`;
 		if (err instanceof WikiTimeoutError && err.phase === 'calling' && isWriteTool(tool)) {
 			finalMessage += WRITE_TIMEOUT_CAVEAT;
 		}
@@ -157,11 +154,11 @@ async function runDispatchInner<TSchema extends ZodRawShape, TCtx extends ToolCo
 		} else {
 			ctx.logger.error('Tool failed', {
 				tool: tool.name,
-				category: overridden.category,
-				code: overridden.code,
+				category,
+				code: classified.code,
 			});
 		}
-		result = ctx.format.error(overridden.category, finalMessage, overridden.code);
+		result = ctx.format.error(category, finalMessage, classified.code);
 	}
 
 	// Covers both failure routes above: a throw, and a tool that catches the

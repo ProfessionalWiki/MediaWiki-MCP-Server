@@ -50,8 +50,6 @@ describe('2026-07-28 era over Streamable HTTP (in-memory)', () => {
 	it('negotiates the modern era when pinned to 2026-07-28 and round-trips a tool call', async () => {
 		const ctx = fakeContext({
 			wikiProbe: {
-				hasExtension: (async () => false) as never,
-				hasAnyExtension: (async () => true) as never,
 				inspect: (async () => ({
 					reachable: true,
 					extensions: new Set<string>(),

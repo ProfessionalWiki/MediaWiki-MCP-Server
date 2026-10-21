@@ -31,12 +31,10 @@ describe('createServer capabilities', () => {
 	it('rejects construction when the initial gating pass fails', async () => {
 		const ctx = fakeContext({
 			wikiProbe: {
-				hasExtension: (async () => false) as never,
 				// Fails the construction-time gating pass, after tool registration.
-				hasAnyExtension: (async () => {
+				inspect: (async () => {
 					throw new Error('probe exploded');
 				}) as never,
-				inspect: (() => {}) as never,
 				invalidate: (() => {}) as never,
 			},
 		});

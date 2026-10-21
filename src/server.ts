@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import type { RegisteredTool } from '@modelcontextprotocol/server';
 import { createRequire } from 'node:module';
-import { registerAllTools } from './tools/index.ts';
+import { allTools, registerAllTools } from './tools/index.ts';
 import { registerAllResources } from './resources/index.ts';
 import { reconcileTools } from './runtime/reconcile.ts';
 import { extensionPacks } from './tools/extensions/index.ts';
@@ -93,6 +93,7 @@ export const createServer = async (
 			transport: ctx.transport,
 			wikiProbe: ctx.wikiProbe,
 			extensionPacks,
+			descriptors: allTools,
 		});
 	// The reconcile callback add-wiki / remove-wiki invoke: re-gate, then tell
 	// clients the wiki resource list (and with it the tool list) may have

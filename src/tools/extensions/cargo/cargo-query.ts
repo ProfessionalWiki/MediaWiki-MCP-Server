@@ -66,6 +66,13 @@ export const cargoQuery: Tool<typeof inputSchema> = {
 		openWorldHint: true,
 	},
 	failureVerb: 'run Cargo query',
+	tailoredErrors: {
+		internal_api_error_MWException: () => ({
+			category: 'invalid_input',
+			message:
+				'Cargo could not parse the query. Verify table and field names with cargo-list-tables / cargo-describe-table, or inspect Special:CargoTables.',
+		}),
+	},
 	target: (a) => a.tables,
 
 	async handle(

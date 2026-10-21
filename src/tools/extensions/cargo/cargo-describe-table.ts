@@ -37,6 +37,12 @@ export const cargoDescribeTable: Tool<typeof inputSchema> = {
 		openWorldHint: true,
 	},
 	failureVerb: 'describe Cargo table',
+	tailoredErrors: {
+		internal_api_error_MWException: () => ({
+			category: 'invalid_input',
+			message: 'Table not found. Use cargo-list-tables to see available table names.',
+		}),
+	},
 	target: (a) => a.table,
 
 	async handle({ table }, ctx: ToolContext): Promise<CallToolResult> {
