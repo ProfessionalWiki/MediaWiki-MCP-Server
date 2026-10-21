@@ -156,6 +156,20 @@ describe('smw-query', () => {
 		expect(sentQuery).toMatch(/\|offset=40\b/);
 	});
 
+	it('refuses a continueFrom it never handed out instead of returning the first page', async () => {
+		const mock = createMockMwn({ request: vi.fn() });
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		const result = await dispatch(
+			smwQuery,
+			ctx,
+		)({ query: '[[Category:Person]]', continueFrom: 'next' });
+
+		const envelope = assertStructuredError(result, 'invalid_input');
+		expect(envelope.message).toBe('continueFrom must be a non-negative integer');
+		expect(mock.request).not.toHaveBeenCalled();
+	});
+
 	it('attaches a more-available truncation when SMW indicates more results', async () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({

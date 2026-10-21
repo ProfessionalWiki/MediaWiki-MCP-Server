@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import type { TruncationInfo } from '../../../results/truncation.ts';
+import { MALFORMED_CONTINUE_FROM, offsetFrom } from '../../../results/offsetCursor.ts';
 
 const HARD_LIMIT = 500;
 
@@ -65,7 +66,11 @@ export const smwQuery: Tool<typeof inputSchema> = {
 	target: (a) => a.query,
 
 	async handle({ query, limit, continueFrom }, ctx: ToolContext): Promise<CallToolResult> {
-		const merged = mergeQueryParams(query, limit, continueFrom);
+		const offset = offsetFrom(continueFrom);
+		if (offset === undefined) {
+			return ctx.format.invalidInput(MALFORMED_CONTINUE_FROM);
+		}
+		const merged = mergeQueryParams(query, limit, offset);
 		const mwn = await ctx.mwn();
 		const raw = await mwn.request({
 			action: 'ask',
@@ -125,7 +130,7 @@ function normalizeRow(title: string, row: SmwResultRow): NormalizedRow {
 function mergeQueryParams(
 	rawQuery: string,
 	schemaLimit: number | undefined,
-	continueFrom: string | undefined,
+	offset: number,
 ): string {
 	// Strip any existing |limit= and |offset= parameters out of the user's query
 	// so we can re-append our normalized values at the end. Last-wins isn't
@@ -154,11 +159,8 @@ function mergeQueryParams(
 	}
 
 	const parts: string[] = [stripped, `limit=${effectiveLimit}`];
-	if (continueFrom !== undefined) {
-		const parsed = Number.parseInt(continueFrom, 10);
-		if (Number.isFinite(parsed) && parsed >= 0) {
-			parts.push(`offset=${parsed}`);
-		}
+	if (offset > 0) {
+		parts.push(`offset=${offset}`);
 	}
 	return parts.join('|');
 }

@@ -4,6 +4,7 @@ import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import type { TruncationInfo } from '../../../results/truncation.ts';
 import { cargoRefusal } from './cargoRefusal.ts';
+import { MALFORMED_CONTINUE_FROM, offsetFrom } from '../../../results/offsetCursor.ts';
 
 const QUERY_HINT =
 	'Verify table and field names with cargo-list-tables / cargo-describe-table, or inspect Special:CargoTables.';
@@ -91,13 +92,9 @@ export const cargoQuery: Tool<typeof inputSchema> = {
 		{ tables, fields, where, joinOn, groupBy, having, orderBy, limit, continueFrom },
 		ctx: ToolContext,
 	): Promise<CallToolResult> {
-		let currentOffset = 0;
-		if (continueFrom !== undefined) {
-			const parsed = Number.parseInt(continueFrom, 10);
-			if (!Number.isFinite(parsed) || parsed < 0 || String(parsed) !== continueFrom) {
-				return ctx.format.invalidInput('continueFrom must be a non-negative integer');
-			}
-			currentOffset = parsed;
+		const currentOffset = offsetFrom(continueFrom);
+		if (currentOffset === undefined) {
+			return ctx.format.invalidInput(MALFORMED_CONTINUE_FROM);
 		}
 
 		const effectiveLimit = limit ?? HARD_LIMIT;
