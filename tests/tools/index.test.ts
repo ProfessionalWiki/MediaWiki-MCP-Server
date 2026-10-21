@@ -67,8 +67,6 @@ async function connectClientAndServer(): Promise<{ client: Client; server: McpSe
 		getDefaultKey: () => currentKey(),
 	};
 	const fakeProbe: WikiProbe = {
-		hasExtension: vi.fn(async () => false),
-		hasAnyExtension: vi.fn(async () => false),
 		inspect: vi.fn(async () => ({ reachable: true, extensions: new Set<string>() })),
 		invalidate: vi.fn(),
 	};

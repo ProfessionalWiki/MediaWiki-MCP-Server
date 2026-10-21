@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
+import { extensionPacks } from '../../src/tools/extensions/index.ts';
 import {
 	checkWikiCapability,
 	isWriteTool,
@@ -38,10 +39,11 @@ function ctx(
 			isManagementAllowed: () => true,
 		},
 		wikiProbe: {
-			hasExtension: async () => hasExt,
-			hasAnyExtension: async () => hasExt,
 			invalidate: () => {},
-			inspect: async () => ({ reachable, extensions: new Set<string>() }),
+			inspect: async () => ({
+				reachable,
+				extensions: new Set(hasExt ? extensionPacks.flatMap((pack) => pack.extensionNames) : []),
+			}),
 		},
 	});
 }
@@ -177,8 +179,6 @@ describe('checkWikiCapability — pack wiki gates', () => {
 				isManagementAllowed: () => true,
 			},
 			wikiProbe: {
-				hasExtension: async () => true,
-				hasAnyExtension: async () => true,
 				invalidate: () => {},
 				inspect: async (key: string) => ({
 					reachable: true,

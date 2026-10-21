@@ -128,12 +128,6 @@ function makeFakeProbe(
 				.map(([key]) => key.slice(wikiKey.length + 1)),
 		);
 	return {
-		hasExtension: vi.fn(
-			async (wikiKey: string, name: string) => answers[`${wikiKey}:${name}`] ?? false,
-		),
-		hasAnyExtension: vi.fn(async (wikiKey: string, names: readonly string[]) =>
-			names.some((name) => answers[`${wikiKey}:${name}`] ?? false),
-		),
 		inspect: vi.fn(async (wikiKey: string) => ({
 			reachable: true,
 			extensions: extensionsOf(wikiKey),
@@ -856,30 +850,6 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 		expect(mocks.get('smw-query')!.enable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('smw-list-properties')!.enable).toHaveBeenCalledTimes(1);
 	});
-
-	it('queries the detector with the active wiki key', async () => {
-		const { tools } = makeToolMapWithSmw(false);
-		const hasAnySpy = vi.fn(async () => true);
-		const probe: WikiProbe = {
-			hasExtension: vi.fn(async () => false),
-			hasAnyExtension: hasAnySpy,
-			inspect: vi.fn(async () => ({ reachable: true, extensions: new Set<string>() })),
-			invalidate: vi.fn(),
-		};
-		const { registry } = makeMocks({
-			activeWikiConfig: baseWiki,
-			wikis: { a: baseWiki },
-			allowManagement: true,
-		});
-		await reconcileTools(tools, {
-			wikiRegistry: registry,
-			transport: 'stdio',
-			wikiProbe: probe,
-			extensionPacks: ALL_PACKS,
-			descriptors: allTools,
-		});
-		expect(hasAnySpy).toHaveBeenCalledWith('a', ['SemanticMediaWiki']);
-	});
 });
 
 describe('reconcileTools — applyBucketExtensionRule', () => {
@@ -930,30 +900,6 @@ describe('reconcileTools — applyBucketExtensionRule', () => {
 			descriptors: allTools,
 		});
 		expect(mocks.get('bucket-query')!.enable).toHaveBeenCalledTimes(1);
-	});
-
-	it('queries the detector with the active wiki key and ["Bucket"]', async () => {
-		const { tools } = makeToolMapWithBucket(false);
-		const hasAnySpy = vi.fn(async () => true);
-		const probe: WikiProbe = {
-			hasExtension: vi.fn(async () => false),
-			hasAnyExtension: hasAnySpy,
-			inspect: vi.fn(async () => ({ reachable: true, extensions: new Set<string>() })),
-			invalidate: vi.fn(),
-		};
-		const { registry } = makeMocks({
-			activeWikiConfig: baseWiki,
-			wikis: { a: baseWiki },
-			allowManagement: true,
-		});
-		await reconcileTools(tools, {
-			wikiRegistry: registry,
-			transport: 'stdio',
-			wikiProbe: probe,
-			extensionPacks: ALL_PACKS,
-			descriptors: allTools,
-		});
-		expect(hasAnySpy).toHaveBeenCalledWith('a', ['Bucket']);
 	});
 });
 
@@ -1009,30 +955,6 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 		expect(mocks.get('cargo-list-tables')!.enable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('cargo-describe-table')!.enable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('cargo-query')!.enable).toHaveBeenCalledTimes(1);
-	});
-
-	it('queries the detector with the active wiki key and the canonical+wiki.gg names', async () => {
-		const { tools } = makeToolMapWithCargo(false);
-		const hasAnySpy = vi.fn(async () => true);
-		const probe: WikiProbe = {
-			hasExtension: vi.fn(async () => false),
-			hasAnyExtension: hasAnySpy,
-			inspect: vi.fn(async () => ({ reachable: true, extensions: new Set<string>() })),
-			invalidate: vi.fn(),
-		};
-		const { registry } = makeMocks({
-			activeWikiConfig: baseWiki,
-			wikis: { a: baseWiki },
-			allowManagement: true,
-		});
-		await reconcileTools(tools, {
-			wikiRegistry: registry,
-			transport: 'stdio',
-			wikiProbe: probe,
-			extensionPacks: ALL_PACKS,
-			descriptors: allTools,
-		});
-		expect(hasAnySpy).toHaveBeenCalledWith('a', ['Cargo', 'LIBRARIAN']);
 	});
 
 	it('enables all Cargo tools on a wiki.gg-rebranded LIBRARIAN install', async () => {

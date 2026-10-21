@@ -35,8 +35,6 @@ function ctxWith(
 	const ctx = fakeContext({
 		mwn: () => Promise.resolve(mwn as never),
 		wikiProbe: {
-			hasExtension: (async () => false) as never,
-			hasAnyExtension: (async () => false) as never,
 			inspect: (async () => ({
 				reachable: opts.reachable ?? true,
 				extensions: opts.extensions ?? new Set<string>(),

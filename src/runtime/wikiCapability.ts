@@ -1,7 +1,7 @@
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ToolContext } from './context.ts';
 import type { ExtensionPack } from '../tools/extensions/types.ts';
-import { extensionPacks } from '../tools/extensions/index.ts';
+import { extensionPacks, packToolRefusal } from '../tools/extensions/index.ts';
 import { standardTools } from '../tools/standardTools.ts';
 import { isWikiScoped } from './wikiArg.ts';
 import { getRuntimeToken } from './requestContext.ts';
@@ -106,18 +106,7 @@ export async function checkWikiCapability(
 	}
 	const pack = PACK_BY_TOOL.get(toolName);
 	if (pack) {
-		const present = await ctx.wikiProbe.hasAnyExtension(wikiKey, pack.extensionNames);
-		if (!present) {
-			// hasAnyExtension is false both when the extension is absent and when
-			// the probe failed; inspect() (same cache entry) tells them apart so the
-			// error doesn't claim "not installed" for a wiki that is merely down.
-			const { reachable } = await ctx.wikiProbe.inspect(wikiKey);
-			const reason = reachable
-				? `The ${pack.extensionNames[0]} extension is not installed on wiki "${wikiKey}".`
-				: `Wiki "${wikiKey}" could not be reached to check for the ${pack.extensionNames[0]} extension.`;
-			return ctx.format.invalidInput(`${reason} Use list-wikis to see which wikis support it.`);
-		}
-		const refusal = await wikiGateRefusal(pack, toolName, wikiKey, ctx);
+		const refusal = packToolRefusal(pack, toolName, await ctx.wikiProbe.inspect(wikiKey), wikiKey);
 		if (refusal !== undefined) {
 			return ctx.format.invalidInput(refusal);
 		}
@@ -129,28 +118,4 @@ export async function checkWikiCapability(
 		}
 	}
 	return undefined;
-}
-
-/**
- * Why a gated pack tool cannot run against this wiki, or undefined when it can.
- * Enforced here rather than in each handler: the tool stays offered while any
- * one wiki satisfies the gate, so every call to a wiki that does not has to be
- * refused — including from a pack that adds a gated tool later and does not
- * think to check.
- */
-async function wikiGateRefusal(
-	pack: ExtensionPack,
-	toolName: string,
-	wikiKey: string,
-	ctx: ToolContext,
-): Promise<string | undefined> {
-	const gate = pack.wikiGate;
-	if (gate === undefined || !gate.tools.includes(toolName)) {
-		return undefined;
-	}
-	// The same cached siteinfo snapshot the extension check above read.
-	if (gate.isSatisfied(await ctx.wikiProbe.inspect(wikiKey))) {
-		return undefined;
-	}
-	return gate.refusal(wikiKey);
 }

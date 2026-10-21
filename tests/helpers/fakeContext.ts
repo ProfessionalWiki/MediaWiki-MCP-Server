@@ -57,17 +57,12 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 			return cache;
 		})(),
 		wikiProbe: {
-			hasExtension: throws('wikiProbe.hasExtension') as never,
-			// The dispatch() capability guard calls hasAnyExtension for
-			// extension-pack tools; default to "present" so plain tool tests aren't
-			// blocked. Tests that exercise the guard override this explicitly.
-			hasAnyExtension: (async () => true) as never,
-			// reconcile's wiki-gate rule inspects every wiki; default to a reachable
-			// wiki that advertises nothing, so a gated tool stays hidden unless a
-			// test says otherwise. Deliberately more restrictive than the
-			// hasAnyExtension default above: a test that exercises gating has to
-			// stub both, since the two answer from the same probe in production.
-			inspect: (async () => ({ reachable: true, extensions: new Set<string>() })) as never,
+			// A reachable wiki with every pack's extension, so a pack tool runs unless a
+			// test says otherwise, and no query service, so a gated tool does not.
+			inspect: (async () => ({
+				reachable: true,
+				extensions: new Set(extensionPacks.flatMap((pack) => pack.extensionNames)),
+			})) as never,
 			invalidate: throws('wikiProbe.invalidate') as never,
 		},
 		sections: {

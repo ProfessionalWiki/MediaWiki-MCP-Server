@@ -1,7 +1,7 @@
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
-import { extensionPacks } from './extensions/index.ts';
+import { extensionPacks, packToolRefusal } from './extensions/index.ts';
 import { bearerPassthroughEnabled } from '../runtime/authShape.ts';
 import { fetchMetadata } from '../auth/metadata.ts';
 
@@ -48,25 +48,13 @@ export const listWikis: Tool<Record<string, never>> = {
 				// resolution or login. The probe reports the wiki's live public
 				// server; fall back to the configured server when it is unreachable.
 				const identity = await ctx.wikiProbe.inspect(key);
-				const { reachable, extensions } = identity;
+				const { reachable } = identity;
 				const publicServer = identity.server ?? config.server;
-				const extensionTools: string[] = [];
-				for (const pack of extensionPacks) {
-					if (pack.extensionNames.some((name) => extensions.has(name))) {
-						// A pack tool behind a wiki gate is reported only for a wiki that
-						// satisfies it, matching what the per-call guard would allow.
-						const gate = pack.wikiGate;
-						const withheld =
-							gate === undefined || gate.isSatisfied(identity)
-								? new Set<string>()
-								: new Set(gate.tools);
-						for (const tool of pack.tools) {
-							if (!withheld.has(tool.name)) {
-								extensionTools.push(tool.name);
-							}
-						}
-					}
-				}
+				const extensionTools = extensionPacks.flatMap((pack) =>
+					pack.tools
+						.filter((tool) => packToolRefusal(pack, tool.name, identity, key) === undefined)
+						.map((tool) => tool.name),
+				);
 				let authorizationServer: string | undefined;
 				if (
 					bearerPassthroughEnabled() &&

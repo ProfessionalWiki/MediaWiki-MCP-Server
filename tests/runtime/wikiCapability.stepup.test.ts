@@ -34,8 +34,6 @@ function ctx(opts: { proxy: boolean; transport?: 'http' | 'stdio' }) {
 			isManagementAllowed: () => true,
 		},
 		wikiProbe: {
-			hasExtension: (async () => true) as never,
-			hasAnyExtension: (async () => true) as never,
 			invalidate: (() => {}) as never,
 			inspect: (async () => ({ reachable: true, extensions: new Set<string>() })) as never,
 		},

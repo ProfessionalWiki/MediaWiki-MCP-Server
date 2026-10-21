@@ -141,7 +141,9 @@ describe('add-wiki', () => {
 		const deps = {
 			wikiRegistry: registry,
 			transport: 'http' as const,
-			wikiProbe: { hasAnyExtension: async () => false } as never,
+			wikiProbe: {
+				inspect: async () => ({ reachable: true, extensions: new Set<string>() }),
+			} as never,
 			extensionPacks: [],
 			descriptors: allTools,
 		};
