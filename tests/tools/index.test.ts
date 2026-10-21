@@ -62,10 +62,6 @@ async function connectClientAndServer(): Promise<{ client: Client; server: McpSe
 		remove: () => {},
 		isManagementAllowed: () => isManagementAllowedRef.current,
 	};
-	const activeWikiMock = {
-		get: () => ({ key: currentKey(), config: wikiStore.current }),
-		getDefaultKey: () => currentKey(),
-	};
 	const fakeProbe: WikiProbe = {
 		inspect: vi.fn(async () => ({ reachable: true, extensions: new Set<string>() })),
 		invalidate: vi.fn(),
@@ -80,7 +76,7 @@ async function connectClientAndServer(): Promise<{ client: Client; server: McpSe
 		});
 	const ctx = fakeContext({
 		wikis: wikiRegistryMock,
-		activeWiki: activeWikiMock,
+		defaultWikiKey: currentKey(),
 	});
 	const registered = registerAllTools(server, reconcile, ctx);
 	for (const [name, tool] of registered) {

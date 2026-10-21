@@ -36,13 +36,7 @@ describe('remove-wiki', () => {
 				remove,
 				isManagementAllowed: () => true,
 			},
-			activeWiki: {
-				get: () => ({
-					key: 'other.example.org',
-					config: wikiConfig(),
-				}),
-				getDefaultKey: () => 'other.example.org',
-			},
+			defaultWikiKey: 'other.example.org',
 		});
 		const result = await dispatch(removeWiki, ctx)({ uri: 'mcp://wikis/example.org' });
 
@@ -99,13 +93,7 @@ describe('remove-wiki', () => {
 				remove,
 				isManagementAllowed: () => true,
 			},
-			activeWiki: {
-				get: () => ({
-					key: 'example.org',
-					config: wikiConfig(),
-				}),
-				getDefaultKey: () => 'example.org',
-			},
+			defaultWikiKey: 'example.org',
 		});
 		const result = await dispatch(removeWiki, ctx)({ uri: 'mcp://wikis/example.org' });
 
@@ -127,13 +115,7 @@ describe('remove-wiki', () => {
 				remove,
 				isManagementAllowed: () => true,
 			},
-			activeWiki: {
-				get: () => ({
-					key: 'example.org',
-					config: wikiConfig(),
-				}),
-				getDefaultKey: () => 'example.org',
-			},
+			defaultWikiKey: 'example.org',
 		});
 		const result = await dispatch(removeWiki, ctx)({ uri: 'mcp://wikis/example.org' });
 
@@ -154,10 +136,7 @@ describe('remove-wiki', () => {
 				remove,
 				isManagementAllowed: () => true,
 			},
-			activeWiki: {
-				get: () => ({ key: 'other.example.org', config: wikiConfig() }),
-				getDefaultKey: () => 'other.example.org',
-			},
+			defaultWikiKey: 'other.example.org',
 		});
 		const result = await dispatch(removeWiki, ctx)({ uri: 'mcp://wikis/my%20wiki%20spaced' });
 

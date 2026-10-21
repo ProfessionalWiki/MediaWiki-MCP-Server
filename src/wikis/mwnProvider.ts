@@ -6,10 +6,9 @@ import type { ExecSecret, WikiConfig } from '../config/loadConfig.ts';
 import { runExecSecret } from './execSecret.ts';
 import { redactAuthorizationHeader, wrapMwnErrors } from './mwnErrorSanitizer.ts';
 import type { WikiRegistry } from './wikiRegistry.ts';
-import type { ActiveWiki } from './activeWiki.ts';
 
 export interface MwnProvider {
-	get(wikiKey?: string): Promise<Mwn>;
+	get(wikiKey: string): Promise<Mwn>;
 	invalidate(wikiKey: string): void;
 }
 
@@ -25,23 +24,15 @@ export class MwnProviderImpl implements MwnProvider {
 
 	public constructor(
 		private readonly wikis: WikiRegistry,
-		private readonly activeWiki: ActiveWiki,
 		private readonly getRuntimeToken: (wikiKey: string) => string | undefined,
 	) {}
 
-	public async get(wikiKey?: string): Promise<Mwn> {
-		let key: string;
-		let config: Readonly<WikiConfig> | undefined;
-		if (wikiKey !== undefined) {
-			key = wikiKey;
-			config = this.wikis.get(wikiKey);
-			if (!config) {
-				throw new Error(`Wiki "${wikiKey}" not found`);
-			}
-		} else {
-			({ key, config } = this.activeWiki.get());
+	public async get(wikiKey: string): Promise<Mwn> {
+		const config = this.wikis.get(wikiKey);
+		if (!config) {
+			throw new Error(`Wiki "${wikiKey}" not found`);
 		}
-		return this.getInstance(key, config);
+		return this.getInstance(wikiKey, config);
 	}
 
 	private async getInstance(key: string, config: Readonly<WikiConfig>): Promise<Mwn> {

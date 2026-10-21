@@ -543,7 +543,7 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		defaultWikiSitename,
 	});
 
-	mountReadyEndpoint(app, { activeWiki: state.activeWiki, mwnProvider: state.mwnProvider });
+	mountReadyEndpoint(app, { defaultWikiKey: state.defaultWikiKey, mwnProvider: state.mwnProvider });
 	mountMetricsEndpoint(app);
 	setInFlightProvider(inFlight.count);
 	// Every open subscriptions/listen stream registers one bus listener, so the
@@ -585,7 +585,7 @@ export function startHttpServer(): void {
 	let cachedProxyConfig: ProxyConfig | null | undefined;
 	function getDefaultProxyConfig(): ProxyConfig | null {
 		if (cachedProxyConfig === undefined) {
-			const defaultKey = state.activeWiki.getDefaultKey();
+			const defaultKey = state.defaultWikiKey;
 			const wiki = state.wikiRegistry.get(defaultKey);
 			cachedProxyConfig = wiki ? resolveProxyConfig(defaultKey, wiki, process.env) : null;
 		}
@@ -596,7 +596,7 @@ export function startHttpServer(): void {
 	// wiki KEY (the same key getDefaultProxyConfig resolves) for that binding, so
 	// signing (buildConsentCookie) and verification (verifyConsent) agree on it.
 	// The sitename is the human-readable display name shown on the consent page.
-	const defaultWikiKey = state.activeWiki.getDefaultKey();
+	const { defaultWikiKey } = state;
 	const defaultWikiSitename = state.wikiRegistry.get(defaultWikiKey)?.sitename ?? defaultWikiKey;
 
 	const { host, port, allowedHosts, allowedOrigins, maxRequestBody, rateLimit, warnings } =
@@ -643,7 +643,7 @@ export function startHttpServer(): void {
 		{ transport: 'http', http: { host, port, allowedHosts, allowedOrigins, maxRequestBody } },
 		{
 			wikiRegistry: state.wikiRegistry,
-			activeWiki: state.activeWiki,
+			defaultWikiKey: state.defaultWikiKey,
 			uploadDirs: state.uploadDirs,
 			proxyEnabled,
 		},

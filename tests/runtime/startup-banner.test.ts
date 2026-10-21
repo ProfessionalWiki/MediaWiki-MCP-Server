@@ -3,7 +3,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { emitStartupBanner } from '../../src/runtime/banner.ts';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
 import { UploadDirsImpl } from '../../src/wikis/uploadDirs.ts';
-import type { ActiveWiki } from '../../src/wikis/activeWiki.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
 
 const baseWikiConfig: WikiConfig = {
@@ -19,11 +18,6 @@ const mockWikiRegistry: WikiRegistry = {
 	add: () => {},
 	remove: () => {},
 	isManagementAllowed: () => false,
-};
-
-const mockActiveWiki: ActiveWiki = {
-	get: () => ({ key: 'a.example', config: baseWikiConfig }),
-	getDefaultKey: () => 'a.example',
 };
 
 const mockUploadDirs = new UploadDirsImpl([]);
@@ -53,7 +47,7 @@ describe('startup banner', () => {
 			{ transport: 'stdio' },
 			{
 				wikiRegistry: mockWikiRegistry,
-				activeWiki: mockActiveWiki,
+				defaultWikiKey: 'a.example',
 				uploadDirs: mockUploadDirs,
 			},
 		);
@@ -89,7 +83,7 @@ describe('startup banner', () => {
 			},
 			{
 				wikiRegistry: mockWikiRegistry,
-				activeWiki: mockActiveWiki,
+				defaultWikiKey: 'a.example',
 				uploadDirs: mockUploadDirs,
 			},
 		);
@@ -115,7 +109,7 @@ describe('startup banner', () => {
 			},
 			{
 				wikiRegistry: mockWikiRegistry,
-				activeWiki: mockActiveWiki,
+				defaultWikiKey: 'a.example',
 				uploadDirs: mockUploadDirs,
 			},
 		);
@@ -136,7 +130,7 @@ describe('startup banner', () => {
 			},
 			{
 				wikiRegistry: mockWikiRegistry,
-				activeWiki: mockActiveWiki,
+				defaultWikiKey: 'a.example',
 				uploadDirs: mockUploadDirs,
 				proxyEnabled: true,
 			},
@@ -162,7 +156,7 @@ describe('startup banner', () => {
 			{ transport: 'stdio' },
 			{
 				wikiRegistry: staticRegistry,
-				activeWiki: mockActiveWiki,
+				defaultWikiKey: 'a.example',
 				uploadDirs: mockUploadDirs,
 			},
 		);

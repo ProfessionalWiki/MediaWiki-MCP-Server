@@ -3,7 +3,7 @@ import { watchUnhandledRejections } from '../helpers/unhandledRejections.ts';
 
 const mockRequest = vi.fn();
 
-// mockActiveWiki and mockMwnProvider are passed explicitly to mountReadyEndpoint()
+// The default wiki's key and mockMwnProvider are passed explicitly to mountReadyEndpoint()
 // (and __probeDefaultWikiForTesting) in each test: the tests build their own express
 // app and these inline stubs drive the probe. streamableHttp.ts no longer runs any
 // boot on import, so no module-level loadConfig/mwnProvider mock is needed.
@@ -15,21 +15,7 @@ import {
 	__probeDefaultWikiForTesting,
 	READY_PROBE_TIMEOUT_MS,
 } from '../../src/transport/ready.ts';
-import type { ActiveWiki } from '../../src/wikis/activeWiki.ts';
 import type { MwnProvider } from '../../src/wikis/mwnProvider.ts';
-import type { WikiConfig } from '../../src/config/loadConfig.ts';
-
-const exampleWikiConfig: WikiConfig = {
-	sitename: 'Example',
-	server: 'https://example.org',
-	articlepath: '/wiki',
-	scriptpath: '/w',
-};
-
-const mockActiveWiki: ActiveWiki = {
-	get: () => ({ key: 'example.org', config: exampleWikiConfig }),
-	getDefaultKey: () => 'example.org',
-};
 
 const mockMwnProvider: MwnProvider = {
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Mwn has 100+ methods; tests only use request().
@@ -39,7 +25,7 @@ const mockMwnProvider: MwnProvider = {
 
 function makeApp() {
 	const app = express();
-	mountReadyEndpoint(app, { activeWiki: mockActiveWiki, mwnProvider: mockMwnProvider });
+	mountReadyEndpoint(app, { defaultWikiKey: 'example.org', mwnProvider: mockMwnProvider });
 	return app;
 }
 
@@ -86,7 +72,7 @@ describe('/ready', () => {
 		};
 		const app = express();
 		mountReadyEndpoint(app, {
-			activeWiki: mockActiveWiki,
+			defaultWikiKey: 'example.org',
 			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Mwn has 100+ methods; this probe uses request() and rawRequest().
 			mwnProvider: { get: async () => bot as never, invalidate: () => {} },
 		});
@@ -176,7 +162,7 @@ describe('/ready', () => {
 		vi.useFakeTimers();
 		mockRequest.mockReturnValue(new Promise(() => undefined));
 
-		const probePromise = __probeDefaultWikiForTesting(mockActiveWiki, mockMwnProvider);
+		const probePromise = __probeDefaultWikiForTesting('example.org', mockMwnProvider);
 		await vi.advanceTimersByTimeAsync(3001);
 		const entry = await probePromise;
 
@@ -190,7 +176,7 @@ describe('/ready', () => {
 		const rejections = watchUnhandledRejections();
 		mockRequest.mockResolvedValue({ query: { general: { sitename: 'X' } } });
 
-		const probe = __probeDefaultWikiForTesting(mockActiveWiki, providerTaking(5_000));
+		const probe = __probeDefaultWikiForTesting('example.org', providerTaking(5_000));
 		await vi.advanceTimersByTimeAsync(5001);
 		const entry = await probe;
 
@@ -207,7 +193,7 @@ describe('/ready', () => {
 			throw new Error('login failed');
 		});
 
-		const probe = __probeDefaultWikiForTesting(mockActiveWiki, provider);
+		const probe = __probeDefaultWikiForTesting('example.org', provider);
 		// Past the deadline, then past the failure that lands after it.
 		await vi.advanceTimersByTimeAsync(5001);
 		const entry = await probe;
@@ -227,7 +213,7 @@ describe('/ready', () => {
 		const half = READY_PROBE_TIMEOUT_MS * 0.6;
 		mockRequest.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, half)));
 
-		const probe = __probeDefaultWikiForTesting(mockActiveWiki, providerTaking(half));
+		const probe = __probeDefaultWikiForTesting('example.org', providerTaking(half));
 		await vi.advanceTimersByTimeAsync(READY_PROBE_TIMEOUT_MS * 2);
 		const entry = await probe;
 

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
 	runtimeTokenStore,
 	getCallerId,
-	getRequestWiki,
+	getRequestSignal,
 	getRuntimeToken,
 	withRequestContext,
 	withRequestFields,
@@ -80,32 +80,24 @@ describe('the caller id', () => {
 	});
 });
 
-describe('request context wiki', () => {
-	it('getRequestWiki is undefined outside a context', () => {
-		expect(getRequestWiki()).toBeUndefined();
-	});
-
-	it('withRequestFields exposes wikiKey to getRequestWiki', async () => {
-		await withRequestFields({ wikiKey: 'fr.wikipedia.org' }, async () => {
-			expect(getRequestWiki()).toBe('fr.wikipedia.org');
-		});
-	});
-
-	it('withRequestFields merges onto an existing context without dropping fields', async () => {
+describe('withRequestFields', () => {
+	it('merges onto an existing context without dropping fields', async () => {
+		const signal = new AbortController().signal;
 		await withRequestContext({ value: 'tok', wikiKey: null }, async () => {
-			await withRequestFields({ wikiKey: 'de.wikipedia.org' }, async () => {
-				expect(getRequestWiki()).toBe('de.wikipedia.org');
+			await withRequestFields({ signal }, async () => {
+				expect(getRequestSignal()).toBe(signal);
 				expect(getRuntimeToken('de.wikipedia.org')).toBe('tok');
 			});
 		});
 	});
 
-	it('a later withRequestFields preserves wikiKey while adding a token', async () => {
-		await withRequestFields({ wikiKey: 'es.wikipedia.org' }, async () => {
+	it('keeps an earlier signal when a later call adds a token', async () => {
+		const signal = new AbortController().signal;
+		await withRequestFields({ signal }, async () => {
 			await withRequestFields(
 				{ runtimeToken: { value: 'bearer-xyz', wikiKey: null } },
 				async () => {
-					expect(getRequestWiki()).toBe('es.wikipedia.org');
+					expect(getRequestSignal()).toBe(signal);
 					expect(getRuntimeToken('es.wikipedia.org')).toBe('bearer-xyz');
 				},
 			);

@@ -40,7 +40,6 @@ vi.mock('../../src/wikis/execSecret.ts', () => ({
 
 import { MwnProviderImpl } from '../../src/wikis/mwnProvider.ts';
 import { WikiRegistryImpl } from '../../src/wikis/wikiRegistry.ts';
-import { ActiveWikiImpl } from '../../src/wikis/activeWiki.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
 import { CredentialResolutionError } from '../../src/errors/credentialResolutionError.ts';
 import { withRequestContext, withRequestFields } from '../../src/runtime/requestContext.ts';
@@ -73,18 +72,16 @@ describe('MwnProviderImpl', () => {
 
 	it('caches non-runtime-token mwn instances per key', async () => {
 		const reg = new WikiRegistryImpl({ a: sample('a') }, true);
-		const sel = new ActiveWikiImpl('a', reg);
-		const provider = new MwnProviderImpl(reg, sel, () => undefined);
-		const m1 = await provider.get();
-		const m2 = await provider.get();
+		const provider = new MwnProviderImpl(reg, () => undefined);
+		const m1 = await provider.get('a');
+		const m2 = await provider.get('a');
 		expect(m1).toBe(m2);
 		expect(mockConstructor).toHaveBeenCalledOnce();
 	});
 
 	it('returns different instances for different keys', async () => {
 		const reg = new WikiRegistryImpl({ a: sample('a'), b: sample('b') }, true);
-		const sel = new ActiveWikiImpl('a', reg);
-		const provider = new MwnProviderImpl(reg, sel, () => undefined);
+		const provider = new MwnProviderImpl(reg, () => undefined);
 		const m1 = await provider.get('a');
 		const m2 = await provider.get('b');
 		expect(m1).not.toBe(m2);
@@ -92,18 +89,16 @@ describe('MwnProviderImpl', () => {
 
 	it('creates fresh mwn per call when runtime token is set', async () => {
 		const reg = new WikiRegistryImpl({ a: sample('a') }, true);
-		const sel = new ActiveWikiImpl('a', reg);
-		const provider = new MwnProviderImpl(reg, sel, () => 'TOKEN');
-		const m1 = await provider.get();
-		const m2 = await provider.get();
+		const provider = new MwnProviderImpl(reg, () => 'TOKEN');
+		const m1 = await provider.get('a');
+		const m2 = await provider.get('a');
 		expect(m1).not.toBe(m2);
 		expect(mockConstructor).toHaveBeenCalledTimes(2);
 	});
 
 	it('invalidate clears the cache for one key', async () => {
 		const reg = new WikiRegistryImpl({ a: sample('a'), b: sample('b') }, true);
-		const sel = new ActiveWikiImpl('a', reg);
-		const provider = new MwnProviderImpl(reg, sel, () => undefined);
+		const provider = new MwnProviderImpl(reg, () => undefined);
 		const m1a = await provider.get('a');
 		const m1b = await provider.get('b');
 		provider.invalidate('a');
@@ -115,30 +110,27 @@ describe('MwnProviderImpl', () => {
 
 	it('throws when wiki key is unknown', async () => {
 		const reg = new WikiRegistryImpl({}, true);
-		const sel = new ActiveWikiImpl('gone', reg);
-		const provider = new MwnProviderImpl(reg, sel, () => undefined);
+		const provider = new MwnProviderImpl(reg, () => undefined);
 		await expect(provider.get('missing')).rejects.toThrow(/not found/);
 	});
 
 	it('evicts a failed cache entry so the next call retries', async () => {
 		const reg = new WikiRegistryImpl({ a: sample('a') }, true);
-		const sel = new ActiveWikiImpl('a', reg);
 		mockGetSiteInfo
 			.mockReset()
 			.mockRejectedValueOnce(new Error('transient'))
 			.mockResolvedValueOnce(undefined);
-		const provider = new MwnProviderImpl(reg, sel, () => undefined);
-		await expect(provider.get()).rejects.toThrow(/transient/);
-		const retry = await provider.get();
+		const provider = new MwnProviderImpl(reg, () => undefined);
+		await expect(provider.get('a')).rejects.toThrow(/transient/);
+		const retry = await provider.get('a');
 		expect(retry).toBeDefined();
 		expect(mockConstructor).toHaveBeenCalledTimes(2);
 	});
 
 	it('identifies itself to the wiki with the server User-Agent', async () => {
 		const reg = new WikiRegistryImpl({ a: sample('a') }, true);
-		const sel = new ActiveWikiImpl('a', reg);
-		const provider = new MwnProviderImpl(reg, sel, () => undefined);
-		await provider.get();
+		const provider = new MwnProviderImpl(reg, () => undefined);
+		await provider.get('a');
 		expect(mockConstructor).toHaveBeenCalledWith(
 			expect.objectContaining({ userAgent: 'test-agent' }),
 		);
@@ -151,9 +143,8 @@ describe('MwnProviderImpl', () => {
 			},
 			true,
 		);
-		const sel = new ActiveWikiImpl('a', reg);
-		const provider = new MwnProviderImpl(reg, sel, () => undefined);
-		await provider.get();
+		const provider = new MwnProviderImpl(reg, () => undefined);
+		await provider.get('a');
 		expect(mockConstructor).toHaveBeenCalledWith(
 			expect.objectContaining({
 				OAuth2AccessToken: 'config-token',
@@ -168,9 +159,8 @@ describe('MwnProviderImpl', () => {
 			},
 			true,
 		);
-		const sel = new ActiveWikiImpl('a', reg);
-		const provider = new MwnProviderImpl(reg, sel, () => 'runtime-token');
-		await provider.get();
+		const provider = new MwnProviderImpl(reg, () => 'runtime-token');
+		await provider.get('a');
 		expect(mockConstructor).toHaveBeenCalledWith(
 			expect.objectContaining({
 				OAuth2AccessToken: 'runtime-token',
@@ -221,9 +211,8 @@ describe('MwnProviderImpl', () => {
 			},
 			true,
 		);
-		const sel = new ActiveWikiImpl('a', reg);
-		const provider = new MwnProviderImpl(reg, sel, () => undefined);
-		await provider.get();
+		const provider = new MwnProviderImpl(reg, () => undefined);
+		await provider.get('a');
 		expect(mockConstructor).toHaveBeenCalledWith(
 			expect.objectContaining({
 				username: 'Bot@MCP',
@@ -240,18 +229,16 @@ describe('MwnProviderImpl', () => {
 			},
 			true,
 		);
-		const sel = new ActiveWikiImpl('a', reg);
-		const provider = new MwnProviderImpl(reg, sel, () => undefined);
-		await provider.get();
+		const provider = new MwnProviderImpl(reg, () => undefined);
+		await provider.get('a');
 		const options = mockConstructor.mock.calls[0]?.[0] as { defaultParams?: { assert?: unknown } };
 		expect(options.defaultParams?.assert).toBeUndefined();
 	});
 
 	it('does not set assert=user for anonymous mode', async () => {
 		const reg = new WikiRegistryImpl({ a: sample('a') }, true);
-		const sel = new ActiveWikiImpl('a', reg);
-		const provider = new MwnProviderImpl(reg, sel, () => undefined);
-		await provider.get();
+		const provider = new MwnProviderImpl(reg, () => undefined);
+		await provider.get('a');
 		const options = mockConstructor.mock.calls[0]?.[0] as { defaultParams?: { assert?: unknown } };
 		expect(options.defaultParams?.assert).toBeUndefined();
 	});
@@ -259,9 +246,9 @@ describe('MwnProviderImpl', () => {
 	// The provider drives sign-in itself, so the branch mwn used to pick is ours.
 	it('signs in with the OAuth 2 handshake when a token is configured', async () => {
 		const reg = new WikiRegistryImpl({ a: { ...sample('a'), token: 'config-token' } }, true);
-		const provider = new MwnProviderImpl(reg, new ActiveWikiImpl('a', reg), () => undefined);
+		const provider = new MwnProviderImpl(reg, () => undefined);
 
-		await provider.get();
+		await provider.get('a');
 
 		expect(mockInitOAuth).toHaveBeenCalledOnce();
 		expect(mockGetTokensAndSiteInfo).toHaveBeenCalledOnce();
@@ -278,9 +265,9 @@ describe('MwnProviderImpl', () => {
 			{ a: { ...sample('a'), username: 'Bot@MCP', password: 'secret' } },
 			true,
 		);
-		const provider = new MwnProviderImpl(reg, new ActiveWikiImpl('a', reg), () => undefined);
+		const provider = new MwnProviderImpl(reg, () => undefined);
 
-		await provider.get();
+		await provider.get('a');
 
 		expect(mockLogin).toHaveBeenCalledOnce();
 		expect(mockInitOAuth).not.toHaveBeenCalled();
@@ -289,9 +276,9 @@ describe('MwnProviderImpl', () => {
 
 	it('only reads site info when the wiki has no credentials', async () => {
 		const reg = new WikiRegistryImpl({ a: sample('a') }, true);
-		const provider = new MwnProviderImpl(reg, new ActiveWikiImpl('a', reg), () => undefined);
+		const provider = new MwnProviderImpl(reg, () => undefined);
 
-		await provider.get();
+		await provider.get('a');
 
 		expect(mockGetSiteInfo).toHaveBeenCalledOnce();
 		expect(mockLogin).not.toHaveBeenCalled();
@@ -303,9 +290,9 @@ describe('MwnProviderImpl', () => {
 			{ a: { ...sample('a'), username: 'Bot@MCP', password: 'secret' } },
 			true,
 		);
-		const provider = new MwnProviderImpl(reg, new ActiveWikiImpl('a', reg), () => undefined);
+		const provider = new MwnProviderImpl(reg, () => undefined);
 
-		await provider.get();
+		await provider.get('a');
 
 		// Three round-trips that each fund a fresh retry ladder, which `Mwn.init`
 		// left carrying no signal at all.
@@ -314,10 +301,10 @@ describe('MwnProviderImpl', () => {
 
 	it('keeps a shared sign-in alive when the caller that triggered it cancels', async () => {
 		const reg = new WikiRegistryImpl({ a: sample('a') }, true);
-		const provider = new MwnProviderImpl(reg, new ActiveWikiImpl('a', reg), () => undefined);
+		const provider = new MwnProviderImpl(reg, () => undefined);
 		const controller = new AbortController();
 
-		await withRequestFields({ signal: controller.signal }, () => provider.get());
+		await withRequestFields({ signal: controller.signal }, () => provider.get('a'));
 		controller.abort();
 
 		// Cached and handed to every concurrent caller, so tying it to the first
@@ -334,8 +321,7 @@ describe('MwnProviderImpl', () => {
 		it('runs the exec command once on first use and reuses the cached value', async () => {
 			mockRunExecSecret.mockResolvedValue('exec-token');
 			const reg = new WikiRegistryImpl({ a: execWiki('a') }, true);
-			const sel = new ActiveWikiImpl('a', reg);
-			const provider = new MwnProviderImpl(reg, sel, () => undefined);
+			const provider = new MwnProviderImpl(reg, () => undefined);
 
 			await provider.get('a');
 			await provider.get('a');
@@ -349,8 +335,7 @@ describe('MwnProviderImpl', () => {
 		it('never runs the exec command for a wiki that is not used', async () => {
 			mockRunExecSecret.mockResolvedValue('exec-token');
 			const reg = new WikiRegistryImpl({ a: sample('a'), b: execWiki('b') }, true);
-			const sel = new ActiveWikiImpl('a', reg);
-			const provider = new MwnProviderImpl(reg, sel, () => undefined);
+			const provider = new MwnProviderImpl(reg, () => undefined);
 
 			await provider.get('a');
 
@@ -362,16 +347,14 @@ describe('MwnProviderImpl', () => {
 				new CredentialResolutionError('Could not resolve the "token" credential for wiki "a"'),
 			);
 			const reg = new WikiRegistryImpl({ a: execWiki('a') }, true);
-			const sel = new ActiveWikiImpl('a', reg);
-			const provider = new MwnProviderImpl(reg, sel, () => undefined);
+			const provider = new MwnProviderImpl(reg, () => undefined);
 
 			await expect(provider.get('a')).rejects.toBeInstanceOf(CredentialResolutionError);
 		});
 
 		it('does not resolve config secrets when a runtime token is present', async () => {
 			const reg = new WikiRegistryImpl({ a: execWiki('a') }, true);
-			const sel = new ActiveWikiImpl('a', reg);
-			const provider = new MwnProviderImpl(reg, sel, () => 'runtime-token');
+			const provider = new MwnProviderImpl(reg, () => 'runtime-token');
 
 			await provider.get('a');
 
@@ -383,8 +366,7 @@ describe('MwnProviderImpl', () => {
 				.mockRejectedValueOnce(new CredentialResolutionError('transient'))
 				.mockResolvedValueOnce('exec-token');
 			const reg = new WikiRegistryImpl({ a: execWiki('a') }, true);
-			const sel = new ActiveWikiImpl('a', reg);
-			const provider = new MwnProviderImpl(reg, sel, () => undefined);
+			const provider = new MwnProviderImpl(reg, () => undefined);
 
 			await expect(provider.get('a')).rejects.toBeInstanceOf(CredentialResolutionError);
 			await provider.get('a');

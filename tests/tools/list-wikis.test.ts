@@ -34,10 +34,7 @@ function ctxWith(
 			remove: (() => {}) as never,
 			isManagementAllowed: () => true,
 		},
-		activeWiki: {
-			get: () => ({ key: 'test-wiki', config: wikiConfig }),
-			getDefaultKey: () => 'test-wiki',
-		},
+		defaultWikiKey: 'test-wiki',
 		// list-wikis must never authenticate; route mwn through a spy so any
 		// accidental credential resolution is caught.
 		mwn: mwnSpy as never,

@@ -84,10 +84,7 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 			remove: throws('wikis.remove') as never,
 			isManagementAllowed: () => true,
 		},
-		activeWiki: {
-			get: throws('activeWiki.get') as never,
-			getDefaultKey: () => 'test-wiki',
-		},
+		defaultWikiKey: 'test-wiki',
 		uploadDirs: new UploadDirsImpl([]),
 		wikiCache: { invalidate: throws('wikiCache.invalidate') as never },
 		wikiProbe: probeReporting({}),
@@ -154,9 +151,6 @@ export function ctxForWikis(
 			remove: () => {},
 			isManagementAllowed: () => true,
 		},
-		activeWiki: {
-			get: throws('activeWiki.get') as never,
-			getDefaultKey: () => defaultKey,
-		},
+		defaultWikiKey: defaultKey,
 	});
 }

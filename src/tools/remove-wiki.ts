@@ -43,7 +43,7 @@ export const removeWiki: Tool<typeof inputSchema, ManagementContext> = {
 			return ctx.format.invalidInput(`${uri} not found in MCP resources`);
 		}
 
-		if (ctx.activeWiki.getDefaultKey() === wikiKey) {
+		if (ctx.defaultWikiKey === wikiKey) {
 			return ctx.format.conflict(
 				'Cannot remove the configured default wiki. Change the default wiki in the server configuration before removing this one.',
 			);

@@ -1,6 +1,5 @@
 import type { Mwn } from 'mwn';
 import type { WikiRegistry } from '../wikis/wikiRegistry.ts';
-import type { ActiveWiki } from '../wikis/activeWiki.ts';
 import type { UploadDirs } from '../wikis/uploadDirs.ts';
 import type { WikiCache } from '../wikis/wikiCache.ts';
 import type { WikiProbe } from '../wikis/wikiProbe.ts';
@@ -23,7 +22,7 @@ export interface SharedContext {
 	readonly mwnFor: (wikiKey: string) => Promise<Mwn>;
 	readonly editFor: (wiki: CallWiki) => EditService;
 	readonly wikis: WikiRegistry;
-	readonly activeWiki: ActiveWiki;
+	readonly defaultWikiKey: string;
 	readonly uploadDirs: UploadDirs;
 	readonly wikiCache: WikiCache;
 	readonly wikiProbe: WikiProbe;
