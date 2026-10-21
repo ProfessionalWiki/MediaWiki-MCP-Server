@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { WikiProbeImpl } from '../../src/wikis/wikiProbe.ts';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
+import type { MwnProvider } from '../../src/wikis/mwnProvider.ts';
 import { fakeClock } from '../helpers/fakeClock.ts';
+import { createMockMwn } from '../helpers/mock-mwn.ts';
 
 vi.mock('../../src/transport/httpFetch.ts', () => ({
 	makeApiRequest: vi.fn(),
@@ -26,6 +28,26 @@ function makeRegistry(wikis: Record<string, WikiConfig>): WikiRegistry {
 		isManagementAllowed: () => true,
 	};
 }
+
+// A public wiki answers the anonymous probe, so the probe never needs the
+// wiki's own session, whose credentials may be resolved by running a command.
+const noSessions: MwnProvider = {
+	get: async () => {
+		throw new Error('The probe asked for a session');
+	},
+	invalidate: () => {},
+};
+
+// The wiki's own session, answering siteinfo with `response`.
+function sessionAnswering(response: unknown): MwnProvider {
+	const mwn = createMockMwn({ request: vi.fn().mockResolvedValue(response) });
+	return { get: async () => mwn as never, invalidate: () => {} };
+}
+
+const CARGO_SITEINFO = { query: { extensions: [{ name: 'Cargo' }] } };
+const READ_REFUSED = {
+	error: { code: 'readapidenied', info: 'You need read permission to use this module.' },
+};
 
 // Whether the probe's snapshot of the wiki lists the extension.
 async function has(probe: WikiProbeImpl, wikiKey: string, extension: string): Promise<boolean> {
@@ -51,7 +73,7 @@ describe('WikiProbeImpl', () => {
 			},
 		});
 		const clock = fakeClock();
-		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions, clock.now);
 
 		expect(await has(probe, 'a', 'SemanticMediaWiki')).toBe(true);
 		expect(await has(probe, 'a', 'OAuth')).toBe(true);
@@ -64,7 +86,7 @@ describe('WikiProbeImpl', () => {
 			query: { extensions: [{ name: 'SemanticMediaWiki' }] },
 		});
 		// The production clock, not an injected one.
-		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions);
 
 		expect(await has(probe, 'a', 'SemanticMediaWiki')).toBe(true);
 		// Two hours of wall clock, past the one-hour TTL, but no running time.
@@ -79,7 +101,7 @@ describe('WikiProbeImpl', () => {
 			query: { extensions: [{ name: 'SemanticMediaWiki' }] },
 		});
 		const clock = fakeClock();
-		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions, clock.now);
 
 		await has(probe, 'a', 'SemanticMediaWiki');
 		await has(probe, 'a', 'SemanticMediaWiki');
@@ -93,7 +115,7 @@ describe('WikiProbeImpl', () => {
 			.mockResolvedValueOnce({ query: { extensions: [{ name: 'SemanticMediaWiki' }] } })
 			.mockResolvedValueOnce({ query: { extensions: [] } });
 		const clock = fakeClock();
-		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions, clock.now);
 
 		expect(await has(probe, 'a', 'SemanticMediaWiki')).toBe(true);
 		clock.advance(60 * 60 * 1000 + 1); // 1h + 1ms
@@ -105,7 +127,7 @@ describe('WikiProbeImpl', () => {
 	it('caches a failed sentinel for 60 seconds on probe failure', async () => {
 		vi.mocked(makeApiRequest).mockRejectedValueOnce(new Error('network down'));
 		const clock = fakeClock();
-		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions, clock.now);
 
 		expect(await has(probe, 'a', 'SemanticMediaWiki')).toBe(false);
 		// Within 60s, no re-probe.
@@ -131,7 +153,7 @@ describe('WikiProbeImpl', () => {
 				}),
 		);
 		const clock = fakeClock();
-		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions, clock.now);
 
 		const p1 = has(probe, 'a', 'SemanticMediaWiki');
 		const p2 = has(probe, 'a', 'OAuth');
@@ -151,7 +173,7 @@ describe('WikiProbeImpl', () => {
 			.mockResolvedValueOnce({ query: { extensions: [{ name: 'SemanticMediaWiki' }] } })
 			.mockResolvedValueOnce({ query: { extensions: [] } });
 		const clock = fakeClock();
-		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions, clock.now);
 
 		expect(await has(probe, 'a', 'SemanticMediaWiki')).toBe(true);
 		probe.invalidate('a');
@@ -162,7 +184,7 @@ describe('WikiProbeImpl', () => {
 	it('builds the API URL from server + scriptpath + /api.php', async () => {
 		vi.mocked(makeApiRequest).mockResolvedValueOnce({ query: { extensions: [] } });
 		const clock = fakeClock();
-		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions, clock.now);
 
 		await has(probe, 'a', 'SemanticMediaWiki');
 
@@ -186,7 +208,7 @@ describe('WikiProbeImpl', () => {
 		abortError.name = 'TimeoutError';
 		vi.mocked(makeApiRequest).mockRejectedValueOnce(abortError);
 		const clock = fakeClock();
-		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions, clock.now);
 
 		expect(await has(probe, 'a', 'SemanticMediaWiki')).toBe(false);
 		const result = await probe.inspect('a');
@@ -196,7 +218,7 @@ describe('WikiProbeImpl', () => {
 
 	it('returns false when the wiki key is unknown', async () => {
 		const clock = fakeClock();
-		const probe = new WikiProbeImpl(makeRegistry({}), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({}), noSessions, clock.now);
 
 		expect(await has(probe, 'unknown', 'SemanticMediaWiki')).toBe(false);
 		expect(vi.mocked(makeApiRequest)).not.toHaveBeenCalled();
@@ -205,7 +227,7 @@ describe('WikiProbeImpl', () => {
 	it('treats malformed responses as probe failures', async () => {
 		vi.mocked(makeApiRequest).mockResolvedValueOnce({ query: undefined });
 		const clock = fakeClock();
-		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions, clock.now);
 
 		expect(await has(probe, 'a', 'SemanticMediaWiki')).toBe(false);
 		// 60s short backoff applies.
@@ -217,7 +239,7 @@ describe('WikiProbeImpl', () => {
 	it('inspect returns reachable=false with an empty set when the probe fails', async () => {
 		vi.mocked(makeApiRequest).mockRejectedValueOnce(new Error('network down'));
 		const clock = fakeClock();
-		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions, clock.now);
 
 		const result = await probe.inspect('a');
 		expect(result.reachable).toBe(false);
@@ -229,11 +251,47 @@ describe('WikiProbeImpl', () => {
 			query: { extensions: [{ name: 'Cargo' }, { name: 'OAuth' }] },
 		});
 		const clock = fakeClock();
-		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), clock.now);
+		const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions, clock.now);
 
 		const result = await probe.inspect('a');
 		expect(result.reachable).toBe(true);
 		expect([...result.extensions].sort()).toEqual(['Cargo', 'OAuth']);
+	});
+
+	describe('a wiki that refuses anonymous reads', () => {
+		it("reads siteinfo through the wiki's own session when the anonymous probe is refused", async () => {
+			vi.mocked(makeApiRequest).mockResolvedValueOnce(READ_REFUSED);
+			const probe = new WikiProbeImpl(
+				makeRegistry({ a: baseWiki }),
+				sessionAnswering(CARGO_SITEINFO),
+			);
+
+			expect(await probe.inspect('a')).toMatchObject({ reachable: true });
+			expect(await has(probe, 'a', 'Cargo')).toBe(true);
+		});
+
+		it('asks a wiki configured private through its own session, without an anonymous probe', async () => {
+			const probe = new WikiProbeImpl(
+				makeRegistry({ a: { ...baseWiki, private: true } }),
+				sessionAnswering(CARGO_SITEINFO),
+			);
+
+			expect(await has(probe, 'a', 'Cargo')).toBe(true);
+			expect(makeApiRequest).not.toHaveBeenCalled();
+		});
+
+		it('reports the wiki unreachable when its own session is refused too', async () => {
+			vi.mocked(makeApiRequest).mockResolvedValueOnce(READ_REFUSED);
+			const refusingSession: MwnProvider = {
+				get: async () => {
+					throw new Error('Failed to log in');
+				},
+				invalidate: () => {},
+			};
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), refusingSession);
+
+			expect(await probe.inspect('a')).toMatchObject({ reachable: false });
+		});
 	});
 
 	describe('public identity', () => {
@@ -244,7 +302,7 @@ describe('WikiProbeImpl', () => {
 					general: { server: 'https://public.example' },
 				},
 			});
-			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions);
 
 			const result = await probe.inspect('a');
 			expect(result.reachable).toBe(true);
@@ -261,7 +319,7 @@ describe('WikiProbeImpl', () => {
 					},
 				},
 			});
-			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions);
 
 			expect((await probe.inspect('a')).sparqlEndpoint).toBe('https://query.wikidata.org/sparql');
 		});
@@ -273,7 +331,7 @@ describe('WikiProbeImpl', () => {
 					general: { server: 'https://repo.example' },
 				},
 			});
-			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions);
 
 			expect((await probe.inspect('a')).sparqlEndpoint).toBeUndefined();
 		});
@@ -282,7 +340,7 @@ describe('WikiProbeImpl', () => {
 			vi.mocked(makeApiRequest).mockResolvedValueOnce({
 				query: { extensions: [], general: { server: '//public.example' } },
 			});
-			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions);
 
 			expect((await probe.inspect('a')).server).toBe('https://public.example');
 		});
@@ -291,7 +349,7 @@ describe('WikiProbeImpl', () => {
 			vi.mocked(makeApiRequest).mockResolvedValueOnce({
 				query: { extensions: [{ name: 'Cargo' }] },
 			});
-			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions);
 
 			const result = await probe.inspect('a');
 			expect(result.reachable).toBe(true);
@@ -300,7 +358,7 @@ describe('WikiProbeImpl', () => {
 
 		it('omits identity fields when the probe fails', async () => {
 			vi.mocked(makeApiRequest).mockRejectedValueOnce(new Error('network down'));
-			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }));
+			const probe = new WikiProbeImpl(makeRegistry({ a: baseWiki }), noSessions);
 
 			const result = await probe.inspect('a');
 			expect(result.reachable).toBe(false);
