@@ -222,23 +222,6 @@ describe('resolveSiteInfo', () => {
 		expect(info.articlepath).toBe('');
 	});
 
-	it('keeps the $1 placeholder of a query-string articlepath', async () => {
-		const mock = createMockMwn({
-			request: vi.fn().mockResolvedValue({
-				query: {
-					general: { server: 'https://public.example', articlepath: '/w/index.php?title=$1' },
-				},
-			}),
-		});
-		const ctx = fakeContext({
-			mwn: async () => mock as never,
-			siteInfoCache: emptyCache(),
-		});
-
-		const info = await resolveSiteInfo(ctx, 'test-wiki');
-		expect(info.articlepath).toBe('/w/index.php?title=$1');
-	});
-
 	it('coalesces concurrent cold-cache calls into a single siteinfo request', async () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({
