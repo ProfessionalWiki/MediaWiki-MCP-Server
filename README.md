@@ -184,7 +184,7 @@ Tools marked 🔐 require authentication. Write tools (including extension-pack 
 - **Manual OAuth2 access token.** Paste a long-lived token into `config.json`. See [docs/configuration.md — manual OAuth2 access token](docs/configuration.md#manual-oauth2-access-token).
 - **Bot password.** Fallback when Extension:OAuth isn't installed. See [docs/configuration.md — bot password](docs/configuration.md#bot-password).
 
-`cargo-query` needs the **`Create, query and delete data through the Cargo extension`** grant on a bot password or OAuth consumer, even on a wiki that lets every user run Cargo queries. The Cargo extension is also detected on wiki.gg-hosted wikis (Helldivers, Terraria, Ark, etc.), where it ships under the rebranded name `LIBRARIAN`.
+`cargo-query` needs the **`Create, query and delete data through the Cargo extension`** grant on a bot password or OAuth consumer, even on a wiki that lets every user run Cargo queries. The Cargo extension is also detected on wiki.gg wikis, which run `LIBRARIAN`, wiki.gg's fork of Cargo.
 
 ## Installation
 
