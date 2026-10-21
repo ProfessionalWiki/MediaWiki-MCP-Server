@@ -29,6 +29,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `neowiki-search-subjects` returns up to 50 matches instead of 10, and marks a full result as capped.
 - The NeoWiki write tools now describe the `dateTime` property type by its name. A statement written as `datetime`, as they described it before, was stored under a type NeoWiki does not know and flagged as a type mismatch.
 - A NeoWiki write refused for its violations now fails as `invalid_input` and lists the violations, instead of `upstream_failure`. A NeoWiki read refused because the wiki requires login to read now fails as `permission_denied` instead of `invalid_input`.
+- Page URLs in tool results no longer contain a literal `$1`, as in `/index.php?title=$1/Main_Page`, on a wiki whose `$wgArticlePath` puts the title in a query string.
+- Page URLs for titles containing `?` now link to the page instead of to the title cut off at the `?`.
 
 ## [0.19.0] - 2026-09-25
 

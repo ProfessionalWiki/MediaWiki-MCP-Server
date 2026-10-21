@@ -4,11 +4,20 @@ import { resolveSiteInfo } from './siteInfo.ts';
 export async function buildPageUrl(ctx: ToolContext, title: string): Promise<string> {
 	const { key } = ctx.activeWiki.get();
 	const { server, articlepath } = await resolveSiteInfo(ctx, key);
-	// MediaWiki convention: spaces become underscores. encodeURI preserves
-	// '/' (subpages) and ':' (namespace prefixes) while encoding spaces and
-	// non-ASCII characters. Characters disallowed in MW titles ('#', '?',
-	// '|', '[', ']', etc.) cannot reach this function via a real page title.
-	return `${server}${articlepath}/${encodeURI(title.replace(/ /g, '_'))}`;
+	// The article path arrives with a trailing '/$1' stripped, or as MediaWiki's
+	// own pattern when the placeholder sits elsewhere, as in '/index.php?title=$1'.
+	const pattern = articlepath.includes('$1') ? articlepath : `${articlepath}/$1`;
+	// A replacer function, since a title may contain '$$' or "$'".
+	return server + pattern.replace('$1', () => encodeTitle(title));
+}
+
+// Mirrors MediaWiki's wfUrlencode: the encoded title is safe in a path or a
+// query value, and keeps ';@$,/:' readable.
+function encodeTitle(title: string): string {
+	return encodeURIComponent(title.replace(/ /g, '_')).replace(
+		/%(?:3B|40|24|2C|2F|3A)/g,
+		decodeURIComponent,
+	);
 }
 
 /**
