@@ -7,7 +7,7 @@ import type {
 } from '@modelcontextprotocol/server';
 import type { ZodRawShape, z } from 'zod';
 import type { Tool } from './tool.ts';
-import type { ToolContext } from './context.ts';
+import type { SharedContext } from './context.ts';
 import { buildToolInputSchema } from './wikiArg.ts';
 import { withRequestFields } from './requestContext.ts';
 
@@ -23,7 +23,7 @@ function withRequestScope<T>(ctx: ServerContext | undefined, fn: () => Promise<T
 	return signal === undefined ? fn() : withRequestFields({ signal }, fn);
 }
 
-export function register<TSchema extends ZodRawShape, TCtx extends ToolContext>(
+export function register<TSchema extends ZodRawShape, TCtx extends SharedContext>(
 	server: McpServer,
 	tool: Tool<TSchema, TCtx>,
 	handler: (args: z.infer<z.ZodObject<TSchema>>) => Promise<CallToolResult>,

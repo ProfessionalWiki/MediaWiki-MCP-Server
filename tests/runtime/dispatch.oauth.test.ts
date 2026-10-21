@@ -3,11 +3,13 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import type { Tool } from '../../src/runtime/tool.ts';
+import type { SharedContext } from '../../src/runtime/context.ts';
 import { listWikis } from '../../src/tools/list-wikis.ts';
 import { fakeContext, ctxForWiki, ctxForWikis } from '../helpers/fakeContext.ts';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 import { fakeBrowserDriver } from '../helpers/fakeBrowserDriver.ts';
 import { useTempTokenStore } from '../helpers/tempTokenStore.ts';
+import { createTokenStore } from '../../src/auth/tokenStore.ts';
 import { getRequestWiki, getRuntimeToken } from '../../src/runtime/requestContext.ts';
 import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.ts';
 import { _resetBrowserAuthDedupForTesting } from '../../src/auth/browserAuth.ts';
@@ -144,6 +146,9 @@ describe('dispatch OAuth integration', () => {
 
 		expect(seen.oauthWiki).toMatch(/^access-CODE-/);
 		expect(seen.defaultWiki).toBeUndefined();
+		const stored = (await createTokenStore().read()).tokens;
+		expect(stored['wiki-key']).toBeDefined();
+		expect(stored.home).toBeUndefined();
 	});
 
 	it('stdio without oauth2ClientId: does not call acquireToken / open', async () => {
@@ -240,7 +245,7 @@ describe('dispatch OAuth integration', () => {
 			);
 
 		it('runs a tool that is not wiki-scoped without OAuth sign-in', async () => {
-			const serverLocalTool: Tool<Record<string, never>> = {
+			const serverLocalTool: Tool<Record<string, never>, SharedContext> = {
 				name: 'server-local',
 				description: 'd',
 				inputSchema: {},

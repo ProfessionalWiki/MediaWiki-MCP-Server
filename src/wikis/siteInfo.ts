@@ -1,11 +1,11 @@
-import type { ToolContext } from '../runtime/context.ts';
+import type { SharedContext } from '../runtime/context.ts';
 import type { WikiIdentity } from './wikiProbe.ts';
 
 export type SiteInfo = WikiIdentity & { server: string; articlepath: string };
 
 // The wiki's identity as its probe last read it, with the configured server and
 // article path standing in until the wiki has answered.
-export async function resolveSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInfo> {
+export async function resolveSiteInfo(ctx: SharedContext, wikiKey: string): Promise<SiteInfo> {
 	const {
 		reachable: _reachable,
 		extensions: _extensions,

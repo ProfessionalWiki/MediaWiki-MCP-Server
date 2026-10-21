@@ -40,8 +40,7 @@ export async function resolveLanguage(ctx: ToolContext, requested?: string): Pro
 	if (requested !== undefined && requested !== '') {
 		return requested;
 	}
-	const { key } = ctx.activeWiki.get();
-	const { lang } = await resolveSiteInfo(ctx, key);
+	const { lang } = await resolveSiteInfo(ctx, ctx.wiki.key);
 	return lang ?? FALLBACK_LANGUAGE;
 }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createToolContext } from '../../src/runtime/createContext.ts';
+import { createSharedContext } from '../../src/runtime/createContext.ts';
 import { createAppState, type AppState } from '../../src/wikis/state.ts';
 import { logger } from '../../src/runtime/logger.ts';
 import { withRequestFields } from '../../src/runtime/requestContext.ts';
@@ -23,7 +23,7 @@ const testConfig: Config = {
 };
 
 function contextOverStubbedBot(): {
-	ctx: ReturnType<typeof createToolContext>;
+	ctx: ReturnType<typeof createSharedContext>;
 	calls: { signal?: AbortSignal }[];
 } {
 	const calls: { signal?: AbortSignal }[] = [];
@@ -38,14 +38,15 @@ function contextOverStubbedBot(): {
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- stub covering only the surface under test
 		mwnProvider: { get: async (): Promise<unknown> => bot } as unknown as AppState['mwnProvider'],
 	};
-	return { ctx: createToolContext({ logger, state, transport: 'stdio' }), calls };
+	return { ctx: createSharedContext({ logger, state, transport: 'stdio' }), calls };
 }
 
-describe('createToolContext', () => {
-	it('populates all ToolContext fields', () => {
+describe('createSharedContext', () => {
+	it('populates all SharedContext fields', () => {
 		const state = createAppState(testConfig);
-		const ctx = createToolContext({ logger, state, transport: 'stdio' });
-		expect(ctx.mwn).toBeTypeOf('function');
+		const ctx = createSharedContext({ logger, state, transport: 'stdio' });
+		expect(ctx.mwnFor).toBeTypeOf('function');
+		expect(ctx.editFor).toBeTypeOf('function');
 		expect(ctx.wikis).toBeDefined();
 		expect(ctx.activeWiki).toBeDefined();
 		expect(ctx.uploadDirs).toBeDefined();
@@ -53,7 +54,6 @@ describe('createToolContext', () => {
 		expect(typeof ctx.wikiCache.invalidate).toBe('function');
 		expect(ctx.wikiProbe).toBeDefined();
 		expect(ctx.sections).toBeDefined();
-		expect(ctx.edit).toBeDefined();
 		expect(ctx.revision).toBeDefined();
 		expect(ctx.format).toBeDefined();
 		expect(ctx.errors).toBeDefined();
@@ -66,7 +66,7 @@ describe('createToolContext', () => {
 		const controller = new AbortController();
 
 		await withRequestFields({ signal: controller.signal }, async () => {
-			const scoped = await ctx.mwn();
+			const scoped = await ctx.mwnFor('w');
 			await scoped.rawRequest({ url: 'https://test.wiki/w/api.php' });
 		});
 
@@ -79,13 +79,12 @@ describe('createToolContext', () => {
 		const { ctx, calls } = contextOverStubbedBot();
 
 		await withRequestFields({ deadline: callDeadline(20, 'calling') }, async () => {
-			await (await ctx.mwn()).rawRequest({ url: 'https://test.wiki/w/api.php' });
+			await (await ctx.mwnFor('w')).rawRequest({ url: 'https://test.wiki/w/api.php' });
 			await new Promise((resolve) => setTimeout(resolve, 40));
-			await (await ctx.mwn()).rawRequest({ url: 'https://test.wiki/w/api.php' });
+			await (await ctx.mwnFor('w')).rawRequest({ url: 'https://test.wiki/w/api.php' });
 		});
 
-		// Eleven tools acquire the bot twice — once for the work, once to build a
-		// page URL — so a budget armed per acquisition would multiply.
+		// A budget armed per acquisition would let a tool that acquires twice spend two.
 		expect(calls[0]?.signal?.aborted).toBe(true);
 		expect(calls[1]?.signal?.aborted).toBe(true);
 	});
@@ -93,7 +92,7 @@ describe('createToolContext', () => {
 	it('bounds calls made outside any request scope', async () => {
 		const { ctx, calls } = contextOverStubbedBot();
 
-		await (await ctx.mwn()).rawRequest({ url: 'https://test.wiki/w/api.php' });
+		await (await ctx.mwnFor('w')).rawRequest({ url: 'https://test.wiki/w/api.php' });
 
 		// Startup reconciliation, the wiki resources and the readiness probe reach
 		// the wiki with no MCP request around them.

@@ -153,7 +153,7 @@ export const getFileData: Tool<typeof inputSchema> = {
 			);
 		}
 
-		const wikiKey = ctx.activeWiki.get().key;
+		const wikiKey = ctx.wiki.key;
 		const renderedWidth = thumb.thumbwidth ?? info.width;
 		const renderedHeight = thumb.thumbheight ?? info.height;
 		const dims =

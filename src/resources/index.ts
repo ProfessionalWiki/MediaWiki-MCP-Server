@@ -1,6 +1,6 @@
 import { ResourceNotFoundError, ResourceTemplate } from '@modelcontextprotocol/server';
 import type { McpServer, Resource } from '@modelcontextprotocol/server';
-import type { ToolContext } from '../runtime/context.ts';
+import type { SharedContext } from '../runtime/context.ts';
 import type { WikiConfig, PublicWikiConfig } from '../config/loadConfig.ts';
 import { WIKI_RESOURCE_URI_PREFIX } from '../runtime/constants.ts';
 import { resolveSiteInfo } from '../wikis/siteInfo.ts';
@@ -23,7 +23,7 @@ function toPublicConfig(wikiConfig: Readonly<WikiConfig>): PublicWikiConfig {
 	};
 }
 
-export function registerAllResources(server: McpServer, ctx: ToolContext): void {
+export function registerAllResources(server: McpServer, ctx: SharedContext): void {
 	const resourceTemplate = new ResourceTemplate(`${WIKI_RESOURCE_URI_PREFIX}{wikiKey}`, {
 		// Every wiki is probed at startup, so listing mostly reads the probe's
 		// cache rather than the wikis.

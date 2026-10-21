@@ -17,7 +17,7 @@ import {
 	parseRedirectAllowlist,
 } from '../../src/auth/authorizationServer/redirectPolicy.ts';
 import { checkWikiCapability } from '../../src/runtime/wikiCapability.ts';
-import { createToolContext } from '../../src/runtime/createContext.ts';
+import { createSharedContext } from '../../src/runtime/createContext.ts';
 import { logger } from '../../src/runtime/logger.ts';
 import { withRequestContext, getRuntimeToken } from '../../src/runtime/requestContext.ts';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
@@ -333,7 +333,7 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 
 		// (b) The wikiCapability step-up: with no runtime token, a write tool is
 		// rejected with an authentication error, while a read tool is allowed.
-		const ctx = createToolContext({
+		const ctx = createSharedContext({
 			logger,
 			state: deps.state,
 			transport: 'http',

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { ZodRawShape } from 'zod';
 import { register } from '../../src/runtime/register.ts';
 import type { Tool } from '../../src/runtime/tool.ts';
+import type { SharedContext } from '../../src/runtime/context.ts';
 
 // `register` wraps the descriptor's raw shape in a z.object() before handing it
 // to the SDK, so the registered field names are read back off `.shape`.
@@ -54,7 +55,7 @@ describe('register', () => {
 	it('omits the wiki field for non-wiki-scoped tools', () => {
 		const registerTool = vi.fn().mockReturnValue({ x: 1 });
 		const server = { registerTool } as never;
-		const tool: Tool<{ a: z.ZodString }> = {
+		const tool: Tool<{ a: z.ZodString }, SharedContext> = {
 			name: 'foo',
 			description: 'd',
 			wikiScoped: false,

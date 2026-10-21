@@ -1,26 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import type { ToolContext } from '../../src/runtime/context.ts';
 import { buildPageUrl, formatEditComment } from '../../src/wikis/utils.ts';
-import { fakeContext, probeReporting } from '../helpers/fakeContext.ts';
+import { fakeContext, probeReporting, withWikiConfig } from '../helpers/fakeContext.ts';
 
 function ctxWithAttribution(attributeEdits?: boolean): ToolContext {
-	return fakeContext({
-		activeWiki: {
-			get: () =>
-				({
-					key: 'test-wiki',
-					config: {
-						sitename: 'Test',
-						server: 'https://test.wiki',
-						articlepath: '/wiki',
-						scriptpath: '/w',
-						tags: null,
-						attributeEdits,
-					},
-				}) as never,
-			getDefaultKey: () => 'test-wiki',
-		},
-	});
+	return withWikiConfig(fakeContext(), { attributeEdits });
 }
 
 describe('formatEditComment', () => {

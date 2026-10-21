@@ -1,5 +1,5 @@
 import type { CallToolResult } from '@modelcontextprotocol/server';
-import type { ToolContext } from './context.ts';
+import type { SharedContext } from './context.ts';
 import type { ExtensionPack } from '../tools/extensions/types.ts';
 import { extensionPacks, packToolRefusal } from '../tools/extensions/index.ts';
 import { standardTools } from '../tools/standardTools.ts';
@@ -50,7 +50,7 @@ const PACK_BY_TOOL: ReadonlyMap<string, ExtensionPack> = ((): ReadonlyMap<
 export async function checkWikiCapability(
 	toolName: string,
 	wikiKey: string,
-	ctx: ToolContext,
+	ctx: SharedContext,
 ): Promise<CallToolResult | undefined> {
 	// HTTP transport: a call to an OAuth-only wiki with no usable token can only
 	// fail downstream with an opaque error, so it is rejected up front with guidance

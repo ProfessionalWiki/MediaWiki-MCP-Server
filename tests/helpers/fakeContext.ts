@@ -1,12 +1,13 @@
 import { vi } from 'vitest';
 import { dirname } from 'node:path';
 import type { Mwn } from 'mwn';
-import type { ToolContext, ManagementContext } from '../../src/runtime/context.ts';
+import type { ManagementContext, SharedContext, ToolContext } from '../../src/runtime/context.ts';
+import type { WikiConfig } from '../../src/config/loadConfig.ts';
+import type { EditService } from '../../src/services/editService.ts';
 import { ResponseFormatterImpl } from '../../src/results/response.ts';
 import { ErrorClassifierImpl } from '../../src/errors/classifyError.ts';
 import { extensionErrorVocabulary, extensionPacks } from '../../src/tools/extensions/index.ts';
 import { RevisionNormalizerImpl } from '../../src/services/revisionNormalize.ts';
-import { getRequestWiki } from '../../src/runtime/requestContext.ts';
 import type { WikiIdentity, WikiProbe } from '../../src/wikis/wikiProbe.ts';
 import { UploadDirsImpl, type UploadDirs } from '../../src/wikis/uploadDirs.ts';
 import { fakeLogger } from './fakeLogger.ts';
@@ -54,17 +55,25 @@ export function uploadDirsResolving(resolved: string): UploadDirs {
 }
 
 /**
- * A context whose wiki is `wiki`. A mock wiki stands in for the slice of mwn the
- * tools use, so it is handed over as one here, once, rather than cast in every
- * test.
+ * A context whose mwn is `mwn`. A mock stands in for the slice of mwn the tools
+ * use, so it is handed over as one here, once, rather than cast in every test.
  */
-export function contextOn(wiki: MockMwn | Mwn, overrides: Partial<ToolContext> = {}): ToolContext {
-	return fakeContext({ mwn: async () => wiki as never, ...overrides });
+export function contextOn(mwn: MockMwn | Mwn, overrides: Partial<ToolContext> = {}): ToolContext {
+	return fakeContext({ mwn: async () => mwn as never, ...overrides });
 }
 
 export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 	return {
+		wiki: { key: 'test-wiki', config: testWikiConfig },
 		mwn: throws('mwn()') as never,
+		// The dispatcher binds a call to its wiki through these, so a dispatched
+		// call reaches the same stubs as one handed this context directly.
+		mwnFor(): Promise<Mwn> {
+			return this.mwn();
+		},
+		editFor(): EditService {
+			return this.edit;
+		},
 		wikis: {
 			getAll: () => testWikiRegistry as never,
 			// Own-key lookup only, mirroring WikiRegistryImpl.get — a bare
@@ -76,10 +85,7 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 			isManagementAllowed: () => true,
 		},
 		activeWiki: {
-			get: () => {
-				const key = getRequestWiki() ?? 'test-wiki';
-				return { key, config: testWikiConfig as never };
-			},
+			get: throws('activeWiki.get') as never,
 			getDefaultKey: () => 'test-wiki',
 		},
 		uploadDirs: new UploadDirsImpl([]),
@@ -112,25 +118,21 @@ export function fakeManagementContext(
 
 /** The same context, for a wiki that has turned edit attribution off. */
 export function withoutEditAttribution(ctx: ToolContext): ToolContext {
-	return {
-		...ctx,
-		activeWiki: {
-			...ctx.activeWiki,
-			get: () => {
-				const { key, config } = ctx.activeWiki.get();
-				return { key, config: { ...config, attributeEdits: false } };
-			},
-		},
-	};
+	return withWikiConfig(ctx, { attributeEdits: false });
 }
 
-// A ctx whose registry and activeWiki agree on one wiki — the dispatcher
+/** The same context, its wiki configured with `config` on top. */
+export function withWikiConfig(ctx: ToolContext, config: Partial<WikiConfig>): ToolContext {
+	return { ...ctx, wiki: { key: ctx.wiki.key, config: { ...ctx.wiki.config, ...config } } };
+}
+
+// A ctx whose registry and default wiki agree on one wiki — the dispatcher
 // resolves and validates it before applying the OAuth gate, so a ctx whose two
 // halves disagree passes only by accident.
 export function ctxForWiki(
 	config: Record<string, unknown>,
 	transport: ToolContext['transport'],
-): ToolContext {
+): SharedContext {
 	return ctxForWikis({ 'wiki-key': config }, 'wiki-key', transport);
 }
 
@@ -140,7 +142,7 @@ export function ctxForWikis(
 	registry: Record<string, Record<string, unknown>>,
 	defaultKey: string,
 	transport: ToolContext['transport'],
-): ToolContext {
+): SharedContext {
 	const lookup = (key: string): Record<string, unknown> | undefined =>
 		Object.hasOwn(registry, key) ? registry[key] : undefined;
 	return fakeContext({
@@ -153,10 +155,7 @@ export function ctxForWikis(
 			isManagementAllowed: () => true,
 		},
 		activeWiki: {
-			get: () => {
-				const key = getRequestWiki() ?? defaultKey;
-				return { key, config: lookup(key) as never };
-			},
+			get: throws('activeWiki.get') as never,
 			getDefaultKey: () => defaultKey,
 		},
 	});

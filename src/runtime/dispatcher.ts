@@ -1,7 +1,7 @@
 import type { ZodRawShape, z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from './tool.ts';
-import type { ToolContext } from './context.ts';
+import type { CallWiki, SharedContext, ToolContext } from './context.ts';
 import { tailoredError } from '../errors/tailoredErrors.ts';
 import { errorMessage } from '../errors/errorMessage.ts';
 import { getCallerId, getRequestSignal, withRequestFields } from './requestContext.ts';
@@ -25,13 +25,14 @@ import { monotonicNow } from './clock.ts';
 const WRITE_TIMEOUT_CAVEAT =
 	'. The change may or may not have been applied — check the wiki before retrying';
 
-export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext = ToolContext>(
+type WikiBound = Omit<ToolContext, keyof SharedContext>;
+
+export function dispatch<TSchema extends ZodRawShape, TCtx extends SharedContext = ToolContext>(
 	tool: Tool<TSchema, TCtx>,
-	ctx: TCtx,
+	ctx: SharedContext & Omit<TCtx, keyof WikiBound>,
 ): (args: z.infer<z.ZodObject<TSchema>>) => Promise<CallToolResult> {
 	return async (args) => {
-		// Resolve the per-call wiki for wiki-scoped tools.
-		let resolvedKey: string | undefined;
+		let resolved: CallWiki | undefined;
 		if (isWikiScoped(tool)) {
 			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the `wiki` field is merged into the schema by register(); not in the static TSchema
 			const raw = (args as { wiki?: unknown }).wiki;
@@ -39,39 +40,42 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext =
 			// whitespace-only or bare-prefix value normalizes to '' — treat that
 			// as omitted and fall back to the default wiki.
 			const normalized = typeof raw === 'string' ? normalizeWikiArg(raw) : '';
-			const requested = normalized !== '' ? normalized : undefined;
-			resolvedKey = requested ?? ctx.activeWiki.getDefaultKey();
-			if (!ctx.wikis.get(resolvedKey)) {
+			const key = normalized !== '' ? normalized : ctx.activeWiki.getDefaultKey();
+			const config = ctx.wikis.get(key);
+			if (config === undefined) {
 				const configured = Object.keys(ctx.wikis.getAll());
 				return ctx.format.invalidInput(
-					`Wiki "${resolvedKey}" not found. Configured wikis: ${configured.join(', ')}`,
+					`Wiki "${key}" not found. Configured wikis: ${configured.join(', ')}`,
 				);
 			}
-			const guardError = await checkWikiCapability(tool.name, resolvedKey, ctx);
+			const guardError = await checkWikiCapability(tool.name, key, ctx);
 			if (guardError) {
 				return guardError;
 			}
+			resolved = { key, config };
 		}
+		const wiki = resolved;
+		const callCtx = contextFor<TCtx>(ctx, wiki);
 
 		const body = async (): Promise<CallToolResult> => {
-			const { key: wikiKey, config: wiki } = ctx.activeWiki.get();
 			// Only a wiki-scoped tool acts on the wiki it resolves, so only it needs
 			// that wiki's token. The rest work on server-local state or anonymous
 			// probes, and must stay reachable while that wiki's sign-in is broken.
 			const useOauth =
 				ctx.transport === 'stdio' &&
-				isWikiScoped(tool) &&
-				typeof wiki.oauth2ClientId === 'string' &&
-				wiki.oauth2ClientId.trim() !== '';
+				wiki !== undefined &&
+				typeof wiki.config.oauth2ClientId === 'string' &&
+				wiki.config.oauth2ClientId.trim() !== '';
 
 			if (useOauth) {
+				const { key, config } = wiki;
 				let token: string;
 				try {
-					token = await acquireToken(wikiKey, {
-						wiki: { server: wiki.server, scriptpath: wiki.scriptpath },
-						oauth2ClientId: wiki.oauth2ClientId,
+					token = await acquireToken(key, {
+						wiki: { server: config.server, scriptpath: config.scriptpath },
+						oauth2ClientId: config.oauth2ClientId,
 						callbackPort:
-							typeof wiki.oauth2CallbackPort === 'number' ? wiki.oauth2CallbackPort : undefined,
+							typeof config.oauth2CallbackPort === 'number' ? config.oauth2CallbackPort : undefined,
 					});
 				} catch (err: unknown) {
 					const message = errorMessage(err);
@@ -79,21 +83,38 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext =
 				}
 				// withRequestFields (not withRequestContext) so the resolved wikiKey
 				// set below survives into the token-scoped run.
-				return withRequestFields({ runtimeToken: { value: token, wikiKey } }, () =>
-					runDispatchInner(tool, ctx, args, resolvedKey),
+				return withRequestFields({ runtimeToken: { value: token, wikiKey: key } }, () =>
+					runDispatchInner(tool, callCtx, args, key),
 				);
 			}
-			return runDispatchInner(tool, ctx, args, resolvedKey);
+			return runDispatchInner(tool, callCtx, args, wiki?.key);
 		};
 
-		if (resolvedKey !== undefined) {
-			return withRequestFields({ wikiKey: resolvedKey }, body);
+		if (wiki !== undefined) {
+			return withRequestFields({ wikiKey: wiki.key }, body);
 		}
 		return body();
 	};
 }
 
-async function runDispatchInner<TSchema extends ZodRawShape, TCtx extends ToolContext>(
+function contextFor<TCtx extends SharedContext>(
+	ctx: SharedContext & Omit<TCtx, keyof WikiBound>,
+	wiki: CallWiki | undefined,
+): TCtx {
+	if (wiki === undefined) {
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a tool that acts on no wiki takes the shared context as it is
+		return ctx as unknown as TCtx;
+	}
+	const bound: WikiBound = {
+		wiki,
+		mwn: () => ctx.mwnFor(wiki.key),
+		edit: ctx.editFor(wiki),
+	};
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a tool that acts on a wiki takes the shared context and that wiki's services
+	return { ...ctx, ...bound } as unknown as TCtx;
+}
+
+async function runDispatchInner<TSchema extends ZodRawShape, TCtx extends SharedContext>(
 	tool: Tool<TSchema, TCtx>,
 	ctx: TCtx,
 	args: z.infer<z.ZodObject<TSchema>>,
@@ -192,7 +213,7 @@ async function runDispatchInner<TSchema extends ZodRawShape, TCtx extends ToolCo
 		upstreamStatus,
 		errorMessage: errorText,
 		caller: getCallerId(),
-		wikiKey: ctx.activeWiki.get().key,
+		wikiKey: resolvedKey ?? ctx.activeWiki.getDefaultKey(),
 	});
 
 	return result;

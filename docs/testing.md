@@ -9,7 +9,7 @@ Reference for unit tests, integration testing against a real wiki, and the local
 
 Tests use [Vitest](https://vitest.dev/). Each tool exports a `Tool<TSchema>` descriptor from `src/tools/<name>.ts`; tests import the descriptor and route through `dispatch( descriptor, ctx )` from `src/runtime/dispatcher.ts`.
 
-Build a `ToolContext` per test via `contextOn( mwn )` from `tests/helpers/fakeContext.ts`, which hands the tool a mock wiki, or `fakeContext()` for a test that needs no wiki. Override only the slices the test exercises — by default unstubbed methods throw, so tests fail loudly when they reach for something they didn't mean to:
+Build a `ToolContext` per test via `contextOn( mwn )` from `tests/helpers/fakeContext.ts`, which hands the tool a mock mwn, or `fakeContext()` for a test that never reaches the wiki. Override only the slices the test exercises — by default unstubbed methods throw, so tests fail loudly when they reach for something they didn't mean to:
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
@@ -41,6 +41,7 @@ Reach for a shared fixture rather than spelling a literal out. A field added to 
 
 - `fakeLogger()` — a `Logger` double covering all eight levels.
 - `fakeProxyConfig()` — a complete `ProxyConfig`.
+- `withWikiConfig( ctx, config )` — the same context, its wiki configured with `config`.
 - `mockedLookupAll()` — the `node:dns/promises` `lookup` mock, typed at the `{ all: true }` overload production calls.
 - `toolArgs( tool, partial )` — runs partial input through a tool's own schema, so `.default()` values arrive the way a real call delivers them.
 

@@ -1,5 +1,5 @@
 import type { Logger } from './logger.ts';
-import type { ToolContext } from './context.ts';
+import type { SharedContext } from './context.ts';
 import type { AppState } from '../wikis/state.ts';
 import type { ProxyConfig } from '../auth/authorizationServer/proxyConfig.ts';
 import { WikiCacheImpl } from '../wikis/wikiCache.ts';
@@ -13,18 +13,18 @@ import { withCallBounds } from '../wikis/abortableMwn.ts';
 import { getRequestDeadline, getRequestSignal } from './requestContext.ts';
 import { callDeadline, WIKI_CALL_TIMEOUT_MS } from './callDeadline.ts';
 
-export function createToolContext(deps: {
+export function createSharedContext(deps: {
 	logger: Logger;
 	state: AppState;
 	transport: 'http' | 'stdio';
 	getProxyConfig?: () => ProxyConfig | null;
-}): ToolContext {
+}): SharedContext {
 	const { logger, state, transport, getProxyConfig } = deps;
 	return {
 		// The cached instance is shared, so bounds go on a per-request view rather
 		// than on the instance. Taking the deadline from the request scope is what
 		// makes a tool that acquires the wiki twice spend one budget, not two.
-		mwn: async (wikiKey?: string) => {
+		mwnFor: async (wikiKey: string) => {
 			const bot = await state.mwnProvider.get(wikiKey);
 			const deadline = getRequestDeadline() ?? callDeadline(WIKI_CALL_TIMEOUT_MS, 'calling');
 			return withCallBounds(bot, deadline, getRequestSignal());
@@ -35,7 +35,7 @@ export function createToolContext(deps: {
 		wikiCache: new WikiCacheImpl(state.mwnProvider, state.wikiProbe),
 		wikiProbe: state.wikiProbe,
 		sections: new SectionServiceImpl(),
-		edit: new EditServiceImpl(state.activeWiki),
+		editFor: (wiki) => new EditServiceImpl(wiki.config.tags),
 		revision: new RevisionNormalizerImpl(),
 		format: new ResponseFormatterImpl(),
 		errors: new ErrorClassifierImpl(extensionErrorVocabulary(extensionPacks)),

@@ -54,6 +54,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - The server now offers the extension tools on a wiki that keeps anonymous users from reading, when the wiki has credentials in `config.json`, instead of hiding them. A wiki reached only through OAuth sign-in still gets none.
 - `get-site-info` lists a wiki's extensions even when the server cannot check them itself, as on a private wiki reached only through OAuth sign-in.
 - `upload-file` and `update-file` no longer time out when an upload is retried, as after a lost bot-password session: the retry sends the whole file instead of none of it. A call without credentials, which was retried every time, now fails at once.
+- `list-wikis`, `add-wiki`, `remove-wiki`, `oauth-status` and `oauth-logout` work when `defaultWiki` names no configured wiki, instead of failing with "not found in registry".
 
 ## [0.19.0] - 2026-09-25
 

@@ -270,6 +270,14 @@ describe('dispatcher emits tool_call telemetry', () => {
 		expect(line!.level).toBe('info');
 	});
 
+	it('attributes the call to the wiki it names', async () => {
+		const ctx = fakeContext();
+		const tool = noopTool(async () => ctx.format.ok({ ok: true }));
+		await dispatch(tool, ctx)({ wiki: 'fr.wikipedia.org' } as never);
+
+		expect(captureToolCallLine(stderrSpy)?.wiki).toBe('fr.wikipedia.org');
+	});
+
 	it('emits an error tool_call event when the handler throws', async () => {
 		const ctx = fakeContext();
 		const tool = noopTool(async () => {

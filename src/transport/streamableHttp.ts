@@ -50,7 +50,7 @@ import { fetchCimdDocument } from '../auth/authorizationServer/cimdFetch.ts';
 import { createAppState, type AppState } from '../wikis/state.ts';
 import { createServer, type ChangePublisher, type CreateServerOptions } from '../server.ts';
 import { emitStartupBanner } from '../runtime/banner.ts';
-import { createToolContext } from '../runtime/createContext.ts';
+import { createSharedContext } from '../runtime/createContext.ts';
 import { registerShutdownHandlers, resolveShutdownGrace } from '../runtime/shutdown.ts';
 
 // The exported surface here (BuildAppDeps, and the protected-resource handler's
@@ -649,7 +649,7 @@ export function startHttpServer(): void {
 		},
 	);
 
-	const ctx = createToolContext({
+	const ctx = createSharedContext({
 		logger,
 		state,
 		transport: 'http',
