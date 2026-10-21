@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
 import { fakeContext } from '../../../helpers/fakeContext.ts';
+import { contextReturning } from '../../../helpers/rawRequest.ts';
 import { neowikiGetSchema } from '../../../../src/tools/extensions/neowiki/neowiki-get-schema.ts';
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
 
@@ -42,15 +43,19 @@ describe('neowiki-get-schema', () => {
 	});
 
 	it('says when the schema describes Dependent Subjects', async () => {
-		const mock = createMockMwn({
-			rawRequest: vi.fn().mockResolvedValue({
-				data: { schema: { subjectsAreDependent: true, propertyDefinitions: {} } },
-			}),
+		const { ctx } = contextReturning({
+			schema: { subjectsAreDependent: true, propertyDefinitions: {} },
 		});
-		const ctx = fakeContext({ mwn: async () => mock as never });
 		const result = await neowikiGetSchema.handle({ name: 'Birth' }, ctx);
 
 		expect(result.structuredContent).toMatchObject({ subjectsAreDependent: true });
+	});
+
+	it('leaves a schema of standalone subjects unflagged', async () => {
+		const { ctx } = contextReturning({ schema: { propertyDefinitions: {} } });
+		const result = await neowikiGetSchema.handle({ name: 'Person' }, ctx);
+
+		expect(result.structuredContent).not.toHaveProperty('subjectsAreDependent');
 	});
 
 	it('returns not_found when the response has no schema', async () => {

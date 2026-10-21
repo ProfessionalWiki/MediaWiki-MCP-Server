@@ -1,18 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn, type MockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext } from '../../../helpers/fakeContext.ts';
-import type { ToolContext } from '../../../../src/runtime/context.ts';
+import { describe, it, expect } from 'vitest';
+import { contextReturning, requestedUrl } from '../../../helpers/rawRequest.ts';
 import { neowikiListSchemas } from '../../../../src/tools/extensions/neowiki/neowiki-list-schemas.ts';
 import { assertStructuredSuccess } from '../../../helpers/structuredResult.ts';
-
-function contextReturning(data: unknown): { mock: MockMwn; ctx: ToolContext } {
-	const mock = createMockMwn({ rawRequest: vi.fn().mockResolvedValue({ data }) });
-	return { mock, ctx: fakeContext({ mwn: async () => mock as never }) };
-}
-
-function requestedUrl(mock: MockMwn): URL {
-	return new URL((mock.rawRequest.mock.calls[0][0] as { url: string }).url);
-}
 
 describe('neowiki-list-schemas', () => {
 	it('requests the first page of /schemas and returns the schema summaries', async () => {
