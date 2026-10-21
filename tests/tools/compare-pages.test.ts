@@ -262,6 +262,25 @@ describe('compare-pages', () => {
 		expect(envelope.message).toBe('Page "Nope" not found');
 	});
 
+	it("names the missing page from MediaWiki's own wording", async () => {
+		const request = vi
+			.fn()
+			.mockRejectedValue(new Error("missingtitle: The page No such page doesn't exist."));
+		const mock = createMockMwn({ request });
+		const ctx = fakeContext({ mwn: async () => mock as never });
+
+		const result = await dispatch(
+			comparePages,
+			ctx,
+		)({
+			fromTitle: 'No such page',
+			toTitle: 'Foo',
+		});
+
+		const envelope = assertStructuredError(result, 'not_found', 'missingtitle');
+		expect(envelope.message).toBe('Page "No such page" not found');
+	});
+
 	it('returns a generic error message for other API failures via dispatcher', async () => {
 		const request = vi.fn().mockRejectedValue(new Error('Connection refused'));
 		const mock = createMockMwn({ request });

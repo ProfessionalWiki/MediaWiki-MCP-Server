@@ -27,7 +27,10 @@ export function revisionNotFound(message: string): TailoredError {
 }
 
 export function pageNotFound(message: string): TailoredError {
-	const title = pickFromMessage(message, /["'`]([^"'`]+)["'`]/);
+	// MediaWiki's English wording names the page unquoted; other wordings may quote it.
+	const title =
+		pickFromMessage(message, /The page (.+?) doesn['’]t exist/) ??
+		pickFromMessage(message, /["'`]([^"'`]+)["'`]/);
 	return {
 		category: 'not_found',
 		message: title !== undefined ? `Page "${title}" not found` : 'Page not found',
