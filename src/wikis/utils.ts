@@ -1,14 +1,15 @@
+import { Mwn } from 'mwn';
 import type { ToolContext } from '../runtime/context.ts';
+import { articlePathPattern } from './articlePath.ts';
 import { resolveSiteInfo } from './siteInfo.ts';
 
 export async function buildPageUrl(ctx: ToolContext, title: string): Promise<string> {
 	const { key } = ctx.activeWiki.get();
 	const { server, articlepath } = await resolveSiteInfo(ctx, key);
-	// MediaWiki convention: spaces become underscores. encodeURI preserves
-	// '/' (subpages) and ':' (namespace prefixes) while encoding spaces and
-	// non-ASCII characters. Characters disallowed in MW titles ('#', '?',
-	// '|', '[', ']', etc.) cannot reach this function via a real page title.
-	return `${server}${articlepath}/${encodeURI(title.replace(/ /g, '_'))}`;
+	// A replacer function, since a title may contain '$$'.
+	return (
+		server + articlePathPattern(articlepath).replace('$1', () => Mwn.util.wikiUrlencode(title))
+	);
 }
 
 /**

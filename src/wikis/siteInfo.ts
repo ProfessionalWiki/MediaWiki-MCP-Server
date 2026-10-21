@@ -1,6 +1,7 @@
 import type { ToolContext } from '../runtime/context.ts';
 import type { SiteInfo, LicenseInfo, SiteInfoCache } from './siteInfoCache.ts';
 import { normalizeServer } from './normalizeServer.ts';
+import { normalizeArticlePath } from './articlePath.ts';
 import { withSharedWorkScope } from '../runtime/requestContext.ts';
 import { callDeadline, WIKI_CONNECT_TIMEOUT_MS } from '../runtime/callDeadline.ts';
 
@@ -69,7 +70,7 @@ async function fetchSiteInfo(ctx: ToolContext, wikiKey: string): Promise<SiteInf
 			server: normalizeServer(general.server),
 			articlepath:
 				typeof general.articlepath === 'string'
-					? general.articlepath.replace('/$1', '')
+					? normalizeArticlePath(general.articlepath)
 					: configured.articlepath,
 			...(typeof general.lang === 'string' && general.lang !== '' ? { lang: general.lang } : {}),
 			...(typeof general['wikibase-sparql'] === 'string' && general['wikibase-sparql'] !== ''

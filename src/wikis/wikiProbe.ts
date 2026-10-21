@@ -2,6 +2,7 @@ import { makeApiRequest } from '../transport/httpFetch.ts';
 import type { WikiRegistry } from './wikiRegistry.ts';
 import type { LicenseInfo } from './siteInfoCache.ts';
 import { normalizeServer } from './normalizeServer.ts';
+import { normalizeArticlePath } from './articlePath.ts';
 import { errorMessage } from '../errors/isErrnoException.ts';
 import { logger } from '../runtime/logger.ts';
 import { monotonicNow } from '../runtime/clock.ts';
@@ -22,7 +23,7 @@ const PROBE_TIMEOUT_MS = 5_000;
 export interface WikiIdentity {
 	/** Public server base, normalized to https; absent if siteinfo omitted it. */
 	server?: string;
-	/** Article path with the `/$1` placeholder stripped; absent if omitted. */
+	/** Article path with a trailing `/$1` stripped; absent if omitted. */
 	articlepath?: string;
 	/** Content license from rightsinfo; absent unless both url and title exist. */
 	license?: LicenseInfo;
@@ -189,7 +190,7 @@ export class WikiProbeImpl implements WikiProbe {
 					: undefined;
 			const articlepath =
 				typeof general?.articlepath === 'string'
-					? general.articlepath.replace('/$1', '')
+					? normalizeArticlePath(general.articlepath)
 					: undefined;
 			const sparqlEndpoint =
 				typeof general?.['wikibase-sparql'] === 'string' && general['wikibase-sparql'] !== ''
