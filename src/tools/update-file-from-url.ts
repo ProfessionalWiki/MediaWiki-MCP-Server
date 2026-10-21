@@ -4,7 +4,7 @@ import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { ApiUploadResponse } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
-import { errorMessage } from '../errors/isErrnoException.ts';
+import { errorMessage } from '../errors/errorMessage.ts';
 import { assertFileExists, FileNotFoundError } from '../transport/fileExistence.ts';
 import { fetchFileBytes, shouldRescueToWiki } from '../transport/httpFetch.ts';
 import { formatEditComment, buildPageUrl } from '../wikis/utils.ts';

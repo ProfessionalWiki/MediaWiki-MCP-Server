@@ -1,6 +1,7 @@
 import type { Mwn } from 'mwn';
 import { ClassifiedError, type ErrorCategory } from '../../../errors/classifyError.ts';
 import { WikiTimeoutError } from '../../../errors/wikiTimeoutError.ts';
+import { errorMessage } from '../../../errors/errorMessage.ts';
 
 export interface NeoWikiRequestSpec {
 	readonly method: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -157,6 +158,6 @@ function classifyNeoWikiError(err: unknown): ClassifiedError {
 	}
 
 	// Covers both axios network errors (no .response — timeout, ECONNREFUSED) and unrecognised body shapes.
-	const message = err instanceof Error ? err.message : String(err);
+	const message = errorMessage(err);
 	return new ClassifiedError('upstream_failure', message, status);
 }

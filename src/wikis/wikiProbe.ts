@@ -1,7 +1,7 @@
 import { makeApiRequest } from '../transport/httpFetch.ts';
 import type { WikiRegistry } from './wikiRegistry.ts';
 import { normalizeServer } from './normalizeServer.ts';
-import { errorMessage } from '../errors/isErrnoException.ts';
+import { errorMessage } from '../errors/errorMessage.ts';
 import { logger } from '../runtime/logger.ts';
 import { monotonicNow } from '../runtime/clock.ts';
 

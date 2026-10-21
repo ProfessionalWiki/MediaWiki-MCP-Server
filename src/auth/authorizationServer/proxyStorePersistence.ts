@@ -16,6 +16,7 @@ import {
 	type TransactionRecord,
 	type UpstreamToken,
 } from './proxyStore.ts';
+import { errorMessage } from '../../errors/errorMessage.ts';
 
 export class ProxyStorePersistenceError extends Error {
 	public constructor(message: string) {
@@ -164,7 +165,7 @@ export class PersistentProxyStore implements ProxyStore {
 			this.inner.restoreDurable(snapshot);
 		} catch (err: unknown) {
 			throw new ProxyStorePersistenceError(
-				`Proxy store at ${this.file}: ${err instanceof Error ? err.message : String(err)}; back up and remove it to reset.`,
+				`Proxy store at ${this.file}: ${errorMessage(err)}; back up and remove it to reset.`,
 			);
 		}
 	}

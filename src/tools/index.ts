@@ -1,5 +1,5 @@
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/server';
-import { errorMessage } from '../errors/isErrnoException.ts';
+import { errorMessage } from '../errors/errorMessage.ts';
 import { logger } from '../runtime/logger.ts';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext, ManagementContext } from '../runtime/context.ts';

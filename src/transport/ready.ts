@@ -5,6 +5,7 @@ import type { MwnProvider } from '../wikis/mwnProvider.ts';
 import type { ActiveWiki } from '../wikis/activeWiki.ts';
 import { withCallBounds } from '../wikis/abortableMwn.ts';
 import { callDeadline } from '../runtime/callDeadline.ts';
+import { errorMessage } from '../errors/errorMessage.ts';
 
 interface ReadyCacheEntry {
 	expiresAt: number;
@@ -66,7 +67,7 @@ async function probeDefaultWiki(
 			httpStatus: 200,
 		};
 	} catch (err) {
-		const reason = err instanceof Error ? err.message : String(err);
+		const reason = errorMessage(err);
 		return {
 			expiresAt: monotonicNow() + READY_CACHE_TTL_MS,
 			payload: { status: 'not_ready', wiki, reason, checked_at: checkedAt },

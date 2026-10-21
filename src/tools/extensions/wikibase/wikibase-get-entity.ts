@@ -3,7 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import type { TruncationInfo } from '../../../results/truncation.ts';
-import { errorMessage } from '../../../errors/isErrnoException.ts';
+import { errorMessage } from '../../../errors/errorMessage.ts';
 import type { Claims, HiddenValues, RenderedClaims } from './entityFormat.ts';
 import {
 	capProperties,
