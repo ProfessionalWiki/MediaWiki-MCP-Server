@@ -5,24 +5,14 @@ import { fakeContext, contextOn, uploadDirsResolving } from '../helpers/fakeCont
 import { uploadFile } from '../../src/tools/upload-file.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
+import { FILE_EXISTS, FILE_MISSING } from '../helpers/uploadingWiki.ts';
 
 // fakeContext's edit slice throws on any method a test leaves unstubbed.
 const baseEdit = fakeContext().edit;
 
-// The wiki's answer to an imageinfo query for a file it already holds.
-const EXISTING_FILE = {
-	query: {
-		pages: [{ title: 'File:Cat.jpg', imageinfo: [{ timestamp: '2026-01-01T00:00:00Z' }] }],
-	},
-};
-
 // A wiki that does not hold the file yet, so an upload to it goes ahead.
 function wikiWithoutFile(): MockMwn {
-	return createMockMwn({
-		request: vi.fn().mockResolvedValue({
-			query: { pages: [{ title: 'File:Cat.jpg', missing: true }] },
-		}),
-	});
+	return createMockMwn({ request: vi.fn().mockResolvedValue(FILE_MISSING) });
 }
 
 describe('upload-file', () => {
@@ -115,7 +105,7 @@ describe('upload-file', () => {
 	});
 
 	it('fails as conflict when the file already exists, without uploading over it', async () => {
-		const mock = createMockMwn({ request: vi.fn().mockResolvedValue(EXISTING_FILE) });
+		const mock = createMockMwn({ request: vi.fn().mockResolvedValue(FILE_EXISTS) });
 		const submitUpload = vi.fn().mockResolvedValue({ result: 'Success', filename: 'Cat.jpg' });
 		const ctx = contextOn(mock, {
 			edit: { ...baseEdit, submitUpload },

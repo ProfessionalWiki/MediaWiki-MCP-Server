@@ -35,7 +35,7 @@ it( 'maps missingtitle to not_found via the dispatcher', async () => {
 
 Happy-path tests typically call `descriptor.handle( args, ctx )` directly. Error-classification tests go through `dispatch( descriptor, ctx )` so the dispatcher's classification + tailored-wording + format.error pipeline runs end-to-end. Tests asserting on what the schema itself accepts or refuses go through `callTool` instead, since neither `handle` nor `dispatch` parses raw arguments against it.
 
-Use `createMockMwn()` from `tests/helpers/mock-mwn.ts` to create mock `mwn` instances with method overrides. See existing test files under `tests/tools/` for the full pattern.
+Use `createMockMwn()` from `tests/helpers/mock-mwn.ts` to create mock `mwn` instances with method overrides. See existing test files under `tests/tools/` for the full pattern. For a tool that writes, use `writingWiki()` with `contextWritingTo()` from `tests/helpers/writingWiki.ts`: a real `mwn` whose wiki records each write it receives, uploads included.
 
 Reach for a shared fixture rather than spelling a literal out. A field added to the real type then breaks in one place, instead of drifting silently through every suite that happened to write the literal by hand:
 
