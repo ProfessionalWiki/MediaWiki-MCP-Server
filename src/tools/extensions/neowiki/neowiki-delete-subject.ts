@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
-import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
+import { neowikiRequest } from './neowikiRequest.ts';
 import { formatEditComment } from '../../../wikis/utils.ts';
 
 const inputSchema = {
@@ -31,18 +31,14 @@ export const neowikiDeleteSubject: Tool<typeof inputSchema> = {
 	async handle({ id, comment }, ctx: ToolContext): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
 		const editComment = formatEditComment(ctx, 'neowiki-delete-subject', comment);
-		try {
-			// The endpoint returns an empty 200 body on success; ignore it.
-			await neowikiRequest(mwn, {
-				method: 'DELETE',
-				path: `/subject/${encodeURIComponent(id)}`,
-				csrf: true,
-				...(editComment !== undefined ? { body: { comment: editComment } } : {}),
-			});
+		// The endpoint returns an empty 200 body on success; ignore it.
+		await neowikiRequest(mwn, {
+			method: 'DELETE',
+			path: `/subject/${encodeURIComponent(id)}`,
+			csrf: true,
+			...(editComment !== undefined ? { body: { comment: editComment } } : {}),
+		});
 
-			return ctx.format.ok({ subjectId: id, status: 'deleted' });
-		} catch (err) {
-			return neowikiErrorResult(err, ctx);
-		}
+		return ctx.format.ok({ subjectId: id, status: 'deleted' });
 	},
 };

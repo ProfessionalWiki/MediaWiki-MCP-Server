@@ -14,7 +14,8 @@ import {
 	postForm,
 } from '../../../../src/transport/httpFetch.ts';
 import { RedirectDropsBodyError } from '../../../../src/transport/requestChain.ts';
-import { runSparqlQuery, SparqlError } from '../../../../src/tools/extensions/wikibase/sparql.ts';
+import { runSparqlQuery } from '../../../../src/tools/extensions/wikibase/sparql.ts';
+import { ClassifiedError } from '../../../../src/errors/classifyError.ts';
 import { withRequestFields } from '../../../../src/runtime/requestContext.ts';
 
 const ENDPOINT = 'https://query.example.org/sparql';
@@ -29,10 +30,10 @@ function rowBindings(count: number): unknown[] {
 	return Array.from({ length: count }, (_, i) => ({ item: { type: 'uri', value: `urn:${i}` } }));
 }
 
-async function failureOf(promise: Promise<unknown>): Promise<SparqlError> {
+async function failureOf(promise: Promise<unknown>): Promise<ClassifiedError> {
 	const err = await promise.catch((e: unknown) => e);
-	expect(err).toBeInstanceOf(SparqlError);
-	return err as SparqlError;
+	expect(err).toBeInstanceOf(ClassifiedError);
+	return err as ClassifiedError;
 }
 
 describe('runSparqlQuery', () => {
@@ -211,6 +212,12 @@ describe('runSparqlQuery', () => {
 		expect((await failureOf(runSparqlQuery(ENDPOINT, CATS, MANY_ROWS))).category).toBe(
 			'authentication',
 		);
+	});
+
+	it('records the HTTP status the query service answered with', async () => {
+		vi.mocked(postForm).mockRejectedValue(new HttpStatusError(503, ENDPOINT, 'Unavailable'));
+
+		expect((await failureOf(runSparqlQuery(ENDPOINT, CATS, MANY_ROWS))).upstreamStatus).toBe(503);
 	});
 
 	it('maps a refused query to permission_denied', async () => {
@@ -486,7 +493,7 @@ describe('runSparqlQuery', () => {
 	});
 
 	// The envelope is parsed outside the classifying catch, so anything it throws
-	// that is not a SparqlError reaches the caller unclassified.
+	// that is not a ClassifiedError reaches the caller unclassified.
 	it('reports a JSON body that is not an object as upstream_failure', async () => {
 		vi.mocked(postForm).mockResolvedValue('null');
 

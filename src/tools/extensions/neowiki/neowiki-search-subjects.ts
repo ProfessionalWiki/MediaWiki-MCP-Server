@@ -3,7 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import type { TruncationInfo } from '../../../results/truncation.ts';
-import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
+import { neowikiRequest } from './neowikiRequest.ts';
 
 // The /subject-labels endpoint caps `limit` at 50 and has no continuation.
 const RESULT_LIMIT = 50;
@@ -42,33 +42,29 @@ export const neowikiSearchSubjects: Tool<typeof inputSchema> = {
 
 	async handle({ schema, search }, ctx: ToolContext): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
-		try {
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /subject-labels response shape; trusted at this boundary
-			const data = (await neowikiRequest(mwn, {
-				method: 'GET',
-				path: '/subject-labels',
-				query: {
-					search,
-					limit: String(RESULT_LIMIT),
-					...(schema !== undefined ? { schema } : {}),
-				},
-			})) as SubjectLabel[];
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /subject-labels response shape; trusted at this boundary
+		const data = (await neowikiRequest(mwn, {
+			method: 'GET',
+			path: '/subject-labels',
+			query: {
+				search,
+				limit: String(RESULT_LIMIT),
+				...(schema !== undefined ? { schema } : {}),
+			},
+		})) as SubjectLabel[];
 
-			const subjects = Array.isArray(data) ? data : [];
-			const truncation: TruncationInfo | null =
-				subjects.length >= RESULT_LIMIT
-					? {
-							reason: 'capped-no-continuation',
-							returnedCount: subjects.length,
-							limit: RESULT_LIMIT,
-							itemNoun: 'subjects',
-							narrowHint: 'lengthen the search prefix or pass a schema',
-						}
-					: null;
+		const subjects = Array.isArray(data) ? data : [];
+		const truncation: TruncationInfo | null =
+			subjects.length >= RESULT_LIMIT
+				? {
+						reason: 'capped-no-continuation',
+						returnedCount: subjects.length,
+						limit: RESULT_LIMIT,
+						itemNoun: 'subjects',
+						narrowHint: 'lengthen the search prefix or pass a schema',
+					}
+				: null;
 
-			return ctx.format.ok({ subjects, ...(truncation !== null ? { truncation } : {}) });
-		} catch (err) {
-			return neowikiErrorResult(err, ctx);
-		}
+		return ctx.format.ok({ subjects, ...(truncation !== null ? { truncation } : {}) });
 	},
 };

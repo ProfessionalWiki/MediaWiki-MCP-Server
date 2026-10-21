@@ -5,8 +5,9 @@ import type { ErrorCategory } from '../../../errors/classifyError.ts';
  *
  * These reach the caller through the central classifier rather than through this
  * pack, because a tool that requests through mwn never catches its own error:
- * mwn throws and the dispatcher classifies. The SPARQL tool is the exception —
- * it has its own transport, so `SparqlError` carries its category directly.
+ * mwn throws and the dispatcher classifies. The SPARQL tool asks the query
+ * service rather than the action API, so its failures carry no code; the
+ * `ClassifiedError` it throws carries the category instead.
  */
 export const WIKIBASE_ERROR_CODES: Readonly<Record<string, ErrorCategory>> = {
 	// The requested entity ID does not exist on the wiki.

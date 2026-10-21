@@ -1,19 +1,6 @@
 import type { Mwn } from 'mwn';
-import type { CallToolResult } from '@modelcontextprotocol/server';
-import type { ErrorCategory } from '../../../errors/classifyError.ts';
-import type { ToolContext } from '../../../runtime/context.ts';
+import { ClassifiedError, type ErrorCategory } from '../../../errors/classifyError.ts';
 import { WikiTimeoutError } from '../../../errors/wikiTimeoutError.ts';
-
-/** A NeoWiki REST failure already classified into an MCP error category. */
-export class NeoWikiApiError extends Error {
-	public constructor(
-		public readonly category: ErrorCategory,
-		message: string,
-	) {
-		super(message);
-		this.name = 'NeoWikiApiError';
-	}
-}
 
 export interface NeoWikiRequestSpec {
 	readonly method: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -76,7 +63,7 @@ function restBaseFrom(apiUrl: string): string {
 export async function neowikiRequest(mwn: Mwn, spec: NeoWikiRequestSpec): Promise<unknown> {
 	const apiUrl = mwn.options.apiUrl;
 	if (typeof apiUrl !== 'string' || !/\/api\.php$/.test(apiUrl)) {
-		throw new NeoWikiApiError(
+		throw new ClassifiedError(
 			'upstream_failure',
 			'Cannot derive the NeoWiki REST base from the wiki API URL.',
 		);
@@ -120,7 +107,7 @@ export async function neowikiRequest(mwn: Mwn, spec: NeoWikiRequestSpec): Promis
 	}
 }
 
-function classifyNeoWikiError(err: unknown): NeoWikiApiError {
+function classifyNeoWikiError(err: unknown): ClassifiedError {
 	// axios throws on non-2xx with `err.response.{status,data}`.
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- axios error shape at this boundary
 	const response = (err as { response?: { status?: number; data?: unknown } }).response;
@@ -135,7 +122,7 @@ function classifyNeoWikiError(err: unknown): NeoWikiApiError {
 		if (typeof errorType === 'string') {
 			const category = ERROR_TYPE_TO_CATEGORY[errorType] ?? 'upstream_failure';
 			const message = typeof record.message === 'string' ? record.message : errorType;
-			return new NeoWikiApiError(category, message);
+			return new ClassifiedError(category, message, status);
 		}
 
 		// MediaWiki REST envelope, from parameter validation or a read denial:
@@ -148,7 +135,7 @@ function classifyNeoWikiError(err: unknown): NeoWikiApiError {
 					? (translations as { en?: unknown }).en
 					: undefined;
 			const message = typeof en === 'string' ? en : record.error;
-			return new NeoWikiApiError(categoryForStatus(status) ?? 'invalid_input', message);
+			return new ClassifiedError(categoryForStatus(status) ?? 'invalid_input', message, status);
 		}
 
 		// Internal RuntimeException: { message, exception: {…backtrace…} }.
@@ -158,7 +145,7 @@ function classifyNeoWikiError(err: unknown): NeoWikiApiError {
 			const message = Array.isArray(record.violations)
 				? `${record.message}: ${JSON.stringify(record.violations)}`
 				: record.message;
-			return new NeoWikiApiError(categoryForStatus(status) ?? 'upstream_failure', message);
+			return new ClassifiedError(categoryForStatus(status) ?? 'upstream_failure', message, status);
 		}
 	}
 
@@ -166,22 +153,10 @@ function classifyNeoWikiError(err: unknown): NeoWikiApiError {
 	// the message-bearing branch above, so the two paths can't disagree.
 	const statusCategory = categoryForStatus(status);
 	if (statusCategory !== undefined) {
-		return new NeoWikiApiError(statusCategory, `NeoWiki request failed (HTTP ${status}).`);
+		return new ClassifiedError(statusCategory, `NeoWiki request failed (HTTP ${status}).`, status);
 	}
 
 	// Covers both axios network errors (no .response — timeout, ECONNREFUSED) and unrecognised body shapes.
 	const message = err instanceof Error ? err.message : String(err);
-	return new NeoWikiApiError('upstream_failure', message);
-}
-
-/**
- * Converts a thrown `NeoWikiApiError` into an MCP error result; re-throws any
- * other error so the dispatcher classifies it (→ `upstream_failure`). Call from
- * a tool handler's catch block.
- */
-export function neowikiErrorResult(err: unknown, ctx: ToolContext): CallToolResult {
-	if (err instanceof NeoWikiApiError) {
-		return ctx.format.error(err.category, err.message);
-	}
-	throw err;
+	return new ClassifiedError('upstream_failure', message, status);
 }

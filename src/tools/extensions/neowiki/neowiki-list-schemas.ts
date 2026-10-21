@@ -3,7 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import type { TruncationInfo } from '../../../results/truncation.ts';
-import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
+import { neowikiRequest } from './neowikiRequest.ts';
 
 // The /schemas endpoint caps `limit` at 50 (rejects higher with a 400).
 const PAGE_LIMIT = 50;
@@ -44,35 +44,31 @@ export const neowikiListSchemas: Tool<typeof inputSchema> = {
 
 	async handle({ continueFrom }, ctx: ToolContext): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
-		try {
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /schemas response shape; trusted at this boundary
-			const data = (await neowikiRequest(mwn, {
-				method: 'GET',
-				path: '/schemas',
-				query: {
-					limit: String(PAGE_LIMIT),
-					...(continueFrom !== undefined ? { cursor: continueFrom } : {}),
-				},
-			})) as ListSchemasResponse;
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /schemas response shape; trusted at this boundary
+		const data = (await neowikiRequest(mwn, {
+			method: 'GET',
+			path: '/schemas',
+			query: {
+				limit: String(PAGE_LIMIT),
+				...(continueFrom !== undefined ? { cursor: continueFrom } : {}),
+			},
+		})) as ListSchemasResponse;
 
-			const schemas = (Array.isArray(data.schemas) ? data.schemas : []).map(
-				({ subjectsAreDependent, ...summary }) =>
-					subjectsAreDependent === true ? { ...summary, subjectsAreDependent } : summary,
-			);
-			const truncation: TruncationInfo | null =
-				typeof data.nextCursor === 'string'
-					? {
-							reason: 'more-available',
-							returnedCount: schemas.length,
-							itemNoun: 'schemas',
-							toolName: 'neowiki-list-schemas',
-							continueWith: { param: 'continueFrom', value: data.nextCursor },
-						}
-					: null;
+		const schemas = (Array.isArray(data.schemas) ? data.schemas : []).map(
+			({ subjectsAreDependent, ...summary }) =>
+				subjectsAreDependent === true ? { ...summary, subjectsAreDependent } : summary,
+		);
+		const truncation: TruncationInfo | null =
+			typeof data.nextCursor === 'string'
+				? {
+						reason: 'more-available',
+						returnedCount: schemas.length,
+						itemNoun: 'schemas',
+						toolName: 'neowiki-list-schemas',
+						continueWith: { param: 'continueFrom', value: data.nextCursor },
+					}
+				: null;
 
-			return ctx.format.ok({ schemas, ...(truncation !== null ? { truncation } : {}) });
-		} catch (err) {
-			return neowikiErrorResult(err, ctx);
-		}
+		return ctx.format.ok({ schemas, ...(truncation !== null ? { truncation } : {}) });
 	},
 };

@@ -5,6 +5,7 @@ import type { ToolContext } from '../../../../src/runtime/context.ts';
 import { neowikiDeleteSubject } from '../../../../src/tools/extensions/neowiki/neowiki-delete-subject.ts';
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
 import { httpError } from '../../../helpers/httpError.ts';
+import { dispatch } from '../../../../src/runtime/dispatcher.ts';
 
 function contextWith(): { mock: MockMwn; ctx: ToolContext } {
 	const mock = createMockMwn({
@@ -74,13 +75,17 @@ describe('neowiki-delete-subject', () => {
 		expect(sentBody(mock)).toBeUndefined();
 	});
 
-	it('maps a 403 to permission_denied', async () => {
+	it('reports a 403 as a permission_denied failure of the delete', async () => {
 		const mock = createMockMwn({
 			getCsrfToken: vi.fn().mockResolvedValue('tok'),
 			rawRequest: vi.fn().mockRejectedValue(httpError(403, { status: 'error', message: 'nope' })),
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
-		const result = await neowikiDeleteSubject.handle({ id: 's1demo' }, ctx);
-		assertStructuredError(result, 'permission_denied');
+
+		const result = await dispatch(neowikiDeleteSubject, ctx)({ id: 's1demo' });
+
+		expect(assertStructuredError(result, 'permission_denied').message).toBe(
+			'Failed to delete NeoWiki subject: nope',
+		);
 	});
 });

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
-import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
+import { neowikiRequest } from './neowikiRequest.ts';
 import { flattenSubject, type SubjectData } from './subjects.ts';
 
 const inputSchema = {
@@ -36,22 +36,18 @@ export const neowikiGetSubject: Tool<typeof inputSchema> = {
 
 	async handle({ id }, ctx: ToolContext): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
-		try {
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /subject response shape; trusted at this boundary
-			const data = (await neowikiRequest(mwn, {
-				method: 'GET',
-				path: `/subject/${encodeURIComponent(id)}`,
-				query: { expand: 'page' },
-			})) as GetSubjectResponse;
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /subject response shape; trusted at this boundary
+		const data = (await neowikiRequest(mwn, {
+			method: 'GET',
+			path: `/subject/${encodeURIComponent(id)}`,
+			query: { expand: 'page' },
+		})) as GetSubjectResponse;
 
-			const subject = data.subjects?.[id];
-			if (subject === undefined) {
-				return ctx.format.notFound(`NeoWiki subject "${id}" not found`);
-			}
-
-			return ctx.format.ok(flattenSubject(subject, id));
-		} catch (err) {
-			return neowikiErrorResult(err, ctx);
+		const subject = data.subjects?.[id];
+		if (subject === undefined) {
+			return ctx.format.notFound(`NeoWiki subject "${id}" not found`);
 		}
+
+		return ctx.format.ok(flattenSubject(subject, id));
 	},
 };

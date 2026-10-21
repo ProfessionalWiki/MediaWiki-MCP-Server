@@ -5,6 +5,7 @@ import type { ToolContext } from '../../../../src/runtime/context.ts';
 import { neowikiSetMainSubject } from '../../../../src/tools/extensions/neowiki/neowiki-set-main-subject.ts';
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
 import { httpError } from '../../../helpers/httpError.ts';
+import { dispatch } from '../../../../src/runtime/dispatcher.ts';
 
 function contextWith(): { mock: MockMwn; ctx: ToolContext } {
 	const mock = createMockMwn({
@@ -109,7 +110,7 @@ describe('neowiki-set-main-subject', () => {
 				),
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
-		const result = await neowikiSetMainSubject.handle({ pageId: 7, subjectId: 'sX' }, ctx);
+		const result = await dispatch(neowikiSetMainSubject, ctx)({ pageId: 7, subjectId: 'sX' });
 		assertStructuredError(result, 'not_found');
 	});
 });

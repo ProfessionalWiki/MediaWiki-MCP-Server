@@ -13,6 +13,7 @@ import type { SiteInfo } from '../../../../src/wikis/siteInfoCache.ts';
 import { toolArgs } from '../../../helpers/toolArgs.ts';
 import { wikibaseQuery } from '../../../../src/tools/extensions/wikibase/wikibase-query.ts';
 import { assertStructuredData, assertStructuredError } from '../../../helpers/structuredResult.ts';
+import { dispatch } from '../../../../src/runtime/dispatcher.ts';
 
 const ENDPOINT = 'https://query.example.org/sparql';
 const CATS = 'SELECT ?item WHERE { ?item wdt:P31 wd:Q146 } LIMIT 3';
@@ -21,7 +22,16 @@ const CATS = 'SELECT ?item WHERE { ?item wdt:P31 wd:Q146 } LIMIT 3';
 // reaches the handler: the pack's wikiGate refuses it centrally, which
 // tests/runtime/wikiCapability.test.ts covers.
 function contextWithSiteInfo(siteInfo: SiteInfo) {
-	const ctx = fakeContext();
+	const ctx = fakeContext({
+		wikiProbe: {
+			invalidate: () => {},
+			inspect: async () => ({
+				reachable: true,
+				extensions: new Set(['WikibaseRepository']),
+				sparqlEndpoint: siteInfo.sparqlEndpoint,
+			}),
+		},
+	});
 	ctx.siteInfoCache.set('test-wiki', siteInfo);
 	return ctx;
 }
@@ -164,13 +174,13 @@ describe('wikibase-query', () => {
 		);
 		const ctx = contextWithEndpoint();
 
-		const result = await wikibaseQuery.handle(
-			toolArgs(wikibaseQuery, { query: 'SELECT ?x WHERE {' }),
+		const result = await dispatch(
+			wikibaseQuery,
 			ctx,
-		);
+		)(toolArgs(wikibaseQuery, { query: 'SELECT ?x WHERE {' }));
 
-		expect(assertStructuredError(result, 'invalid_input').message).toContain(
-			'MalformedQueryException',
+		expect(assertStructuredError(result, 'invalid_input').message).toMatch(
+			/^Failed to run SPARQL query: MalformedQueryException/,
 		);
 	});
 

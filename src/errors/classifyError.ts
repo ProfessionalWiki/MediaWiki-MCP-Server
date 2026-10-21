@@ -10,6 +10,22 @@ export type ErrorCategory =
 	| 'rate_limited'
 	| 'authentication';
 
+/**
+ * A failure its pack already classified, from a transport of the pack's own
+ * rather than mwn. Thrown like any other failure, so the caller and the logs
+ * see it the way they see every tool's.
+ */
+export class ClassifiedError extends Error {
+	public constructor(
+		public readonly category: ErrorCategory,
+		message: string,
+		public readonly upstreamStatus?: number,
+	) {
+		super(message);
+		this.name = 'ClassifiedError';
+	}
+}
+
 export interface ErrorClassifier {
 	classify(err: unknown): { category: ErrorCategory; code?: string };
 }
@@ -125,6 +141,9 @@ export function classifyError(
 	err: unknown,
 	extensions: ExtensionErrorVocabulary = NO_EXTENSION_CODES,
 ): { category: ErrorCategory; code?: string } {
+	if (err instanceof ClassifiedError) {
+		return { category: err.category };
+	}
 	if (err instanceof CredentialResolutionError) {
 		return { category: 'authentication' };
 	}
