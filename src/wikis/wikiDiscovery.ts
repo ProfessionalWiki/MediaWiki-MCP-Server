@@ -5,7 +5,7 @@ import { makeApiRequest, fetchPageHtml } from '../transport/httpFetch.ts';
 import { assertPublicDestination } from '../transport/ssrfGuard.ts';
 import { logger } from '../runtime/logger.ts';
 import { normalizeServer } from './normalizeServer.ts';
-import { normalizeArticlePath } from './normalizeArticlePath.ts';
+import { normalizeArticlePath } from './articlePath.ts';
 
 const COMMON_SCRIPT_PATHS = ['/w', ''];
 

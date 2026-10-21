@@ -1,22 +1,14 @@
+import { Mwn } from 'mwn';
 import type { ToolContext } from '../runtime/context.ts';
+import { articlePathPattern } from './articlePath.ts';
 import { resolveSiteInfo } from './siteInfo.ts';
 
 export async function buildPageUrl(ctx: ToolContext, title: string): Promise<string> {
 	const { key } = ctx.activeWiki.get();
 	const { server, articlepath } = await resolveSiteInfo(ctx, key);
-	// The article path arrives with a trailing '/$1' stripped, or as MediaWiki's
-	// own pattern when the placeholder sits elsewhere, as in '/index.php?title=$1'.
-	const pattern = articlepath.includes('$1') ? articlepath : `${articlepath}/$1`;
-	// A replacer function, since a title may contain '$$' or "$'".
-	return server + pattern.replace('$1', () => encodeTitle(title));
-}
-
-// Safe in a path or a query value, and keeps ';@$,/:' unencoded, as MediaWiki's
-// wfUrlencode does.
-function encodeTitle(title: string): string {
-	return encodeURIComponent(title.replace(/ /g, '_')).replace(
-		/%(?:3B|40|24|2C|2F|3A)/g,
-		decodeURIComponent,
+	// A replacer function, since a title may contain '$$'.
+	return (
+		server + articlePathPattern(articlepath).replace('$1', () => Mwn.util.wikiUrlencode(title))
 	);
 }
 

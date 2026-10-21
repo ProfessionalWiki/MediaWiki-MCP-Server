@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeArticlePath } from '../../src/wikis/normalizeArticlePath.ts';
+import { normalizeArticlePath } from '../../src/wikis/articlePath.ts';
 
 describe('normalizeArticlePath', () => {
 	it('drops a trailing /$1', () => {

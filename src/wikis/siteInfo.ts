@@ -1,7 +1,7 @@
 import type { ToolContext } from '../runtime/context.ts';
 import type { SiteInfo, LicenseInfo, SiteInfoCache } from './siteInfoCache.ts';
 import { normalizeServer } from './normalizeServer.ts';
-import { normalizeArticlePath } from './normalizeArticlePath.ts';
+import { normalizeArticlePath } from './articlePath.ts';
 import { withSharedWorkScope } from '../runtime/requestContext.ts';
 import { callDeadline, WIKI_CONNECT_TIMEOUT_MS } from '../runtime/callDeadline.ts';
 
