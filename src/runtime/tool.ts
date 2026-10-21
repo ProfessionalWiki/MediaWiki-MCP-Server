@@ -2,6 +2,7 @@ import type { ZodRawShape, z } from 'zod';
 import type { ToolAnnotations, CallToolResult } from '@modelcontextprotocol/server';
 import type { ToolContext } from './context.ts';
 import type { ReconcileContext } from './reconcile.ts';
+import type { TailoredErrors } from '../errors/tailoredErrors.ts';
 
 export interface Tool<TSchema extends ZodRawShape, TCtx extends ToolContext = ToolContext> {
 	readonly name: string;
@@ -18,6 +19,11 @@ export interface Tool<TSchema extends ZodRawShape, TCtx extends ToolContext = To
 	 * "Failed to <verb>: <message>". Falls back to `name` if omitted.
 	 */
 	readonly failureVerb?: string;
+	/**
+	 * Wordings for some of the wiki's errors, by error code, that replace the
+	 * "Failed to <verb>: <message>" the dispatcher otherwise reports.
+	 */
+	readonly tailoredErrors?: TailoredErrors;
 	/**
 	 * Extracts a single identifier from the tool's input args (typically a page
 	 * title, search query, or URL) for the `target` field of the `tool_call`

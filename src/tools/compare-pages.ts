@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
+import { pageNotFound, revisionNotFound } from '../errors/tailoredErrors.ts';
 import { inlineDiffToText } from '../results/diffFormat.ts';
 import { truncateByBytes } from '../results/truncation.ts';
 
@@ -167,6 +168,7 @@ export const comparePages: Tool<typeof inputSchema> = {
 		openWorldHint: true,
 	},
 	failureVerb: 'compare pages',
+	tailoredErrors: { missingtitle: pageNotFound, nosuchrevid: revisionNotFound },
 
 	async handle(args, ctx: ToolContext): Promise<CallToolResult> {
 		const sideError = validateSide('from', args) ?? validateSide('to', args);

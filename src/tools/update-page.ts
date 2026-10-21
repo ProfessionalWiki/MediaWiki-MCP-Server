@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Mwn } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
+import { sectionNotFound } from '../errors/tailoredErrors.ts';
 import { buildPageUrl, formatEditComment } from '../wikis/utils.ts';
 import { readPage } from '../wikis/readPage.ts';
 import { contentMaxBytes } from '../results/truncation.ts';
@@ -491,6 +492,7 @@ export const updatePage: Tool<typeof inputSchema> = {
 		openWorldHint: true,
 	},
 	failureVerb: 'update page',
+	tailoredErrors: { nosuchsection: sectionNotFound },
 	target: (a) => a.title,
 
 	async handle(args, ctx: ToolContext): Promise<CallToolResult> {
