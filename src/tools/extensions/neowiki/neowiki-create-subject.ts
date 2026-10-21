@@ -6,7 +6,7 @@ import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
 import { formatEditComment } from '../../../wikis/utils.ts';
 import { resolvePageId, hasOnePageRef } from './pageId.ts';
 import { writeResult, type SubjectWriteResponse } from './subjects.ts';
-import { statementsSchema } from './statements.ts';
+import { dependentSubjectsSchema, statementsSchema } from './statements.ts';
 
 const inputSchema = {
 	title: z
@@ -41,13 +41,18 @@ const inputSchema = {
 	statements: statementsSchema.describe(
 		'Map of property name → { propertyType, value }. Validate first with neowiki-validate-subject.',
 	),
+	dependentSubjects: dependentSubjectsSchema
+		.optional()
+		.describe(
+			'Dependent Subjects to create in the same revision, each the target of a relation in statements or in another item of this list.',
+		),
 	comment: z.string().optional().describe('Optional edit summary.'),
 } as const;
 
 export const neowikiCreateSubject: Tool<typeof inputSchema> = {
 	name: 'neowiki-create-subject',
 	description:
-		"Creates a new NeoWiki Subject on an existing wiki page and returns its ID, the violations of its Schema it was saved with, and the Subject as saved. Enabled only when the wiki has NeoWiki installed. Set isMain to make it the page's Main Subject (a page has at most one); otherwise it joins the page's other Subjects. Requires the edit right. A statement whose value is empty is dropped. A write that breaks a rule for Dependent Subjects is refused; other violations are warnings unless the wiki enforces validation, which refuses a write that introduces an error-severity one. A Subject of a Schema whose Subjects are dependent (subjectsAreDependent in neowiki-get-schema) cannot be created with this tool. Pre-validate with neowiki-validate-subject. Pre-1.0: the NeoWiki API may change without notice.",
+		'Creates a new NeoWiki Subject on an existing wiki page and returns its ID, the violations of its Schema it was saved with, and the Subject as saved. Enabled only when the wiki has NeoWiki installed. Set isMain to make it the page\'s Main Subject (a page has at most one); otherwise it joins the page\'s other Subjects. Requires the edit right. A statement whose value is empty is dropped. A write that breaks a rule for Dependent Subjects is refused; other violations are warnings unless the wiki enforces validation, which refuses a write that introduces an error-severity one. A Dependent Subject, of a Schema with subjectsAreDependent in neowiki-get-schema, is created with the Subject that points at it: its ID comes from neowiki-mint-subject-ids, a relation targets it ({ target: "<id>" }), and the Dependent Subject goes in dependentSubjects. Pre-validate with neowiki-validate-subject. Pre-1.0: the NeoWiki API may change without notice.',
 	inputSchema,
 	annotations: {
 		title: 'Create NeoWiki subject',
@@ -60,7 +65,7 @@ export const neowikiCreateSubject: Tool<typeof inputSchema> = {
 	target: (a) => a.label || a.schema,
 
 	async handle(
-		{ title, pageId, isMain, label, schema, statements, comment },
+		{ title, pageId, isMain, label, schema, statements, dependentSubjects, comment },
 		ctx: ToolContext,
 	): Promise<CallToolResult> {
 		if (!hasOnePageRef({ title, pageId })) {
@@ -85,6 +90,7 @@ export const neowikiCreateSubject: Tool<typeof inputSchema> = {
 					label,
 					schema,
 					statements,
+					dependentSubjects,
 					...(editComment !== undefined ? { comment: editComment } : {}),
 				},
 			})) as SubjectWriteResponse;
