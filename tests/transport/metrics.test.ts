@@ -10,7 +10,7 @@ const mockRequest = vi.fn();
 import express from 'express';
 import request from 'supertest';
 import { mountMetricsEndpoint } from '../../src/transport/streamableHttp.ts';
-import { mountReadyEndpoint, __resetReadyCacheForTesting } from '../../src/transport/ready.ts';
+import { mountReadyEndpoint } from '../../src/transport/ready.ts';
 import { __resetMetricsForTesting, setInFlightProvider } from '../../src/runtime/metrics.ts';
 import type { ActiveWiki } from '../../src/wikis/activeWiki.ts';
 import type { MwnProvider } from '../../src/wikis/mwnProvider.ts';
@@ -45,7 +45,6 @@ describe('GET /metrics — disabled', () => {
 	beforeEach(() => {
 		delete process.env.MCP_METRICS;
 		__resetMetricsForTesting();
-		__resetReadyCacheForTesting();
 		mockRequest.mockReset();
 	});
 
@@ -59,7 +58,6 @@ describe('GET /metrics — enabled', () => {
 	beforeEach(() => {
 		process.env.MCP_METRICS = 'true';
 		__resetMetricsForTesting();
-		__resetReadyCacheForTesting();
 		mockRequest.mockReset();
 	});
 

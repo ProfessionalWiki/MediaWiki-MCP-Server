@@ -12,7 +12,6 @@ import express from 'express';
 import request from 'supertest';
 import {
 	mountReadyEndpoint,
-	__resetReadyCacheForTesting,
 	__probeDefaultWikiForTesting,
 	READY_PROBE_TIMEOUT_MS,
 } from '../../src/transport/ready.ts';
@@ -63,7 +62,6 @@ function providerTaking(
 describe('/ready', () => {
 	beforeEach(() => {
 		mockRequest.mockReset();
-		__resetReadyCacheForTesting();
 	});
 
 	afterEach(() => {
