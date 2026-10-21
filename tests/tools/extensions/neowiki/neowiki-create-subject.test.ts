@@ -8,6 +8,12 @@ import { httpError } from '../../../helpers/httpError.ts';
 
 const stmts = { Country: { propertyType: 'text', value: ['Germany'] } };
 
+const birth = {
+	id: 's1demo6sssssss1',
+	schema: 'Birth',
+	statements: { Year: { propertyType: 'number', value: 1881 } },
+};
+
 const created = { status: 'created', subjectId: 's1' };
 
 function contextWith(data: unknown): { mock: MockMwn; ctx: ToolContext } {
@@ -85,6 +91,17 @@ describe('neowiki-create-subject', () => {
 			ctx,
 		);
 		assertStructuredError(result, 'conflict');
+	});
+
+	it('writes dependent subjects in the same request', async () => {
+		const { mock, ctx } = contextWith(created);
+
+		await neowikiCreateSubject.handle(
+			{ pageId: 7, schema: 'Person', statements: stmts, dependentSubjects: [birth] },
+			ctx,
+		);
+
+		expect(sentBody(mock)).toMatchObject({ dependentSubjects: [birth] });
 	});
 
 	it('takes an empty label as no label', () => {

@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - The NeoWiki tools now need NeoWiki from 2026-09-19 or later. On an earlier NeoWiki, `neowiki-validate-subject` fails before 2026-08-25, `neowiki-create-subject` fails before 2026-09-14 for a subject that is not the page's main subject (ProfessionalWiki/NeoWiki#1422), and `neowiki-search-subjects` needs a schema before 2026-09-19.
 
+### Added
+
+- `neowiki-create-subject` and `neowiki-update-subject` take `dependentSubjects`, which writes Dependent Subjects in the same revision as the subject pointing at them. Their IDs come from the new `neowiki-mint-subject-ids` tool. `dependentSubjects` needs NeoWiki with ProfessionalWiki/NeoWiki#1673 (2026-10-15) or later.
+
 ### Changed
 
 - The NeoWiki tool descriptions now describe relations as https://github.com/ProfessionalWiki/NeoWiki/pull/1633 changed them. On a NeoWiki without that change, Cypher queries written from them miss relation edges, so upgrade NeoWiki and the server together.

@@ -17,3 +17,18 @@ const statementSchema = z.object({
 });
 
 export const statementsSchema = z.record(z.string(), statementSchema);
+
+export const dependentSubjectsSchema = z.array(
+	z.object({
+		id: z
+			.string()
+			.min(1)
+			.describe(
+				'An unused Subject ID from neowiki-mint-subject-ids, creating the Dependent Subject, or the ID of a Dependent Subject this Subject reaches, replacing it.',
+			),
+		schema: z.string().min(1).describe('Name of a Schema whose Subjects are dependent.'),
+		statements: statementsSchema.describe(
+			"The Dependent Subject's statement map, shaped as for the Subject itself.",
+		),
+	}),
+);

@@ -8,6 +8,12 @@ import { httpError } from '../../../helpers/httpError.ts';
 
 const stmts = { Founded: { propertyType: 'number', value: 2019 } };
 
+const birth = {
+	id: 's1demo6sssssss1',
+	schema: 'Birth',
+	statements: { Year: { propertyType: 'number', value: 1881 } },
+};
+
 const updated = { status: 'updated', subjectId: 's1demo' };
 
 function contextWith(data: unknown): { mock: MockMwn; ctx: ToolContext } {
@@ -93,6 +99,17 @@ describe('neowiki-update-subject', () => {
 		);
 
 		expect(sentBody(mock)).not.toHaveProperty('comment');
+	});
+
+	it('writes dependent subjects in the same request', async () => {
+		const { mock, ctx } = contextWith(updated);
+
+		await neowikiUpdateSubject.handle(
+			{ id: 's1demo', statements: stmts, dependentSubjects: [birth] },
+			ctx,
+		);
+
+		expect(sentBody(mock)).toMatchObject({ dependentSubjects: [birth] });
 	});
 
 	it('takes back the empty label a read returns for a subject without one', () => {

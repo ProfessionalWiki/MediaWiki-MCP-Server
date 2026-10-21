@@ -10,6 +10,7 @@ import { neowikiUpdateSubject } from './neowiki-update-subject.ts';
 import { neowikiDeleteSubject } from './neowiki-delete-subject.ts';
 import { neowikiSetMainSubject } from './neowiki-set-main-subject.ts';
 import { neowikiValidateSubject } from './neowiki-validate-subject.ts';
+import { neowikiMintSubjectIds } from './neowiki-mint-subject-ids.ts';
 
 export const neowikiPack: ExtensionPack = {
 	id: 'neowiki',
@@ -26,5 +27,6 @@ export const neowikiPack: ExtensionPack = {
 		neowikiDeleteSubject,
 		neowikiSetMainSubject,
 		neowikiValidateSubject,
+		neowikiMintSubjectIds,
 	],
 };
