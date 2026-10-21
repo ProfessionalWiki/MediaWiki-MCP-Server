@@ -35,8 +35,7 @@ export function extractBearerToken(req: Request): string | undefined {
 	return token || undefined;
 }
 
-// Resolves the request's scheme, honouring a trusted reverse proxy's
-// x-forwarded-proto (first value) and falling back to the socket's own security.
+// Honours a trusted reverse proxy's x-forwarded-proto.
 export function resolveRequestProto(req: Request): 'http' | 'https' {
 	const protoHeader = req.headers['x-forwarded-proto'];
 	const proto = typeof protoHeader === 'string' ? protoHeader.split(',')[0]?.trim() : undefined;
@@ -53,9 +52,7 @@ function wikiNeedsAuth(cfg: WikiConfig, fallbackAllowed: boolean): boolean {
 	return !(hasStatic && fallbackAllowed);
 }
 
-// Returns the active hosted-OAuth-proxy config, or null when the proxy is
-// disabled. getDefaultProxyConfig in streamableHttp.ts is the production
-// implementation.
+// Null while the hosted OAuth proxy is disabled.
 export type ProxyConfigGetter = () => ProxyConfig | null;
 
 // The id an error emitted before dispatch may echo, following the same rule as the
@@ -82,21 +79,12 @@ function echoedId(req: Request): { id?: string | number } {
 	return id === undefined ? {} : { id };
 }
 
-// Emits the shared OAuth 401 challenge: a JSON-RPC error body with the
-// WWW-Authenticate: Bearer ... resource_metadata=... header pointing at this
-// server's protected-resource document. Reused by the legacy OAuth-only
-// short-circuit and the proxy invalid-JWT path so both speak the same dialect.
-// `hasMetadata` says whether this server publishes a protected-resource document,
-// which is true only while the hosted proxy is enabled. Pointing a client at that
-// URL when it 404s sends it to a dead end, so the parameter is omitted instead;
-// RFC 6750 admits a challenge without it.
+// `hasMetadata`: whether this server serves a protected-resource document. A
+// client pointed at one that 404s is stranded; RFC 6750 allows leaving it out.
 function emit401Challenge(req: Request, res: Response, hasMetadata: boolean): void {
 	const requestProto = resolveRequestProto(req);
 	const base = resolvePublicBase(req.headers.host ?? undefined, requestProto);
-	// The protected-resource document is served at the ORIGIN root (RFC 9728), not
-	// under MCP_PUBLIC_URL's path segment. Point resource_metadata at the origin so
-	// it resolves — the SDK fetches this URL verbatim with no root fallback. Preserve
-	// the authority (including any explicit port) and only drop a trailing path.
+	// The document is at the origin root (RFC 9728), and the SDK fetches this URL as given.
 	const origin = /^[a-z][a-z0-9+.-]*:\/\/[^/]+/i.exec(base)?.[0] ?? base.replace(/\/+$/, '');
 	const metadataUrl = `${origin}/.well-known/oauth-protected-resource`;
 	res.set(
@@ -115,10 +103,7 @@ function emit401Challenge(req: Request, res: Response, hasMetadata: boolean): vo
 	});
 }
 
-// Emitted when a proxy JWT is valid but its upstream token could not be refreshed
-// because of a transient upstream failure. Unlike emit401Challenge this carries NO
-// WWW-Authenticate header: the client should retry, not discard its session and
-// re-authenticate.
+// No WWW-Authenticate: the client should retry, not sign in again.
 function emit503Unavailable(req: Request, res: Response): void {
 	res.status(503).json({
 		jsonrpc: '2.0',
@@ -130,13 +115,11 @@ function emit503Unavailable(req: Request, res: Response): void {
 	});
 }
 
-// One shared allowance for every caller-supplied bearer, charged alongside the
-// per-token bucket. This server cannot verify those tokens, so without it a
-// caller minting a random bearer per request would never meet a limit.
+// Forwarded bearers are unverified, so a fresh random one per request would
+// otherwise never meet a limit.
 const PASSTHROUGH_SHARED_KEY = 'bearer:shared';
 
-// The refusal that should be reported when two allowances are charged: a refusal
-// beats an admission, and the longer wait beats the shorter.
+// A refusal beats an admission, and the longer wait beats the shorter.
 function worstOf(a: RateLimitDecision, b: RateLimitDecision): RateLimitDecision {
 	if (a.allowed) {
 		return b;
@@ -159,10 +142,7 @@ function emit429RateLimited(req: Request, res: Response, retryAfterSeconds: numb
 	});
 }
 
-// Only tools/call is limited: that is the request the spec's rate-limit
-// requirement names, and it is the one that reaches the wiki. Discovery,
-// initialize, cancellations and the held-open subscriptions/listen stream all
-// pass untouched — a stream that consumed a token would hold it forever.
+// Only tools/call reaches the wiki; a held-open listen stream would keep its token.
 function isToolsCallMessage(message: unknown): boolean {
 	return (
 		typeof message === 'object' &&
@@ -171,10 +151,7 @@ function isToolsCallMessage(message: unknown): boolean {
 	);
 }
 
-// How many tokens a request costs. The legacy stateless leg executes a JSON-RPC
-// batch array entry by entry, so a batch must be charged per tools/call entry:
-// counting the array as one request would let any caller wrap N calls in
-// brackets and pay for one.
+// The legacy leg runs a batch entry by entry, so each tools/call entry pays.
 function toolsCallCost(body: unknown): number {
 	if (Array.isArray(body)) {
 		return body.filter(isToolsCallMessage).length;
@@ -184,26 +161,16 @@ function toolsCallCost(body: unknown): number {
 
 export interface McpRouteOptions {
 	wikiRegistry?: WikiRegistry;
-	// When the hosted OAuth proxy is enabled, the /mcp bearer is a proxy-minted
-	// JWT (not a wiki token): we verify it and resolve the upstream wiki token
-	// from the store before threading it into withRequestContext. Omitted (or
-	// returning null) leaves the legacy bearer-passthrough/401-discovery path
-	// unchanged.
+	// With the hosted proxy, a bearer is a proxy JWT standing for a stored wiki token.
 	getProxyConfig?: ProxyConfigGetter;
 	proxyStore?: ProxyStore;
-	// Injected for testing; production leaves it undefined so resolveUpstreamBearer
-	// uses the real server-to-server refresh.
+	// Tests only.
 	refresh?: RefreshFn;
-	// The default wiki served by this transport. When that wiki is configured
-	// `private` (anonymous reads disabled upstream), a tokenless request is
-	// challenged with a connection-time 401 rather than served anonymously.
+	// When it is `private`, a tokenless request is refused at connect.
 	defaultWikiKey?: string;
-	// Reported when the Node adapter answers 500 because request conversion or
-	// handler.fetch itself threw. Handler-internal errors surface through the
-	// handler's own onerror instead.
+	// For a 500 from the Node adapter; the handler reports its own errors.
 	onerror?: (error: Error) => void;
-	// Limits tools/call per authenticated caller (shared bucket for anonymous
-	// traffic). Omitted when rate limiting is disabled (MCP_RATE_LIMIT=0).
+	// Absent when MCP_RATE_LIMIT=0.
 	rateLimiter?: RateLimiter;
 }
 
@@ -289,13 +256,8 @@ function everyWikiNeedsAuth(wikiRegistry: WikiRegistry): boolean {
 	return all.length > 0 && all.every((cfg) => wikiNeedsAuth(cfg, fallbackAllowed));
 }
 
-// Builds the /mcp route: per-request bearer resolution in front of the SDK's
-// era-routing handler. The handler serves 2026-07-28 traffic per request and
-// falls back to old-school stateless serving for 2025-era traffic, so this one
-// route covers POST, GET, and DELETE — body-less GET/DELETE classify as legacy
-// session operations and are answered 405 by the stateless fallback.
-// Structurally typed on `fetch` so tests can substitute a capturing fake for
-// the real handler.
+// Serves POST, GET and DELETE: the SDK handler falls back to stateless serving
+// for 2025-era traffic, which answers GET and DELETE with 405.
 export function createMcpRouteHandler(
 	handler: Pick<McpHttpHandler, 'fetch'>,
 	options: McpRouteOptions = {},
@@ -321,12 +283,7 @@ export function createMcpRouteHandler(
 		if (rateLimiter && req.method === 'POST') {
 			const cost = toolsCallCost(req.body);
 			if (cost > 0) {
-				// An unverified bearer would otherwise mint a fresh allowance per
-				// request: rotating random tokens rotates digests. Charging a shared
-				// bucket as well caps the whole forwarding path, while the per-digest
-				// bucket still keeps distinct legitimate callers apart. Refusing on
-				// either leaves the other's token spent — an accounting slip that
-				// only ever makes the limiter stricter under abuse.
+				// Rotating tokens rotates digests, so forwarded bearers also share a bucket.
 				const decision =
 					caller.token?.wikiKey === null
 						? worstOf(
@@ -343,10 +300,7 @@ export function createMcpRouteHandler(
 		}
 
 		await withRequestContext(caller.token, () =>
-			// express.json() has already drained the request stream, so the parsed
-			// body is handed to the adapter. POST only: the SDK documents
-			// parsedBody as absent for body-less methods, and express.json()
-			// would hand GET/DELETE a spurious `{}`.
+			// express.json() has drained the stream; GET and DELETE get no body, not its `{}`.
 			nodeHandler(req, res, req.method === 'POST' ? req.body : undefined),
 		);
 	};
