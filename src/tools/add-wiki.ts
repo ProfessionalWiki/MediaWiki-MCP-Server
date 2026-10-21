@@ -17,6 +17,7 @@ const inputSchema = {
 export const addWiki: Tool<typeof inputSchema, ManagementContext> = {
 	name: 'add-wiki',
 	wikiScoped: false,
+	offeredWhen: (c) => c.allowManagement,
 	description:
 		'Registers a new wiki as an MCP resource by fetching its sitename and API configuration from any URL on the wiki (e.g. a page URL). The wiki becomes available at mcp://wikis/<servername> and can be targeted by passing its key as the `wiki` argument to any wiki tool. Fails if the URL is not a MediaWiki wiki or if a wiki with the same key is already registered.',
 	inputSchema,

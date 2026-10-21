@@ -11,6 +11,7 @@ const inputSchema = {
 export const oauthLogout: Tool<typeof inputSchema> = {
 	name: 'oauth-logout',
 	wikiScoped: false,
+	offeredWhen: (c) => c.transport === 'stdio',
 	description:
 		'Removes stored OAuth tokens. With no argument, removes all stored tokens; with `wiki`, removes only that wiki. Stdio only.',
 	inputSchema,
@@ -24,7 +25,7 @@ export const oauthLogout: Tool<typeof inputSchema> = {
 	failureVerb: 'log out',
 
 	async handle({ wiki }, ctx: ToolContext): Promise<CallToolResult> {
-		// Defense in depth: the reconcile rule already hides this tool on HTTP,
+		// Defense in depth: offeredWhen already hides this tool on HTTP,
 		// but a forced direct invocation must not delete from the local credentials file.
 		if (ctx.transport !== 'stdio') {
 			return ctx.format.invalidInput('oauth-logout is only available on the stdio transport.');

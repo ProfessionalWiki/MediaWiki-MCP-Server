@@ -12,6 +12,13 @@ export interface ReconcileDeps {
 	readonly transport: 'http' | 'stdio';
 	readonly wikiProbe: WikiProbe;
 	readonly extensionPacks: readonly ExtensionPack[];
+	readonly descriptors: readonly DeclaredTool[];
+}
+
+/** The slice of a tool descriptor reconcile reads. */
+export interface DeclaredTool {
+	readonly name: string;
+	readonly offeredWhen?: (context: ReconcileContext) => boolean;
 }
 
 export interface ReconcileContext {
@@ -28,8 +35,6 @@ export interface ToolGatingRule {
 	readonly isAllowed: (ctx: ReconcileContext) => boolean | Promise<boolean>;
 }
 
-const STDIO_ONLY_TOOLS: readonly string[] = ['oauth-status', 'oauth-logout'];
-
 const STATIC_RULES: readonly ToolGatingRule[] = [
 	{
 		name: 'read-only',
@@ -39,29 +44,15 @@ const STATIC_RULES: readonly ToolGatingRule[] = [
 		// read-only wiki.
 		isAllowed: (c) => Object.values(c.allWikis).some((w) => w.readOnly !== true),
 	},
-	{
-		name: 'stdio-only',
-		affects: STDIO_ONLY_TOOLS,
-		isAllowed: (c) => c.transport === 'stdio',
-	},
-	{
-		name: 'wiki-mgmt',
-		affects: ['add-wiki'],
-		isAllowed: (c) => c.allowManagement,
-	},
-	{
-		name: 'remove-wiki',
-		affects: ['remove-wiki'],
-		isAllowed: (c) => c.allowManagement && c.wikiCount >= 2,
-	},
-	{
-		// Nothing to list when a single wiki is configured: every call defaults
-		// to it. Offered once a second wiki appears (reconcile re-runs on add).
-		name: 'list-wikis',
-		affects: ['list-wikis'],
-		isAllowed: (c) => c.wikiCount >= 2,
-	},
 ];
+
+function declaredRules(descriptors: readonly DeclaredTool[]): readonly ToolGatingRule[] {
+	return descriptors.flatMap((tool) =>
+		tool.offeredWhen === undefined
+			? []
+			: [{ name: tool.name, affects: [tool.name], isAllowed: tool.offeredWhen }],
+	);
+}
 
 function buildExtensionRules(packs: readonly ExtensionPack[]): readonly ToolGatingRule[] {
 	return packs.flatMap((pack) => [
@@ -160,7 +151,11 @@ export async function reconcileTools(
 	deps: ReconcileDeps,
 ): Promise<void> {
 	const ctx = buildContext(deps);
-	const rules = [...STATIC_RULES, ...buildExtensionRules(deps.extensionPacks)];
+	const rules = [
+		...STATIC_RULES,
+		...declaredRules(deps.descriptors),
+		...buildExtensionRules(deps.extensionPacks),
+	];
 	const desired = await computeDesiredEnabledState(tools.keys(), ctx, rules);
 	for (const [name, shouldEnable] of desired) {
 		toggle(tools.get(name), shouldEnable);

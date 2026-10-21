@@ -1,6 +1,7 @@
 import type { ZodRawShape, z } from 'zod';
 import type { ToolAnnotations, CallToolResult } from '@modelcontextprotocol/server';
 import type { ToolContext } from './context.ts';
+import type { ReconcileContext } from './reconcile.ts';
 
 export interface Tool<TSchema extends ZodRawShape, TCtx extends ToolContext = ToolContext> {
 	readonly name: string;
@@ -30,5 +31,10 @@ export interface Tool<TSchema extends ZodRawShape, TCtx extends ToolContext = To
 	 * OAuth-store tools set this to `false`.
 	 */
 	readonly wikiScoped?: boolean;
+	/**
+	 * When the tool is offered in tools/list, on top of the gates every tool
+	 * shares (read-only wikis, extension packs). Omitted for a tool always offered.
+	 */
+	readonly offeredWhen?: (context: ReconcileContext) => boolean;
 	readonly handle: (args: z.infer<z.ZodObject<TSchema>>, ctx: TCtx) => Promise<CallToolResult>;
 }

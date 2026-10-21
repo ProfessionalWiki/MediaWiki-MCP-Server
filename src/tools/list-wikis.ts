@@ -34,6 +34,8 @@ export const listWikis: Tool<Record<string, never>> = {
 		openWorldHint: true,
 	},
 	wikiScoped: false,
+	// Nothing to list when a single wiki is configured: every call defaults to it.
+	offeredWhen: (c) => c.wikiCount >= 2,
 	failureVerb: 'list wikis',
 
 	async handle(_args, ctx: ToolContext): Promise<CallToolResult> {

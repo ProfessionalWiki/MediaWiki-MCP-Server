@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { allTools } from '../../src/tools/index.ts';
 
 vi.mock('../../src/wikis/wikiDiscovery.ts', () => ({
 	discoverWiki: vi.fn(),
@@ -142,6 +143,7 @@ describe('add-wiki', () => {
 			transport: 'http' as const,
 			wikiProbe: { hasAnyExtension: async () => false } as never,
 			extensionPacks: [],
+			descriptors: allTools,
 		};
 
 		await reconcileTools(tools, deps);

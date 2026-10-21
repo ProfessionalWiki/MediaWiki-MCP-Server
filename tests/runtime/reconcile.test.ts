@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, type Mock } from 'vitest';
+import { allTools } from '../../src/tools/index.ts';
 import type { RegisteredTool } from '@modelcontextprotocol/server';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
@@ -181,6 +182,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('update-page')!.disable).toHaveBeenCalledTimes(1);
 		for (const name of WRITE_TOOL_NAMES) {
@@ -202,6 +204,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		for (const name of NON_WRITE_TOOL_NAMES) {
 			expect(mocks.get(name)!.disable).not.toHaveBeenCalled();
@@ -222,6 +225,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('update-page')!.enable).toHaveBeenCalledTimes(1);
 		for (const name of WRITE_TOOL_NAMES) {
@@ -242,6 +246,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('update-page')!.enable).toHaveBeenCalledTimes(1);
 		for (const name of WRITE_TOOL_NAMES) {
@@ -258,6 +263,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		for (const m of mocks.values()) {
 			m.enable.mockClear();
@@ -269,6 +275,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		for (const m of mocks.values()) {
 			expect(m.enable).not.toHaveBeenCalled();
@@ -291,6 +298,7 @@ describe('reconcileTools — applyReadOnlyRule', () => {
 				transport: 'stdio',
 				wikiProbe: makeFakeProbe(),
 				extensionPacks: ALL_PACKS,
+				descriptors: allTools,
 			}),
 		).resolves.not.toThrow();
 		expect(mocks.get('update-page')!.disable).toHaveBeenCalledTimes(1);
@@ -325,6 +333,7 @@ describe('reconcileTools — read-only gating of extension write tools', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe({ 'a:NeoWiki': true }),
 			extensionPacks: [NEOWIKI_PACK],
+			descriptors: allTools,
 		});
 		// The read-only rule keys off the production WRITE_TOOL_NAMES, which now
 		// includes extension writes — so the write tool is gated even though the
@@ -347,6 +356,7 @@ describe('reconcileTools — read-only gating of extension write tools', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe({ 'a:NeoWiki': true }),
 			extensionPacks: [NEOWIKI_PACK],
+			descriptors: allTools,
 		});
 		expect(mocks.get(NEOWIKI_WRITE_TOOL)!.enabled).toBe(true);
 		expect(mocks.get(NEOWIKI_READ_TOOL)!.enabled).toBe(true);
@@ -366,6 +376,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		for (const name of ['add-wiki', 'remove-wiki']) {
 			expect(mocks.get(name)!.disable).toHaveBeenCalledTimes(1);
@@ -384,6 +395,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('add-wiki')!.enable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('remove-wiki')!.disable).not.toHaveBeenCalled();
@@ -401,6 +413,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		for (const name of ['add-wiki', 'remove-wiki']) {
 			expect(mocks.get(name)!.enable).toHaveBeenCalledTimes(1);
@@ -419,6 +432,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('remove-wiki')!.enabled).toBe(false);
 
@@ -432,6 +446,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('remove-wiki')!.enabled).toBe(true);
 	});
@@ -448,6 +463,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('remove-wiki')!.enabled).toBe(true);
 
@@ -461,6 +477,7 @@ describe('reconcileTools — applyWikiSetRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('remove-wiki')!.enabled).toBe(false);
 	});
@@ -479,6 +496,7 @@ describe('reconcileTools — applyListWikisRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('list-wikis')!.disable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('list-wikis')!.enable).not.toHaveBeenCalled();
@@ -496,6 +514,7 @@ describe('reconcileTools — applyListWikisRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('list-wikis')!.disable).toHaveBeenCalledTimes(1);
 	});
@@ -512,6 +531,7 @@ describe('reconcileTools — applyListWikisRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('list-wikis')!.enable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('list-wikis')!.disable).not.toHaveBeenCalled();
@@ -529,6 +549,7 @@ describe('reconcileTools — applyListWikisRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('list-wikis')!.enabled).toBe(false);
 
@@ -542,6 +563,7 @@ describe('reconcileTools — applyListWikisRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('list-wikis')!.enabled).toBe(true);
 	});
@@ -558,6 +580,7 @@ describe('reconcileTools — applyListWikisRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('list-wikis')!.enabled).toBe(true);
 
@@ -571,6 +594,7 @@ describe('reconcileTools — applyListWikisRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('list-wikis')!.enabled).toBe(false);
 	});
@@ -589,6 +613,7 @@ describe('reconcileTools — applyTransportRule', () => {
 			transport: 'http',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		for (const name of STDIO_ONLY_TOOL_NAMES) {
 			expect(mocks.get(name)!.disable).toHaveBeenCalledTimes(1);
@@ -608,6 +633,7 @@ describe('reconcileTools — applyTransportRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		for (const name of STDIO_ONLY_TOOL_NAMES) {
 			expect(mocks.get(name)!.enable).toHaveBeenCalledTimes(1);
@@ -627,6 +653,7 @@ describe('reconcileTools — applyTransportRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		for (const name of STDIO_ONLY_TOOL_NAMES) {
 			expect(mocks.get(name)!.enable).toHaveBeenCalledTimes(1);
@@ -645,6 +672,7 @@ describe('reconcileTools — applyTransportRule', () => {
 			transport: 'http',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		for (const name of NON_WRITE_TOOL_NAMES) {
 			expect(mocks.get(name)!.disable).not.toHaveBeenCalled();
@@ -668,6 +696,7 @@ describe('reconcileTools — AND semantics across rules', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		// create-page is write-gated → disabled.
 		expect(mocks.get('create-page')!.enabled).toBe(false);
@@ -803,6 +832,7 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe({}),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('smw-query')!.disable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('smw-list-properties')!.disable).toHaveBeenCalledTimes(1);
@@ -821,6 +851,7 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe({ 'a:SemanticMediaWiki': true }),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('smw-query')!.enable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('smw-list-properties')!.enable).toHaveBeenCalledTimes(1);
@@ -845,6 +876,7 @@ describe('reconcileTools — applySmwExtensionRule', () => {
 			transport: 'stdio',
 			wikiProbe: probe,
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(hasAnySpy).toHaveBeenCalledWith('a', ['SemanticMediaWiki']);
 	});
@@ -877,6 +909,7 @@ describe('reconcileTools — applyBucketExtensionRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe({}),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('bucket-query')!.disable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('get-page')!.disable).not.toHaveBeenCalled();
@@ -894,6 +927,7 @@ describe('reconcileTools — applyBucketExtensionRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe({ 'a:Bucket': true }),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('bucket-query')!.enable).toHaveBeenCalledTimes(1);
 	});
@@ -917,6 +951,7 @@ describe('reconcileTools — applyBucketExtensionRule', () => {
 			transport: 'stdio',
 			wikiProbe: probe,
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(hasAnySpy).toHaveBeenCalledWith('a', ['Bucket']);
 	});
@@ -949,6 +984,7 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe({}),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('cargo-list-tables')!.disable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('cargo-describe-table')!.disable).toHaveBeenCalledTimes(1);
@@ -968,6 +1004,7 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe({ 'a:Cargo': true }),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('cargo-list-tables')!.enable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('cargo-describe-table')!.enable).toHaveBeenCalledTimes(1);
@@ -993,6 +1030,7 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 			transport: 'stdio',
 			wikiProbe: probe,
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(hasAnySpy).toHaveBeenCalledWith('a', ['Cargo', 'LIBRARIAN']);
 	});
@@ -1009,6 +1047,7 @@ describe('reconcileTools — applyCargoExtensionRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe({ 'a:LIBRARIAN': true }),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('cargo-list-tables')!.enable).toHaveBeenCalledTimes(1);
 		expect(mocks.get('cargo-describe-table')!.enable).toHaveBeenCalledTimes(1);
@@ -1029,6 +1068,7 @@ describe('reconcileTools — union gating', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe({ 'other:Cargo': true }),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		for (const name of ['cargo-query', 'cargo-list-tables', 'cargo-describe-table']) {
 			expect(mocks.get(name)!.enable).toHaveBeenCalled();
@@ -1047,6 +1087,7 @@ describe('reconcileTools — union gating', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe({}),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('cargo-query')!.enable).not.toHaveBeenCalled();
 	});
@@ -1064,6 +1105,7 @@ describe('reconcileTools — union gating', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('update-page')!.disable).not.toHaveBeenCalled();
 		for (const name of WRITE_TOOL_NAMES) {
@@ -1084,6 +1126,7 @@ describe('reconcileTools — union gating', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 			extensionPacks: ALL_PACKS,
+			descriptors: allTools,
 		});
 		expect(mocks.get('update-page')!.disable).toHaveBeenCalledTimes(1);
 		for (const name of WRITE_TOOL_NAMES) {
@@ -1129,6 +1172,7 @@ describe('reconcileTools — wikiGateRule', () => {
 				),
 			),
 			extensionPacks: [GATED_PACK],
+			descriptors: allTools,
 		});
 	}
 
@@ -1207,6 +1251,7 @@ describe('reconcileTools — wikiGateRule', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe({ 'a:SemanticMediaWiki': true }),
 			extensionPacks: [SMW_PACK],
+			descriptors: allTools,
 		});
 
 		expect(mocks.get('smw-query')!.disable).not.toHaveBeenCalled();
