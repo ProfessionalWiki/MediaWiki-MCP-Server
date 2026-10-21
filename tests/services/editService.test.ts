@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
-import { UPLOADED, wikiReceivingUploads } from '../helpers/uploadingWiki.ts';
+import { UPLOADED } from '../helpers/uploadingWiki.ts';
+import { writingWiki } from '../helpers/writingWiki.ts';
 import { EditServiceImpl } from '../../src/services/editService.ts';
 import type { ActiveWiki } from '../../src/wikis/activeWiki.ts';
 
@@ -69,12 +70,12 @@ describe('EditServiceImpl', () => {
 		});
 
 		it('sends the file with its title, text, a CSRF token, the params and the configured tags, ignoring warnings', async () => {
-			const wiki = wikiReceivingUploads({ upload: UPLOADED });
+			const wiki = writingWiki({ upload: UPLOADED });
 			const edit = new EditServiceImpl(fakeActiveWiki('mcp-upload'));
 
 			await edit.submitUpload(wiki.mwn, catFile, 'File:Cat.jpg', 'A cat.', { comment: 'c' });
 
-			expect(wiki.uploads[0]).toMatchObject({
+			expect(Object.fromEntries(wiki.sentWrite())).toMatchObject({
 				file: 'cat bytes',
 				filename: 'File:Cat.jpg',
 				text: 'A cat.',
@@ -86,21 +87,21 @@ describe('EditServiceImpl', () => {
 		});
 
 		it('sends no tags when the wiki configures none', async () => {
-			const wiki = wikiReceivingUploads({ upload: UPLOADED });
+			const wiki = writingWiki({ upload: UPLOADED });
 			const edit = new EditServiceImpl(fakeActiveWiki());
 
 			await edit.submitUpload(wiki.mwn, catFile, 'File:Cat.jpg', 'A cat.', {});
 
-			expect(wiki.uploads[0]).not.toHaveProperty('tags');
+			expect(wiki.sentWrite().has('tags')).toBe(false);
 		});
 
 		it('sends the whole file again when the wiki asks for a fresh token', async () => {
-			const wiki = wikiReceivingUploads(BAD_TOKEN, { upload: UPLOADED });
+			const wiki = writingWiki([BAD_TOKEN, { upload: UPLOADED }]);
 			const edit = new EditServiceImpl(fakeActiveWiki());
 
 			await edit.submitUpload(wiki.mwn, catFile, 'File:Cat.jpg', 'A cat.', {});
 
-			expect(wiki.uploads[1].file).toBe('cat bytes');
+			expect(wiki.writes[1].get('file')).toBe('cat bytes');
 		});
 	});
 
@@ -151,35 +152,43 @@ describe('EditServiceImpl', () => {
 		});
 	});
 
-	it('submitUploadFromBytes posts a multipart upload with token, tags, and ignorewarnings', async () => {
-		const mock = createMockMwn({
-			getCsrfToken: vi.fn().mockResolvedValue('CSRFTOKEN'),
-			request: vi.fn().mockResolvedValue({ upload: { result: 'Success', filename: 'F.png' } }),
-		});
+	it('submitUploadFromBytes sends the bytes with their title, text, a CSRF token, the params and the configured tags', async () => {
+		const wiki = writingWiki({ upload: UPLOADED });
 		const edit = new EditServiceImpl(fakeActiveWiki('mcp-upload'));
-		const result = await edit.submitUploadFromBytes(
-			mock as never,
-			Buffer.from('bytes'),
-			'F.png',
-			'File:F.png',
-			'desc',
+
+		await edit.submitUploadFromBytes(
+			wiki.mwn,
+			Buffer.from('cat bytes'),
+			'cat.jpg',
+			'File:Cat.jpg',
+			'A cat.',
 			{ comment: 'c' },
 		);
-		expect(result).toEqual({ result: 'Success', filename: 'F.png' });
-		const [params, opts] = mock.request.mock.calls[0];
-		expect(params).toMatchObject({
-			action: 'upload',
-			filename: 'File:F.png',
-			text: 'desc',
+
+		expect(Object.fromEntries(wiki.sentWrite())).toMatchObject({
+			file: 'cat bytes',
+			filename: 'File:Cat.jpg',
+			text: 'A cat.',
 			comment: 'c',
-			ignorewarnings: true,
-			token: 'CSRFTOKEN',
+			token: 'csrf-token',
 			tags: 'mcp-upload',
+			ignorewarnings: '1',
 		});
-		expect(params.file).toMatchObject({ name: 'F.png' });
-		// The file part must be a Buffer — form-data rejects a plain Readable
-		// (no known length) with "Unknown stream" at request time.
-		expect(Buffer.isBuffer(params.file.stream)).toBe(true);
-		expect(opts).toEqual({ headers: { 'Content-Type': 'multipart/form-data' } });
+	});
+
+	it('returns the upload the wiki reports', async () => {
+		const wiki = writingWiki({ upload: UPLOADED });
+		const edit = new EditServiceImpl(fakeActiveWiki());
+
+		const result = await edit.submitUploadFromBytes(
+			wiki.mwn,
+			Buffer.from('cat bytes'),
+			'cat.jpg',
+			'File:Cat.jpg',
+			'',
+			{},
+		);
+
+		expect(result).toEqual(UPLOADED);
 	});
 });
