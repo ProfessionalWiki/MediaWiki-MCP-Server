@@ -20,7 +20,11 @@ export async function acquireToken(wikiKey: string, ctx: AcquireCtx): Promise<st
 	if (cur !== undefined) {
 		try {
 			const md = await fetchMetadata(wikiKey, ctx.wiki);
-			return await refreshIfNeeded(wikiKey, { clientId: ctx.oauth2ClientId, metadata: md }, cur);
+			// A token another issuer granted, under a key since pointed at a different
+			// wiki, is replaced by signing in again rather than sent there.
+			if (cur.issuer === undefined || cur.issuer === md.issuer) {
+				return await refreshIfNeeded(wikiKey, { clientId: ctx.oauth2ClientId, metadata: md }, cur);
+			}
 		} catch (err: unknown) {
 			// Only invalid_grant means the stored token is dead and a fresh dance
 			// will recover. tokenRefresh already deleted the entry. Other errors

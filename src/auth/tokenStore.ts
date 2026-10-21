@@ -10,6 +10,10 @@ export interface StoredToken {
 	expires_at: string;
 	scopes: string[];
 	obtained_at: string;
+	// The OAuth issuer that granted the token, so it is neither sent to nor
+	// refreshed at a different wiki later configured under the same key. Absent
+	// on tokens saved before it was recorded, which are still used.
+	issuer?: string;
 }
 
 export interface CredentialsFile {

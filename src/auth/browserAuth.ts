@@ -166,6 +166,7 @@ async function doBrowserAuth(wikiKey: string, ctx: BrowserAuthCtx): Promise<stri
 		expires_at: expiresAtIso,
 		scopes,
 		obtained_at: nowIso,
+		issuer: metadata.issuer,
 	});
 
 	logger.info('', {
