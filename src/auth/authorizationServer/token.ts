@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { ProxyConfig } from './proxyConfig.ts';
-import type { ProxyStore } from './proxyStore.ts';
+import { issuedFor, type ProxyStore } from './proxyStore.ts';
 import { s256 } from '../pkce.ts';
 import { mwOauth2TokenEndpoint } from '../mwOauth2Endpoints.ts';
 import { mintAccessToken, mintRefreshToken, verifyRefreshToken } from './jwt.ts';
@@ -89,6 +89,9 @@ export async function handleToken(
 			body.client_id !== upstream.clientId
 		) {
 			return bad('invalid_grant', 'refresh token was not issued to this client');
+		}
+		if (!issuedFor(upstream, pc.wikiKey)) {
+			return bad('invalid_grant', 'refresh token was issued for another wiki');
 		}
 		// Refresh-token rotation + reuse detection (OAuth 2.1 §4.3.1). Claim the
 		// rotation atomically (synchronously, before the upstream await): the presented

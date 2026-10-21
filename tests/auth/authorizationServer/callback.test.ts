@@ -55,6 +55,8 @@ describe('handleCallback', () => {
 		// set, so an unbound record silently accepts any client. Assert it here,
 		// where the record is already in hand.
 		expect(store.getUpstreamToken(consumed.upstreamTokenId)?.clientId).toBe('cid');
+		// Likewise the only write of the wiki the token is for.
+		expect(store.getUpstreamToken(consumed.upstreamTokenId)?.wikiKey).toBe(pc.wikiKey);
 		expect(store.getTransaction('txn-1')).toBeUndefined();
 	});
 

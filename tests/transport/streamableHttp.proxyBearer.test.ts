@@ -44,6 +44,24 @@ describe('resolveUpstreamBearer', () => {
 		expect(await resolveUpstreamBearer(jwt, pc, store)).toMatchObject({ accessToken: 'WA' });
 	});
 
+	it('refuses a token issued while the proxy signed users in to another wiki', async () => {
+		const store = new InMemoryProxyStore();
+		const id = store.putUpstreamToken({
+			accessToken: 'WA',
+			expiresAt: Date.now() + 1e6,
+			wikiKey: 'elsewhere',
+		});
+		const jwt = await mintAccessToken({
+			issuer: pc.issuer,
+			signingKey: pc.signingKey,
+			upstreamTokenId: id,
+			ttlMs: 60_000,
+			scopes: [],
+		});
+
+		await expect(resolveUpstreamBearer(jwt, pc, store)).rejects.toThrow();
+	});
+
 	it('throws on an invalid JWT', async () => {
 		const store = new InMemoryProxyStore();
 		await expect(resolveUpstreamBearer('garbage', pc, store)).rejects.toThrow();

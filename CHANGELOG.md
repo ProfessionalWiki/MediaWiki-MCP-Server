@@ -41,6 +41,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `create-page` fails when the wiki refuses the creation without an error code, as it does for a CAPTCHA, instead of reporting success.
 - With hosted OAuth sign-in, a user's wiki token is sent only to the wiki sign-in is set up for.
 - With hosted OAuth sign-in, a write to a wiki other than the one sign-in covers fails as `permission_denied`, naming that wiki, instead of asking the caller to authenticate.
+- Hosted OAuth sign-in signs users out when the default wiki changes, instead of sending their token for the previous wiki to the new one. Sessions started before this release are not affected.
 
 ## [0.19.0] - 2026-09-25
 
