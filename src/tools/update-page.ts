@@ -4,6 +4,7 @@ import type { Mwn } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { buildPageUrl, formatEditComment } from '../wikis/utils.ts';
+import { readPage } from '../wikis/readPage.ts';
 import { contentMaxBytes } from '../results/truncation.ts';
 import { editableChildrenOf } from '../services/sectionSubtree.ts';
 
@@ -395,18 +396,14 @@ async function findReplace(
 ): Promise<CallToolResult> {
 	const { title, section, latestId } = args;
 	const { find, replaceWith } = plan;
-	const readParams: Record<string, string | number | boolean> = {
+	const page = await readPage(mwn, title, {
 		rvprop: 'ids|content',
-		// mwn.read follows redirects by default, which would resolve the title to
-		// the redirect's target while the edit below still goes to the title the
-		// caller named — splicing the target's text over the redirect page and
-		// leaving the target untouched.
+		// The edit below goes to the title the caller named, so following a
+		// redirect would splice the target's text over the redirect page and leave
+		// the target untouched.
 		redirects: false,
-	};
-	if (section !== undefined) {
-		readParams.rvsection = section;
-	}
-	const page = await mwn.read(title, readParams);
+		...(section !== undefined ? { rvsection: section } : {}),
+	});
 	if (page.missing) {
 		return ctx.format.notFound(`Page "${title}" not found`);
 	}
