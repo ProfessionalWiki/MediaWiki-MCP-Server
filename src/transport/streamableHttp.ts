@@ -34,6 +34,7 @@ import { createInFlightCounter, type InFlightCounter } from './inFlight.ts';
 import { createMcpRouteHandler, resolveRequestProto, type ProxyConfigGetter } from './mcpRoute.ts';
 import { createRateLimiter, type RateLimiter } from './rateLimit.ts';
 import { PAYLOAD_TOO_LARGE_ERROR_CODE } from './errorCodes.ts';
+import { sendJsonRpcError } from './jsonRpcError.ts';
 import { mountReadyEndpoint } from './ready.ts';
 import { loadConfigFromFile } from '../config/loadConfig.ts';
 import type { WikiRegistry } from '../wikis/wikiRegistry.ts';
@@ -320,13 +321,8 @@ export function errorHandler(limit: string): ErrorRequestHandler {
 
 		switch (dialectFor(req)) {
 			case 'jsonrpc':
-				res.status(status).json({
-					jsonrpc: '2.0',
-					// The id is omitted rather than null: this revision's error shape
-					// admits only a string or a number, and every failure reaching here
-					// happened before a request id could be read.
-					error: { code: jsonRpcCodeFor(tooLarge, parseFailed), message },
-				});
+				// Every failure reaching here happened before a request id could be read.
+				sendJsonRpcError(res, status, { code: jsonRpcCodeFor(tooLarge, parseFailed), message });
 				return;
 			case 'oauth':
 				res.status(status).json({ error: 'invalid_request', error_description: message });
