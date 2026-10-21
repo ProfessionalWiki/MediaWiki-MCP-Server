@@ -30,7 +30,7 @@ export function createSharedContext(deps: {
 			return withCallBounds(bot, deadline, getRequestSignal());
 		},
 		wikis: state.wikiRegistry,
-		activeWiki: state.activeWiki,
+		defaultWikiKey: state.defaultWikiKey,
 		uploadDirs: state.uploadDirs,
 		wikiCache: new WikiCacheImpl(state.mwnProvider, state.wikiProbe),
 		wikiProbe: state.wikiProbe,

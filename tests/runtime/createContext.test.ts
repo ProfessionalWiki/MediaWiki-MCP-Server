@@ -48,7 +48,7 @@ describe('createSharedContext', () => {
 		expect(ctx.mwnFor).toBeTypeOf('function');
 		expect(ctx.editFor).toBeTypeOf('function');
 		expect(ctx.wikis).toBeDefined();
-		expect(ctx.activeWiki).toBeDefined();
+		expect(ctx.defaultWikiKey).toBe('w');
 		expect(ctx.uploadDirs).toBeDefined();
 		expect(ctx.wikiCache).toBeDefined();
 		expect(typeof ctx.wikiCache.invalidate).toBe('function');

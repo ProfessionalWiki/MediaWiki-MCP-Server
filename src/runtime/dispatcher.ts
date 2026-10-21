@@ -40,7 +40,7 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends SharedContext
 			// whitespace-only or bare-prefix value normalizes to '' — treat that
 			// as omitted and fall back to the default wiki.
 			const normalized = typeof raw === 'string' ? normalizeWikiArg(raw) : '';
-			const key = normalized !== '' ? normalized : ctx.activeWiki.getDefaultKey();
+			const key = normalized !== '' ? normalized : ctx.defaultWikiKey;
 			const config = ctx.wikis.get(key);
 			if (config === undefined) {
 				const configured = Object.keys(ctx.wikis.getAll());
@@ -81,8 +81,8 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends SharedContext
 					const message = errorMessage(err);
 					return ctx.format.error('authentication', `OAuth login required: ${message}`);
 				}
-				// withRequestFields (not withRequestContext) so the resolved wikiKey
-				// set below survives into the token-scoped run.
+				// withRequestFields (not withRequestContext) so the request's signal
+				// survives into the token-scoped run.
 				return withRequestFields({ runtimeToken: { value: token, wikiKey: key } }, () =>
 					runDispatchInner(tool, callCtx, args, key),
 				);
@@ -90,9 +90,6 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends SharedContext
 			return runDispatchInner(tool, callCtx, args, wiki?.key);
 		};
 
-		if (wiki !== undefined) {
-			return withRequestFields({ wikiKey: wiki.key }, body);
-		}
 		return body();
 	};
 }
@@ -213,7 +210,7 @@ async function runDispatchInner<TSchema extends ZodRawShape, TCtx extends Shared
 		upstreamStatus,
 		errorMessage: errorText,
 		caller: getCallerId(),
-		wikiKey: resolvedKey ?? ctx.activeWiki.getDefaultKey(),
+		wikiKey: resolvedKey ?? ctx.defaultWikiKey,
 	});
 
 	return result;

@@ -14,7 +14,6 @@ export interface RuntimeToken {
 
 interface RequestContext {
 	runtimeToken?: RuntimeToken;
-	wikiKey?: string;
 	signal?: AbortSignal;
 	deadline?: CallDeadline;
 }
@@ -49,10 +48,6 @@ export function getRequestDeadline(): CallDeadline | undefined {
 	return runtimeTokenStore.getStore()?.deadline;
 }
 
-export function getRequestWiki(): string | undefined {
-	return runtimeTokenStore.getStore()?.wikiKey;
-}
-
 export function withRequestContext<T>(
 	runtimeToken: RuntimeToken | undefined,
 	fn: () => Promise<T>,
@@ -61,7 +56,7 @@ export function withRequestContext<T>(
 }
 
 // Merges `fields` onto the current context (or an empty one) rather than
-// replacing it — so adding a wikiKey, then later a runtimeToken, keeps both.
+// replacing it — so adding a signal, then later a runtimeToken, keeps both.
 export function withRequestFields<T>(
 	fields: Partial<RequestContext>,
 	fn: () => Promise<T>,

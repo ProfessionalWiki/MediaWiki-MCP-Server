@@ -16,7 +16,7 @@ async function main(): Promise<void> {
 		{ transport: 'stdio' },
 		{
 			wikiRegistry: state.wikiRegistry,
-			activeWiki: state.activeWiki,
+			defaultWikiKey: state.defaultWikiKey,
 			uploadDirs: state.uploadDirs,
 		},
 	);

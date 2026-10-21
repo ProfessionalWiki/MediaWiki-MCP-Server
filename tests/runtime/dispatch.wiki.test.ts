@@ -112,7 +112,7 @@ describe('dispatch wiki resolution', () => {
 		const other = writingWiki({ edit: { result: 'Success' } });
 		const reachable: Record<string, Mwn> = { main: main.mwn, other: other.mwn };
 		const mwnProvider: MwnProvider = {
-			get: async (key = 'main') => reachable[key],
+			get: async (key) => reachable[key],
 			invalidate: () => {},
 		};
 		const state = {
@@ -184,10 +184,7 @@ describe('dispatch capability guard', () => {
 				remove: (() => {}) as never,
 				isManagementAllowed: () => true,
 			},
-			activeWiki: {
-				get: () => ({ key: 'test-wiki', config: roConfig as never }),
-				getDefaultKey: () => 'test-wiki',
-			},
+			defaultWikiKey: 'test-wiki',
 		});
 		const result = await dispatch(updatePage, ctx)({ title: 'X', source: 'y' } as never);
 		expect(result.isError).toBe(true);
@@ -209,10 +206,7 @@ describe('dispatch capability guard', () => {
 				remove: (() => {}) as never,
 				isManagementAllowed: () => true,
 			},
-			activeWiki: {
-				get: () => ({ key: 'test-wiki', config: config as never }),
-				getDefaultKey: () => 'test-wiki',
-			},
+			defaultWikiKey: 'test-wiki',
 			wikiProbe: {
 				inspect: (async () => ({ reachable: true, extensions: new Set() })) as never,
 				invalidate: (() => {}) as never,
@@ -242,10 +236,7 @@ describe('dispatch capability guard', () => {
 				remove: (() => {}) as never,
 				isManagementAllowed: () => true,
 			},
-			activeWiki: {
-				get: () => ({ key: 'test-wiki', config: oauthConfig as never }),
-				getDefaultKey: () => 'test-wiki',
-			},
+			defaultWikiKey: 'test-wiki',
 		});
 		const result = await dispatch(getPage, ctx)({ title: 'X' } as never);
 		expect(result.isError).toBe(true);

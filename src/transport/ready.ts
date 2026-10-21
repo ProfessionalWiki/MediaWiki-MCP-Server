@@ -2,7 +2,6 @@ import type express from 'express';
 import { recordReadyFailure } from '../runtime/metrics.ts';
 import { monotonicNow } from '../runtime/clock.ts';
 import type { MwnProvider } from '../wikis/mwnProvider.ts';
-import type { ActiveWiki } from '../wikis/activeWiki.ts';
 import { withCallBounds } from '../wikis/abortableMwn.ts';
 import { callDeadline } from '../runtime/callDeadline.ts';
 import { errorMessage } from '../errors/errorMessage.ts';
@@ -19,8 +18,8 @@ export const READY_PROBE_TIMEOUT_MS = 3_000;
 
 // Both halves of the check as one promise, so the race spans the whole of it:
 // resolving the provider can log in, which alone can outlast the budget.
-async function probeSiteInfo(mwnProvider: MwnProvider): Promise<void> {
-	const mwn = await mwnProvider.get();
+async function probeSiteInfo(mwnProvider: MwnProvider, wiki: string): Promise<void> {
+	const mwn = await mwnProvider.get(wiki);
 	// The race below stops the caller waiting; this stops the probe, which would
 	// otherwise keep retrying long after /ready replied and accumulate under
 	// polling.
@@ -32,11 +31,7 @@ async function probeSiteInfo(mwnProvider: MwnProvider): Promise<void> {
 	});
 }
 
-async function probeDefaultWiki(
-	activeWiki: ActiveWiki,
-	mwnProvider: MwnProvider,
-): Promise<ReadyCacheEntry> {
-	const wiki = activeWiki.getDefaultKey();
+async function probeDefaultWiki(wiki: string, mwnProvider: MwnProvider): Promise<ReadyCacheEntry> {
 	const checkedAt = new Date().toISOString();
 	// Resolves rather than rejects, so arming it before the race cannot orphan a
 	// rejection.
@@ -47,7 +42,7 @@ async function probeDefaultWiki(
 	});
 
 	try {
-		const outcome = await Promise.race([probeSiteInfo(mwnProvider), deadline]);
+		const outcome = await Promise.race([probeSiteInfo(mwnProvider, wiki), deadline]);
 		if (outcome === timedOut) {
 			throw new Error(`probe timeout after ${READY_PROBE_TIMEOUT_MS}ms`);
 		}
@@ -77,7 +72,7 @@ export const __probeDefaultWikiForTesting = probeDefaultWiki;
 export function mountReadyEndpoint(
 	app: express.Express,
 	deps: {
-		activeWiki: ActiveWiki;
+		defaultWikiKey: string;
 		mwnProvider: MwnProvider;
 	},
 ): void {
@@ -93,7 +88,7 @@ export function mountReadyEndpoint(
 			if (readyProbeInFlight) {
 				entry = await readyProbeInFlight;
 			} else {
-				const probe = probeDefaultWiki(deps.activeWiki, deps.mwnProvider);
+				const probe = probeDefaultWiki(deps.defaultWikiKey, deps.mwnProvider);
 				readyProbeInFlight = probe;
 				try {
 					entry = await probe;

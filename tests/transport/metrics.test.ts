@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const mockRequest = vi.fn();
 
-// mockActiveWiki and mockMwnProvider are passed explicitly to mountReadyEndpoint()
+// The default wiki's key and mockMwnProvider are passed explicitly to mountReadyEndpoint()
 // in each test's makeApp(): the tests build their own express app and these inline
 // stubs drive the probe. streamableHttp.ts no longer runs any boot on import, so no
 // module-level loadConfig/mwnProvider mock is needed.
@@ -12,21 +12,7 @@ import request from 'supertest';
 import { mountMetricsEndpoint } from '../../src/transport/streamableHttp.ts';
 import { mountReadyEndpoint } from '../../src/transport/ready.ts';
 import { __resetMetricsForTesting, setInFlightProvider } from '../../src/runtime/metrics.ts';
-import type { ActiveWiki } from '../../src/wikis/activeWiki.ts';
 import type { MwnProvider } from '../../src/wikis/mwnProvider.ts';
-import type { WikiConfig } from '../../src/config/loadConfig.ts';
-
-const exampleWikiConfig: WikiConfig = {
-	sitename: 'Example',
-	server: 'https://example.org',
-	articlepath: '/wiki',
-	scriptpath: '/w',
-};
-
-const mockActiveWiki: ActiveWiki = {
-	get: () => ({ key: 'example.org', config: exampleWikiConfig }),
-	getDefaultKey: () => 'example.org',
-};
 
 const mockMwnProvider: MwnProvider = {
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Mwn has 100+ methods; tests only use request().
@@ -37,7 +23,7 @@ const mockMwnProvider: MwnProvider = {
 function makeApp(): express.Express {
 	const app = express();
 	mountMetricsEndpoint(app);
-	mountReadyEndpoint(app, { activeWiki: mockActiveWiki, mwnProvider: mockMwnProvider });
+	mountReadyEndpoint(app, { defaultWikiKey: 'example.org', mwnProvider: mockMwnProvider });
 	return app;
 }
 

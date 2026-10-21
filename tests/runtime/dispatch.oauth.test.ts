@@ -10,7 +10,7 @@ import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServ
 import { fakeBrowserDriver } from '../helpers/fakeBrowserDriver.ts';
 import { useTempTokenStore } from '../helpers/tempTokenStore.ts';
 import { createTokenStore } from '../../src/auth/tokenStore.ts';
-import { getRequestWiki, getRuntimeToken } from '../../src/runtime/requestContext.ts';
+import { getRuntimeToken } from '../../src/runtime/requestContext.ts';
 import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.ts';
 import { _resetBrowserAuthDedupForTesting } from '../../src/auth/browserAuth.ts';
 import { _resetRefreshDedupForTesting } from '../../src/auth/tokenRefresh.ts';
@@ -36,8 +36,8 @@ const tokenCaptureTool: Tool<Record<string, never>> = {
 	description: 'd',
 	inputSchema: {},
 	annotations: { readOnlyHint: true },
-	async handle(): Promise<CallToolResult> {
-		return { content: [{ type: 'text', text: getRuntimeToken(getRequestWiki() ?? '') ?? '' }] };
+	async handle(_args, ctx): Promise<CallToolResult> {
+		return { content: [{ type: 'text', text: getRuntimeToken(ctx.wiki.key) ?? '' }] };
 	},
 };
 
@@ -63,45 +63,6 @@ describe('dispatch OAuth integration', () => {
 		expect(result.isError).toBeUndefined();
 		const text = (result.content[0] as { text: string }).text;
 		expect(text).toMatch(/^access-CODE-/);
-	});
-
-	it('stdio + oauth2ClientId: resolved wikiKey survives into the token-scoped run', async () => {
-		fakeAs = await startFakeAs();
-		vi.mocked(openMod).mockImplementation(
-			fakeBrowserDriver(fakeAs.url, 'consent') as typeof openMod,
-		);
-
-		const ctx = ctxForWiki(
-			{
-				sitename: 'Test',
-				server: fakeAs.url,
-				articlepath: '/wiki',
-				scriptpath: '/w',
-				oauth2ClientId: 'my-client',
-			} as never,
-			'stdio',
-		);
-
-		// Wiki-scoped tool (no `wikiScoped: false`): the dispatcher resolves the
-		// per-call wiki and the OAuth gate nests the token scope inside it.
-		let observedWiki: string | undefined;
-		const wikiCaptureTool: Tool<Record<string, never>> = {
-			name: 'wiki-capture',
-			description: 'd',
-			inputSchema: {},
-			annotations: { readOnlyHint: true },
-			async handle(): Promise<CallToolResult> {
-				observedWiki = getRequestWiki();
-				return { content: [{ type: 'text', text: getRequestWiki() ?? '' }] };
-			},
-		};
-
-		// Pass the OAuth wiki explicitly via the `wiki` arg.
-		const result = await dispatch(wikiCaptureTool, ctx)({ wiki: 'wiki-key' } as never);
-		expect(result.isError).toBeUndefined();
-		// The resolved wikiKey set by the wiki scope survives into the
-		// token-scoped run nested inside it.
-		expect(observedWiki).toBe('wiki-key');
 	});
 
 	it('stdio + oauth2ClientId: binds the token to the wiki it was acquired for', async () => {
@@ -156,7 +117,7 @@ describe('dispatch OAuth integration', () => {
 
 		const ctx = fakeContext({
 			transport: 'stdio',
-			// default fakeContext activeWiki has no oauth2ClientId
+			// the default fakeContext wiki has no oauth2ClientId
 		});
 
 		const result = await dispatch(tokenCaptureTool, ctx)({});

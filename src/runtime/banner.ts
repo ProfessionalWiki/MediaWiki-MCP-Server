@@ -2,7 +2,6 @@ import { createRequire } from 'node:module';
 import { logger } from './logger.ts';
 import { classifyAuthShape } from './authShape.ts';
 import type { WikiRegistry } from '../wikis/wikiRegistry.ts';
-import type { ActiveWiki } from '../wikis/activeWiki.ts';
 import type { UploadDirs } from '../wikis/uploadDirs.ts';
 
 // https://github.com/nodejs/node/issues/51347#issuecomment-2111337854
@@ -28,7 +27,7 @@ export type CreateServerOptions =
 
 export interface BannerDeps {
 	readonly wikiRegistry: WikiRegistry;
-	readonly activeWiki: ActiveWiki;
+	readonly defaultWikiKey: string;
 	readonly uploadDirs: UploadDirs;
 	// True when the hosted OAuth proxy is active for the default wiki, so the
 	// banner can report the "oauth-proxy" auth shape rather than
@@ -43,7 +42,7 @@ export function emitStartupBanner(opts: CreateServerOptions, deps: BannerDeps): 
 		version: serverInfo.version,
 		transport: opts.transport,
 		auth_shape: classifyAuthShape(wikis, opts.transport, deps.proxyEnabled ?? false),
-		default_wiki: deps.activeWiki.getDefaultKey(),
+		default_wiki: deps.defaultWikiKey,
 		wikis: Object.keys(wikis),
 		allow_wiki_management: deps.wikiRegistry.isManagementAllowed(),
 		upload_dirs_configured: deps.uploadDirs.list().length > 0,

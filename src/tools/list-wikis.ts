@@ -39,7 +39,7 @@ export const listWikis: Tool<Record<string, never>, SharedContext> = {
 	failureVerb: 'list wikis',
 
 	async handle(_args, ctx: SharedContext): Promise<CallToolResult> {
-		const defaultKey = ctx.activeWiki.getDefaultKey();
+		const defaultKey = ctx.defaultWikiKey;
 		const all = ctx.wikis.getAll();
 		const wikis: WikiSummary[] = await Promise.all(
 			Object.keys(all).map(async (key): Promise<WikiSummary> => {
