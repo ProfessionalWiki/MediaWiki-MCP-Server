@@ -41,6 +41,18 @@ describe('neowiki-get-schema', () => {
 		});
 	});
 
+	it('says when the schema describes Dependent Subjects', async () => {
+		const mock = createMockMwn({
+			rawRequest: vi.fn().mockResolvedValue({
+				data: { schema: { subjectsAreDependent: true, propertyDefinitions: {} } },
+			}),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+		const result = await neowikiGetSchema.handle({ name: 'Birth' }, ctx);
+
+		expect(result.structuredContent).toMatchObject({ subjectsAreDependent: true });
+	});
+
 	it('returns not_found when the response has no schema', async () => {
 		const mock = createMockMwn({ rawRequest: vi.fn().mockResolvedValue({ data: {} }) });
 		const ctx = fakeContext({ mwn: async () => mock as never });

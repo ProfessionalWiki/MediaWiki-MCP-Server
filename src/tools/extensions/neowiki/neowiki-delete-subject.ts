@@ -16,7 +16,7 @@ const inputSchema = {
 export const neowikiDeleteSubject: Tool<typeof inputSchema> = {
 	name: 'neowiki-delete-subject',
 	description:
-		'Deletes one NeoWiki Subject by ID from its page. Enabled only when the wiki has NeoWiki installed. Requires the edit right. Pre-1.0: the NeoWiki API may change without notice.',
+		'Deletes one NeoWiki Subject by ID from its page, together with its Dependent Subjects. Enabled only when the wiki has NeoWiki installed. Relations that other Subjects hold to it stay, pointing at a Subject that no longer exists. Requires the edit right. Pre-1.0: the NeoWiki API may change without notice.',
 	inputSchema,
 	annotations: {
 		title: 'Delete NeoWiki subject',

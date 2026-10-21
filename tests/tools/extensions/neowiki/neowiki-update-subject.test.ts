@@ -98,6 +98,50 @@ describe('neowiki-update-subject', () => {
 		expect(sentBody(mock)).not.toHaveProperty('comment');
 	});
 
+	it('omits the label when none is given, which clears it', async () => {
+		const { mock, ctx } = contextWith();
+
+		await neowikiUpdateSubject.handle({ id: 's1demo', statements: stmts }, ctx);
+
+		expect(sentBody(mock)).not.toHaveProperty('label');
+	});
+
+	it('returns the violations the write reported and the subject as saved', async () => {
+		const violation = {
+			propertyName: 'Founded',
+			code: 'max-value',
+			args: [2000],
+			severity: 'warning',
+		};
+		const mock = createMockMwn({
+			getCsrfToken: vi.fn().mockResolvedValue('tok'),
+			rawRequest: vi.fn().mockResolvedValue({
+				data: {
+					status: 'updated',
+					subjectId: 's1demo',
+					violations: [violation],
+					subject: {
+						id: 's1demo',
+						label: 'ACME',
+						displayName: 'ACME',
+						schema: 'Company',
+						statements: { Founded: { propertyType: 'number', value: 2019 } },
+					},
+				},
+			}),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+		const result = await neowikiUpdateSubject.handle(
+			{ id: 's1demo', label: 'ACME', statements: stmts },
+			ctx,
+		);
+
+		expect(result.structuredContent).toMatchObject({
+			violations: [violation],
+			subject: { statements: [{ property: 'Founded', type: 'number', value: 2019 }] },
+		});
+	});
+
 	it('maps a 404 to not_found', async () => {
 		const mock = createMockMwn({
 			getCsrfToken: vi.fn().mockResolvedValue('tok'),

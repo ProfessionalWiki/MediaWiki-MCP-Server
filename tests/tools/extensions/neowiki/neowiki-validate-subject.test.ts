@@ -13,7 +13,7 @@ describe('neowiki-validate-subject', () => {
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
 		const result = await neowikiValidateSubject.handle(
-			{ schema: 'Company', label: 'ACME', statements: stmts },
+			{ schema: 'Company', statements: stmts },
 			ctx,
 		);
 		const call = mock.rawRequest.mock.calls[0][0] as {
@@ -22,7 +22,7 @@ describe('neowiki-validate-subject', () => {
 			headers: Record<string, string>;
 		};
 		expect(call.url).toBe('https://test.wiki/w/rest.php/neowiki/v0/subject/validate');
-		expect(JSON.parse(call.data)).toEqual({ schema: 'Company', label: 'ACME', statements: stmts });
+		expect(JSON.parse(call.data)).toEqual({ schema: 'Company', statements: stmts });
 		expect(call.headers['X-CSRF-TOKEN']).toBeUndefined();
 		expect(mock.getCsrfToken).not.toHaveBeenCalled();
 		expect(result.structuredContent).toMatchObject({ violations: [] });
@@ -35,13 +35,10 @@ describe('neowiki-validate-subject', () => {
 				.mockResolvedValue({ data: { violations: [{ property: 'Founded', message: 'bad' }] } }),
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
-		const result = await neowikiValidateSubject.handle(
-			{ id: 's1demo', label: 'ACME', statements: stmts },
-			ctx,
-		);
+		const result = await neowikiValidateSubject.handle({ id: 's1demo', statements: stmts }, ctx);
 		const call = mock.rawRequest.mock.calls[0][0] as { url: string; data: string };
 		expect(call.url).toBe('https://test.wiki/w/rest.php/neowiki/v0/subject/s1demo/validate');
-		expect(JSON.parse(call.data)).toEqual({ label: 'ACME', statements: stmts });
+		expect(JSON.parse(call.data)).toEqual({ statements: stmts });
 		expect(result.structuredContent).toMatchObject({
 			violations: [{ property: 'Founded', message: 'bad' }],
 		});
@@ -49,7 +46,7 @@ describe('neowiki-validate-subject', () => {
 
 	it('rejects a new-subject validation with no schema', async () => {
 		const ctx = fakeContext({ mwn: async () => createMockMwn() as never });
-		const result = await neowikiValidateSubject.handle({ label: 'ACME', statements: stmts }, ctx);
+		const result = await neowikiValidateSubject.handle({ statements: stmts }, ctx);
 		assertStructuredError(result, 'invalid_input');
 	});
 });

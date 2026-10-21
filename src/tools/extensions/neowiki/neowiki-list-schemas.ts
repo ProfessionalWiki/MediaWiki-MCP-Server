@@ -6,31 +6,32 @@ import type { TruncationInfo } from '../../../results/truncation.ts';
 import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
 
 // The /schemas endpoint caps `limit` at 50 (rejects higher with a 400).
-// Paginate beyond that via the offset carried in continueFrom.
 const PAGE_LIMIT = 50;
 
 const inputSchema = {
 	continueFrom: z
 		.string()
+		.min(1)
 		.optional()
-		.describe('Opaque offset token from a previous response; omit on first call.'),
+		.describe('Opaque cursor from a previous response; omit on first call.'),
 } as const;
 
 interface SchemaSummary {
 	name?: string;
 	description?: string;
 	propertyCount?: number;
+	subjectsAreDependent?: boolean;
 }
 
 interface ListSchemasResponse {
 	schemas?: SchemaSummary[];
-	totalRows?: number;
+	nextCursor?: string | null;
 }
 
 export const neowikiListSchemas: Tool<typeof inputSchema> = {
 	name: 'neowiki-list-schemas',
 	description:
-		"Lists the Schemas (entity types, e.g. Person, Company) defined in the wiki's NeoWiki knowledge graph, each with its description and property count. Enabled only when the wiki has NeoWiki installed. Start here to discover what types exist, then use neowiki-get-schema for one type's properties, or neowiki-cypher-query to query the graph. Paginate with continueFrom. Pre-1.0: the NeoWiki API may change without notice.",
+		"Lists the Schemas (entity types, e.g. Person, Company) defined in the wiki's NeoWiki knowledge graph, each with its description and property count; subjectsAreDependent is present, as true, only on a Schema whose Subjects are Dependent Subjects. Enabled only when the wiki has NeoWiki installed. Start here to discover what types exist, then use neowiki-get-schema for one type's properties, or neowiki-cypher-query to query the graph. Paginate with continueFrom. Pre-1.0: the NeoWiki API may change without notice.",
 	inputSchema,
 	annotations: {
 		title: 'List NeoWiki schemas',
@@ -42,38 +43,30 @@ export const neowikiListSchemas: Tool<typeof inputSchema> = {
 	failureVerb: 'list NeoWiki schemas',
 
 	async handle({ continueFrom }, ctx: ToolContext): Promise<CallToolResult> {
-		let offset = 0;
-		if (continueFrom !== undefined) {
-			const parsed = Number.parseInt(continueFrom, 10);
-			if (!Number.isFinite(parsed) || parsed < 0 || String(parsed) !== continueFrom) {
-				return ctx.format.invalidInput('continueFrom must be a non-negative integer');
-			}
-			offset = parsed;
-		}
-
 		const mwn = await ctx.mwn();
 		try {
 			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /schemas response shape; trusted at this boundary
 			const data = (await neowikiRequest(mwn, {
 				method: 'GET',
 				path: '/schemas',
-				query: { limit: String(PAGE_LIMIT), offset: String(offset) },
+				query: {
+					limit: String(PAGE_LIMIT),
+					...(continueFrom !== undefined ? { cursor: continueFrom } : {}),
+				},
 			})) as ListSchemasResponse;
 
-			const schemas = Array.isArray(data.schemas) ? data.schemas : [];
-			const totalRows = typeof data.totalRows === 'number' ? data.totalRows : schemas.length;
-
-			// Require a non-empty page before advancing: a degenerate response
-			// (0 rows but totalRows still > offset) must not hand back a token
-			// that never advances, which would loop a paginating client forever.
+			const schemas = (Array.isArray(data.schemas) ? data.schemas : []).map(
+				({ subjectsAreDependent, ...summary }) =>
+					subjectsAreDependent === true ? { ...summary, subjectsAreDependent } : summary,
+			);
 			const truncation: TruncationInfo | null =
-				schemas.length > 0 && offset + schemas.length < totalRows
+				typeof data.nextCursor === 'string'
 					? {
 							reason: 'more-available',
 							returnedCount: schemas.length,
 							itemNoun: 'schemas',
 							toolName: 'neowiki-list-schemas',
-							continueWith: { param: 'continueFrom', value: String(offset + schemas.length) },
+							continueWith: { param: 'continueFrom', value: data.nextCursor },
 						}
 					: null;
 

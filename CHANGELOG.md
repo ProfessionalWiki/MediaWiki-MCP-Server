@@ -6,13 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Breaking changes
+
+- `neowiki-create-subject` now needs NeoWiki from 2026-09-14 or later to create a subject that is not the page's main subject, following the endpoint rename in ProfessionalWiki/NeoWiki#1422.
+
 ### Changed
 
 - The NeoWiki tool descriptions now describe relations as https://github.com/ProfessionalWiki/NeoWiki/pull/1633 changed them. On a NeoWiki without that change, Cypher queries written from them miss relation edges, so upgrade NeoWiki and the server together.
+- `neowiki-create-subject` and `neowiki-update-subject` return the violations a subject was saved with, and the subject as saved. Their label is optional: omitting it creates a subject without one, or clears it. `neowiki-validate-subject` no longer takes a label, which NeoWiki ignored.
+- The NeoWiki read tools return a subject's display name and, for a Dependent Subject, the subject it belongs to; `neowiki-get-subject` also returns the page holding it. `neowiki-search-subjects` searches every schema when none is given, and returns each match's page title. `neowiki-get-schema` and `neowiki-list-schemas` mark a schema whose subjects are dependent.
+- The NeoWiki tool descriptions cover monolingual text values, Dependent Subjects, and the current graph model, including whole nodes, which Cypher queries can now return.
 
 ### Fixed
 
 - `move-page` now reports `redirectCreated: false` when no redirect was left at the old title, instead of always reporting `true`.
+- `neowiki-create-subject` creates a subject that is not the page's main subject again, instead of failing as not found.
+- `neowiki-list-schemas` pages through every schema again. Against NeoWiki from 2026-07-24 on, it returned only the first 50, and continueFrom returned the same page.
+- `neowiki-search-subjects` returns up to 50 matches instead of 10, and marks a full result as capped.
+- The NeoWiki write tools now describe the `dateTime` property type by its name. A statement written as `datetime`, as they described it before, was stored under a type NeoWiki does not know.
+- A NeoWiki write refused for its violations now fails as `invalid_input` and lists the violations, instead of `upstream_failure`. A NeoWiki read refused because the wiki requires login to read now fails as `permission_denied` instead of `invalid_input`.
 
 ## [0.19.0] - 2026-09-25
 

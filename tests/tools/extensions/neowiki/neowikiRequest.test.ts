@@ -122,6 +122,46 @@ describe('neowikiRequest', () => {
 		});
 	});
 
+	it('maps a read-denied envelope to permission_denied', async () => {
+		const mock = createMockMwn({
+			rawRequest: vi.fn().mockRejectedValue(
+				httpError(403, {
+					error: 'rest-read-denied',
+					messageTranslations: { en: 'You need read permission to use this module.' },
+				}),
+			),
+		});
+		await expect(
+			neowikiRequest(mock as never, { method: 'GET', path: '/schemas' }),
+		).rejects.toMatchObject({ category: 'permission_denied' });
+	});
+
+	it('maps a refused write to invalid_input and carries its violations', async () => {
+		const mock = createMockMwn({
+			rawRequest: vi.fn().mockRejectedValue(
+				httpError(422, {
+					status: 'error',
+					message: 'Validation failed',
+					violations: [
+						{
+							propertyName: null,
+							code: 'dependent-subject-without-host',
+							args: [],
+							severity: 'error',
+							subjectId: 's1demo6sssssss1',
+						},
+					],
+				}),
+			),
+		});
+		const err = await rejectionOf(
+			neowikiRequest(mock as never, { method: 'PUT', path: '/subject/s1', body: {}, csrf: true }),
+		);
+		expect(err).toMatchObject({ category: 'invalid_input' });
+		expect((err as Error).message).toContain('dependent-subject-without-host');
+		expect((err as Error).message).toContain('s1demo6sssssss1');
+	});
+
 	it('maps a 404 to not_found', async () => {
 		const mock = createMockMwn({
 			rawRequest: vi.fn().mockRejectedValue(httpError(404, { error: 'not-found' })),

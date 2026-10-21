@@ -57,6 +57,8 @@ function categoryForStatus(status: number | undefined): ErrorCategory | undefine
 			return 'not_found';
 		case 409:
 			return 'conflict';
+		case 422:
+			return 'invalid_input';
 		case 429:
 			return 'rate_limited';
 		default:
@@ -145,13 +147,17 @@ function classifyNeoWikiError(err: unknown): NeoWikiApiError {
 					? (translations as { en?: unknown }).en
 					: undefined;
 			const message = typeof en === 'string' ? en : record.error;
-			return new NeoWikiApiError(status === 404 ? 'not_found' : 'invalid_input', message);
+			return new NeoWikiApiError(categoryForStatus(status) ?? 'invalid_input', message);
 		}
 
 		// Internal RuntimeException: { message, exception: {…backtrace…} }.
-		// Surface the message only — never the backtrace.
+		// Surface the message only — never the backtrace. A refused write also
+		// lists its violations, which say what to fix.
 		if (typeof record.message === 'string') {
-			return new NeoWikiApiError(categoryForStatus(status) ?? 'upstream_failure', record.message);
+			const message = Array.isArray(record.violations)
+				? `${record.message}: ${JSON.stringify(record.violations)}`
+				: record.message;
+			return new NeoWikiApiError(categoryForStatus(status) ?? 'upstream_failure', message);
 		}
 	}
 

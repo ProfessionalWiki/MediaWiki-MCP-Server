@@ -35,6 +35,68 @@ describe('neowiki-get-subject', () => {
 		});
 	});
 
+	it('asks for the page fields and returns where the subject lives', async () => {
+		const mock = createMockMwn({
+			rawRequest: vi.fn().mockResolvedValue({
+				data: {
+					requestedId: 's1demo1aaaaaaa1',
+					subjects: {
+						s1demo1aaaaaaa1: {
+							id: 's1demo1aaaaaaa1',
+							label: null,
+							displayName: 'ACME Inc',
+							schema: 'Company',
+							pageId: 42,
+							pageTitle: 'ACME Inc',
+							pageNamespaceId: 0,
+							statements: {},
+						},
+					},
+				},
+			}),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+		const result = await neowikiGetSubject.handle({ id: 's1demo1aaaaaaa1' }, ctx);
+
+		expect((mock.rawRequest.mock.calls[0][0] as { url: string }).url).toContain('expand=page');
+		expect(result.structuredContent).toMatchObject({
+			label: '',
+			displayName: 'ACME Inc',
+			pageId: 42,
+			pageTitle: 'ACME Inc',
+		});
+	});
+
+	it('names the Host Subject of a Dependent Subject', async () => {
+		const hostSubject = {
+			id: 's1demo5sssssss1',
+			displayName: 'Pablo Picasso',
+			displayNameIsGenerated: false,
+			schema: 'Person',
+		};
+		const mock = createMockMwn({
+			rawRequest: vi.fn().mockResolvedValue({
+				data: {
+					requestedId: 's1demo6sssssss1',
+					subjects: {
+						s1demo6sssssss1: {
+							id: 's1demo6sssssss1',
+							label: null,
+							displayName: 'Birth',
+							schema: 'Birth',
+							hostSubject,
+							statements: {},
+						},
+					},
+				},
+			}),
+		});
+		const ctx = fakeContext({ mwn: async () => mock as never });
+		const result = await neowikiGetSubject.handle({ id: 's1demo6sssssss1' }, ctx);
+
+		expect(result.structuredContent).toMatchObject({ hostSubject });
+	});
+
 	it('returns not_found when the subject is absent', async () => {
 		const mock = createMockMwn({
 			rawRequest: vi.fn().mockResolvedValue({ data: { requestedId: 'sX', subjects: {} } }),

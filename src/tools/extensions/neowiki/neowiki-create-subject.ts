@@ -5,21 +5,8 @@ import type { ToolContext } from '../../../runtime/context.ts';
 import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
 import { formatEditComment } from '../../../wikis/utils.ts';
 import { resolvePageId, hasOnePageRef } from './pageId.ts';
-
-// A statement keyed by property name. The write API reads `propertyType` (NOT
-// the `type` key read tools return) and silently drops entries without it, so
-// require it here — a malformed statement becomes an input error, not a no-op.
-const statementSchema = z.object({
-	propertyType: z
-		.string()
-		.min(1)
-		.describe('Property type: text, url, date, datetime, select, number, boolean, or relation.'),
-	value: z
-		.unknown()
-		.describe(
-			'text/url/date/datetime → array of strings; select → array of option IDs (decode via neowiki-get-schema); number → number; boolean → boolean; relation → array of { target: subjectId }.',
-		),
-});
+import { flattenSubject, type SubjectData } from './neowiki-get-subject.ts';
+import { statementsSchema, VALUE_FORMATS } from './statements.ts';
 
 const inputSchema = {
 	title: z
@@ -37,33 +24,37 @@ const inputSchema = {
 		.boolean()
 		.optional()
 		.describe(
-			"When true, create the page's Main Subject (at most one per page) instead of a child Subject. Defaults to false.",
+			"When true, create the page's Main Subject (at most one per page) instead of one of its other Subjects. Defaults to false.",
 		),
-	label: z.string().min(1).describe('Display label for the new Subject.'),
+	label: z
+		.string()
+		.min(1)
+		.optional()
+		.describe(
+			'Display label for the new Subject. Omit for a Subject without one: a Main Subject is then shown under its page title, any other Subject under its Schema name.',
+		),
 	schema: z
 		.string()
 		.min(1)
 		.describe(
 			'Name of an existing Schema (entity type) the Subject instantiates. Discover names with neowiki-list-schemas.',
 		),
-	statements: z
-		.record(z.string(), statementSchema)
-		.describe(
-			'Map of property name → { propertyType, value }. The key is propertyType, NOT the `type` read tools return. Validate first with neowiki-validate-subject.',
-		),
+	statements: statementsSchema.describe(
+		'Map of property name → { propertyType, value }. The key is propertyType, NOT the `type` read tools return. Validate first with neowiki-validate-subject.',
+	),
 	comment: z.string().optional().describe('Optional edit summary.'),
 } as const;
 
 interface CreateResponse {
 	status?: string;
 	subjectId?: string;
-	message?: string;
+	violations?: unknown[];
+	subject?: SubjectData;
 }
 
 export const neowikiCreateSubject: Tool<typeof inputSchema> = {
 	name: 'neowiki-create-subject',
-	description:
-		'Creates a new NeoWiki Subject on a wiki page and attaches its statements. Enabled only when the wiki has NeoWiki installed. Set isMain to make it the page\'s Main Subject (a page has at most one); otherwise it is added as a child Subject. Requires the edit right. Each statement is keyed by property name as { propertyType, value } — the key is propertyType, NOT the `type` key read tools return; a statement lacking propertyType is rejected. Value by type: text/url/date/datetime → array of strings (dates ISO, e.g. ["2020-12-31"]); select → array of option IDs (resolve labels via neowiki-get-schema); number → a number; boolean → a boolean; relation → array of { target: "<subjectId>" }. Pre-validate with neowiki-validate-subject. Pre-1.0: the NeoWiki API may change without notice.',
+	description: `Creates a new NeoWiki Subject on an existing wiki page and returns its ID, the violations of its Schema it was saved with, and the Subject as saved. Enabled only when the wiki has NeoWiki installed. Set isMain to make it the page's Main Subject (a page has at most one); otherwise it joins the page's other Subjects. Requires the edit right. Each statement is keyed by property name as { propertyType, value } — the key is propertyType, NOT the \`type\` key read tools return; a statement lacking propertyType is rejected, and one whose value is empty is dropped. Value by type: ${VALUE_FORMATS}. Violations are warnings unless the wiki enforces validation, which refuses a write that introduces an error-severity violation. A Subject of a Schema whose Subjects are dependent (subjectsAreDependent in neowiki-get-schema) cannot be created with this tool. Pre-validate with neowiki-validate-subject. Pre-1.0: the NeoWiki API may change without notice.`,
 	inputSchema,
 	annotations: {
 		title: 'Create NeoWiki subject',
@@ -73,7 +64,7 @@ export const neowikiCreateSubject: Tool<typeof inputSchema> = {
 		openWorldHint: true,
 	},
 	failureVerb: 'create NeoWiki subject',
-	target: (a) => a.label,
+	target: (a) => a.label ?? a.schema,
 
 	async handle(
 		{ title, pageId, isMain, label, schema, statements, comment },
@@ -91,7 +82,7 @@ export const neowikiCreateSubject: Tool<typeof inputSchema> = {
 				return ctx.format.notFound(`Page "${title}" not found`);
 			}
 
-			const segment = isMain === true ? 'mainSubject' : 'childSubjects';
+			const segment = isMain === true ? 'mainSubject' : 'subjects';
 			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki create response shape; trusted at this boundary
 			const data = (await neowikiRequest(mwn, {
 				method: 'POST',
@@ -105,16 +96,13 @@ export const neowikiCreateSubject: Tool<typeof inputSchema> = {
 				},
 			})) as CreateResponse;
 
-			// Upstream returns HTTP 201 with { status: "error" } when a main subject
-			// already exists (rather than a 4xx) — surface that as a conflict.
-			if (data.status === 'error') {
-				return ctx.format.conflict(data.message ?? 'Subject could not be created.');
-			}
-
+			const subjectId = data.subjectId ?? '';
 			return ctx.format.ok({
-				subjectId: data.subjectId ?? '',
+				subjectId,
 				status: data.status ?? 'created',
 				pageId: resolvedPageId,
+				violations: Array.isArray(data.violations) ? data.violations : [],
+				...(data.subject !== undefined ? { subject: flattenSubject(data.subject, subjectId) } : {}),
 			});
 		} catch (err) {
 			return neowikiErrorResult(err, ctx);
