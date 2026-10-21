@@ -19,8 +19,7 @@ import {
 	localhostHostValidation,
 	originValidation,
 } from '@modelcontextprotocol/express';
-import { evaluateBearerGuard } from './bearerGuard.ts';
-import { bearerPassthroughEnabled, hasStaticCredentials } from '../runtime/authShape.ts';
+import { checkHttpDeployment } from './httpDeployment.ts';
 import { LOCALHOST_HOSTS, resolveHttpConfig } from './httpConfig.ts';
 import { logger } from '../runtime/logger.ts';
 import {
@@ -570,10 +569,9 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 // helper, as the tests do) has no side effects — no config read, no process.exit,
 // no bound socket.
 export function startHttpServer(): void {
-	// Wiki config must load before HTTP config so evaluateBearerGuard below can
-	// inspect wikiRegistry.getAll() to decide whether static credentials are
-	// configured. resolveHttpConfig() reads only env vars and is order-independent
-	// — placed after for visual grouping with the HTTP setup.
+	// Wiki config must load before HTTP config so checkHttpDeployment below can
+	// inspect wikiRegistry.getAll(). resolveHttpConfig() reads only env vars and
+	// is order-independent — placed after for visual grouping with the HTTP setup.
 	const config = loadConfigFromFile();
 	const state = createAppState(config);
 
@@ -607,76 +605,22 @@ export function startHttpServer(): void {
 
 	const { host, port, allowedHosts, allowedOrigins, maxRequestBody, rateLimit, warnings } =
 		resolveHttpConfig();
-	const guard = evaluateBearerGuard(state.wikiRegistry.getAll(), process.env);
-	if (guard.kind === 'block') {
-		logger.error(
-			'HTTP transport refuses to start because static credentials are configured for wiki(s): ' +
-				guard.wikis.join(', ') +
-				'.\n' +
-				'A request without an Authorization header would silently act as the configured identity, ' +
-				'so writes could not be attributed to the caller that made them.\n' +
-				'Remove `token`, `username`, and `password` from these wikis in config.json, ' +
-				'or set MCP_ALLOW_STATIC_FALLBACK=true to acknowledge the shared-identity deployment shape.',
-		);
-		process.exit(1);
-	}
-	if (guard.kind === 'override') {
-		logger.warning(
-			'MCP_ALLOW_STATIC_FALLBACK=true is set. Wiki(s) with static credentials: ' +
-				guard.wikis.join(', ') +
-				'. ' +
-				'Requests without an Authorization header will act as the configured identity. ' +
-				'This deployment cannot attribute writes to individual callers.',
-		);
-	}
-	for (const warning of warnings) {
-		logger.warning(warning);
-	}
 	// Resolve the proxy config eagerly so a ProxyConfigError fails the boot rather
 	// than the first request. Memoized, so the route handlers reuse the cached result.
 	const eagerProxyConfig = getDefaultProxyConfig();
 	const proxyEnabled = eagerProxyConfig !== null;
-	if (bearerPassthroughEnabled()) {
-		logger.warning(
-			proxyEnabled
-				? 'MCP_ALLOW_BEARER_PASSTHROUGH=true is set but has no effect: hosted OAuth sign-in ' +
-						'is configured, so a bearer is read as a token this server issued and a ' +
-						'caller-supplied one is refused. Unset the variable.'
-				: 'MCP_ALLOW_BEARER_PASSTHROUGH=true is set. A caller-supplied Authorization header ' +
-						'is forwarded to MediaWiki as that caller. This is deprecated: MCP servers must ' +
-						'not accept tokens that were not issued for them. Prefer the hosted OAuth ' +
-						'sign-in, which issues this server its own tokens.',
-		);
+	const deployment = checkHttpDeployment({
+		wikis: state.wikiRegistry.getAll(),
+		defaultWikiKey,
+		env: process.env,
+		proxyEnabled,
+	});
+	if (deployment.refusal !== undefined) {
+		logger.error(deployment.refusal);
+		process.exit(1);
 	}
-	// A deployment can now be configured so that nothing it serves can authenticate:
-	// wikis that require OAuth, no hosted sign-in to mint a token, and no opted-in
-	// forwarding to carry one. Nothing a client sends can fix that, so say it here
-	// rather than leaving every call to fail upstream.
-	if (!proxyEnabled && !bearerPassthroughEnabled()) {
-		const staticAllowed = process.env.MCP_ALLOW_STATIC_FALLBACK === 'true';
-		const stranded = Object.entries(state.wikiRegistry.getAll())
-			.filter(([key, cfg]) => {
-				const usesOAuth =
-					typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
-				const usableStatic = hasStaticCredentials(cfg) && staticAllowed;
-				// A `private` DEFAULT wiki cannot be rescued by static credentials: the
-				// route challenges a tokenless request before any credential is
-				// resolved, so every request to such a deployment is answered 401.
-				if (cfg.private === true && key === defaultWikiKey) {
-					return true;
-				}
-				return (usesOAuth || cfg.private === true) && !usableStatic;
-			})
-			.map(([key]) => key);
-		if (stranded.length > 0) {
-			logger.warning(
-				'No way to authenticate to wiki(s): ' +
-					stranded.join(', ') +
-					'. They require a signed-in user, but the hosted OAuth sign-in is not configured ' +
-					'and forwarding a caller-supplied token is off. Set MCP_PUBLIC_URL and ' +
-					'MCP_OAUTH_JWT_SIGNING_KEY to enable hosted sign-in (see docs/deployment.md).',
-			);
-		}
+	for (const warning of [...deployment.warnings, ...warnings]) {
+		logger.warning(warning);
 	}
 	// Single process-wide proxy store, shared by the proxy handlers
 	// (register/authorize/callback/token). It persists its durable state (client
