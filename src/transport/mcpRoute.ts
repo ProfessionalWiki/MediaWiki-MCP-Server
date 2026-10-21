@@ -36,8 +36,7 @@ export function extractBearerToken(req: Request): string | undefined {
 	return token || undefined;
 }
 
-// Resolves the request's scheme, honouring a trusted reverse proxy's
-// x-forwarded-proto (first value) and falling back to the socket's own security.
+// Honours a trusted reverse proxy's x-forwarded-proto.
 export function resolveRequestProto(req: Request): 'http' | 'https' {
 	const protoHeader = req.headers['x-forwarded-proto'];
 	const proto = typeof protoHeader === 'string' ? protoHeader.split(',')[0]?.trim() : undefined;
@@ -54,15 +53,10 @@ function wikiNeedsAuth(cfg: WikiConfig, fallbackAllowed: boolean): boolean {
 	return !(hasStatic && fallbackAllowed);
 }
 
-// Returns the active hosted-OAuth-proxy config, or null when the proxy is
-// disabled. getDefaultProxyConfig in streamableHttp.ts is the production
-// implementation.
+// Null while the hosted OAuth proxy is disabled.
 export type ProxyConfigGetter = () => ProxyConfig | null;
 
-// The id an error emitted before dispatch may echo, following the same rule as the
-// SDK's own echoableRequestId: only a single JSON-RPC request object with a string
-// method carries an id this layer can attribute the error to. A batch, a
-// notification, a posted response and a body-less method do not.
+// The SDK's rule: only a single request object with a string method has an id to echo.
 function echoableRequestId(body: unknown): string | number | undefined {
 	if (typeof body !== 'object' || body === null || Array.isArray(body)) {
 		return undefined;
@@ -77,21 +71,12 @@ function echoableRequestId(body: unknown): string | number | undefined {
 	return typeof id === 'string' || typeof id === 'number' ? id : undefined;
 }
 
-// Emits the shared OAuth 401 challenge: a JSON-RPC error body with the
-// WWW-Authenticate: Bearer ... resource_metadata=... header pointing at this
-// server's protected-resource document. Reused by the legacy OAuth-only
-// short-circuit and the proxy invalid-JWT path so both speak the same dialect.
-// `hasMetadata` says whether this server publishes a protected-resource document,
-// which is true only while the hosted proxy is enabled. Pointing a client at that
-// URL when it 404s sends it to a dead end, so the parameter is omitted instead;
-// RFC 6750 admits a challenge without it.
+// `hasMetadata`: whether this server serves a protected-resource document. A
+// client pointed at one that 404s is stranded; RFC 6750 allows leaving it out.
 function emit401Challenge(req: Request, res: Response, hasMetadata: boolean): void {
 	const requestProto = resolveRequestProto(req);
 	const base = resolvePublicBase(req.headers.host ?? undefined, requestProto);
-	// The protected-resource document is served at the ORIGIN root (RFC 9728), not
-	// under MCP_PUBLIC_URL's path segment. Point resource_metadata at the origin so
-	// it resolves — the SDK fetches this URL verbatim with no root fallback. Preserve
-	// the authority (including any explicit port) and only drop a trailing path.
+	// The document is at the origin root (RFC 9728), and the SDK fetches this URL as given.
 	const origin = /^[a-z][a-z0-9+.-]*:\/\/[^/]+/i.exec(base)?.[0] ?? base.replace(/\/+$/, '');
 	const metadataUrl = `${origin}/.well-known/oauth-protected-resource`;
 	res.set(
@@ -111,10 +96,7 @@ function emit401Challenge(req: Request, res: Response, hasMetadata: boolean): vo
 	);
 }
 
-// Emitted when a proxy JWT is valid but its upstream token could not be refreshed
-// because of a transient upstream failure. Unlike emit401Challenge this carries NO
-// WWW-Authenticate header: the client should retry, not discard its session and
-// re-authenticate.
+// No WWW-Authenticate: the client should retry, not sign in again.
 function emit503Unavailable(req: Request, res: Response): void {
 	sendJsonRpcError(
 		res,
@@ -127,13 +109,11 @@ function emit503Unavailable(req: Request, res: Response): void {
 	);
 }
 
-// One shared allowance for every caller-supplied bearer, charged alongside the
-// per-token bucket. This server cannot verify those tokens, so without it a
-// caller minting a random bearer per request would never meet a limit.
+// Forwarded bearers are unverified, so a fresh random one per request would
+// otherwise never meet a limit.
 const PASSTHROUGH_SHARED_KEY = 'bearer:shared';
 
-// The refusal that should be reported when two allowances are charged: a refusal
-// beats an admission, and the longer wait beats the shorter.
+// A refusal beats an admission, and the longer wait beats the shorter.
 function worstOf(a: RateLimitDecision, b: RateLimitDecision): RateLimitDecision {
 	if (a.allowed) {
 		return b;
@@ -157,10 +137,7 @@ function emit429RateLimited(req: Request, res: Response, retryAfterSeconds: numb
 	);
 }
 
-// Only tools/call is limited: that is the request the spec's rate-limit
-// requirement names, and it is the one that reaches the wiki. Discovery,
-// initialize, cancellations and the held-open subscriptions/listen stream all
-// pass untouched — a stream that consumed a token would hold it forever.
+// Only tools/call reaches the wiki; a held-open listen stream would keep its token.
 function isToolsCallMessage(message: unknown): boolean {
 	return (
 		typeof message === 'object' &&
@@ -169,10 +146,7 @@ function isToolsCallMessage(message: unknown): boolean {
 	);
 }
 
-// How many tokens a request costs. The legacy stateless leg executes a JSON-RPC
-// batch array entry by entry, so a batch must be charged per tools/call entry:
-// counting the array as one request would let any caller wrap N calls in
-// brackets and pay for one.
+// The legacy leg runs a batch entry by entry, so each tools/call entry pays.
 function toolsCallCost(body: unknown): number {
 	if (Array.isArray(body)) {
 		return body.filter(isToolsCallMessage).length;
@@ -182,148 +156,136 @@ function toolsCallCost(body: unknown): number {
 
 export interface McpRouteOptions {
 	wikiRegistry?: WikiRegistry;
-	// When the hosted OAuth proxy is enabled, the /mcp bearer is a proxy-minted
-	// JWT (not a wiki token): we verify it and resolve the upstream wiki token
-	// from the store before threading it into withRequestContext. Omitted (or
-	// returning null) leaves the legacy bearer-passthrough/401-discovery path
-	// unchanged.
+	// With the hosted proxy, a bearer is a proxy JWT standing for a stored wiki token.
 	getProxyConfig?: ProxyConfigGetter;
 	proxyStore?: ProxyStore;
-	// Injected for testing; production leaves it undefined so resolveUpstreamBearer
-	// uses the real server-to-server refresh.
+	// Tests only.
 	refresh?: RefreshFn;
-	// The default wiki served by this transport. When that wiki is configured
-	// `private` (anonymous reads disabled upstream), a tokenless request is
-	// challenged with a connection-time 401 rather than served anonymously.
+	// When it is `private`, a tokenless request is refused at connect.
 	defaultWikiKey?: string;
-	// Reported when the Node adapter answers 500 because request conversion or
-	// handler.fetch itself threw. Handler-internal errors surface through the
-	// handler's own onerror instead.
+	// For a 500 from the Node adapter; the handler reports its own errors.
 	onerror?: (error: Error) => void;
-	// Limits tools/call per authenticated caller (shared bucket for anonymous
-	// traffic). Omitted when rate limiting is disabled (MCP_RATE_LIMIT=0).
+	// Absent when MCP_RATE_LIMIT=0.
 	rateLimiter?: RateLimiter;
 }
 
-// Builds the /mcp route: per-request bearer resolution in front of the SDK's
-// era-routing handler. The handler serves 2026-07-28 traffic per request and
-// falls back to old-school stateless serving for 2025-era traffic, so this one
-// route covers POST, GET, and DELETE — body-less GET/DELETE classify as legacy
-// session operations and are answered 405 by the stateless fallback.
-// Structurally typed on `fetch` so tests can substitute a capturing fake for
-// the real handler.
+/** Who a request to /mcp acts as, or why it is refused before it reaches the server. */
+type Caller = AdmittedCaller | { refusal: 'unauthenticated' | 'unavailable' };
+
+interface AdmittedCaller {
+	token?: RuntimeToken;
+	/** Absent for anonymous callers, who share one bucket. */
+	rateLimitKey?: string;
+}
+
+const ANONYMOUS: AdmittedCaller = {};
+const UNAUTHENTICATED: Caller = { refusal: 'unauthenticated' };
+
+interface HostedProxy {
+	config: ProxyConfig;
+	store: ProxyStore;
+}
+
+async function resolveCaller(
+	bearer: string | undefined,
+	proxy: HostedProxy | null,
+	options: McpRouteOptions,
+): Promise<Caller> {
+	const { wikiRegistry, defaultWikiKey, refresh } = options;
+
+	// Challenged at `initialize` too, so a client signs in when it connects.
+	if (
+		!bearer &&
+		defaultWikiKey !== undefined &&
+		wikiRegistry?.get(defaultWikiKey)?.private === true
+	) {
+		return UNAUTHENTICATED;
+	}
+
+	// A tokenless caller is asked to sign in only by a write, in checkWikiCapability.
+	if (proxy) {
+		return bearer ? signedInCaller(bearer, proxy, refresh) : ANONYMOUS;
+	}
+
+	// A bearer here was issued for the wiki, not for this server, so it is
+	// refused rather than ignored, whatever the wikis' `oauth2ClientId`.
+	if (!bearerPassthroughEnabled()) {
+		return bearer ? UNAUTHENTICATED : ANONYMOUS;
+	}
+	if (bearer) {
+		return forwardedCaller(bearer);
+	}
+
+	// A 401 only helps while the caller can answer it by forwarding a token.
+	return wikiRegistry && everyWikiNeedsAuth(wikiRegistry) ? UNAUTHENTICATED : ANONYMOUS;
+}
+
+async function signedInCaller(
+	bearer: string,
+	proxy: HostedProxy,
+	refresh: RefreshFn | undefined,
+): Promise<Caller> {
+	try {
+		const resolved = await resolveUpstreamBearer(bearer, proxy.config, proxy.store, refresh);
+		return {
+			token: { value: resolved.accessToken, wikiKey: proxy.config.wikiKey },
+			rateLimitKey: `user:${resolved.upstreamTokenId}`,
+		};
+	} catch (err) {
+		// A transient refresh failure asks the client to retry, not to sign in again.
+		return err instanceof UpstreamBearerError && err.retryable
+			? { refusal: 'unavailable' }
+			: UNAUTHENTICATED;
+	}
+}
+
+// Never verified, so the token's digest is its only identity.
+function forwardedCaller(bearer: string): AdmittedCaller {
+	const digest = createHash('sha256').update(bearer).digest('hex').slice(0, 32);
+	return { token: { value: bearer, wikiKey: null }, rateLimitKey: `bearer:${digest}` };
+}
+
+function everyWikiNeedsAuth(wikiRegistry: WikiRegistry): boolean {
+	const all = Object.values(wikiRegistry.getAll());
+	const fallbackAllowed = process.env.MCP_ALLOW_STATIC_FALLBACK === 'true';
+	return all.length > 0 && all.every((cfg) => wikiNeedsAuth(cfg, fallbackAllowed));
+}
+
+// Serves POST, GET and DELETE: the SDK handler falls back to stateless serving
+// for 2025-era traffic, which answers GET and DELETE with 405.
 export function createMcpRouteHandler(
 	handler: Pick<McpHttpHandler, 'fetch'>,
 	options: McpRouteOptions = {},
 ): RequestHandler {
-	const { wikiRegistry, getProxyConfig, proxyStore, refresh, defaultWikiKey, rateLimiter } =
-		options;
+	const { getProxyConfig, proxyStore, rateLimiter } = options;
 	const nodeHandler = toNodeHandler(handler, { onerror: options.onerror });
 	return async (req, res) => {
-		const bearer = extractBearerToken(req);
 		const pc = getProxyConfig?.() ?? null;
-
-		// A `private` wiki disallows anonymous reads, so the deployment requires
-		// auth for everything: challenge any tokenless request up front — including
-		// `initialize` — so an OAuth-capable client signs in at connect. This
-		// connection-time 401 is the broadly client-compatible trigger.
-		if (
-			!bearer &&
-			defaultWikiKey !== undefined &&
-			wikiRegistry?.get(defaultWikiKey)?.private === true
-		) {
-			emit401Challenge(req, res, pc !== null);
-			return;
-		}
-
-		// The token threaded into withRequestContext (and thus into mwn). For the
-		// legacy path it is the raw request bearer. For the proxy path it is the
-		// UPSTREAM wiki token resolved from the proxy JWT (or undefined for an
-		// anonymous, tokenless request).
-		let runtimeToken: RuntimeToken | undefined;
-		// Rate-limit key for the VERIFIED caller. Assigned only after the bearer
-		// has been resolved, so an invalid bearer is 401'd and never mints a
-		// bucket; anonymous traffic stays undefined and shares one bucket.
-		let rateLimitKey: string | undefined;
-
-		if (pc && proxyStore) {
-			// Proxy enabled. A bearer is a proxy JWT: verify + resolve it to the
-			// upstream wiki token. A 401 (with the discovery hint) is emitted only
-			// when a bearer is present but invalid/expired/unresolvable — never for a
-			// tokenless request, which is served anonymously (step-up for write tools
-			// happens later in checkWikiCapability, not as a transport 401).
-			if (bearer) {
-				try {
-					const resolved = await resolveUpstreamBearer(bearer, pc, proxyStore, refresh);
-					runtimeToken = { value: resolved.accessToken, wikiKey: pc.wikiKey };
-					rateLimitKey = `user:${resolved.upstreamTokenId}`;
-				} catch (err) {
-					// A transient upstream refresh failure is retryable: answer 503 without a
-					// re-auth challenge. Everything else (bad/expired JWT, dead refresh token)
-					// is a genuine auth failure: emit the 401 discovery challenge.
-					if (err instanceof UpstreamBearerError && err.retryable) {
-						emit503Unavailable(req, res);
-					} else {
-						emit401Challenge(req, res, pc !== null);
-					}
-					return;
-				}
-			}
-		} else if (bearer && !bearerPassthroughEnabled()) {
-			// Proxy disabled and forwarding not opted into. The bearer was issued by
-			// the wiki's authorization server, not for this server, so it is refused
-			// rather than forwarded: accepting a token minted for another audience is
-			// what the passthrough prohibition is about, and silently ignoring it
-			// would be worse — the caller would believe it is acting as itself while
-			// the request ran anonymously or as a configured identity.
-			//
-			// Not conditioned on whether a wiki sets `oauth2ClientId`: that describes
-			// how THIS server runs browser sign-in, not whether the wiki accepts
-			// bearers. Any wiki with Extension:OAuth does, so a forwarded token would
-			// authenticate as the caller there regardless of our own configuration.
-			// A caller whose bearer is meant for something else is what the opt-in is
-			// for; the server cannot tell the two apart and must not guess.
-			emit401Challenge(req, res, pc !== null);
-			return;
-		} else if (!bearer && wikiRegistry && bearerPassthroughEnabled()) {
-			// Only meaningful while forwarding is available: a tokenless request to a
-			// set of wikis that all require OAuth can be answered by the caller
-			// supplying one. Without passthrough there is nothing a client can do, so
-			// the condition is an operator misconfiguration rather than a 401.
-			const all = Object.values(wikiRegistry.getAll());
-			const fallbackAllowed = process.env.MCP_ALLOW_STATIC_FALLBACK === 'true';
-			const allNeedAuth = all.length > 0 && all.every((cfg) => wikiNeedsAuth(cfg, fallbackAllowed));
-			if (allNeedAuth) {
+		const caller = await resolveCaller(
+			extractBearerToken(req),
+			pc && proxyStore ? { config: pc, store: proxyStore } : null,
+			options,
+		);
+		if ('refusal' in caller) {
+			if (caller.refusal === 'unavailable') {
+				emit503Unavailable(req, res);
+			} else {
 				emit401Challenge(req, res, pc !== null);
-				return;
 			}
+			return;
 		}
-
-		// A bearer that survived to here outside the proxy path is being forwarded
-		// under the deprecated opt-in. This server never verifies it, so a digest
-		// of the token is the only identity available.
-		if (bearer && !(pc && proxyStore)) {
-			runtimeToken = { value: bearer, wikiKey: null };
-			const digest = createHash('sha256').update(bearer).digest('hex').slice(0, 32);
-			rateLimitKey = `bearer:${digest}`;
-		}
-		const forwardedBearer = runtimeToken?.wikiKey === null;
 
 		if (rateLimiter && req.method === 'POST') {
 			const cost = toolsCallCost(req.body);
 			if (cost > 0) {
-				// An unverified bearer would otherwise mint a fresh allowance per
-				// request: rotating random tokens rotates digests. Charging a shared
-				// bucket as well caps the whole forwarding path, while the per-digest
-				// bucket still keeps distinct legitimate callers apart. Refusing on
-				// either leaves the other's token spent — an accounting slip that
-				// only ever makes the limiter stricter under abuse.
-				const decision = forwardedBearer
-					? worstOf(
-							rateLimiter.take(PASSTHROUGH_SHARED_KEY, cost),
-							rateLimiter.take(rateLimitKey, cost),
-						)
-					: rateLimiter.take(rateLimitKey, cost);
+				// Rotating tokens rotates digests, so forwarded bearers also share a bucket.
+				const decision =
+					caller.token?.wikiKey === null
+						? worstOf(
+								rateLimiter.take(PASSTHROUGH_SHARED_KEY, cost),
+								rateLimiter.take(caller.rateLimitKey, cost),
+							)
+						: rateLimiter.take(caller.rateLimitKey, cost);
 				if (!decision.allowed) {
 					recordRateLimited(decision.bucket);
 					emit429RateLimited(req, res, decision.retryAfterSeconds);
@@ -332,11 +294,8 @@ export function createMcpRouteHandler(
 			}
 		}
 
-		await withRequestContext(runtimeToken, () =>
-			// express.json() has already drained the request stream, so the parsed
-			// body is handed to the adapter. POST only: the SDK documents
-			// parsedBody as absent for body-less methods, and express.json()
-			// would hand GET/DELETE a spurious `{}`.
+		await withRequestContext(caller.token, () =>
+			// express.json() has drained the stream; GET and DELETE get no body, not its `{}`.
 			nodeHandler(req, res, req.method === 'POST' ? req.body : undefined),
 		);
 	};
