@@ -8,6 +8,12 @@ export class FileNotFoundError extends Error {
 }
 
 export async function assertFileExists(mwn: Mwn, title: string): Promise<void> {
+	if (!(await fileExists(mwn, title))) {
+		throw new FileNotFoundError(title);
+	}
+}
+
+export async function fileExists(mwn: Mwn, title: string): Promise<boolean> {
 	const fileTitle = title.startsWith('File:') ? title : `File:${title}`;
 
 	const response = await mwn.request({
@@ -20,7 +26,5 @@ export async function assertFileExists(mwn: Mwn, title: string): Promise<void> {
 
 	const page = (response as { query?: { pages?: ApiPage[] } }).query?.pages?.[0];
 
-	if (!page || page.missing || !page.imageinfo || page.imageinfo.length === 0) {
-		throw new FileNotFoundError(title);
-	}
+	return page !== undefined && page.missing !== true && (page.imageinfo?.length ?? 0) > 0;
 }
