@@ -49,28 +49,6 @@ describe('EditServiceImpl', () => {
 		});
 	});
 
-	it('applyTags returns options unchanged when tags is null', () => {
-		const edit = new EditServiceImpl(fakeActiveWiki(null));
-		const options = { reason: 'spam' };
-		expect(edit.applyTags(options)).toEqual({ reason: 'spam' });
-	});
-
-	it('applyTags adds tags when configured', () => {
-		const edit = new EditServiceImpl(fakeActiveWiki(['mcp-edit']));
-		expect(edit.applyTags({ reason: 'spam' })).toEqual({
-			reason: 'spam',
-			tags: ['mcp-edit'],
-		});
-	});
-
-	it('applyTags returns a copy and does not mutate input', () => {
-		const edit = new EditServiceImpl(fakeActiveWiki('mcp-edit'));
-		const input = { reason: 'spam' };
-		const result = edit.applyTags(input);
-		expect(result).not.toBe(input);
-		expect(input).toEqual({ reason: 'spam' });
-	});
-
 	it('submitUpload injects tags into upload params', async () => {
 		const mock = createMockMwn({
 			upload: vi.fn().mockResolvedValue({ filename: 'F.png' }),

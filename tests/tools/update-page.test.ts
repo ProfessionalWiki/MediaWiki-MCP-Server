@@ -45,7 +45,6 @@ function fakeEdit(response: unknown = successResponse()) {
 		edit: {
 			...baseEdit,
 			submit,
-			applyTags: <T extends Record<string, unknown>>(o: T) => ({ ...o }),
 			botRight,
 		},
 	});
@@ -199,7 +198,6 @@ describe('update-page', () => {
 				edit: {
 					...baseEdit,
 					submit: vi.fn().mockRejectedValue(new Error('Edit conflict')),
-					applyTags: <T extends Record<string, unknown>>(o: T) => ({ ...o }),
 				},
 			});
 
@@ -222,7 +220,6 @@ describe('update-page', () => {
 				edit: {
 					...baseEdit,
 					submit: vi.fn().mockRejectedValue(new Error("The page you specified doesn't exist.")),
-					applyTags: <T extends Record<string, unknown>>(o: T) => ({ ...o }),
 				},
 			});
 
@@ -298,7 +295,6 @@ describe('update-page', () => {
 				edit: {
 					...baseEdit,
 					submit: vi.fn().mockRejectedValue(new Error('nosuchsection: There is no section 99.')),
-					applyTags: <T extends Record<string, unknown>>(o: T) => ({ ...o }),
 				},
 				// Section 99 does not exist, so a real outline would not contain it
 				// either; the guard must not fire and it must not eat this error.

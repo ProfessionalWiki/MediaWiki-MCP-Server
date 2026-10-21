@@ -27,11 +27,11 @@ export const deletePage: Tool<typeof inputSchema> = {
 
 	async handle({ title, comment }, ctx: ToolContext): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- action=delete response shape; trusted at this boundary
 		const response = (await ctx.edit.submit(mwn, {
 			action: 'delete',
 			title,
 			reason: formatEditComment(ctx, 'delete-page', comment),
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- action=delete response shape; trusted at this boundary
 		})) as { delete: ApiDeleteResponse & { logid?: number } };
 		const data = response.delete;
 		return ctx.format.ok({

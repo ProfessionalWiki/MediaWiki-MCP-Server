@@ -26,9 +26,6 @@ export interface EditService {
 		params: ApiUploadParams,
 	): Promise<ApiUploadResponse>;
 
-	/** Pure helper: returns options with tags injected from the targeted wiki's config. Used by callers of mwn's uploadFromUrl. */
-	applyTags<T extends Record<string, unknown>>(options: T): T;
-
 	/**
 	 * Reports whether the authenticated account holds the `bot` right on the
 	 * targeted wiki — i.e. whether a bot-flagged edit will actually be marked.
@@ -132,13 +129,5 @@ export class EditServiceImpl implements EditService {
 			headers: { 'Content-Type': 'multipart/form-data' },
 		})) as { upload: ApiUploadResponse };
 		return response.upload;
-	}
-
-	public applyTags<T extends Record<string, unknown>>(options: T): T {
-		const tags = this.activeWiki.get().config.tags;
-		if (tags === null || tags === undefined) {
-			return { ...options };
-		}
-		return { ...options, tags };
 	}
 }

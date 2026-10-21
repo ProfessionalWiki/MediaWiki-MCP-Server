@@ -50,7 +50,6 @@ export const movePage: Tool<typeof inputSchema> = {
 		const ignoreWarnings = args.ignoreWarnings ?? false;
 
 		const mwn = await ctx.mwn();
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- action=move response shape; trusted at this boundary
 		const response = (await ctx.edit.submit(mwn, {
 			action: 'move',
 			from: args.fromTitle,
@@ -60,6 +59,7 @@ export const movePage: Tool<typeof inputSchema> = {
 			movesubpages: moveSubpages,
 			noredirect: !leaveRedirect,
 			ignorewarnings: ignoreWarnings,
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- action=move response shape; trusted at this boundary
 		})) as {
 			move: ApiMoveResponse & {
 				from?: string;

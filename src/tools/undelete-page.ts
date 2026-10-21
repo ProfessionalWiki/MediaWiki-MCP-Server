@@ -27,11 +27,11 @@ export const undeletePage: Tool<typeof inputSchema> = {
 
 	async handle({ title, comment }, ctx: ToolContext): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- action=undelete response shape; trusted at this boundary
 		const response = (await ctx.edit.submit(mwn, {
 			action: 'undelete',
 			title,
 			reason: formatEditComment(ctx, 'undelete-page', comment),
+			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- action=undelete response shape; trusted at this boundary
 		})) as { undelete: ApiUndeleteResponse & { revisions?: number } };
 		const data = response.undelete;
 

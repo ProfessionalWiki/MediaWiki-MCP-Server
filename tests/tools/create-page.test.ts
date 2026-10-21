@@ -19,7 +19,7 @@ const CREATED = {
 // The wiki answers the write with `answers.editResponse`, or a successful
 // creation, and reports `answers.rights` for the account.
 function fakeWiki(answers: { editResponse?: object; rights?: string[] } = {}): WritingWiki {
-	return writingWiki(answers.editResponse ?? CREATED, answers.rights);
+	return writingWiki(answers.editResponse ?? CREATED, { rights: answers.rights });
 }
 
 describe('create-page', () => {
