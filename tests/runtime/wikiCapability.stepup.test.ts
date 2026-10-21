@@ -70,12 +70,23 @@ describe('checkWikiCapability proxy step-up', () => {
 		expect(result).toBeUndefined();
 	});
 
-	it("rejects a write on a proxy-enabled wiki the caller's token was not issued for", async () => {
+	it('refuses a signed-in write on a wiki hosted sign-in does not cover, naming the wiki it does', async () => {
 		const result = await withRequestFields(
-			{ runtimeToken: { value: 'upstream-tok', wikiKey: 'elsewhere' } },
-			() => checkWikiCapability('update-page', 'w', ctx({ proxy: true })),
+			{ runtimeToken: { value: 'upstream-tok', wikiKey: 'w' } },
+			() => checkWikiCapability('update-page', 'other', ctx({ proxy: true })),
 		);
-		assertStructuredError(result!, 'authentication');
+		const envelope = assertStructuredError(result!, 'permission_denied');
+		expect(envelope.message).toContain('"w"');
+	});
+
+	it('refuses an anonymous write on a wiki hosted sign-in does not cover', async () => {
+		const result = await checkWikiCapability('update-page', 'other', ctx({ proxy: true }));
+		assertStructuredError(result!, 'permission_denied');
+	});
+
+	it('allows a read on a wiki hosted sign-in does not cover', async () => {
+		const result = await checkWikiCapability('get-page', 'other', ctx({ proxy: true }));
+		expect(result).toBeUndefined();
 	});
 
 	it('rejects an extension write tool dispatched anonymously on a proxy-enabled wiki', async () => {

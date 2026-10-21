@@ -73,6 +73,13 @@ export async function checkWikiCapability(
 			const hasStatic = hasStaticCredentials(cfg);
 			const anonymous = getRuntimeToken(wikiKey) === undefined;
 			if (pc) {
+				// Sign-in yields tokens for the proxy's wiki only, so asking the caller to
+				// authenticate could never let a write to another wiki through.
+				if (WRITE_TOOL_SET.has(toolName) && wikiKey !== pc.wikiKey) {
+					return ctx.format.permissionDenied(
+						`Hosted sign-in covers wiki "${pc.wikiKey}" only, so write tools are not available on wiki "${wikiKey}".`,
+					);
+				}
 				if (anonymous && WRITE_TOOL_SET.has(toolName)) {
 					return ctx.format.error(
 						'authentication',
