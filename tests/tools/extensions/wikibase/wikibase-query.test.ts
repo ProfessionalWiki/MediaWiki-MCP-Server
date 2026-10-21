@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-vi.mock('../../../../src/transport/httpFetch.ts', async () => {
-	const actual = await vi.importActual<typeof import('../../../../src/transport/httpFetch.ts')>(
-		'../../../../src/transport/httpFetch.ts',
+vi.mock('../../../../src/outbound/httpFetch.ts', async () => {
+	const actual = await vi.importActual<typeof import('../../../../src/outbound/httpFetch.ts')>(
+		'../../../../src/outbound/httpFetch.ts',
 	);
 	return { ...actual, postForm: vi.fn() };
 });
 
-import { postForm, HttpStatusError } from '../../../../src/transport/httpFetch.ts';
+import { postForm, HttpStatusError } from '../../../../src/outbound/httpFetch.ts';
 import { fakeContext, probeReporting } from '../../../helpers/fakeContext.ts';
 import { toolArgs } from '../../../helpers/toolArgs.ts';
 import { wikibaseQuery } from '../../../../src/tools/extensions/wikibase/wikibase-query.ts';

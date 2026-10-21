@@ -3,7 +3,7 @@ import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { ToolContext } from '../runtime/context.ts';
 import { errorMessage } from '../errors/errorMessage.ts';
-import { fetchFileBytes, shouldRescueToWiki } from '../transport/httpFetch.ts';
+import { fetchFileBytes, shouldRescueToWiki } from '../outbound/httpFetch.ts';
 import { buildPageUrl } from './utils.ts';
 
 export interface UrlUpload {

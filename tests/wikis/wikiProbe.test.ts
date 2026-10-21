@@ -9,11 +9,11 @@ import { withRequestFields } from '../../src/runtime/requestContext.ts';
 import { siteinfoAnswer } from '../helpers/siteinfoAnswer.ts';
 import { wikiAnswering } from '../helpers/wikiAnswering.ts';
 
-vi.mock('../../src/transport/httpFetch.ts', () => ({
+vi.mock('../../src/outbound/httpFetch.ts', () => ({
 	makeApiRequest: vi.fn(),
 }));
 
-import { makeApiRequest } from '../../src/transport/httpFetch.ts';
+import { makeApiRequest } from '../../src/outbound/httpFetch.ts';
 
 const baseWiki: WikiConfig = {
 	sitename: 'Test',

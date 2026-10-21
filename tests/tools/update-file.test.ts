@@ -13,9 +13,9 @@ vi.mock('../../src/transport/uploadGuard.ts', async () => {
 	};
 });
 
-vi.mock('../../src/transport/fileExistence.ts', async () => {
-	const actual = await vi.importActual<typeof import('../../src/transport/fileExistence.ts')>(
-		'../../src/transport/fileExistence.ts',
+vi.mock('../../src/wikis/fileExistence.ts', async () => {
+	const actual = await vi.importActual<typeof import('../../src/wikis/fileExistence.ts')>(
+		'../../src/wikis/fileExistence.ts',
 	);
 	return {
 		...actual,
@@ -24,7 +24,7 @@ vi.mock('../../src/transport/fileExistence.ts', async () => {
 });
 
 import { assertAllowedPath, UploadValidationError } from '../../src/transport/uploadGuard.ts';
-import { assertFileExists, FileNotFoundError } from '../../src/transport/fileExistence.ts';
+import { assertFileExists, FileNotFoundError } from '../../src/wikis/fileExistence.ts';
 import { updateFile } from '../../src/tools/update-file.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';

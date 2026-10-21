@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
-import { fileExists } from '../transport/fileExistence.ts';
+import { fileExists } from '../wikis/fileExistence.ts';
 import { formatEditComment } from '../wikis/utils.ts';
 import { uploadFromUrl } from '../wikis/fileUpload.ts';
 

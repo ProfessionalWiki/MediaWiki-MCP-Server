@@ -1,10 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
-import {
-	assertFileExists,
-	fileExists,
-	FileNotFoundError,
-} from '../../src/transport/fileExistence.ts';
+import { assertFileExists, fileExists, FileNotFoundError } from '../../src/wikis/fileExistence.ts';
 
 function wikiAnswering(response: unknown): ReturnType<typeof createMockMwn> {
 	return createMockMwn({ request: vi.fn().mockResolvedValue(response) });

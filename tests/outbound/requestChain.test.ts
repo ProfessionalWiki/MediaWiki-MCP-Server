@@ -8,7 +8,7 @@ import {
 	TooManyRedirectsError,
 	UnusableLocationError,
 	type HopRequest,
-} from '../../src/transport/requestChain.ts';
+} from '../../src/outbound/requestChain.ts';
 
 const START = 'https://wiki.example/w/api.php';
 

@@ -1,6 +1,6 @@
 import { ClassifiedError, type ErrorCategory } from '../../../errors/classifyError.ts';
-import { FileTooLargeError, HttpStatusError, postForm } from '../../../transport/httpFetch.ts';
-import { RedirectDropsBodyError } from '../../../transport/requestChain.ts';
+import { FileTooLargeError, HttpStatusError, postForm } from '../../../outbound/httpFetch.ts';
+import { RedirectDropsBodyError } from '../../../outbound/requestChain.ts';
 import { getRequestSignal } from '../../../runtime/requestContext.ts';
 import { errorMessage } from '../../../errors/errorMessage.ts';
 

@@ -1,4 +1,4 @@
-import { makeApiRequest } from '../transport/httpFetch.ts';
+import { makeApiRequest } from '../outbound/httpFetch.ts';
 import type { WikiRegistry } from './wikiRegistry.ts';
 import type { MwnProvider } from './mwnProvider.ts';
 import type { WikiConfig } from '../config/loadConfig.ts';

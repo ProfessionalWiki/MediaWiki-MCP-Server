@@ -201,9 +201,9 @@ function cloneRecord(r: ClientRecord): ClientRecord {
 }
 
 // The result contract for the injected CIMD fetcher — the resolver's port. The
-// transport adapter (cimdFetch.ts) implements it; owning the type here keeps the
-// dependency pointing from the outer transport adapter inward to this policy
-// layer rather than the reverse.
+// fetcher in cimdFetch.ts implements it; owning the type here keeps the
+// dependency pointing from that outbound adapter inward to this policy layer
+// rather than the reverse.
 export interface CimdFetchResult {
 	status: number;
 	body: string;
