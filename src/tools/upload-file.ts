@@ -4,7 +4,7 @@ import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { ApiUploadResponse } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
-import { assertAllowedPath, UploadValidationError } from '../transport/uploadGuard.ts';
+import { UploadValidationError } from '../wikis/uploadDirs.ts';
 import { fileExists } from '../wikis/fileExistence.ts';
 import { formatEditComment } from '../wikis/utils.ts';
 import { uploadedFile } from '../wikis/fileUpload.ts';
@@ -34,7 +34,7 @@ export const uploadFile: Tool<typeof inputSchema> = {
 	async handle({ filepath, title, text, comment }, ctx: ToolContext): Promise<CallToolResult> {
 		let resolvedPath: string;
 		try {
-			resolvedPath = await assertAllowedPath(filepath, ctx.uploadDirs.list());
+			resolvedPath = await ctx.uploadDirs.resolve(filepath);
 		} catch (error) {
 			if (error instanceof UploadValidationError) {
 				return ctx.format.invalidInput(`Failed to upload file: ${error.message}`);
