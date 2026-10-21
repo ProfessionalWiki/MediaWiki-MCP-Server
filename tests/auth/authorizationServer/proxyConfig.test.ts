@@ -24,6 +24,9 @@ describe('resolveProxyConfig', () => {
 	it('returns null on stdio transport', () => {
 		expect(resolveProxyConfig('w', wiki, { ...env, MCP_TRANSPORT: 'stdio' })).toBeNull();
 	});
+	it('names the wiki it signs users in to', () => {
+		expect(resolveProxyConfig('w', wiki, env)?.wikiKey).toBe('w');
+	});
 	it('derives the three bases', () => {
 		const c = resolveProxyConfig('w', wiki, env)!;
 		expect(c.issuer).toBe('https://wiki.example/mcp');

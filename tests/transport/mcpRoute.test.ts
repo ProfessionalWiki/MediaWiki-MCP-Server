@@ -13,7 +13,7 @@ import { createRateLimiter } from '../../src/transport/rateLimit.ts';
 import { RATE_LIMITED_ERROR_CODE } from '../../src/transport/errorCodes.ts';
 import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.ts';
 import { mintAccessToken } from '../../src/auth/authorizationServer/jwt.ts';
-import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.ts';
+import { fakeProxyConfig } from '../helpers/fakeProxyConfig.ts';
 import { getRuntimeToken } from '../../src/runtime/requestContext.ts';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
 
@@ -131,7 +131,7 @@ describe('bearer threading through the route', () => {
 		const fakeHandler = {
 			fetch: async (): Promise<Response> => {
 				captured.seen = true;
-				captured.token = getRuntimeToken();
+				captured.token = getRuntimeToken('test');
 				return new Response(JSON.stringify({ ok: true }), {
 					status: 200,
 					headers: { 'content-type': 'application/json' },
@@ -162,7 +162,7 @@ describe('bearer threading through the route', () => {
 		const fakeHandler = {
 			fetch: async (): Promise<Response> => {
 				captured.seen = true;
-				captured.token = getRuntimeToken();
+				captured.token = getRuntimeToken('test');
 				return new Response(JSON.stringify({ ok: true }), {
 					status: 200,
 					headers: { 'content-type': 'application/json' },
@@ -342,10 +342,7 @@ describe('rate limiting on /mcp', () => {
 
 	it('keys proxy callers by their upstream token id', async () => {
 		const store = new InMemoryProxyStore();
-		const pcLocal = {
-			issuer: 'https://wiki.example/mcp',
-			signingKey: 'k'.repeat(32),
-		} as unknown as ProxyConfig;
+		const pcLocal = fakeProxyConfig({ signingKey: 'k'.repeat(32) });
 		const mint = async (accessToken: string) =>
 			mintAccessToken({
 				issuer: pcLocal.issuer,

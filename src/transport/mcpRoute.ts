@@ -4,7 +4,7 @@ import type { McpHttpHandler } from '@modelcontextprotocol/server';
 import { toNodeHandler } from '@modelcontextprotocol/node';
 import { bearerPassthroughEnabled, hasStaticCredentials } from '../runtime/authShape.ts';
 import { recordRateLimited } from '../runtime/metrics.ts';
-import { withRequestContext } from '../runtime/requestContext.ts';
+import { withRequestContext, type RuntimeToken } from '../runtime/requestContext.ts';
 import type { WikiConfig } from '../config/loadConfig.ts';
 import type { WikiRegistry } from '../wikis/wikiRegistry.ts';
 import { resolvePublicBase } from '../auth/protectedResource.ts';
@@ -242,7 +242,7 @@ export function createMcpRouteHandler(
 		// legacy path it is the raw request bearer. For the proxy path it is the
 		// UPSTREAM wiki token resolved from the proxy JWT (or undefined for an
 		// anonymous, tokenless request).
-		let resolvedBearer = bearer;
+		let runtimeToken: RuntimeToken | undefined;
 		// Rate-limit key for the VERIFIED caller. Assigned only after the bearer
 		// has been resolved, so an invalid bearer is 401'd and never mints a
 		// bucket; anonymous traffic stays undefined and shares one bucket.
@@ -257,7 +257,7 @@ export function createMcpRouteHandler(
 			if (bearer) {
 				try {
 					const resolved = await resolveUpstreamBearer(bearer, pc, proxyStore, refresh);
-					resolvedBearer = resolved.accessToken;
+					runtimeToken = { value: resolved.accessToken, wikiKey: pc.wikiKey };
 					rateLimitKey = `user:${resolved.upstreamTokenId}`;
 				} catch (err) {
 					// A transient upstream refresh failure is retryable: answer 503 without a
@@ -270,8 +270,6 @@ export function createMcpRouteHandler(
 					}
 					return;
 				}
-			} else {
-				resolvedBearer = undefined;
 			}
 		} else if (bearer && !bearerPassthroughEnabled()) {
 			// Proxy disabled and forwarding not opted into. The bearer was issued by
@@ -306,12 +304,12 @@ export function createMcpRouteHandler(
 		// A bearer that survived to here outside the proxy path is being forwarded
 		// under the deprecated opt-in. This server never verifies it, so a digest
 		// of the token is the only identity available.
-		let forwardedBearer = false;
-		if (rateLimitKey === undefined && resolvedBearer !== undefined && !(pc && proxyStore)) {
-			const digest = createHash('sha256').update(resolvedBearer).digest('hex').slice(0, 32);
+		if (bearer && !(pc && proxyStore)) {
+			runtimeToken = { value: bearer, wikiKey: null };
+			const digest = createHash('sha256').update(bearer).digest('hex').slice(0, 32);
 			rateLimitKey = `bearer:${digest}`;
-			forwardedBearer = true;
 		}
+		const forwardedBearer = runtimeToken?.wikiKey === null;
 
 		if (rateLimiter && req.method === 'POST') {
 			const cost = toolsCallCost(req.body);
@@ -336,7 +334,7 @@ export function createMcpRouteHandler(
 			}
 		}
 
-		await withRequestContext(resolvedBearer, () =>
+		await withRequestContext(runtimeToken, () =>
 			// express.json() has already drained the request stream, so the parsed
 			// body is handed to the adapter. POST only: the SDK documents
 			// parsedBody as absent for body-less methods, and express.json()

@@ -120,7 +120,7 @@ describe('checkWikiCapability', () => {
 	});
 
 	it('allows an HTTP call to an OAuth-only wiki when a runtime bearer is present', async () => {
-		const result = await withRequestFields({ runtimeToken: 'tok' }, () =>
+		const result = await withRequestFields({ runtimeToken: { value: 'tok', wikiKey: null } }, () =>
 			checkWikiCapability('get-page', 'w', ctx(false, oauthWiki, true, 'http')),
 		);
 		expect(result).toBeUndefined();

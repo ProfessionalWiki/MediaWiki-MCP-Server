@@ -39,6 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `upload-file` and `upload-file-from-url` fail as `conflict` when a file with the target title already exists, instead of uploading a new version over it.
 - `get-page` and `update-page`'s `find-replace` fail with the wiki's error when the wiki refuses the read, such as `permission_denied`, instead of an `upstream_failure` naming a JavaScript error.
 - `create-page` fails when the wiki refuses the creation without an error code, as it does for a CAPTCHA, instead of reporting success.
+- With hosted OAuth sign-in, a user's wiki token is sent only to the wiki sign-in is set up for.
 
 ## [0.19.0] - 2026-09-25
 

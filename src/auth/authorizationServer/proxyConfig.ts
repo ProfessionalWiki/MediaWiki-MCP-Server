@@ -9,6 +9,8 @@ export class ProxyConfigError extends Error {
 }
 
 export interface ProxyConfig {
+	// The wiki the proxy signs users in to, and the only one its tokens are sent to.
+	wikiKey: string;
 	issuer: string;
 	authorizeBase: string;
 	tokenExchangeBase: string;
@@ -47,7 +49,7 @@ function stripTrailingSlash(u: string): string {
 }
 
 export function resolveProxyConfig(
-	_wikiKey: string,
+	wikiKey: string,
 	wiki: ProxyWikiInput,
 	env: NodeJS.ProcessEnv,
 ): ProxyConfig | null {
@@ -130,6 +132,7 @@ export function resolveProxyConfig(
 	}
 
 	return {
+		wikiKey,
 		issuer,
 		authorizeBase: stripTrailingSlash(wiki.publicServer?.trim() || wiki.server),
 		tokenExchangeBase: stripTrailingSlash(wiki.server),

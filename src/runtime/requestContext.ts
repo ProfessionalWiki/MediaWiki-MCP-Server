@@ -1,8 +1,19 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { CallDeadline } from './callDeadline.ts';
+import { hashCaller } from './instrument.ts';
+
+/**
+ * A token the request acts with, and the one wiki it may be sent to. A token the
+ * caller forwarded names none (null): which wiki it is for is the caller's to
+ * choose.
+ */
+export interface RuntimeToken {
+	value: string;
+	wikiKey: string | null;
+}
 
 interface RequestContext {
-	runtimeToken?: string;
+	runtimeToken?: RuntimeToken;
 	wikiKey?: string;
 	signal?: AbortSignal;
 	deadline?: CallDeadline;
@@ -10,8 +21,18 @@ interface RequestContext {
 
 export const runtimeTokenStore = new AsyncLocalStorage<RequestContext>();
 
-export function getRuntimeToken(): string | undefined {
-	return runtimeTokenStore.getStore()?.runtimeToken;
+/** The token a request to `wikiKey` may carry, if the request holds one for it. */
+export function getRuntimeToken(wikiKey: string): string | undefined {
+	const token = runtimeTokenStore.getStore()?.runtimeToken;
+	if (token !== undefined && (token.wikiKey === null || token.wikiKey === wikiKey)) {
+		return token.value;
+	}
+	return undefined;
+}
+
+/** The caller's identity for telemetry: a digest of its token, never the token. */
+export function getCallerId(): string {
+	return hashCaller(runtimeTokenStore.getStore()?.runtimeToken?.value);
 }
 
 // The MCP request's cancellation signal, aborted when the client cancels the
@@ -33,7 +54,7 @@ export function getRequestWiki(): string | undefined {
 }
 
 export function withRequestContext<T>(
-	runtimeToken: string | undefined,
+	runtimeToken: RuntimeToken | undefined,
 	fn: () => Promise<T>,
 ): Promise<T> {
 	return runtimeTokenStore.run({ runtimeToken }, fn);

@@ -26,7 +26,7 @@ export class MwnProviderImpl implements MwnProvider {
 	public constructor(
 		private readonly wikis: WikiRegistry,
 		private readonly activeWiki: ActiveWiki,
-		private readonly getRuntimeToken: () => string | undefined,
+		private readonly getRuntimeToken: (wikiKey: string) => string | undefined,
 	) {}
 
 	public async get(wikiKey?: string): Promise<Mwn> {
@@ -45,7 +45,7 @@ export class MwnProviderImpl implements MwnProvider {
 	}
 
 	private async getInstance(key: string, config: Readonly<WikiConfig>): Promise<Mwn> {
-		const runtimeToken = this.getRuntimeToken();
+		const runtimeToken = this.getRuntimeToken(key);
 		if (runtimeToken) {
 			return this.create(key, config, runtimeToken);
 		}

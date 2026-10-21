@@ -4,7 +4,7 @@ import type { Tool } from './tool.ts';
 import type { ToolContext } from './context.ts';
 import { applySpecialCase } from '../errors/specialCases.ts';
 import { errorMessage } from '../errors/isErrnoException.ts';
-import { getRequestSignal, getRuntimeToken, withRequestFields } from './requestContext.ts';
+import { getCallerId, getRequestSignal, withRequestFields } from './requestContext.ts';
 import { callDeadline, WIKI_CALL_TIMEOUT_MS } from './callDeadline.ts';
 import { WikiTimeoutError } from '../errors/wikiTimeoutError.ts';
 import { isWikiScoped, normalizeWikiArg } from './wikiArg.ts';
@@ -79,7 +79,7 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends ToolContext =
 				}
 				// withRequestFields (not withRequestContext) so the resolved wikiKey
 				// set below survives into the token-scoped run.
-				return withRequestFields({ runtimeToken: token }, () =>
+				return withRequestFields({ runtimeToken: { value: token, wikiKey } }, () =>
 					runDispatchInner(tool, ctx, args, resolvedKey),
 				);
 			}
@@ -194,7 +194,7 @@ async function runDispatchInner<TSchema extends ZodRawShape, TCtx extends ToolCo
 		outcome,
 		upstreamStatus,
 		errorMessage: errorText,
-		runtimeToken: getRuntimeToken(),
+		caller: getCallerId(),
 		wikiKey: ctx.activeWiki.get().key,
 	});
 

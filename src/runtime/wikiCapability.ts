@@ -71,7 +71,7 @@ export async function checkWikiCapability(
 			const pc = ctx.getProxyConfig?.() ?? null;
 			const oauthOnly = typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
 			const hasStatic = hasStaticCredentials(cfg);
-			const anonymous = getRuntimeToken() === undefined;
+			const anonymous = getRuntimeToken(wikiKey) === undefined;
 			if (pc) {
 				if (anonymous && WRITE_TOOL_SET.has(toolName)) {
 					return ctx.format.error(
