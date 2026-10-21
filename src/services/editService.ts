@@ -1,3 +1,5 @@
+import { createReadStream, type ReadStream } from 'node:fs';
+import { basename } from 'node:path';
 import type { ApiParams, Mwn } from 'mwn';
 import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { ApiUploadResponse } from 'mwn';
@@ -7,7 +9,7 @@ export interface EditService {
 	/** Wraps mwn.request with CSRF + tag injection + formatversion=2. For action:edit and similar. */
 	submit(mwn: Mwn, params: Record<string, unknown>): Promise<unknown>;
 
-	/** Wraps mwn.upload with tag injection. CSRF is handled inside mwn.upload. */
+	/** Uploads the file at `filepath` via a multipart action=upload. Injects CSRF token, tags, and ignorewarnings. */
 	submitUpload(
 		mwn: Mwn,
 		filepath: string,
@@ -91,12 +93,7 @@ export class EditServiceImpl implements EditService {
 		text: string,
 		params: ApiUploadParams,
 	): Promise<ApiUploadResponse> {
-		const tags = this.activeWiki.get().config.tags;
-		const fullParams: ApiUploadParams = { ...params };
-		if (tags !== null && tags !== undefined) {
-			fullParams.tags = tags;
-		}
-		return mwn.upload(filepath, title, text, fullParams);
+		return this.upload(mwn, fileAt(filepath), title, text, params);
 	}
 
 	public async submitUploadFromBytes(
@@ -107,14 +104,21 @@ export class EditServiceImpl implements EditService {
 		text: string,
 		params: ApiUploadParams,
 	): Promise<ApiUploadResponse> {
+		return this.upload(mwn, { stream: data, name: filename }, title, text, params);
+	}
+
+	private async upload(
+		mwn: Mwn,
+		file: FileField,
+		title: string,
+		text: string,
+		params: ApiUploadParams,
+	): Promise<ApiUploadResponse> {
 		const token = await mwn.getCsrfToken();
 		const tags = this.activeWiki.get().config.tags;
-		// Pass the Buffer straight to mwn's multipart `file` field. form-data sizes
-		// a Buffer directly; a Readable (e.g. Readable.from(buffer)) has no known
-		// length and form-data rejects it with "Unknown stream".
 		const fullParams: Record<string, unknown> = {
 			action: 'upload',
-			file: { stream: data, name: filename },
+			file,
 			filename: title,
 			text,
 			ignorewarnings: true,
@@ -130,4 +134,26 @@ export class EditServiceImpl implements EditService {
 		})) as { upload: ApiUploadResponse };
 		return response.upload;
 	}
+}
+
+/** mwn's multipart `file` field. */
+interface FileField {
+	readonly stream: Buffer | ReadStream;
+	readonly name: string;
+}
+
+// mwn resends the same params when it retries a request, reading `stream` once
+// per attempt, and a read stream is spent by the attempt that read it: a retry
+// would declare the file's length and send none of it. So each read opens the
+// file afresh, closing what a dropped attempt left half read.
+function fileAt(filepath: string): FileField {
+	let opened: ReadStream | undefined;
+	return {
+		get stream(): ReadStream {
+			opened?.destroy();
+			opened = createReadStream(filepath);
+			return opened;
+		},
+		name: basename(filepath),
+	};
 }
