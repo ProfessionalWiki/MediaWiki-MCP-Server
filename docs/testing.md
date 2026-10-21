@@ -146,7 +146,7 @@ To create a bot password on a local MediaWiki running in Docker:
 ```bash
 docker exec <container> php /var/www/html/maintenance/run.php createBotPassword \
   --appid mcp-server \
-  --grants 'basic,highvolume,editpage,editprotected,createeditmovepage,delete,protect,uploadfile,uploadeditmovefile' \
+  --grants 'basic,highvolume,editpage,editprotected,createeditmovepage,delete,protect,uploadfile,uploadeditmovefile,cargo' \
   <username>
 ```
 
