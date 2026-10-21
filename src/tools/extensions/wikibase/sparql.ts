@@ -1,4 +1,4 @@
-import type { ErrorCategory } from '../../../errors/classifyError.ts';
+import { ClassifiedError, type ErrorCategory } from '../../../errors/classifyError.ts';
 import { FileTooLargeError, HttpStatusError, postForm } from '../../../transport/httpFetch.ts';
 import { RedirectDropsBodyError } from '../../../transport/requestChain.ts';
 import { getRequestSignal } from '../../../runtime/requestContext.ts';
@@ -28,17 +28,6 @@ const ABSOLUTE_URL = /https?:\/\/\S+/g;
  * the subject of the sentence a transport error puts it in.
  */
 const QUERY_SERVICE = "the wiki's query service";
-
-/** A query service failure already classified into an MCP error category. */
-export class SparqlError extends Error {
-	public constructor(
-		public readonly category: ErrorCategory,
-		message: string,
-	) {
-		super(message);
-		this.name = 'SparqlError';
-	}
-}
 
 export interface SparqlResults {
 	columns: string[];
@@ -122,8 +111,8 @@ function parseResults(body: string, maxRows: number): SparqlResults {
 	};
 }
 
-function notSparqlResults(): SparqlError {
-	return new SparqlError(
+function notSparqlResults(): ClassifiedError {
+	return new ClassifiedError(
 		'upstream_failure',
 		'The query service returned a response that is not SPARQL JSON results.',
 	);
@@ -143,30 +132,35 @@ function renderRow(binding: unknown, columns: string[]): string {
 		.join(' | ');
 }
 
-function classifyQueryFailure(err: unknown, endpoint: string): SparqlError {
+function classifyQueryFailure(err: unknown, endpoint: string): ClassifiedError {
 	if (err instanceof RedirectDropsBodyError) {
-		return new SparqlError(
+		return new ClassifiedError(
 			'upstream_failure',
 			`The query service redirected the query to ${originOf(err.target)} instead of answering it (HTTP ${err.status}), and a SPARQL query cannot survive that redirect. The wiki advertises this endpoint in its siteinfo as \`wikibase-sparql\`, so its operator has to point that at an address which answers directly.`,
+			err.status,
 		);
 	}
 	if (err instanceof HttpStatusError) {
-		return new SparqlError(categoryForStatus(err.status), serviceMessage(err, endpoint));
+		return new ClassifiedError(
+			categoryForStatus(err.status),
+			serviceMessage(err, endpoint),
+			err.status,
+		);
 	}
 	if (err instanceof FileTooLargeError) {
-		return new SparqlError(
+		return new ClassifiedError(
 			'invalid_input',
 			`The query service returned more than ${MAX_RESULT_BYTES / (1024 * 1024)} MB of results. Add LIMIT to the query, or project fewer variables.`,
 		);
 	}
 	if (err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
-		return new SparqlError(
+		return new ClassifiedError(
 			'upstream_failure',
 			`The query service did not answer within ${QUERY_TIMEOUT_MS / 1000} seconds.`,
 		);
 	}
 	const message = err instanceof Error ? err.message : String(err);
-	return new SparqlError('upstream_failure', transportMessage(message, endpoint));
+	return new ClassifiedError('upstream_failure', transportMessage(message, endpoint));
 }
 
 /**

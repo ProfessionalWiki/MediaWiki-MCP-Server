@@ -5,6 +5,7 @@ import type { ToolContext } from '../../../../src/runtime/context.ts';
 import { neowikiCreateSubject } from '../../../../src/tools/extensions/neowiki/neowiki-create-subject.ts';
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
 import { httpError } from '../../../helpers/httpError.ts';
+import { dispatch } from '../../../../src/runtime/dispatcher.ts';
 
 const stmts = { Country: { propertyType: 'text', value: ['Germany'] } };
 
@@ -86,10 +87,10 @@ describe('neowiki-create-subject', () => {
 				.mockRejectedValue(httpError(409, { status: 'error', message: 'Subject already exists' })),
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
-		const result = await neowikiCreateSubject.handle(
-			{ pageId: 7, isMain: true, label: 'X', schema: 'City', statements: stmts },
+		const result = await dispatch(
+			neowikiCreateSubject,
 			ctx,
-		);
+		)({ pageId: 7, isMain: true, label: 'X', schema: 'City', statements: stmts });
 		assertStructuredError(result, 'conflict');
 	});
 

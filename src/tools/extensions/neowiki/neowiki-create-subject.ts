@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
-import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
+import { neowikiRequest } from './neowikiRequest.ts';
 import { formatEditComment } from '../../../wikis/utils.ts';
 import { resolvePageId, hasOnePageRef } from './pageId.ts';
 import { writeResult, type SubjectWriteResponse } from './subjects.ts';
@@ -74,36 +74,32 @@ export const neowikiCreateSubject: Tool<typeof inputSchema> = {
 
 		const mwn = await ctx.mwn();
 		const editComment = formatEditComment(ctx, 'neowiki-create-subject', comment);
-		try {
-			const resolvedPageId = await resolvePageId(mwn, { title, pageId });
-			if (resolvedPageId === null) {
-				return ctx.format.notFound(`Page "${title}" not found`);
-			}
-
-			const segment = isMain === true ? 'mainSubject' : 'subjects';
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki create response shape; trusted at this boundary
-			const data = (await neowikiRequest(mwn, {
-				method: 'POST',
-				path: `/page/${resolvedPageId}/${segment}`,
-				csrf: true,
-				body: {
-					label,
-					schema,
-					statements,
-					dependentSubjects,
-					...(editComment !== undefined ? { comment: editComment } : {}),
-				},
-			})) as SubjectWriteResponse;
-
-			const subjectId = data.subjectId ?? '';
-			return ctx.format.ok({
-				subjectId,
-				status: data.status ?? 'created',
-				pageId: resolvedPageId,
-				...writeResult(data, subjectId),
-			});
-		} catch (err) {
-			return neowikiErrorResult(err, ctx);
+		const resolvedPageId = await resolvePageId(mwn, { title, pageId });
+		if (resolvedPageId === null) {
+			return ctx.format.notFound(`Page "${title}" not found`);
 		}
+
+		const segment = isMain === true ? 'mainSubject' : 'subjects';
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki create response shape; trusted at this boundary
+		const data = (await neowikiRequest(mwn, {
+			method: 'POST',
+			path: `/page/${resolvedPageId}/${segment}`,
+			csrf: true,
+			body: {
+				label,
+				schema,
+				statements,
+				dependentSubjects,
+				...(editComment !== undefined ? { comment: editComment } : {}),
+			},
+		})) as SubjectWriteResponse;
+
+		const subjectId = data.subjectId ?? '';
+		return ctx.format.ok({
+			subjectId,
+			status: data.status ?? 'created',
+			pageId: resolvedPageId,
+			...writeResult(data, subjectId),
+		});
 	},
 };

@@ -5,6 +5,7 @@ import type { ToolContext } from '../../../../src/runtime/context.ts';
 import { neowikiUpdateSubject } from '../../../../src/tools/extensions/neowiki/neowiki-update-subject.ts';
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
 import { httpError } from '../../../helpers/httpError.ts';
+import { dispatch } from '../../../../src/runtime/dispatcher.ts';
 
 const stmts = { Founded: { propertyType: 'number', value: 2019 } };
 
@@ -160,7 +161,10 @@ describe('neowiki-update-subject', () => {
 			rawRequest: vi.fn().mockRejectedValue(httpError(404, { status: 'error', message: 'gone' })),
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
-		const result = await neowikiUpdateSubject.handle({ id: 'sX', label: 'X', statements: {} }, ctx);
+		const result = await dispatch(
+			neowikiUpdateSubject,
+			ctx,
+		)({ id: 'sX', label: 'X', statements: {} });
 		assertStructuredError(result, 'not_found');
 	});
 });

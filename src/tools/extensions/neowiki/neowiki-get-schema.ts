@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
-import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
+import { neowikiRequest } from './neowikiRequest.ts';
 
 const inputSchema = {
 	name: z.string().min(1).describe('Schema name. Use neowiki-list-schemas to discover names.'),
@@ -33,31 +33,27 @@ export const neowikiGetSchema: Tool<typeof inputSchema> = {
 
 	async handle({ name }, ctx: ToolContext): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
-		try {
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /schema response shape; trusted at this boundary
-			const data = (await neowikiRequest(mwn, {
-				method: 'GET',
-				path: `/schema/${encodeURIComponent(name)}`,
-			})) as GetSchemaResponse;
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /schema response shape; trusted at this boundary
+		const data = (await neowikiRequest(mwn, {
+			method: 'GET',
+			path: `/schema/${encodeURIComponent(name)}`,
+		})) as GetSchemaResponse;
 
-			if (data.schema === undefined || data.schema === null) {
-				return ctx.format.notFound(`NeoWiki schema "${name}" not found`);
-			}
-
-			const definitions = data.schema.propertyDefinitions ?? {};
-			const properties = Object.entries(definitions).map(([propName, def]) => ({
-				name: propName,
-				...def,
-			}));
-
-			return ctx.format.ok({
-				name,
-				description: data.schema.description ?? '',
-				...(data.schema.subjectsAreDependent === true ? { subjectsAreDependent: true } : {}),
-				properties,
-			});
-		} catch (err) {
-			return neowikiErrorResult(err, ctx);
+		if (data.schema === undefined || data.schema === null) {
+			return ctx.format.notFound(`NeoWiki schema "${name}" not found`);
 		}
+
+		const definitions = data.schema.propertyDefinitions ?? {};
+		const properties = Object.entries(definitions).map(([propName, def]) => ({
+			name: propName,
+			...def,
+		}));
+
+		return ctx.format.ok({
+			name,
+			description: data.schema.description ?? '',
+			...(data.schema.subjectsAreDependent === true ? { subjectsAreDependent: true } : {}),
+			properties,
+		});
 	},
 };

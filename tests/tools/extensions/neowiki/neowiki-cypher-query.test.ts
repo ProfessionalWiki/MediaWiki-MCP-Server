@@ -4,6 +4,7 @@ import { fakeContext } from '../../../helpers/fakeContext.ts';
 import { neowikiCypherQuery } from '../../../../src/tools/extensions/neowiki/neowiki-cypher-query.ts';
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
 import { httpError } from '../../../helpers/httpError.ts';
+import { dispatch } from '../../../../src/runtime/dispatcher.ts';
 
 describe('neowiki-cypher-query', () => {
 	it('posts cypher + parameters and returns the result envelope', async () => {
@@ -70,7 +71,7 @@ describe('neowiki-cypher-query', () => {
 				),
 		});
 		const ctx = fakeContext({ mwn: async () => mock as never });
-		const result = await neowikiCypherQuery.handle({ cypher: 'CREATE (x)' }, ctx);
+		const result = await dispatch(neowikiCypherQuery, ctx)({ cypher: 'CREATE (x)' });
 		assertStructuredError(result, 'invalid_input');
 	});
 });

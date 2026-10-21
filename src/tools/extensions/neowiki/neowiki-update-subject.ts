@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
-import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
+import { neowikiRequest } from './neowikiRequest.ts';
 import { formatEditComment } from '../../../wikis/utils.ts';
 import { writeResult, type SubjectWriteResponse } from './subjects.ts';
 import { dependentSubjectsSchema, statementsSchema } from './statements.ts';
@@ -50,28 +50,24 @@ export const neowikiUpdateSubject: Tool<typeof inputSchema> = {
 	): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
 		const editComment = formatEditComment(ctx, 'neowiki-update-subject', comment);
-		try {
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki replace response shape; trusted at this boundary
-			const data = (await neowikiRequest(mwn, {
-				method: 'PUT',
-				path: `/subject/${encodeURIComponent(id)}`,
-				csrf: true,
-				body: {
-					label,
-					statements,
-					dependentSubjects,
-					...(editComment !== undefined ? { comment: editComment } : {}),
-				},
-			})) as SubjectWriteResponse;
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki replace response shape; trusted at this boundary
+		const data = (await neowikiRequest(mwn, {
+			method: 'PUT',
+			path: `/subject/${encodeURIComponent(id)}`,
+			csrf: true,
+			body: {
+				label,
+				statements,
+				dependentSubjects,
+				...(editComment !== undefined ? { comment: editComment } : {}),
+			},
+		})) as SubjectWriteResponse;
 
-			const subjectId = data.subjectId ?? id;
-			return ctx.format.ok({
-				subjectId,
-				status: data.status ?? 'updated',
-				...writeResult(data, subjectId),
-			});
-		} catch (err) {
-			return neowikiErrorResult(err, ctx);
-		}
+		const subjectId = data.subjectId ?? id;
+		return ctx.format.ok({
+			subjectId,
+			status: data.status ?? 'updated',
+			...writeResult(data, subjectId),
+		});
 	},
 };

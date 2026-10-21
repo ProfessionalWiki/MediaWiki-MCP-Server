@@ -1,11 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext } from '../../../helpers/fakeContext.ts';
-import {
-	neowikiRequest,
-	neowikiErrorResult,
-	NeoWikiApiError,
-} from '../../../../src/tools/extensions/neowiki/neowikiRequest.ts';
+import { neowikiRequest } from '../../../../src/tools/extensions/neowiki/neowikiRequest.ts';
+import { ClassifiedError } from '../../../../src/errors/classifyError.ts';
 import { WikiTimeoutError } from '../../../../src/errors/wikiTimeoutError.ts';
 import { rejectionOf } from '../../../helpers/rejectionOf.ts';
 import { httpError } from '../../../helpers/httpError.ts';
@@ -37,7 +33,7 @@ describe('neowikiRequest', () => {
 		// Converted, the tool returns it as a RESULT the dispatcher never sees,
 		// losing the code and the write caveat.
 		expect(err).toBeInstanceOf(WikiTimeoutError);
-		expect(err).not.toBeInstanceOf(NeoWikiApiError);
+		expect(err).not.toBeInstanceOf(ClassifiedError);
 	});
 
 	it('JSON-encodes a POST body and sets Content-Type', async () => {
@@ -129,6 +125,15 @@ describe('neowikiRequest', () => {
 		).rejects.toMatchObject({ category: 'permission_denied' });
 	});
 
+	it('records the HTTP status the wiki answered with', async () => {
+		const mock = createMockMwn({
+			rawRequest: vi.fn().mockRejectedValue(httpError(409, { status: 'error', message: 'taken' })),
+		});
+		await expect(
+			neowikiRequest(mock as never, { method: 'POST', path: '/subject', body: {} }),
+		).rejects.toMatchObject({ upstreamStatus: 409 });
+	});
+
 	it('maps a refused write to invalid_input and carries its violations', async () => {
 		const mock = createMockMwn({
 			rawRequest: vi.fn().mockRejectedValue(
@@ -179,13 +184,6 @@ describe('neowikiRequest', () => {
 			category: 'upstream_failure',
 			message: 'Error: Unsupported Cypher value type: DateTime',
 		});
-	});
-
-	it('neowikiErrorResult renders a NeoWikiApiError and re-throws others', () => {
-		const ctx = fakeContext();
-		const res = neowikiErrorResult(new NeoWikiApiError('not_found', 'gone'), ctx);
-		expect(res.isError).toBe(true);
-		expect(() => neowikiErrorResult(new Error('boom'), ctx)).toThrow('boom');
 	});
 
 	it('throws upstream_failure when apiUrl is not set', async () => {

@@ -4,7 +4,7 @@ import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import type { TruncationInfo } from '../../../results/truncation.ts';
 import { capLinesByBytes } from '../../../results/truncation.ts';
-import { runSparqlQuery, SparqlError } from './sparql.ts';
+import { runSparqlQuery } from './sparql.ts';
 import { resolveSiteInfo } from '../../../wikis/siteInfo.ts';
 
 const HARD_LIMIT = 1000;
@@ -47,15 +47,7 @@ export const wikibaseQuery: Tool<typeof inputSchema> = {
 		}
 
 		const effectiveLimit = limit ?? HARD_LIMIT;
-		let results;
-		try {
-			results = await runSparqlQuery(endpoint, query, effectiveLimit);
-		} catch (err) {
-			if (err instanceof SparqlError) {
-				return ctx.format.error(err.category, err.message);
-			}
-			throw err;
-		}
+		const results = await runSparqlQuery(endpoint, query, effectiveLimit);
 
 		if (results.boolean !== undefined) {
 			return ctx.format.ok({ boolean: results.boolean });

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { ErrorCategory } from '../../src/errors/classifyError.ts';
-import { classifyError } from '../../src/errors/classifyError.ts';
+import { ClassifiedError, classifyError } from '../../src/errors/classifyError.ts';
 import { errorResult } from '../../src/results/response.ts';
 import { createMockMwnError } from '../helpers/mock-mwn-error.ts';
 import { assertStructuredError } from '../helpers/structuredResult.ts';
@@ -125,6 +125,12 @@ describe('classifyError', () => {
 		['number', 42],
 	])('non-Error value (%s) → upstream_failure without code', (_label, value) => {
 		expect(classifyError(value)).toEqual({ category: 'upstream_failure' });
+	});
+
+	it('takes the category a pack already gave its own failure', () => {
+		expect(classifyError(new ClassifiedError('not_found', 'Subject not found'))).toEqual({
+			category: 'not_found',
+		});
 	});
 
 	describe('CredentialResolutionError', () => {

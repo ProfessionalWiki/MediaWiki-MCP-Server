@@ -3,7 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import { emitTelemetryEvent } from './logger.ts';
 import { recordToolCall } from './metrics.ts';
 import { monotonicNow } from './clock.ts';
-import type { ErrorCategory } from '../errors/classifyError.ts';
+import { ClassifiedError, type ErrorCategory } from '../errors/classifyError.ts';
 
 // `cancelled` sits alongside ErrorCategory rather than inside it: the caller
 // walked away, which is not a fault to classify or to shape into a response.
@@ -87,6 +87,9 @@ export function detectTruncation(result: CallToolResult): boolean {
 }
 
 export function extractUpstreamStatus(err: unknown): number | undefined {
+	if (err instanceof ClassifiedError) {
+		return err.upstreamStatus;
+	}
 	if (err !== null && typeof err === 'object') {
 		const response = (err as { response?: { status?: unknown } }).response;
 		if (response && typeof response.status === 'number') {

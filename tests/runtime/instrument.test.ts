@@ -15,6 +15,7 @@ import {
 	safeTarget,
 } from '../../src/runtime/instrument.ts';
 import { recordToolCall } from '../../src/runtime/metrics.ts';
+import { ClassifiedError } from '../../src/errors/classifyError.ts';
 
 function captureToolCallLine(spy: StderrWriteSpy): Record<string, unknown> {
 	const events = spy.mock.calls
@@ -130,6 +131,10 @@ describe('extractUpstreamStatus', () => {
 
 	it('returns undefined when status is not a number', () => {
 		expect(extractUpstreamStatus({ response: { status: '429' } })).toBeUndefined();
+	});
+
+	it('returns the status a pack recorded on the error it classified', () => {
+		expect(extractUpstreamStatus(new ClassifiedError('rate_limited', 'slow down', 429))).toBe(429);
 	});
 });
 

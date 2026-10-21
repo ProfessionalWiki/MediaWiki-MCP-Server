@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
-import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
+import { neowikiRequest } from './neowikiRequest.ts';
 import { statementsSchema } from './statements.ts';
 
 const inputSchema = {
@@ -52,22 +52,18 @@ export const neowikiValidateSubject: Tool<typeof inputSchema> = {
 		}
 
 		const mwn = await ctx.mwn();
-		try {
-			const spec =
-				id !== undefined
-					? { path: `/subject/${encodeURIComponent(id)}/validate`, body: { statements } }
-					: { path: '/subject/validate', body: { schema, statements } };
+		const spec =
+			id !== undefined
+				? { path: `/subject/${encodeURIComponent(id)}/validate`, body: { statements } }
+				: { path: '/subject/validate', body: { schema, statements } };
 
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki validate response shape; trusted at this boundary
-			const data = (await neowikiRequest(mwn, {
-				method: 'POST',
-				path: spec.path,
-				body: spec.body,
-			})) as ValidateResponse;
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki validate response shape; trusted at this boundary
+		const data = (await neowikiRequest(mwn, {
+			method: 'POST',
+			path: spec.path,
+			body: spec.body,
+		})) as ValidateResponse;
 
-			return ctx.format.ok({ violations: Array.isArray(data.violations) ? data.violations : [] });
-		} catch (err) {
-			return neowikiErrorResult(err, ctx);
-		}
+		return ctx.format.ok({ violations: Array.isArray(data.violations) ? data.violations : [] });
 	},
 };

@@ -3,7 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import type { TruncationInfo } from '../../../results/truncation.ts';
-import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
+import { neowikiRequest } from './neowikiRequest.ts';
 
 const inputSchema = {
 	cypher: z
@@ -45,37 +45,33 @@ export const neowikiCypherQuery: Tool<typeof inputSchema> = {
 
 	async handle({ cypher, parameters }, ctx: ToolContext): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
-		try {
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /query/cypher response shape; trusted at this boundary
-			const data = (await neowikiRequest(mwn, {
-				method: 'POST',
-				path: '/query/cypher',
-				body: { cypher, ...(parameters !== undefined ? { parameters } : {}) },
-			})) as CypherResponse;
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /query/cypher response shape; trusted at this boundary
+		const data = (await neowikiRequest(mwn, {
+			method: 'POST',
+			path: '/query/cypher',
+			body: { cypher, ...(parameters !== undefined ? { parameters } : {}) },
+		})) as CypherResponse;
 
-			const columns = Array.isArray(data.columns) ? data.columns : [];
-			const rows = Array.isArray(data.rows) ? data.rows : [];
-			const truncation: TruncationInfo | null =
-				data.truncated === true
-					? {
-							reason: 'capped-no-continuation',
-							returnedCount: rows.length,
-							limit: rows.length,
-							itemNoun: 'rows',
-							narrowHint:
-								'narrow with WHERE, add LIMIT/SKIP to paginate, or use an account with the apihighlimits right for a higher cap.',
-						}
-					: null;
+		const columns = Array.isArray(data.columns) ? data.columns : [];
+		const rows = Array.isArray(data.rows) ? data.rows : [];
+		const truncation: TruncationInfo | null =
+			data.truncated === true
+				? {
+						reason: 'capped-no-continuation',
+						returnedCount: rows.length,
+						limit: rows.length,
+						itemNoun: 'rows',
+						narrowHint:
+							'narrow with WHERE, add LIMIT/SKIP to paginate, or use an account with the apihighlimits right for a higher cap.',
+					}
+				: null;
 
-			return ctx.format.ok({
-				columns,
-				rows,
-				resultCount: typeof data.resultCount === 'number' ? data.resultCount : rows.length,
-				...(typeof data.durationMs === 'number' ? { durationMs: data.durationMs } : {}),
-				...(truncation !== null ? { truncation } : {}),
-			});
-		} catch (err) {
-			return neowikiErrorResult(err, ctx);
-		}
+		return ctx.format.ok({
+			columns,
+			rows,
+			resultCount: typeof data.resultCount === 'number' ? data.resultCount : rows.length,
+			...(typeof data.durationMs === 'number' ? { durationMs: data.durationMs } : {}),
+			...(truncation !== null ? { truncation } : {}),
+		});
 	},
 };

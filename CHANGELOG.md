@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `neowiki-create-subject` and `neowiki-update-subject` return the violations a subject was saved with, and the subject as saved. Their label is optional: omitting it, or passing an empty one, creates a subject without one, or clears it. `neowiki-validate-subject` no longer takes a label, which NeoWiki ignores.
 - The NeoWiki read tools return a subject's display name and, for a Dependent Subject, the subject it belongs to; `neowiki-get-subject` also returns the page holding it. `neowiki-search-subjects` searches every schema when none is given, and returns each match's page title. `neowiki-get-schema` and `neowiki-list-schemas` mark a schema whose subjects are dependent.
 - The NeoWiki tool descriptions cover monolingual text values, Dependent Subjects, and the current graph model, including whole nodes, which Cypher queries can now return.
+- Failure messages from the NeoWiki tools and `wikibase-query` now start with "Failed to <action>:", as other tools' do. The server logs these failures as `Tool failed`, and tool-call telemetry records the HTTP status the service answered with.
 
 ### Fixed
 

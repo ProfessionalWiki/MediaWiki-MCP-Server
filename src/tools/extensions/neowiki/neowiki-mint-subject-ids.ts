@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
-import { neowikiRequest, neowikiErrorResult } from './neowikiRequest.ts';
+import { neowikiRequest } from './neowikiRequest.ts';
 
 const inputSchema = {
 	count: z.number().int().min(1).max(1000).describe('Number of Subject IDs to mint.'),
@@ -28,17 +28,13 @@ export const neowikiMintSubjectIds: Tool<typeof inputSchema> = {
 
 	async handle({ count }, ctx: ToolContext): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
-		try {
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /subject-ids response shape; trusted at this boundary
-			const data = (await neowikiRequest(mwn, {
-				method: 'POST',
-				path: '/subject-ids',
-				body: { count },
-			})) as MintResponse;
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /subject-ids response shape; trusted at this boundary
+		const data = (await neowikiRequest(mwn, {
+			method: 'POST',
+			path: '/subject-ids',
+			body: { count },
+		})) as MintResponse;
 
-			return ctx.format.ok({ subjectIds: Array.isArray(data.subjectIds) ? data.subjectIds : [] });
-		} catch (err) {
-			return neowikiErrorResult(err, ctx);
-		}
+		return ctx.format.ok({ subjectIds: Array.isArray(data.subjectIds) ? data.subjectIds : [] });
 	},
 };
