@@ -40,6 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `get-page` and `update-page`'s `find-replace` fail with the wiki's error when the wiki refuses the read, such as `permission_denied`, instead of an `upstream_failure` naming a JavaScript error.
 - `create-page` fails when the wiki refuses the creation without an error code, as it does for a CAPTCHA, instead of reporting success.
 - With hosted OAuth sign-in, a user's wiki token is sent only to the wiki sign-in is set up for.
+- With hosted OAuth sign-in, a write to a wiki other than the one sign-in covers fails as `permission_denied`, naming that wiki, instead of asking the caller to authenticate.
 
 ## [0.19.0] - 2026-09-25
 
