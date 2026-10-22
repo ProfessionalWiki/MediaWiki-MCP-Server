@@ -672,29 +672,24 @@ describe('reconcileTools — AND semantics across rules', () => {
 			transport: 'stdio',
 			wikiProbe: makeFakeProbe(),
 		};
-		const slowAllow: ToolGatingRule = {
-			name: 'slow-allow',
+		let inFlight = 0;
+		let mostInFlight = 0;
+		// Yields once, so a second predicate started alongside it overlaps it.
+		const overlapping = (name: string): ToolGatingRule => ({
+			name,
 			affects: ['t'],
 			isAllowed: async () => {
-				await new Promise((r) => setTimeout(r, 30));
+				inFlight++;
+				mostInFlight = Math.max(mostInFlight, inFlight);
+				await new Promise((r) => setImmediate(r));
+				inFlight--;
 				return true;
 			},
-		};
-		const slowOther: ToolGatingRule = {
-			name: 'slow-other',
-			affects: ['t'],
-			isAllowed: async () => {
-				await new Promise((r) => setTimeout(r, 30));
-				return true;
-			},
-		};
+		});
 
-		const start = performance.now();
-		await computeDesiredEnabledState(['t'], ctx, [slowAllow, slowOther]);
-		const elapsed = performance.now() - start;
-		// Two rules each delay 30ms. Concurrent: ~30ms. Serial: ~60ms.
-		// Allow generous slack for slow CI but stay below 60ms to detect serialization.
-		expect(elapsed).toBeLessThan(55);
+		await computeDesiredEnabledState(['t'], ctx, [overlapping('a'), overlapping('b')]);
+
+		expect(mostInFlight).toBe(2);
 	});
 });
 
