@@ -9,6 +9,7 @@ import { fakeContext } from '../helpers/fakeContext.ts';
 import { withRequestFields } from '../../src/runtime/requestContext.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
 import type { SharedContext } from '../../src/runtime/context.ts';
+import { fakeAuthPolicy } from '../helpers/fakeAuthPolicy.ts';
 
 const rwWiki: WikiConfig = {
 	sitename: 'X',
@@ -31,7 +32,7 @@ function ctx(
 	transport: 'http' | 'stdio' = 'stdio',
 ) {
 	return fakeContext({
-		transport,
+		auth: fakeAuthPolicy({ transport }),
 		wikis: {
 			getAll: () => ({ w: wikiConfig }),
 			get: () => wikiConfig,
@@ -51,7 +52,7 @@ function ctx(
 
 // A context on a deployment that forwards a caller-supplied bearer.
 function forwarding<T extends SharedContext>(ctx: T): T {
-	return { ...ctx, auth: { bearerPassthrough: true, staticFallback: false } };
+	return { ...ctx, auth: { ...ctx.auth, bearerPassthrough: true } };
 }
 
 describe('checkWikiCapability', () => {

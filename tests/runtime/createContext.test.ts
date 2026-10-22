@@ -7,6 +7,7 @@ import { callDeadline } from '../../src/runtime/callDeadline.ts';
 import type { Config } from '../../src/config/loadConfig.ts';
 import type { SharedContext } from '../../src/runtime/context.ts';
 import { writingWiki } from '../helpers/writingWiki.ts';
+import { fakeAuthPolicy } from '../helpers/fakeAuthPolicy.ts';
 
 const testConfig: Config = {
 	defaultWiki: 'w',
@@ -49,8 +50,7 @@ function contextHandingOut(instance: () => unknown): SharedContext {
 	return createSharedContext({
 		logger,
 		state,
-		transport: 'stdio',
-		auth: { bearerPassthrough: false, staticFallback: false },
+		auth: fakeAuthPolicy(),
 	});
 }
 
@@ -66,8 +66,7 @@ describe('createSharedContext', () => {
 		const ctx = createSharedContext({
 			logger,
 			state,
-			transport: 'stdio',
-			auth: { bearerPassthrough: false, staticFallback: false },
+			auth: fakeAuthPolicy(),
 		});
 		expect(ctx.mwnFor).toBeTypeOf('function');
 		expect(ctx.editFor).toBeTypeOf('function');
@@ -82,7 +81,6 @@ describe('createSharedContext', () => {
 		expect(ctx.format).toBeDefined();
 		expect(ctx.errors).toBeDefined();
 		expect(ctx.logger).toBe(logger);
-		expect(ctx.transport).toBe('stdio');
 	});
 
 	it('applies the request cancellation signal to the mwn instance it hands out', async () => {

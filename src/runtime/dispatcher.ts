@@ -63,7 +63,7 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends SharedContext
 			// that wiki's token. The rest work on server-local state or anonymous
 			// probes, and must stay reachable while that wiki's sign-in is broken.
 			const useOauth =
-				ctx.transport === 'stdio' && wiki !== undefined && usesOAuthSignIn(wiki.config);
+				ctx.auth.transport === 'stdio' && wiki !== undefined && usesOAuthSignIn(wiki.config);
 
 			if (useOauth) {
 				const { key, config } = wiki;

@@ -6,6 +6,10 @@ import {
 	usesOAuthSignIn,
 } from '../../src/runtime/authShape.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
+import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.ts';
+import { fakeAuthPolicy } from '../helpers/fakeAuthPolicy.ts';
+import { fakeHostedProxy } from '../helpers/fakeHostedProxy.ts';
+import { fakeProxyConfig } from '../helpers/fakeProxyConfig.ts';
 
 function wiki(overrides: Partial<WikiConfig> = {}): WikiConfig {
 	return {
@@ -80,6 +84,7 @@ describe('usesOAuthSignIn', () => {
 });
 
 describe('classifyAuthShape', () => {
+	const PROXY = fakeHostedProxy(fakeProxyConfig(), new InMemoryProxyStore());
 	const baseWiki: WikiConfig = {
 		sitename: 'X',
 		server: 'https://x',
@@ -89,66 +94,83 @@ describe('classifyAuthShape', () => {
 
 	it('returns static-credential when any wiki has a token', () => {
 		const wikis = { a: { ...baseWiki, token: 't' } };
-		expect(classifyAuthShape(wikis, 'http', false, false)).toBe('static-credential');
-		expect(classifyAuthShape(wikis, 'stdio', false, false)).toBe('static-credential');
+		expect(classifyAuthShape(wikis, fakeAuthPolicy({ transport: 'http' }))).toBe(
+			'static-credential',
+		);
+		expect(classifyAuthShape(wikis, fakeAuthPolicy())).toBe('static-credential');
 	});
 
 	it('returns static-credential when any wiki has username and password', () => {
 		const wikis = { a: { ...baseWiki, username: 'u', password: 'p' } };
-		expect(classifyAuthShape(wikis, 'http', false, false)).toBe('static-credential');
+		expect(classifyAuthShape(wikis, fakeAuthPolicy({ transport: 'http' }))).toBe(
+			'static-credential',
+		);
 	});
 
 	it('returns anonymous on http when no static creds and passthrough is off', () => {
 		const wikis = { a: baseWiki };
 		// Forwarding a caller-supplied bearer is off unless opted into, so a plain
 		// HTTP deployment is not a passthrough deployment by default.
-		expect(classifyAuthShape(wikis, 'http', false, false)).toBe('anonymous');
+		expect(classifyAuthShape(wikis, fakeAuthPolicy({ transport: 'http' }))).toBe('anonymous');
 	});
 
 	it('returns bearer-passthrough on http once forwarding is opted into', () => {
 		const wikis = { a: baseWiki };
-		expect(classifyAuthShape(wikis, 'http', false, true)).toBe('bearer-passthrough');
+		expect(
+			classifyAuthShape(wikis, fakeAuthPolicy({ transport: 'http', bearerPassthrough: true })),
+		).toBe('bearer-passthrough');
 	});
 
 	it('returns anonymous on stdio when no static creds', () => {
 		const wikis = { a: baseWiki };
-		expect(classifyAuthShape(wikis, 'stdio', false, false)).toBe('anonymous');
+		expect(classifyAuthShape(wikis, fakeAuthPolicy())).toBe('anonymous');
 	});
 
 	it('returns oauth-proxy on http when the hosted proxy is enabled', () => {
 		const wikis = { a: baseWiki };
-		expect(classifyAuthShape(wikis, 'http', true, false)).toBe('oauth-proxy');
+		expect(
+			classifyAuthShape(wikis, fakeAuthPolicy({ transport: 'http', hostedProxy: PROXY })),
+		).toBe('oauth-proxy');
 	});
 
 	it('static credentials take precedence over the proxy flag', () => {
 		const wikis = { a: { ...baseWiki, token: 't' } };
-		expect(classifyAuthShape(wikis, 'http', true, false)).toBe('static-credential');
+		expect(
+			classifyAuthShape(wikis, fakeAuthPolicy({ transport: 'http', hostedProxy: PROXY })),
+		).toBe('static-credential');
 	});
 
 	it('proxy flag is ignored on stdio', () => {
 		const wikis = { a: baseWiki };
-		expect(classifyAuthShape(wikis, 'stdio', true, false)).toBe('anonymous');
+		expect(classifyAuthShape(wikis, fakeAuthPolicy({ hostedProxy: PROXY }))).toBe('anonymous');
 	});
 
 	it('is unaffected by partial credentials (username only or password only)', () => {
 		const wikisU = { a: { ...baseWiki, username: 'u' } };
 		const wikisP = { a: { ...baseWiki, password: 'p' } };
-		expect(classifyAuthShape(wikisU, 'http', false, true)).toBe('bearer-passthrough');
-		expect(classifyAuthShape(wikisP, 'http', false, true)).toBe('bearer-passthrough');
+		expect(
+			classifyAuthShape(wikisU, fakeAuthPolicy({ transport: 'http', bearerPassthrough: true })),
+		).toBe('bearer-passthrough');
+		expect(
+			classifyAuthShape(wikisP, fakeAuthPolicy({ transport: 'http', bearerPassthrough: true })),
+		).toBe('bearer-passthrough');
 	});
 });
 
 describe('readAuthPolicy', () => {
 	it('leaves forwarding and the static fallback off when their variables are unset', () => {
-		expect(readAuthPolicy({})).toEqual({ bearerPassthrough: false, staticFallback: false });
+		expect(readAuthPolicy({}, 'stdio', null)).toMatchObject({
+			bearerPassthrough: false,
+			staticFallback: false,
+		});
 	});
 
 	it('turns each on only for its own variable set to "true"', () => {
-		expect(readAuthPolicy({ MCP_ALLOW_BEARER_PASSTHROUGH: 'true' })).toEqual({
+		expect(readAuthPolicy({ MCP_ALLOW_BEARER_PASSTHROUGH: 'true' }, 'stdio', null)).toMatchObject({
 			bearerPassthrough: true,
 			staticFallback: false,
 		});
-		expect(readAuthPolicy({ MCP_ALLOW_STATIC_FALLBACK: 'true' })).toEqual({
+		expect(readAuthPolicy({ MCP_ALLOW_STATIC_FALLBACK: 'true' }, 'stdio', null)).toMatchObject({
 			bearerPassthrough: false,
 			staticFallback: true,
 		});
@@ -156,7 +178,11 @@ describe('readAuthPolicy', () => {
 
 	it.each(['TRUE', '1', 'yes', ' true ', ''])('treats %p as off', (value) => {
 		expect(
-			readAuthPolicy({ MCP_ALLOW_BEARER_PASSTHROUGH: value, MCP_ALLOW_STATIC_FALLBACK: value }),
-		).toEqual({ bearerPassthrough: false, staticFallback: false });
+			readAuthPolicy(
+				{ MCP_ALLOW_BEARER_PASSTHROUGH: value, MCP_ALLOW_STATIC_FALLBACK: value },
+				'stdio',
+				null,
+			),
+		).toMatchObject({ bearerPassthrough: false, staticFallback: false });
 	});
 });

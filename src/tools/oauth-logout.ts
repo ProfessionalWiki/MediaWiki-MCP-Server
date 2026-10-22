@@ -27,7 +27,7 @@ export const oauthLogout: Tool<typeof inputSchema, SharedContext> = {
 	async handle({ wiki }, ctx: SharedContext): Promise<CallToolResult> {
 		// Defense in depth: offeredWhen already hides this tool on HTTP,
 		// but a forced direct invocation must not delete from the local credentials file.
-		if (ctx.transport !== 'stdio') {
+		if (ctx.auth.transport !== 'stdio') {
 			return ctx.format.invalidInput('oauth-logout is only available on the stdio transport.');
 		}
 		const store = createTokenStore();

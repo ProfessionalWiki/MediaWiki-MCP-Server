@@ -13,9 +13,9 @@ export function checkHttpDeployment(deployment: {
 	wikis: Readonly<Record<string, WikiConfig>>;
 	defaultWikiKey: string;
 	auth: AuthPolicy;
-	proxyEnabled: boolean;
 }): HttpDeploymentCheck {
-	const { wikis, defaultWikiKey, auth, proxyEnabled } = deployment;
+	const { wikis, defaultWikiKey, auth } = deployment;
+	const proxyEnabled = auth.hostedProxy !== null;
 	const warnings: string[] = [];
 
 	const guard = evaluateBearerGuard(wikis, auth.staticFallback);

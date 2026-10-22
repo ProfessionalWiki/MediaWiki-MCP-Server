@@ -152,8 +152,6 @@ function toolsCallCost(body: unknown): number {
 export interface McpRouteOptions {
 	auth: AuthPolicy;
 	wikiRegistry?: WikiRegistry;
-	// With the hosted proxy, a bearer is a proxy JWT standing for a stored wiki token.
-	hostedProxy: HostedProxy | null;
 	// Tests only.
 	refresh?: RefreshFn;
 	// When it is `private`, a tokenless request is refused at connect.
@@ -180,7 +178,7 @@ async function resolveCaller(
 	bearer: string | undefined,
 	options: McpRouteOptions,
 ): Promise<Caller> {
-	const { wikiRegistry, defaultWikiKey, refresh, auth, hostedProxy } = options;
+	const { wikiRegistry, defaultWikiKey, refresh, auth } = options;
 
 	// Challenged at `initialize` too, so a client signs in when it connects.
 	if (
@@ -192,8 +190,9 @@ async function resolveCaller(
 	}
 
 	// A tokenless caller is asked to sign in only by a write, in checkWikiCapability.
-	if (hostedProxy) {
-		return bearer ? signedInCaller(bearer, hostedProxy, refresh) : ANONYMOUS;
+	// With the hosted proxy, a bearer is a proxy JWT standing for a stored wiki token.
+	if (auth.hostedProxy) {
+		return bearer ? signedInCaller(bearer, auth.hostedProxy, refresh) : ANONYMOUS;
 	}
 
 	// A bearer here was issued for the wiki, not for this server, so it is
@@ -247,7 +246,7 @@ export function createMcpRouteHandler(
 	handler: Pick<McpHttpHandler, 'fetch'>,
 	options: McpRouteOptions,
 ): RequestHandler {
-	const { hostedProxy, rateLimiter } = options;
+	const { auth, rateLimiter } = options;
 	const nodeHandler = toNodeHandler(handler, { onerror: options.onerror });
 	return async (req, res) => {
 		const caller = await resolveCaller(extractBearerToken(req), options);
@@ -255,7 +254,7 @@ export function createMcpRouteHandler(
 			if (caller.refusal === 'unavailable') {
 				emit503Unavailable(req, res);
 			} else {
-				emit401Challenge(req, res, hostedProxy !== null);
+				emit401Challenge(req, res, auth.hostedProxy !== null);
 			}
 			return;
 		}

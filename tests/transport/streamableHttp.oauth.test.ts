@@ -14,6 +14,7 @@ import { readAuthPolicy } from '../../src/runtime/authShape.ts';
 import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.ts';
 import { fakeHostedProxy } from '../helpers/fakeHostedProxy.ts';
 import { fakeProxyConfig } from '../helpers/fakeProxyConfig.ts';
+import { fakeAuthPolicy } from '../helpers/fakeAuthPolicy.ts';
 
 function fakeRegistry(wikis: Record<string, Partial<WikiConfig>>): WikiRegistry {
 	return {
@@ -42,7 +43,7 @@ const PROXY_ISSUER = 'https://mcp.example/mcp';
 
 function buildMcpApp(
 	registry?: WikiRegistry,
-	options: Omit<McpRouteOptions, 'wikiRegistry' | 'auth'> = { hostedProxy: null },
+	options: Omit<Partial<McpRouteOptions>, 'wikiRegistry'> = {},
 ): Express {
 	const app = express();
 	app.use(express.json());
@@ -53,7 +54,7 @@ function buildMcpApp(
 	app.post(
 		'/mcp',
 		createMcpRouteHandler(handler, {
-			auth: readAuthPolicy(process.env),
+			auth: readAuthPolicy(process.env, 'http', null),
 			wikiRegistry: registry,
 			...options,
 		}),
@@ -455,10 +456,13 @@ describe('POST /mcp 401 short-circuit when every wiki requires auth', () => {
 // default wiki, and the challenge points at the proxy's protected-resource document.
 describe('POST /mcp challenge behind the hosted proxy', () => {
 	const behindProxy = {
-		hostedProxy: fakeHostedProxy(
-			fakeProxyConfig({ issuer: PROXY_ISSUER }),
-			new InMemoryProxyStore(),
-		),
+		auth: fakeAuthPolicy({
+			transport: 'http',
+			hostedProxy: fakeHostedProxy(
+				fakeProxyConfig({ issuer: PROXY_ISSUER }),
+				new InMemoryProxyStore(),
+			),
+		}),
 		defaultWikiKey: 'mywiki',
 	};
 

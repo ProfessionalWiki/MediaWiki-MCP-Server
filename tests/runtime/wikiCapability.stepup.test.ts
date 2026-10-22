@@ -4,6 +4,9 @@ import { fakeContext } from '../helpers/fakeContext.ts';
 import { withRequestFields } from '../../src/runtime/requestContext.ts';
 import { fakeProxyConfig } from '../helpers/fakeProxyConfig.ts';
 import { assertStructuredError } from '../helpers/structuredResult.ts';
+import { fakeAuthPolicy } from '../helpers/fakeAuthPolicy.ts';
+import { fakeHostedProxy } from '../helpers/fakeHostedProxy.ts';
+import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.ts';
 
 const PROXY = fakeProxyConfig({
 	wikiKey: 'w',
@@ -24,8 +27,10 @@ const oauthWiki = {
 
 function ctx(opts: { proxy: boolean; transport?: 'http' | 'stdio' }) {
 	return fakeContext({
-		transport: opts.transport ?? 'http',
-		getProxyConfig: opts.proxy ? () => PROXY : () => null,
+		auth: fakeAuthPolicy({
+			transport: opts.transport ?? 'http',
+			hostedProxy: opts.proxy ? fakeHostedProxy(PROXY, new InMemoryProxyStore()) : null,
+		}),
 		wikis: {
 			getAll: () => ({ w: oauthWiki }) as never,
 			get: (() => oauthWiki) as never,

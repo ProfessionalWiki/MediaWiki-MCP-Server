@@ -17,6 +17,7 @@ import { _resetRefreshDedupForTesting } from '../../src/auth/tokenRefresh.ts';
 
 vi.mock('open', () => ({ default: vi.fn() }));
 import openMod from 'open';
+import { fakeAuthPolicy } from '../helpers/fakeAuthPolicy.ts';
 
 useTempTokenStore();
 
@@ -116,7 +117,7 @@ describe('dispatch OAuth integration', () => {
 		fakeAs = await startFakeAs();
 
 		const ctx = fakeContext({
-			transport: 'stdio',
+			auth: fakeAuthPolicy({ transport: 'stdio' }),
 			// the default fakeContext wiki has no oauth2ClientId
 		});
 

@@ -90,7 +90,7 @@ export const createServer = async (
 	const applyGates = (): Promise<void> =>
 		reconcileTools(tools, {
 			wikiRegistry: ctx.wikis,
-			transport: ctx.transport,
+			transport: ctx.auth.transport,
 			wikiProbe: ctx.wikiProbe,
 			extensionPacks,
 			descriptors: allTools,

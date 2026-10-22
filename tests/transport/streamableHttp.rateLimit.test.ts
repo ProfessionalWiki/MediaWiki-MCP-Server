@@ -28,7 +28,7 @@ const frozenClock = () => 1_000_000;
 
 function makeDeps(calls: { count: number }): BuildAppDeps {
 	return {
-		auth: readAuthPolicy(process.env),
+		auth: readAuthPolicy(process.env, 'http', null),
 		state: createAppState({
 			defaultWiki: 'test',
 			wikis: {
@@ -44,7 +44,6 @@ function makeDeps(calls: { count: number }): BuildAppDeps {
 			},
 			uploadDirs: [],
 		}),
-		hostedProxy: null,
 		createServerFn: () => {
 			const server = new McpServer(
 				{ name: 'rl-app', version: '0.0.0' },
