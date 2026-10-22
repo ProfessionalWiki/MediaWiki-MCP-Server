@@ -58,6 +58,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `upload-file` and `update-file` no longer time out when an upload is retried, as after a lost bot-password session: the retry sends the whole file instead of none of it. A call without credentials, which was retried every time, now fails at once.
 - `list-wikis`, `add-wiki`, `remove-wiki`, `oauth-status` and `oauth-logout` work when `defaultWiki` names no configured wiki, instead of failing with "not found in registry".
 
+### Security
+
+- Updated dependencies to resolve known advisories, among them high-severity issues in the HTTP client that carries every wiki request and in its redirect handling. The server now requires `@modelcontextprotocol/server` 2.3.0 or later.
+
 ## [0.19.0] - 2026-09-25
 
 ### Added
