@@ -37,14 +37,8 @@ export const wikibaseQuery: Tool<typeof inputSchema> = {
 	target: (a) => a.query,
 
 	async handle({ query, limit }, ctx: ToolContext): Promise<CallToolResult> {
+		// The pack's wikiGate has refused a wiki that publishes none before dispatch.
 		const endpoint = ((await resolveSiteInfo(ctx, ctx.wiki.key)).sparqlEndpoint ?? '').trim();
-		if (endpoint === '') {
-			// The pack's wikiGate refuses such a wiki centrally, before dispatch.
-			return ctx.format.invalidInput(
-				`Wiki "${ctx.wiki.key}" advertises no query service, so SPARQL cannot be run against it. Use list-wikis to see which wikis have one.`,
-			);
-		}
-
 		const effectiveLimit = limit ?? HARD_LIMIT;
 		const results = await runSparqlQuery(endpoint, query, effectiveLimit);
 

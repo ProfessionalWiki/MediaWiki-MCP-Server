@@ -24,10 +24,6 @@ function contextWithEndpoint() {
 	return fakeContext({ wikiProbe: probeReporting({ sparqlEndpoint: ENDPOINT }) });
 }
 
-function contextWithoutEndpoint() {
-	return fakeContext();
-}
-
 function selectResults(bindings: unknown[], vars: string[] = ['item']): string {
 	return JSON.stringify({ head: { vars }, results: { bindings } });
 }
@@ -59,18 +55,6 @@ describe('wikibase-query', () => {
 
 		expect(vi.mocked(postForm).mock.calls[0][0]).toBe(ENDPOINT);
 		expect(vi.mocked(postForm).mock.calls[0][1]).toEqual({ query: CATS });
-	});
-
-	// Defensive: the pack's wikiGate refuses such a wiki before dispatch.
-	it('refuses without querying when the wiki advertises no query service', async () => {
-		const ctx = contextWithoutEndpoint();
-
-		const result = await wikibaseQuery.handle(toolArgs(wikibaseQuery, { query: CATS }), ctx);
-
-		expect(assertStructuredError(result, 'invalid_input').message).toBe(
-			'Wiki "test-wiki" advertises no query service, so SPARQL cannot be run against it. Use list-wikis to see which wikis have one.',
-		);
-		expect(vi.mocked(postForm)).not.toHaveBeenCalled();
 	});
 
 	it('returns the columns and rows of a SELECT', async () => {
