@@ -115,12 +115,11 @@ describe('EditServiceImpl', () => {
 			await expect(edit.botRight(mock as never)).resolves.toBe(false);
 		});
 
-		it('caches the probe per Mwn instance', async () => {
+		it('caches the probe per Mwn instance, across edit services', async () => {
 			const request = vi.fn().mockResolvedValue({ query: { userinfo: { rights: ['bot'] } } });
 			const mock = createMockMwn({ request });
-			const edit = new EditServiceImpl(null);
-			await edit.botRight(mock as never);
-			await edit.botRight(mock as never);
+			await new EditServiceImpl(null).botRight(mock as never);
+			await new EditServiceImpl(null).botRight(mock as never);
 			expect(request).toHaveBeenCalledTimes(1);
 		});
 

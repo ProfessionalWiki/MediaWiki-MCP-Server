@@ -4,6 +4,7 @@ import type { ApiParams, Mwn } from 'mwn';
 import type { ApiUploadParams } from 'types-mediawiki-api';
 import type { ApiUploadResponse } from 'mwn';
 import type { WikiConfig } from '../config/loadConfig.ts';
+import { instanceBehind } from '../wikis/abortableMwn.ts';
 
 export interface EditService {
 	/** Wraps mwn.request with CSRF + tag injection + formatversion=2. For action:edit and similar. */
@@ -32,23 +33,26 @@ export interface EditService {
 	 * Reports whether the authenticated account holds the `bot` right on the
 	 * targeted wiki — i.e. whether a bot-flagged edit will actually be marked.
 	 * Resolves undefined when the rights probe fails; a probe failure never
-	 * blocks a write. The probe is cached per Mwn instance; sessions that
-	 * authenticate with a per-request bearer token get a fresh Mwn per call,
-	 * so the probe re-runs for each bot-flagged edit there.
+	 * blocks a write. The probe is cached per Mwn instance, across calls and
+	 * the bounded views of it; sessions that authenticate with a per-request
+	 * bearer token get a fresh Mwn per call, so the probe re-runs for each
+	 * bot-flagged edit there.
 	 */
 	botRight(mwn: Mwn): Promise<boolean | undefined>;
 }
 
+// Outside the class: an edit service is built per call.
+const botRightCache = new WeakMap<Mwn, Promise<boolean>>();
+
 export class EditServiceImpl implements EditService {
 	public constructor(private readonly tags: WikiConfig['tags']) {}
 
-	private readonly botRightCache = new WeakMap<Mwn, Promise<boolean>>();
-
 	public async botRight(mwn: Mwn): Promise<boolean | undefined> {
-		let pending = this.botRightCache.get(mwn);
+		const instance = instanceBehind(mwn);
+		let pending = botRightCache.get(instance);
 		if (!pending) {
 			pending = this.queryBotRight(mwn);
-			this.botRightCache.set(mwn, pending);
+			botRightCache.set(instance, pending);
 		}
 		try {
 			return await pending;
@@ -57,8 +61,8 @@ export class EditServiceImpl implements EditService {
 			// of pinning the failure for the lifetime of the Mwn instance. The
 			// identity check keeps a late rejection from evicting a newer probe
 			// that another caller has already reseeded.
-			if (this.botRightCache.get(mwn) === pending) {
-				this.botRightCache.delete(mwn);
+			if (botRightCache.get(instance) === pending) {
+				botRightCache.delete(instance);
 			}
 			return undefined;
 		}
