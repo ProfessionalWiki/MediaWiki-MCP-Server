@@ -196,6 +196,33 @@ describe('dispatch capability guard', () => {
 		expect(JSON.stringify(result.content)).toContain('read-only');
 	});
 
+	it('judges a write by the wiki the call resolved, though it is removed while the call runs', async () => {
+		const roConfig = {
+			sitename: 'T',
+			server: 'https://t',
+			articlepath: '/wiki',
+			scriptpath: '/w',
+			readOnly: true,
+		};
+		let lookups = 0;
+		const ctx = fakeContext({
+			wikis: {
+				getAll: () => ({}) as never,
+				// Answers the call's own lookup, then reads as removed.
+				get: ((k: string) =>
+					k === 'test-wiki' && lookups++ === 0 ? roConfig : undefined) as never,
+				add: (() => {}) as never,
+				remove: (() => {}) as never,
+				isManagementAllowed: () => true,
+			},
+			defaultWikiKey: 'test-wiki',
+		});
+
+		const result = await dispatch(updatePage, ctx)({ title: 'X', source: 'y' } as never);
+
+		expect(JSON.stringify(result.content)).toContain('read-only');
+	});
+
 	it('blocks an extension tool dispatched against a wiki lacking the extension', async () => {
 		const config = {
 			sitename: 'T',

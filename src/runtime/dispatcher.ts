@@ -48,11 +48,11 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends SharedContext
 					`Wiki "${key}" not found. Configured wikis: ${configured.join(', ')}`,
 				);
 			}
-			const guardError = await checkWikiCapability(tool.name, key, ctx);
+			resolved = { key, config };
+			const guardError = await checkWikiCapability(tool.name, resolved, ctx);
 			if (guardError) {
 				return guardError;
 			}
-			resolved = { key, config };
 		}
 		const wiki = resolved;
 		const callCtx = contextFor<TCtx>(ctx, wiki);
