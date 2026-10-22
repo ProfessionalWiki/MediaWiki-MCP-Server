@@ -13,6 +13,7 @@ import { verifyAccessToken } from '../../src/auth/authorizationServer/jwt.ts';
 import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.ts';
 import { fakeProxyConfig } from '../helpers/fakeProxyConfig.ts';
 import { fakeHostedProxy } from '../helpers/fakeHostedProxy.ts';
+import { callWiki } from '../helpers/fakeContext.ts';
 import { buildConsentCookie } from '../../src/auth/authorizationServer/consent.ts';
 import { parseRedirectAllowlist } from '../../src/auth/authorizationServer/redirectPolicy.ts';
 import { checkWikiCapability } from '../../src/runtime/wikiCapability.ts';
@@ -335,7 +336,7 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		});
 
 		const writeResult = await withRequestContext(undefined, () =>
-			checkWikiCapability('update-page', 'test', ctx),
+			checkWikiCapability('update-page', callWiki(ctx, 'test'), ctx),
 		);
 		expect(writeResult).toBeDefined();
 		expect(writeResult?.isError).toBe(true);
@@ -346,7 +347,7 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		// A read-only tool (e.g. get-page) is NOT a write tool, so it passes the
 		// capability guard anonymously (returns undefined = proceed).
 		const readResult = await withRequestContext(undefined, () =>
-			checkWikiCapability('get-page', 'test', ctx),
+			checkWikiCapability('get-page', callWiki(ctx, 'test'), ctx),
 		);
 		expect(readResult).toBeUndefined();
 	});

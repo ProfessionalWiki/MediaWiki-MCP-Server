@@ -1,7 +1,12 @@
 import { vi } from 'vitest';
 import { dirname } from 'node:path';
 import type { Mwn } from 'mwn';
-import type { ManagementContext, SharedContext, ToolContext } from '../../src/runtime/context.ts';
+import type {
+	CallWiki,
+	ManagementContext,
+	SharedContext,
+	ToolContext,
+} from '../../src/runtime/context.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
 import type { EditService } from '../../src/services/editService.ts';
 import { ResponseFormatter } from '../../src/results/response.ts';
@@ -152,4 +157,13 @@ export function ctxForWikis(
 		},
 		defaultWikiKey: defaultKey,
 	});
+}
+
+/** The call's wiki, as the dispatcher resolves it from the registry. */
+export function callWiki(ctx: SharedContext, key: string): CallWiki {
+	const config = ctx.wikis.get(key);
+	if (config === undefined) {
+		throw new Error(`No wiki "${key}" in the test registry`);
+	}
+	return { key, config };
 }
