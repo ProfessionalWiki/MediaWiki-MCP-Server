@@ -4,10 +4,10 @@ import type { Mwn } from 'mwn';
 import type { ManagementContext, SharedContext, ToolContext } from '../../src/runtime/context.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
 import type { EditService } from '../../src/services/editService.ts';
-import { ResponseFormatterImpl } from '../../src/results/response.ts';
-import { ErrorClassifierImpl } from '../../src/errors/classifyError.ts';
+import { ResponseFormatter } from '../../src/results/response.ts';
+import { ErrorClassifier } from '../../src/errors/classifyError.ts';
 import { extensionErrorVocabulary, extensionPacks } from '../../src/tools/extensions/index.ts';
-import { RevisionNormalizerImpl } from '../../src/services/revisionNormalize.ts';
+import { RevisionNormalizer } from '../../src/services/revisionNormalize.ts';
 import type { WikiIdentity, WikiProbe } from '../../src/wikis/wikiProbe.ts';
 import { UploadDirsImpl, type UploadDirs } from '../../src/wikis/uploadDirs.ts';
 import { fakeLogger } from './fakeLogger.ts';
@@ -98,9 +98,9 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 			submitUploadFromBytes: throws('edit.submitUploadFromBytes') as never,
 			botRight: throws('edit.botRight') as never,
 		},
-		revision: new RevisionNormalizerImpl(),
-		format: new ResponseFormatterImpl(),
-		errors: new ErrorClassifierImpl(extensionErrorVocabulary(extensionPacks)),
+		revision: new RevisionNormalizer(),
+		format: new ResponseFormatter(),
+		errors: new ErrorClassifier(extensionErrorVocabulary(extensionPacks)),
 		logger: fakeLogger(),
 		transport: 'stdio' as const,
 		auth: { bearerPassthrough: false, staticFallback: false },

@@ -3,15 +3,6 @@ import type { ErrorEnvelope } from '../results/schemas.ts';
 import type { ErrorCategory } from '../errors/classifyError.ts';
 import { formatPayload } from './format.ts';
 
-export interface ResponseFormatter {
-	ok(payload: unknown): CallToolResult;
-	error(category: ErrorCategory, message: string, code?: string): CallToolResult;
-	notFound(message: string, code?: string): CallToolResult;
-	invalidInput(message: string): CallToolResult;
-	conflict(message: string, code?: string): CallToolResult;
-	permissionDenied(message: string, code?: string): CallToolResult;
-}
-
 export function structuredResult(data: unknown): CallToolResult {
 	return {
 		content: [{ type: 'text', text: formatPayload(data) }],
@@ -38,7 +29,7 @@ export function errorResult(
 	};
 }
 
-export class ResponseFormatterImpl implements ResponseFormatter {
+export class ResponseFormatter {
 	public ok(payload: unknown): CallToolResult {
 		return structuredResult(payload);
 	}

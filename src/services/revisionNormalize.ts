@@ -13,11 +13,7 @@ export type NormalisedRevision = Omit<ApiRevisionLike, 'slots'> & {
 	size?: number;
 };
 
-export interface RevisionNormalizer {
-	normalise(rev: ApiRevisionLike): NormalisedRevision;
-}
-
-export class RevisionNormalizerImpl implements RevisionNormalizer {
+export class RevisionNormalizer {
 	public normalise(rev: ApiRevisionLike): NormalisedRevision {
 		const { slots, ...base } = rev;
 		if (slots?.main) {

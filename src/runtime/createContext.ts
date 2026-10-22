@@ -6,9 +6,9 @@ import type { ProxyConfig } from '../auth/authorizationServer/proxyConfig.ts';
 import { WikiCacheImpl } from '../wikis/wikiCache.ts';
 import { SectionServiceImpl } from '../services/sectionService.ts';
 import { EditServiceImpl } from '../services/editService.ts';
-import { RevisionNormalizerImpl } from '../services/revisionNormalize.ts';
-import { ResponseFormatterImpl } from '../results/response.ts';
-import { ErrorClassifierImpl } from '../errors/classifyError.ts';
+import { RevisionNormalizer } from '../services/revisionNormalize.ts';
+import { ResponseFormatter } from '../results/response.ts';
+import { ErrorClassifier } from '../errors/classifyError.ts';
 import { extensionErrorVocabulary, extensionPacks } from '../tools/extensions/index.ts';
 import { withCallBounds } from '../wikis/abortableMwn.ts';
 import { getRequestDeadline, getRequestSignal } from './requestContext.ts';
@@ -38,9 +38,9 @@ export function createSharedContext(deps: {
 		wikiProbe: state.wikiProbe,
 		sections: new SectionServiceImpl(),
 		editFor: (wiki) => new EditServiceImpl(wiki.config.tags),
-		revision: new RevisionNormalizerImpl(),
-		format: new ResponseFormatterImpl(),
-		errors: new ErrorClassifierImpl(extensionErrorVocabulary(extensionPacks)),
+		revision: new RevisionNormalizer(),
+		format: new ResponseFormatter(),
+		errors: new ErrorClassifier(extensionErrorVocabulary(extensionPacks)),
 		logger,
 		transport,
 		auth,
