@@ -3,19 +3,22 @@ import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
-import { createOAuthProtectedResourceHandler } from '../../src/transport/streamableHttp.ts';
+import { buildApp } from '../../src/transport/streamableHttp.ts';
 import { createMcpRouteHandler, type McpRouteOptions } from '../../src/transport/mcpRoute.ts';
 import { AUTHENTICATION_REQUIRED_ERROR_CODE } from '../../src/transport/errorCodes.ts';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
+import { createAppState } from '../../src/wikis/state.ts';
 import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.ts';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 import { readAuthPolicy } from '../../src/runtime/authShape.ts';
 import { metricsOff } from '../helpers/metrics.ts';
 import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.ts';
+import type { HostedProxy } from '../../src/auth/authorizationServer/hostedProxy.ts';
 import { fakeHostedProxy } from '../helpers/fakeHostedProxy.ts';
 import { fakeProxyConfig } from '../helpers/fakeProxyConfig.ts';
 import { fakeAuthPolicy } from '../helpers/fakeAuthPolicy.ts';
+import { fakeAppDeps } from '../helpers/fakeAppDeps.ts';
 
 function fakeRegistry(wikis: Record<string, Partial<WikiConfig>>): WikiRegistry {
 	return {
@@ -27,20 +30,18 @@ function fakeRegistry(wikis: Record<string, Partial<WikiConfig>>): WikiRegistry 
 	} as unknown as WikiRegistry;
 }
 
-function buildWellKnownApp(registry: WikiRegistry, issuer?: string): Express {
-	const app = express();
-	app.use(express.json());
-	app.get(
-		'/.well-known/oauth-protected-resource',
-		createOAuthProtectedResourceHandler({
-			wikiRegistry: registry,
-			authorizationServer: issuer ?? null,
-		}),
-	);
-	return app;
-}
-
 const PROXY_ISSUER = 'https://mcp.example/mcp';
+
+const HOSTED_PROXY = fakeHostedProxy(
+	fakeProxyConfig({ issuer: PROXY_ISSUER }),
+	new InMemoryProxyStore(),
+);
+
+function appFor(wikis: Record<string, WikiConfig>, hostedProxy: HostedProxy | null): Express {
+	const state = createAppState({ defaultWiki: Object.keys(wikis)[0], wikis, uploadDirs: [] });
+	return buildApp(fakeAppDeps({ state, auth: fakeAuthPolicy({ transport: 'http', hostedProxy }) }))
+		.app;
+}
 
 function buildMcpApp(
 	registry?: WikiRegistry,
@@ -75,15 +76,14 @@ describe('GET /.well-known/oauth-protected-resource', () => {
 
 	it('advertises the proxy issuer when the hosted proxy is enabled', async () => {
 		fakeAs = await startFakeAs();
-		const wikiCfg: Partial<WikiConfig> = {
+		const wikiCfg: WikiConfig = {
 			sitename: 'OAuthWiki',
 			server: fakeAs.url,
 			scriptpath: '/w',
 			articlepath: '/wiki',
 			oauth2ClientId: 'my-client-id',
 		};
-		const registry = fakeRegistry({ mywiki: wikiCfg });
-		const app = buildWellKnownApp(registry, PROXY_ISSUER);
+		const app = appFor({ mywiki: wikiCfg }, HOSTED_PROXY);
 
 		const res = await request(app).get('/.well-known/oauth-protected-resource');
 		expect(res.status).toBe(200);
@@ -96,29 +96,27 @@ describe('GET /.well-known/oauth-protected-resource', () => {
 	});
 
 	it('returns 404 when no wiki has oauth2ClientId', async () => {
-		const wikiCfg: Partial<WikiConfig> = {
+		const wikiCfg: WikiConfig = {
 			sitename: 'PlainWiki',
 			server: 'https://plain.example',
 			scriptpath: '/w',
 			articlepath: '/wiki',
 		};
-		const registry = fakeRegistry({ plain: wikiCfg });
-		const app = buildWellKnownApp(registry, PROXY_ISSUER);
+		const app = appFor({ plain: wikiCfg }, HOSTED_PROXY);
 
 		const res = await request(app).get('/.well-known/oauth-protected-resource');
 		expect(res.status).toBe(404);
 	});
 
 	it('returns 404 when oauth2ClientId is an empty string', async () => {
-		const wikiCfg: Partial<WikiConfig> = {
+		const wikiCfg: WikiConfig = {
 			sitename: 'EmptyOAuth',
 			server: 'https://empty.example',
 			scriptpath: '/w',
 			articlepath: '/wiki',
 			oauth2ClientId: '',
 		};
-		const registry = fakeRegistry({ empty: wikiCfg });
-		const app = buildWellKnownApp(registry, PROXY_ISSUER);
+		const app = appFor({ empty: wikiCfg }, HOSTED_PROXY);
 
 		const res = await request(app).get('/.well-known/oauth-protected-resource');
 		expect(res.status).toBe(404);
@@ -126,15 +124,14 @@ describe('GET /.well-known/oauth-protected-resource', () => {
 
 	it('uses x-forwarded-proto for the resource URL', async () => {
 		fakeAs = await startFakeAs();
-		const wikiCfg: Partial<WikiConfig> = {
+		const wikiCfg: WikiConfig = {
 			sitename: 'OAuthWiki',
 			server: fakeAs.url,
 			scriptpath: '/w',
 			articlepath: '/wiki',
 			oauth2ClientId: 'my-client-id',
 		};
-		const registry = fakeRegistry({ mywiki: wikiCfg });
-		const app = buildWellKnownApp(registry, PROXY_ISSUER);
+		const app = appFor({ mywiki: wikiCfg }, HOSTED_PROXY);
 
 		// MCP_PUBLIC_URL not set; resource is derived from host header and proto
 		const res = await request(app)
@@ -148,8 +145,8 @@ describe('GET /.well-known/oauth-protected-resource', () => {
 
 	it('is not served at all when the proxy is disabled', async () => {
 		fakeAs = await startFakeAs();
-		const app = buildWellKnownApp(
-			fakeRegistry({
+		const app = appFor(
+			{
 				mywiki: {
 					sitename: 'OAuthWiki',
 					server: fakeAs.url,
@@ -157,7 +154,8 @@ describe('GET /.well-known/oauth-protected-resource', () => {
 					articlepath: '/wiki',
 					oauth2ClientId: 'my-client-id',
 				},
-			}),
+			},
+			null,
 		);
 
 		const res = await request(app).get('/.well-known/oauth-protected-resource');
@@ -175,22 +173,21 @@ describe('GET /.well-known/oauth-protected-resource', () => {
 			wellKnownBody: { code_challenge_methods_supported: ['plain'] },
 		});
 		try {
-			const reachable: Partial<WikiConfig> = {
+			const reachable: WikiConfig = {
 				sitename: 'Reachable',
 				server: fakeAs.url,
 				scriptpath: '/w',
 				articlepath: '/wiki',
 				oauth2ClientId: 'client-ok',
 			};
-			const rejecting: Partial<WikiConfig> = {
+			const rejecting: WikiConfig = {
 				sitename: 'Rejecting',
 				server: badAs.url,
 				scriptpath: '/w',
 				articlepath: '/wiki',
 				oauth2ClientId: 'client-bad',
 			};
-			const registry = fakeRegistry({ reachable: reachable, rejecting: rejecting });
-			const app = buildWellKnownApp(registry, PROXY_ISSUER);
+			const app = appFor({ reachable: reachable, rejecting: rejecting }, HOSTED_PROXY);
 
 			const res = await request(app).get('/.well-known/oauth-protected-resource');
 			// Upstream metadata is still fetched, for scopes_supported, so one wiki
@@ -209,15 +206,14 @@ describe('GET /.well-known/oauth-protected-resource', () => {
 			wellKnownBody: { code_challenge_methods_supported: ['plain'] },
 		});
 		try {
-			const rejecting: Partial<WikiConfig> = {
+			const rejecting: WikiConfig = {
 				sitename: 'Rejecting',
 				server: badAs.url,
 				scriptpath: '/w',
 				articlepath: '/wiki',
 				oauth2ClientId: 'client-bad',
 			};
-			const registry = fakeRegistry({ rejecting: rejecting });
-			const app = buildWellKnownApp(registry, PROXY_ISSUER);
+			const app = appFor({ rejecting: rejecting }, HOSTED_PROXY);
 
 			const res = await request(app).get('/.well-known/oauth-protected-resource');
 			expect(res.status).toBe(503);
@@ -458,13 +454,7 @@ describe('POST /mcp 401 short-circuit when every wiki requires auth', () => {
 // default wiki, and the challenge points at the proxy's protected-resource document.
 describe('POST /mcp challenge behind the hosted proxy', () => {
 	const behindProxy = {
-		auth: fakeAuthPolicy({
-			transport: 'http',
-			hostedProxy: fakeHostedProxy(
-				fakeProxyConfig({ issuer: PROXY_ISSUER }),
-				new InMemoryProxyStore(),
-			),
-		}),
+		auth: fakeAuthPolicy({ transport: 'http', hostedProxy: HOSTED_PROXY }),
 		defaultWikiKey: 'mywiki',
 	};
 
