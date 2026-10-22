@@ -68,19 +68,11 @@ export function capLinesByBytes(lines: string[]): CappedLines {
 		return { lines, returnedBytes: totalBytes, totalBytes, truncated: false };
 	}
 
-	const kept: string[] = [];
-	let returnedBytes = 0;
-	for (const line of lines) {
-		const separator = kept.length === 0 ? 0 : 1;
-		const size = separator + Buffer.byteLength(line, 'utf8');
-		if (returnedBytes + size > maxBytes) {
-			break;
-		}
-		kept.push(line);
-		returnedBytes += size;
-	}
-
-	if (kept.length === 0) {
+	const kept = fittingPrefix(
+		lines.map((line) => Buffer.byteLength(line, 'utf8')),
+		maxBytes,
+	);
+	if (kept.count === 0) {
 		const { text } = truncateByBytes(lines[0], Math.max(0, maxBytes - ELLIPSIS_BYTES));
 		const only = `${text}${ELLIPSIS}`;
 		return {
@@ -90,7 +82,52 @@ export function capLinesByBytes(lines: string[]): CappedLines {
 			truncated: true,
 		};
 	}
-	return { lines: kept, returnedBytes, totalBytes, truncated: true };
+	return {
+		lines: lines.slice(0, kept.count),
+		returnedBytes: kept.bytes,
+		totalBytes,
+		truncated: true,
+	};
+}
+
+export interface CappedRows<T> {
+	rows: T[];
+	returnedBytes: number;
+	totalBytes: number;
+	truncated: boolean;
+}
+
+/**
+ * Keeps whole rows, measured as JSON, while they fit the response byte budget.
+ * A structured row cannot be cut inside, so a first row that alone exceeds the
+ * budget leaves none.
+ */
+export function capRowsByBytes<T>(rows: T[]): CappedRows<T> {
+	const sizes = rows.map((row) => Buffer.byteLength(JSON.stringify(row), 'utf8'));
+	const all = fittingPrefix(sizes, Number.POSITIVE_INFINITY);
+	const kept = fittingPrefix(sizes, contentMaxBytes());
+	return {
+		rows: rows.slice(0, kept.count),
+		returnedBytes: kept.bytes,
+		totalBytes: all.bytes,
+		truncated: kept.count < rows.length,
+	};
+}
+
+// The leading items that fit maxBytes when joined by one-byte separators, as a
+// count and the bytes they take.
+function fittingPrefix(sizes: number[], maxBytes: number): { count: number; bytes: number } {
+	let count = 0;
+	let bytes = 0;
+	for (const size of sizes) {
+		const next = bytes + (count === 0 ? 0 : 1) + size;
+		if (next > maxBytes) {
+			break;
+		}
+		count++;
+		bytes = next;
+	}
+	return { count, bytes };
 }
 
 // UTF-8 continuation bytes are 0b10xxxxxx. A cut whose next byte is one of them

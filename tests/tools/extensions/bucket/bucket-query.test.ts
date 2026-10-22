@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, type Mock } from 'vitest';
+import { describe, it, expect, vi, afterEach, type Mock } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
 import { contextOn } from '../../../helpers/fakeContext.ts';
 import { bucketQuery } from '../../../../src/tools/extensions/bucket/bucket-query.ts';
 import { dispatch } from '../../../../src/runtime/dispatcher.ts';
 import {
+	assertStructuredData,
 	assertStructuredError,
 	assertStructuredSuccess,
 } from '../../../helpers/structuredResult.ts';
@@ -20,6 +21,20 @@ function renderedQuery(call: unknown[]): string {
 function rawRequestMock(payload: unknown): Mock {
 	return vi.fn().mockResolvedValue({ data: payload });
 }
+
+// A wiki answering the query with these rows.
+function ctxAnswering(rows: Record<string, unknown>[]): ReturnType<typeof contextOn> {
+	return contextOn(
+		createMockMwn({ rawRequest: rawRequestMock({ bucketQuery: '', bucket: rows }) }),
+	);
+}
+
+// Rows of 22 bytes each as JSON.
+function items(count: number): Record<string, unknown>[] {
+	return Array.from({ length: count }, (_, i) => ({ page_name: `Item ${i}` }));
+}
+
+const DROPS = 'bucket("drops").select("page_name").run()';
 
 describe('bucket-query', () => {
 	it('forwards the query to action=bucket and returns array rows', async () => {
@@ -356,5 +371,62 @@ describe('bucket-query', () => {
 		);
 
 		expect(result.structuredContent).toMatchObject({ rows: [] });
+	});
+
+	describe('byte budget', () => {
+		afterEach(() => {
+			vi.unstubAllEnvs();
+		});
+
+		it('returns the whole rows that fit and continues after the last of them', async () => {
+			vi.stubEnv('MCP_CONTENT_MAX_BYTES', '80');
+
+			const result = await bucketQuery.handle(
+				{ query: DROPS, continueFrom: '100' },
+				ctxAnswering(items(5)),
+			);
+
+			expect(assertStructuredData(result)).toMatchObject({
+				rows: items(3),
+				truncation: {
+					reason: 'more-available',
+					returnedCount: 3,
+					itemNoun: 'rows',
+					toolName: 'bucket-query',
+					continueWith: { param: 'continueFrom', value: '103' },
+				},
+			});
+		});
+
+		it('returns every row unmarked when they fit', async () => {
+			vi.stubEnv('MCP_CONTENT_MAX_BYTES', '80');
+
+			const result = await bucketQuery.handle({ query: DROPS }, ctxAnswering(items(3)));
+
+			const data = assertStructuredData(result);
+			expect(data.rows).toEqual(items(3));
+			expect(data.truncation).toBeUndefined();
+		});
+
+		it('names the narrowing and the skip for a row larger than the budget', async () => {
+			vi.stubEnv('MCP_CONTENT_MAX_BYTES', '10');
+
+			const result = await bucketQuery.handle(
+				{ query: DROPS, continueFrom: '100' },
+				ctxAnswering(items(2)),
+			);
+
+			expect(assertStructuredData(result)).toMatchObject({
+				rows: [],
+				truncation: {
+					reason: 'content-truncated',
+					returnedBytes: 0,
+					itemNoun: 'rows',
+					toolName: 'bucket-query',
+					remedyHint:
+						'To read a row larger than the whole byte budget, select fewer fields, or skip it with continueFrom=101.',
+				},
+			});
+		});
 	});
 });

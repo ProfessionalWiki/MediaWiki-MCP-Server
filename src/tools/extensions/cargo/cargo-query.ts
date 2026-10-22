@@ -2,9 +2,13 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
-import type { TruncationInfo } from '../../../results/truncation.ts';
+import { capRowsByBytes } from '../../../results/truncation.ts';
 import { cargoRefusal } from './cargoRefusal.ts';
-import { MALFORMED_CONTINUE_FROM, offsetFrom } from '../../../results/offsetCursor.ts';
+import {
+	MALFORMED_CONTINUE_FROM,
+	offsetFrom,
+	rowPageTruncation,
+} from '../../../results/offsetCursor.ts';
 
 const QUERY_HINT =
 	'Verify table and field names with cargo-list-tables / cargo-describe-table, or inspect Special:CargoTables.';
@@ -61,7 +65,7 @@ interface CargoQueryResponse {
 export const cargoQuery: Tool<typeof inputSchema> = {
 	name: 'cargo-query',
 	description:
-		"Returns rows from one or more Cargo tables on the targeted wiki, matching a SQL-style filter. Supports WHERE, JOIN ON, GROUP BY, HAVING, and ORDER BY clauses. Enabled only when the wiki has Cargo installed. Use cargo-list-tables to discover table names and cargo-describe-table to inspect field types before constructing a query — field types determine which operators apply (HOLDS / HOLDS LIKE for list fields, MATCHES for Searchtext, NEAR for Coordinates). Cargo collapses NULL to empty string on output, so `where=field=''` matches both unset and truly-empty values. Up to 500 rows per call; paginate with continueFrom.",
+		"Returns rows from one or more Cargo tables on the targeted wiki, matching a SQL-style filter. Supports WHERE, JOIN ON, GROUP BY, HAVING, and ORDER BY clauses. Enabled only when the wiki has Cargo installed. Use cargo-list-tables to discover table names and cargo-describe-table to inspect field types before constructing a query — field types determine which operators apply (HOLDS / HOLDS LIKE for list fields, MATCHES for Searchtext, NEAR for Coordinates). Cargo collapses NULL to empty string on output, so `where=field=''` matches both unset and truly-empty values. Up to 500 rows per call, and only the whole rows that fit in 75000 bytes by default; paginate with continueFrom.",
 	inputSchema,
 	annotations: {
 		title: 'Run Cargo query',
@@ -123,26 +127,17 @@ export const cargoQuery: Tool<typeof inputSchema> = {
 		// The `title` key is a static MediaWiki XML-tagging artifact, not a page
 		// title. Unwrap each entry.title to surface the actual field values.
 		const rows = entries.map((entry) => entry.title ?? {});
-
-		// `>=` rather than `===` — defensive against future Cargo versions that
-		// return more rows than the requested limit.
-		const truncation: TruncationInfo | null =
-			rows.length >= effectiveLimit
-				? {
-						reason: 'more-available',
-						returnedCount: rows.length,
-						itemNoun: 'rows',
-						toolName: 'cargo-query',
-						continueWith: {
-							param: 'continueFrom',
-							value: String(currentOffset + rows.length),
-						},
-					}
-				: null;
+		const capped = capRowsByBytes(rows);
 
 		return ctx.format.ok({
-			rows,
-			...(truncation !== null ? { truncation } : {}),
+			rows: capped.rows,
+			...rowPageTruncation(capped, {
+				toolName: 'cargo-query',
+				offset: currentOffset,
+				// `>=` in case a Cargo version returns more rows than the limit asked for.
+				nextOffset: rows.length >= effectiveLimit ? currentOffset + rows.length : undefined,
+				narrowing: 'name fewer fields in fields',
+			}),
 		});
 	},
 };
