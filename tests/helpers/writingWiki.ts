@@ -11,6 +11,8 @@ export interface WritingWiki {
 	writes: URLSearchParams[];
 	/** The last write the wiki received. */
 	sentWrite: () => URLSearchParams;
+	/** How many times the wiki was asked for the account's rights. */
+	rightsQueries: () => number;
 }
 
 /** The multipart body mwn hands its HTTP layer for an upload: a form-data stream. */
@@ -36,6 +38,7 @@ export function writingWiki(
 	const answers = Array.isArray(response) ? response : [response];
 	const mwn = new Mwn({ apiUrl: 'https://test.wiki/w/api.php' });
 	const writes: URLSearchParams[] = [];
+	let rightsQueries = 0;
 	vi.spyOn(mwn, 'rawRequest').mockImplementation((async (request: {
 		params?: Record<string, string>;
 		data?: unknown;
@@ -44,6 +47,7 @@ export function writingWiki(
 			return { data: { query: { tokens: { csrftoken: 'csrf-token' } } } };
 		}
 		if (request.params?.meta === 'userinfo') {
+			rightsQueries++;
 			return { data: { query: { userinfo: { rights: wiki.rights ?? [] } } } };
 		}
 		if (request.data === undefined) {
@@ -77,6 +81,7 @@ export function writingWiki(
 			}
 			return last;
 		},
+		rightsQueries: () => rightsQueries,
 	};
 }
 

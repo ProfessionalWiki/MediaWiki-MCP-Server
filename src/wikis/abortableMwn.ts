@@ -10,6 +10,13 @@ interface RetryableError {
 	disableRetry?: boolean;
 }
 
+const instances = new WeakMap<Mwn, Mwn>();
+
+/** The instance a view from `withCallBounds` forwards to; any other Mwn is its own instance. */
+export function instanceBehind(mwn: Mwn): Mwn {
+	return instances.get(mwn) ?? mwn;
+}
+
 /**
  * Returns a view of `bot` whose MediaWiki API calls stop when `deadline`
  * expires, and when the caller walks away if a `cancellation` signal is given.
@@ -49,7 +56,7 @@ interface RetryableError {
 export function withCallBounds(bot: Mwn, deadline: CallDeadline, cancellation?: AbortSignal): Mwn {
 	const signal =
 		cancellation === undefined ? deadline.signal : AbortSignal.any([deadline.signal, cancellation]);
-	return new Proxy(bot, {
+	const view = new Proxy(bot, {
 		get(target, prop, receiver): unknown {
 			if (prop === 'massQuery') {
 				// `massQuery` puts per-batch errors IN its result array instead of
@@ -93,4 +100,6 @@ export function withCallBounds(bot: Mwn, deadline: CallDeadline, cancellation?: 
 			};
 		},
 	});
+	instances.set(view, bot);
+	return view;
 }
