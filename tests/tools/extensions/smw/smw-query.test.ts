@@ -1,12 +1,38 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
 import { contextOn } from '../../../helpers/fakeContext.ts';
 import { smwQuery } from '../../../../src/tools/extensions/smw/smw-query.ts';
 import { dispatch } from '../../../../src/runtime/dispatcher.ts';
 import {
+	assertStructuredData,
 	assertStructuredError,
 	assertStructuredSuccess,
 } from '../../../helpers/structuredResult.ts';
+
+// Page titles whose rows are 47 bytes each as JSON.
+function pageTitles(count: number): string[] {
+	return Array.from({ length: count }, (_, i) => `Page ${i}`);
+}
+
+// A wiki answering the query with one row per title, and the offset SMW
+// continues at when it has more.
+function ctxAnswering(titles: string[], continueOffset?: number): ReturnType<typeof contextOn> {
+	const results = Object.fromEntries(
+		titles.map((title) => [title, { fulltext: title, namespace: 0, printouts: {} }]),
+	);
+	return contextOn(
+		createMockMwn({
+			request: vi.fn().mockResolvedValue({
+				query: { results, meta: { count: titles.length }, printrequests: [] },
+				...(continueOffset !== undefined ? { 'query-continue-offset': continueOffset } : {}),
+			}),
+		}),
+	);
+}
+
+function rowsFor(titles: string[]): Record<string, unknown>[] {
+	return titles.map((title) => ({ title, namespace: 0, printouts: {} }));
+}
 
 describe('smw-query', () => {
 	it('calls action=ask with the user query and returns row-shaped results', async () => {
@@ -241,5 +267,79 @@ describe('smw-query', () => {
 
 		const envelope = assertStructuredError(result, 'upstream_failure');
 		expect(envelope.message).toContain('SMW timeout');
+	});
+
+	describe('byte budget', () => {
+		afterEach(() => {
+			vi.unstubAllEnvs();
+		});
+
+		it('returns the whole rows that fit and continues after the last of them', async () => {
+			vi.stubEnv('MCP_CONTENT_MAX_BYTES', '160');
+
+			const result = await smwQuery.handle(
+				{ query: '[[Category:X]]', continueFrom: '100' },
+				ctxAnswering(pageTitles(5), 105),
+			);
+
+			expect(assertStructuredData(result)).toMatchObject({
+				rows: rowsFor(pageTitles(3)),
+				truncation: {
+					reason: 'more-available',
+					returnedCount: 3,
+					itemNoun: 'rows',
+					toolName: 'smw-query',
+					continueWith: { param: 'continueFrom', value: '103' },
+				},
+			});
+		});
+
+		it('continues after the rows that fit on what SMW reports as the last page', async () => {
+			vi.stubEnv('MCP_CONTENT_MAX_BYTES', '160');
+
+			const result = await smwQuery.handle(
+				{ query: '[[Category:X]]' },
+				ctxAnswering(pageTitles(5)),
+			);
+
+			expect(assertStructuredData(result).truncation).toMatchObject({
+				reason: 'more-available',
+				continueWith: { param: 'continueFrom', value: '3' },
+			});
+		});
+
+		it('returns every row unmarked when they fit', async () => {
+			vi.stubEnv('MCP_CONTENT_MAX_BYTES', '160');
+
+			const result = await smwQuery.handle(
+				{ query: '[[Category:X]]' },
+				ctxAnswering(pageTitles(3)),
+			);
+
+			const data = assertStructuredData(result);
+			expect(data.rows).toEqual(rowsFor(pageTitles(3)));
+			expect(data.truncation).toBeUndefined();
+		});
+
+		it('names the narrowing and the skip for a row larger than the budget', async () => {
+			vi.stubEnv('MCP_CONTENT_MAX_BYTES', '10');
+
+			const result = await smwQuery.handle(
+				{ query: '[[Category:X]]', continueFrom: '100' },
+				ctxAnswering(pageTitles(2)),
+			);
+
+			expect(assertStructuredData(result)).toMatchObject({
+				rows: [],
+				truncation: {
+					reason: 'content-truncated',
+					returnedBytes: 0,
+					itemNoun: 'rows',
+					toolName: 'smw-query',
+					remedyHint:
+						'To read a row larger than the whole byte budget, request fewer printouts, or skip it with continueFrom=101.',
+				},
+			});
+		});
 	});
 });

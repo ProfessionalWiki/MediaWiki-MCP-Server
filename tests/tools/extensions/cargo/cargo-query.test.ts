@@ -1,13 +1,25 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
 import { createMockMwnError } from '../../../helpers/mock-mwn-error.ts';
 import { contextOn } from '../../../helpers/fakeContext.ts';
 import { cargoQuery } from '../../../../src/tools/extensions/cargo/cargo-query.ts';
 import { dispatch } from '../../../../src/runtime/dispatcher.ts';
 import {
+	assertStructuredData,
 	assertStructuredError,
 	assertStructuredSuccess,
 } from '../../../helpers/structuredResult.ts';
+
+// A wiki answering the query with these rows.
+function ctxAnswering(rows: Record<string, unknown>[]): ReturnType<typeof contextOn> {
+	const cargoquery = rows.map((title) => ({ title }));
+	return contextOn(createMockMwn({ request: vi.fn().mockResolvedValue({ cargoquery }) }));
+}
+
+// Rows of 17 bytes each as JSON.
+function items(count: number): Record<string, unknown>[] {
+	return Array.from({ length: count }, (_, i) => ({ name: `Item ${i}` }));
+}
 
 // A wiki whose API call fails with `error`.
 function ctxRejecting(error: Error): ReturnType<typeof contextOn> {
@@ -311,5 +323,62 @@ describe('cargo-query', () => {
 		expect('group_by' in call).toBe(false);
 		expect('having' in call).toBe(false);
 		expect('order_by' in call).toBe(false);
+	});
+
+	describe('byte budget', () => {
+		afterEach(() => {
+			vi.unstubAllEnvs();
+		});
+
+		it('returns the whole rows that fit and continues after the last of them', async () => {
+			vi.stubEnv('MCP_CONTENT_MAX_BYTES', '60');
+
+			const result = await cargoQuery.handle(
+				{ tables: 'items', continueFrom: '100' },
+				ctxAnswering(items(5)),
+			);
+
+			expect(assertStructuredData(result)).toMatchObject({
+				rows: items(3),
+				truncation: {
+					reason: 'more-available',
+					returnedCount: 3,
+					itemNoun: 'rows',
+					toolName: 'cargo-query',
+					continueWith: { param: 'continueFrom', value: '103' },
+				},
+			});
+		});
+
+		it('returns every row unmarked when they fit', async () => {
+			vi.stubEnv('MCP_CONTENT_MAX_BYTES', '60');
+
+			const result = await cargoQuery.handle({ tables: 'items' }, ctxAnswering(items(3)));
+
+			const data = assertStructuredData(result);
+			expect(data.rows).toEqual(items(3));
+			expect(data.truncation).toBeUndefined();
+		});
+
+		it('names the narrowing and the skip for a row larger than the budget', async () => {
+			vi.stubEnv('MCP_CONTENT_MAX_BYTES', '10');
+
+			const result = await cargoQuery.handle(
+				{ tables: 'items', continueFrom: '100' },
+				ctxAnswering(items(2)),
+			);
+
+			expect(assertStructuredData(result)).toMatchObject({
+				rows: [],
+				truncation: {
+					reason: 'content-truncated',
+					returnedBytes: 0,
+					itemNoun: 'rows',
+					toolName: 'cargo-query',
+					remedyHint:
+						'To read a row larger than the whole byte budget, name fewer fields in fields, or skip it with continueFrom=101.',
+				},
+			});
+		});
 	});
 });

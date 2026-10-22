@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
 	capLinesByBytes,
+	capRowsByBytes,
 	truncateByBytes,
 	DEFAULT_CONTENT_MAX_BYTES,
 } from '../../src/results/truncation.ts';
@@ -77,6 +78,52 @@ describe('capLinesByBytes', () => {
 		expect(capped.lines).toEqual(['漢…']);
 		expect(capped.returnedBytes).toBeLessThanOrEqual(8);
 		expect(capped.lines[0]).not.toContain('\uFFFD');
+	});
+});
+
+describe('capRowsByBytes', () => {
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	// Each row is 9 bytes as JSON: {"a":"x"}.
+	const rows = [{ a: 'x' }, { a: 'y' }, { a: 'z' }];
+
+	it('returns every row and its byte count when the rows fit', () => {
+		expect(capRowsByBytes(rows)).toEqual({
+			rows,
+			returnedBytes: 29,
+			totalBytes: 29,
+			truncated: false,
+		});
+	});
+
+	it('keeps the whole rows that fit the budget exactly', () => {
+		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '19');
+
+		expect(capRowsByBytes(rows)).toEqual({
+			rows: [{ a: 'x' }, { a: 'y' }],
+			returnedBytes: 19,
+			totalBytes: 29,
+			truncated: true,
+		});
+	});
+
+	it('returns no row when the first alone exceeds the budget', () => {
+		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '8');
+
+		expect(capRowsByBytes(rows)).toEqual({
+			rows: [],
+			returnedBytes: 0,
+			totalBytes: 29,
+			truncated: true,
+		});
+	});
+
+	it('counts a row in bytes rather than characters', () => {
+		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '10');
+
+		expect(capRowsByBytes([{ a: '漢' }]).rows).toEqual([]);
 	});
 });
 

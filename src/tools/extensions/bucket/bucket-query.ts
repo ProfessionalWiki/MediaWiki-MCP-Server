@@ -2,8 +2,12 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
-import type { TruncationInfo } from '../../../results/truncation.ts';
-import { MALFORMED_CONTINUE_FROM, offsetFrom } from '../../../results/offsetCursor.ts';
+import { capRowsByBytes } from '../../../results/truncation.ts';
+import {
+	MALFORMED_CONTINUE_FROM,
+	offsetFrom,
+	rowPageTruncation,
+} from '../../../results/offsetCursor.ts';
 import { wikiAuthorization } from '../../../wikis/wikiAuthorization.ts';
 
 const HARD_LIMIT = 500;
@@ -36,7 +40,7 @@ interface BucketResponse {
 export const bucketQuery: Tool<typeof inputSchema> = {
 	name: 'bucket-query',
 	description:
-		'Runs a Bucket extension query against the targeted wiki. One row per match. Enabled only when the wiki has Bucket installed.\n\nGround bucket and field names first: schemas are JSON pages in the `Bucket:` namespace (id 9592). The `bucket(...)` argument is the page title lowercased with spaces replaced by underscores — page `Bucket:Combat achievement` is queried as `bucket("combat_achievement")`. Discover with `search-page-by-prefix` (namespace 9592 plus a starting-letter prefix), then `get-page` to read the schema. Field names appear already lowercase-underscored in the schema; pass them verbatim.\n\nExamples:\n- Lookup: bucket("exchange").select("name","high_alch").where("name","Abyssal whip").run()\n- Sort: bucket("exchange").select("name","value").orderBy("value","desc").limit(10).run()\n- Comparator: bucket("exchange").select("name","value").where({"value",">",1000000}).run()\n\nWhere syntax: shorthand `where("field","value")` for equality; table form `where({"field","op","value"})` for `=`, `!=`, `>`, `<`, `>=`, `<=`. Compose with `Bucket.And/Or/Not`. Full Lua reference: https://meta.weirdgloop.org/w/Extension:Bucket/Usage.\n\nUp to 500 rows per call; paginate with continueFrom. Bucket\'s API is not yet stable upstream — error wording may shift, but errors come through verbatim.',
+		'Runs a Bucket extension query against the targeted wiki. One row per match. Enabled only when the wiki has Bucket installed.\n\nGround bucket and field names first: schemas are JSON pages in the `Bucket:` namespace (id 9592). The `bucket(...)` argument is the page title lowercased with spaces replaced by underscores — page `Bucket:Combat achievement` is queried as `bucket("combat_achievement")`. Discover with `search-page-by-prefix` (namespace 9592 plus a starting-letter prefix), then `get-page` to read the schema. Field names appear already lowercase-underscored in the schema; pass them verbatim.\n\nExamples:\n- Lookup: bucket("exchange").select("name","high_alch").where("name","Abyssal whip").run()\n- Sort: bucket("exchange").select("name","value").orderBy("value","desc").limit(10).run()\n- Comparator: bucket("exchange").select("name","value").where({"value",">",1000000}).run()\n\nWhere syntax: shorthand `where("field","value")` for equality; table form `where({"field","op","value"})` for `=`, `!=`, `>`, `<`, `>=`, `<=`. Compose with `Bucket.And/Or/Not`. Full Lua reference: https://meta.weirdgloop.org/w/Extension:Bucket/Usage.\n\nUp to 500 rows per call, and only the whole rows that fit in 75000 bytes by default; paginate with continueFrom. Bucket\'s API is not yet stable upstream — error wording may shift, but errors come through verbatim.',
 	inputSchema,
 	annotations: {
 		title: 'Run Bucket query',
@@ -87,26 +91,18 @@ export const bucketQuery: Tool<typeof inputSchema> = {
 
 		const rows = extractRows(response.bucket, ctx);
 		const effectiveLimit = Math.min(limit ?? HARD_LIMIT, HARD_LIMIT);
-
-		// `>=` rather than `===` — defensive against a Bucket version that
-		// returns more rows than the injected `.limit()` requested.
-		const truncation: TruncationInfo | null =
-			rows.length >= effectiveLimit
-				? {
-						reason: 'more-available',
-						returnedCount: rows.length,
-						itemNoun: 'rows',
-						toolName: 'bucket-query',
-						continueWith: {
-							param: 'continueFrom',
-							value: String(offset + rows.length),
-						},
-					}
-				: null;
+		const capped = capRowsByBytes(rows);
 
 		return ctx.format.ok({
-			rows,
-			...(truncation !== null ? { truncation } : {}),
+			rows: capped.rows,
+			...rowPageTruncation(capped, {
+				toolName: 'bucket-query',
+				offset,
+				// `>=` in case a Bucket version returns more rows than the injected
+				// `.limit()` asked for.
+				nextOffset: rows.length >= effectiveLimit ? offset + rows.length : undefined,
+				narrowing: 'select fewer fields',
+			}),
 		});
 	},
 };
