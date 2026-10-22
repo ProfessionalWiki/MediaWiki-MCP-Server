@@ -27,6 +27,7 @@ function check(
 			options.env ?? {},
 			'http',
 			options.proxyEnabled ? fakeHostedProxy(fakeProxyConfig(), new InMemoryProxyStore()) : null,
+			null,
 		),
 	});
 }

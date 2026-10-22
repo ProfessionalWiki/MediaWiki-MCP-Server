@@ -14,7 +14,6 @@ import {
 	parseEnvelope,
 	type ToolOutcome,
 } from './instrument.ts';
-import { acquireToken } from '../auth/acquireToken.ts';
 import { structuredResult } from '../results/response.ts';
 import { checkWikiCapability, isWriteTool } from './wikiCapability.ts';
 import { monotonicNow } from './clock.ts';
@@ -62,14 +61,12 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends SharedContext
 			// Only a wiki-scoped tool acts on the wiki it resolves, so only it needs
 			// that wiki's token. The rest work on server-local state or anonymous
 			// probes, and must stay reachable while that wiki's sign-in is broken.
-			const useOauth =
-				ctx.auth.transport === 'stdio' && wiki !== undefined && usesOAuthSignIn(wiki.config);
-
-			if (useOauth) {
+			const { stdioSignIn } = ctx.auth;
+			if (stdioSignIn !== null && wiki !== undefined && usesOAuthSignIn(wiki.config)) {
 				const { key, config } = wiki;
 				let token: string;
 				try {
-					token = await acquireToken(key, {
+					token = await stdioSignIn.acquire(key, {
 						wiki: { server: config.server, scriptpath: config.scriptpath },
 						oauth2ClientId: config.oauth2ClientId,
 						callbackPort:

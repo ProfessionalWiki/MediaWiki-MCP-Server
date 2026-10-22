@@ -12,8 +12,6 @@ import { useTempTokenStore } from '../helpers/tempTokenStore.ts';
 import { createTokenStore } from '../../src/auth/tokenStore.ts';
 import { getRuntimeToken } from '../../src/runtime/requestContext.ts';
 import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.ts';
-import { _resetBrowserAuthDedupForTesting } from '../../src/auth/browserAuth.ts';
-import { _resetRefreshDedupForTesting } from '../../src/auth/tokenRefresh.ts';
 
 vi.mock('open', () => ({ default: vi.fn() }));
 import openMod from 'open';
@@ -26,8 +24,6 @@ let fakeAs: FakeAsHandle;
 afterEach(async () => {
 	await fakeAs?.close();
 	_resetMetadataCacheForTesting();
-	_resetBrowserAuthDedupForTesting();
-	_resetRefreshDedupForTesting();
 	vi.clearAllMocks();
 });
 
@@ -113,7 +109,7 @@ describe('dispatch OAuth integration', () => {
 		expect(stored.home).toBeUndefined();
 	});
 
-	it('stdio without oauth2ClientId: does not call acquireToken / open', async () => {
+	it('stdio without oauth2ClientId: does not sign in or open a browser', async () => {
 		fakeAs = await startFakeAs();
 
 		const ctx = fakeContext({
@@ -129,7 +125,7 @@ describe('dispatch OAuth integration', () => {
 		expect(vi.mocked(openMod)).not.toHaveBeenCalled();
 	});
 
-	it('http + oauth2ClientId with no token: capability guard rejects, no acquireToken / open', async () => {
+	it('http + oauth2ClientId with no token: capability guard rejects, no sign-in or browser', async () => {
 		fakeAs = await startFakeAs();
 		vi.mocked(openMod).mockImplementation(
 			fakeBrowserDriver(fakeAs.url, 'consent') as typeof openMod,
@@ -155,8 +151,8 @@ describe('dispatch OAuth integration', () => {
 		expect(vi.mocked(openMod)).not.toHaveBeenCalled();
 	});
 
-	it('acquireToken failure: tool is NOT invoked; returns authentication error', async () => {
-		// Point server at a non-existent URL so acquireToken's metadata fetch fails.
+	it('sign-in failure: tool is NOT invoked; returns authentication error', async () => {
+		// Point server at a non-existent URL so the sign-in's metadata fetch fails.
 		const ctx = ctxForWiki(
 			{
 				sitename: 'Broken',

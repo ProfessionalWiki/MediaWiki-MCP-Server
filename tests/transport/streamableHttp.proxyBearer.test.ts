@@ -278,7 +278,7 @@ function buildMcpApp(
 	app.post(
 		'/mcp',
 		createMcpRouteHandler(fakeHandler, {
-			auth: readAuthPolicy(process.env, 'http', hostedProxy),
+			auth: readAuthPolicy(process.env, 'http', hostedProxy, null),
 			wikiRegistry: registry,
 			refresh,
 			defaultWikiKey: 'test',

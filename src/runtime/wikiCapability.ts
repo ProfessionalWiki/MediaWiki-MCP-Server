@@ -54,7 +54,7 @@ export async function checkWikiCapability(
 ): Promise<CallToolResult | undefined> {
 	// HTTP transport: a call to an OAuth-only wiki with no usable token can only
 	// fail downstream with an opaque error, so it is rejected up front with guidance
-	// naming whichever action can actually resolve it. (On stdio the dispatcher's acquireToken gate drives OAuth, so
+	// naming whichever action can actually resolve it. (On stdio the dispatcher's sign-in gate drives OAuth, so
 	// this never fires there.) On HTTP a wiki with static credentials only
 	// coexists with a running server when MCP_ALLOW_STATIC_FALLBACK is set —
 	// the startup bearer guard (evaluateBearerGuard) blocks startup otherwise —

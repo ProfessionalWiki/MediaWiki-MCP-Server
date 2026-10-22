@@ -1,12 +1,11 @@
-// tests/auth/acquireToken.test.ts
+// tests/auth/stdioSignIn.test.ts
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { acquireToken } from '../../src/auth/acquireToken.ts';
+import { StdioSignIn } from '../../src/auth/stdioSignIn.ts';
+import type { RequestHandler } from 'express';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 import { useTempTokenStore } from '../helpers/tempTokenStore.ts';
 import { createTokenStore } from '../../src/auth/tokenStore.ts';
 import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.ts';
-import { _resetBrowserAuthDedupForTesting } from '../../src/auth/browserAuth.ts';
-import { _resetRefreshDedupForTesting } from '../../src/auth/tokenRefresh.ts';
 import { fakeBrowserDriver } from '../helpers/fakeBrowserDriver.ts';
 
 vi.mock('open', () => ({ default: vi.fn() }));
@@ -18,8 +17,6 @@ let fakeAs: FakeAsHandle;
 afterEach(async () => {
 	await fakeAs?.close();
 	_resetMetadataCacheForTesting();
-	_resetBrowserAuthDedupForTesting();
-	_resetRefreshDedupForTesting();
 	vi.clearAllMocks();
 });
 
@@ -31,7 +28,40 @@ function futureIso(deltaMs: number): string {
 	return new Date(Date.now() + deltaMs).toISOString();
 }
 
-describe('acquireToken', () => {
+const refreshCount = { value: 0 };
+
+afterEach(() => {
+	refreshCount.value = 0;
+});
+
+// Each refresh grant gets a token numbered by how many the wiki has issued.
+function answeringRefreshes(count: { value: number }): RequestHandler {
+	return (_req, res) => {
+		count.value++;
+		res.json({
+			access_token: `access-${count.value}`,
+			refresh_token: `refresh-${count.value}`,
+			expires_in: 3600,
+			scope: 'edit',
+		});
+	};
+}
+
+async function storeExpiringToken(): Promise<void> {
+	await createTokenStore().put('my-wiki', {
+		access_token: 'stale-access',
+		refresh_token: 'stale-refresh',
+		expires_at: futureIso(30_000),
+		scopes: ['edit'],
+		obtained_at: new Date().toISOString(),
+	});
+}
+
+function wikiCtx() {
+	return { wiki: makeWiki(fakeAs.url), oauth2ClientId: 'my-client' };
+}
+
+describe('StdioSignIn.acquire', () => {
 	it('cached fresh token: returns immediately without refresh or browser dance', async () => {
 		fakeAs = await startFakeAs();
 		const store = createTokenStore();
@@ -43,7 +73,7 @@ describe('acquireToken', () => {
 			obtained_at: new Date().toISOString(),
 		});
 
-		const token = await acquireToken('my-wiki', {
+		const token = await new StdioSignIn().acquire('my-wiki', {
 			wiki: makeWiki(fakeAs.url),
 			oauth2ClientId: 'my-client',
 		});
@@ -58,7 +88,7 @@ describe('acquireToken', () => {
 			fakeBrowserDriver(fakeAs.url, 'consent') as typeof openMod,
 		);
 
-		const token = await acquireToken('my-wiki', {
+		const token = await new StdioSignIn().acquire('my-wiki', {
 			wiki: makeWiki(fakeAs.url),
 			oauth2ClientId: 'my-client',
 			scopes: ['edit'],
@@ -81,7 +111,7 @@ describe('acquireToken', () => {
 			issuer: 'https://elsewhere.example',
 		});
 
-		const token = await acquireToken('my-wiki', {
+		const token = await new StdioSignIn().acquire('my-wiki', {
 			wiki: makeWiki(fakeAs.url),
 			oauth2ClientId: 'my-client',
 		});
@@ -95,7 +125,10 @@ describe('acquireToken', () => {
 			fakeBrowserDriver(fakeAs.url, 'consent') as typeof openMod,
 		);
 
-		await acquireToken('my-wiki', { wiki: makeWiki(fakeAs.url), oauth2ClientId: 'my-client' });
+		await new StdioSignIn().acquire('my-wiki', {
+			wiki: makeWiki(fakeAs.url),
+			oauth2ClientId: 'my-client',
+		});
 
 		const stored = (await createTokenStore().read()).tokens['my-wiki'];
 		expect(stored?.issuer).toBe(fakeAs.url);
@@ -134,7 +167,7 @@ describe('acquireToken', () => {
 			fakeBrowserDriver(fakeAs.url, 'consent') as typeof openMod,
 		);
 
-		const token = await acquireToken('my-wiki', {
+		const token = await new StdioSignIn().acquire('my-wiki', {
 			wiki: makeWiki(fakeAs.url),
 			oauth2ClientId: 'my-client',
 			scopes: ['edit'],
@@ -147,7 +180,7 @@ describe('acquireToken', () => {
 		fakeAs = await startFakeAs();
 
 		await expect(
-			acquireToken('my-wiki', {
+			new StdioSignIn().acquire('my-wiki', {
 				wiki: makeWiki(fakeAs.url),
 				oauth2ClientId: undefined,
 			}),
@@ -158,7 +191,7 @@ describe('acquireToken', () => {
 		fakeAs = await startFakeAs();
 
 		await expect(
-			acquireToken('my-wiki', {
+			new StdioSignIn().acquire('my-wiki', {
 				wiki: makeWiki(fakeAs.url),
 				oauth2ClientId: null,
 			}),
@@ -169,7 +202,7 @@ describe('acquireToken', () => {
 		fakeAs = await startFakeAs();
 
 		await expect(
-			acquireToken('my-wiki', {
+			new StdioSignIn().acquire('my-wiki', {
 				wiki: makeWiki(fakeAs.url),
 				oauth2ClientId: '',
 			}),
@@ -180,7 +213,7 @@ describe('acquireToken', () => {
 		fakeAs = await startFakeAs();
 
 		await expect(
-			acquireToken('my-wiki', {
+			new StdioSignIn().acquire('my-wiki', {
 				wiki: makeWiki(fakeAs.url),
 				oauth2ClientId: '   ',
 			}),
@@ -205,7 +238,7 @@ describe('acquireToken', () => {
 		});
 
 		await expect(
-			acquireToken('my-wiki', {
+			new StdioSignIn().acquire('my-wiki', {
 				wiki: makeWiki(fakeAs.url),
 				oauth2ClientId: 'my-client',
 			}),
@@ -213,6 +246,33 @@ describe('acquireToken', () => {
 
 		// open should NOT have been called — error propagated, no dance
 		expect(vi.mocked(openMod)).not.toHaveBeenCalled();
+	});
+
+	it('concurrent callers to one wiki share one refresh', async () => {
+		fakeAs = await startFakeAs({ token: answeringRefreshes(refreshCount) });
+		await storeExpiringToken();
+		const signIn = new StdioSignIn();
+
+		const tokens = await Promise.all([
+			signIn.acquire('my-wiki', wikiCtx()),
+			signIn.acquire('my-wiki', wikiCtx()),
+			signIn.acquire('my-wiki', wikiCtx()),
+		]);
+
+		expect(tokens).toEqual(['access-1', 'access-1', 'access-1']);
+		expect(refreshCount.value).toBe(1);
+	});
+
+	it('refreshes again once an earlier refresh has finished', async () => {
+		fakeAs = await startFakeAs({ token: answeringRefreshes(refreshCount) });
+		const signIn = new StdioSignIn();
+		await storeExpiringToken();
+		await signIn.acquire('my-wiki', wikiCtx());
+
+		await storeExpiringToken();
+		const token = await signIn.acquire('my-wiki', wikiCtx());
+
+		expect(token).toBe('access-2');
 	});
 
 	it('concurrent first-callers share one dance (open called once)', async () => {
@@ -227,9 +287,10 @@ describe('acquireToken', () => {
 			scopes: ['edit'],
 		};
 
+		const signIn = new StdioSignIn();
 		const [t1, t2] = await Promise.all([
-			acquireToken('my-wiki', ctx),
-			acquireToken('my-wiki', ctx),
+			signIn.acquire('my-wiki', ctx),
+			signIn.acquire('my-wiki', ctx),
 		]);
 
 		expect(t1).toBe(t2);

@@ -78,7 +78,7 @@ function makeDeps(
 ): BuildAppDeps {
 	return {
 		state: appState(fakeAsUrl),
-		auth: readAuthPolicy(process.env, 'http', pc ? fakeHostedProxy(pc, store) : null),
+		auth: readAuthPolicy(process.env, 'http', pc ? fakeHostedProxy(pc, store) : null, null),
 		createServerFn: async () => {
 			await onServe?.();
 			return stubCreateServer();
@@ -723,7 +723,7 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 
 		const { app } = buildApp({
 			...makeDeps('https://test.example', store, pc),
-			auth: readAuthPolicy(process.env, 'http', fakeHostedProxy(pc, store, cimdResolver)),
+			auth: readAuthPolicy(process.env, 'http', fakeHostedProxy(pc, store, cimdResolver), null),
 		});
 
 		// Success: allowlisted host → document fetched, self-matches → consent page
@@ -787,7 +787,7 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		const cimdResolver = new CimdResolver((h) => h === 'vscode.dev', fetcher);
 		const { app } = buildApp({
 			...makeDeps('https://test.example', store, pc),
-			auth: readAuthPolicy(process.env, 'http', fakeHostedProxy(pc, store, cimdResolver)),
+			auth: readAuthPolicy(process.env, 'http', fakeHostedProxy(pc, store, cimdResolver), null),
 		});
 
 		const res = await request(app).get('/mcp/authorize').query({
@@ -841,7 +841,7 @@ describe('private wiki — connection-time auth challenge', () => {
 		});
 		return {
 			state,
-			auth: readAuthPolicy(process.env, 'http', pc ? fakeHostedProxy(pc, store) : null),
+			auth: readAuthPolicy(process.env, 'http', pc ? fakeHostedProxy(pc, store) : null, null),
 			createServerFn: stubCreateServer,
 			host: '127.0.0.1',
 			allowedHosts: undefined,
@@ -925,7 +925,7 @@ describe('private wiki — connection-time auth challenge', () => {
 		});
 		buildApp({
 			state,
-			auth: readAuthPolicy(process.env, 'http', null),
+			auth: readAuthPolicy(process.env, 'http', null, null),
 			createServerFn: stubCreateServer,
 			host: '127.0.0.1',
 			allowedHosts: undefined,
@@ -960,7 +960,7 @@ describe('private wiki — connection-time auth challenge', () => {
 		});
 		buildApp({
 			state,
-			auth: readAuthPolicy(process.env, 'http', null),
+			auth: readAuthPolicy(process.env, 'http', null, null),
 			createServerFn: stubCreateServer,
 			host: '127.0.0.1',
 			allowedHosts: undefined,

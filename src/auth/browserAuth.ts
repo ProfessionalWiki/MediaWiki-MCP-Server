@@ -48,26 +48,7 @@ export interface BrowserAuthCtx {
 	callbackPort?: number;
 }
 
-const inFlight = new Map<string, Promise<string>>();
-
-export function _resetBrowserAuthDedupForTesting(): void {
-	inFlight.clear();
-}
-
-export function browserAuth(wikiKey: string, ctx: BrowserAuthCtx): Promise<string> {
-	const existing = inFlight.get(wikiKey);
-	if (existing !== undefined) {
-		return existing;
-	}
-
-	const pending = doBrowserAuth(wikiKey, ctx).finally(() => {
-		inFlight.delete(wikiKey);
-	});
-	inFlight.set(wikiKey, pending);
-	return pending;
-}
-
-async function doBrowserAuth(wikiKey: string, ctx: BrowserAuthCtx): Promise<string> {
+export async function browserAuth(wikiKey: string, ctx: BrowserAuthCtx): Promise<string> {
 	const started = monotonicNow();
 	const timeoutMs = ctx.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
@@ -301,7 +282,7 @@ interface TimeoutHandle {
 }
 
 // A rejecting deadline, and so safe only while every caller attaches a handler
-// in the same tick it is created, as doBrowserAuth does: Node ends the process
+// in the same tick it is created, as browserAuth does: Node ends the process
 // over a rejection nobody is subscribed to. A new deadline is better built to
 // resolve instead, as the /ready probe's is, since that needs no guard at all.
 function timeout(ms: number): TimeoutHandle {

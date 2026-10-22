@@ -1,12 +1,11 @@
 import { type StderrWriteSpy } from '../helpers/stderrSpy.ts';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const { mockAcquireToken } = vi.hoisted(() => ({ mockAcquireToken: vi.fn() }));
-vi.mock('../../src/auth/acquireToken.ts', () => ({ acquireToken: mockAcquireToken }));
 import { z } from 'zod';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import type { Tool } from '../../src/runtime/tool.ts';
 import { fakeContext, ctxForWiki } from '../helpers/fakeContext.ts';
+import { StdioSignIn } from '../../src/auth/stdioSignIn.ts';
 import { fakeLogger } from '../helpers/fakeLogger.ts';
 import { createMockMwnError } from '../helpers/mock-mwn-error.ts';
 import { CredentialResolutionError } from '../../src/errors/credentialResolutionError.ts';
@@ -117,11 +116,16 @@ describe('dispatcher', () => {
 
 	it('starts the budget after an interactive sign-in, not before it', async () => {
 		let duringSignIn: unknown = 'unset';
-		mockAcquireToken.mockReset().mockImplementation(async () => {
-			duringSignIn = getRequestDeadline();
-			return 'token';
-		});
-		const ctx = ctxForWiki(
+		let signIns = 0;
+		// Signs in at once, noting the time budget in force while it does.
+		class InstantSignIn extends StdioSignIn {
+			public override async acquire(): Promise<string> {
+				signIns++;
+				duringSignIn = getRequestDeadline();
+				return 'token';
+			}
+		}
+		const oauthWiki = ctxForWiki(
 			{
 				sitename: 'Test',
 				server: 'https://test.wiki',
@@ -131,6 +135,7 @@ describe('dispatcher', () => {
 			},
 			'stdio',
 		);
+		const ctx = { ...oauthWiki, auth: { ...oauthWiki.auth, stdioSignIn: new InstantSignIn() } };
 		let seen: { timeoutMs: number } | undefined;
 		const tool = noopTool(async () => {
 			seen = getRequestDeadline();
@@ -140,7 +145,7 @@ describe('dispatcher', () => {
 		await dispatch(tool, ctx)({ x: 'y' });
 
 		// A browser sign-in is minutes of human reaction time.
-		expect(mockAcquireToken).toHaveBeenCalledOnce();
+		expect(signIns).toBe(1);
 		expect(duringSignIn).toBeUndefined();
 		expect(seen?.timeoutMs).toBe(WIKI_CALL_TIMEOUT_MS);
 	});
