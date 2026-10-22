@@ -1,11 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('node-fetch', async () => {
-	const actual = await vi.importActual<typeof import('node-fetch')>('node-fetch');
-	return {
-		...actual,
-		default: vi.fn(),
-	};
+vi.mock('undici', async () => {
+	const actual = await vi.importActual<typeof import('undici')>('undici');
+	return { ...actual, fetch: vi.fn() };
 });
 
 vi.mock('../../src/outbound/ssrfGuard.ts', async () => {
@@ -15,7 +12,7 @@ vi.mock('../../src/outbound/ssrfGuard.ts', async () => {
 	return { ...actual, assertPublicDestination: vi.fn(), buildPinnedAgent: vi.fn() };
 });
 
-import fetch, { Response, FetchError } from 'node-fetch';
+import { fetch, Response } from 'undici';
 import {
 	assertPublicDestination,
 	buildPinnedAgent,
@@ -29,14 +26,20 @@ import {
 	shouldRescueToWiki,
 	HttpStatusError,
 	FileTooLargeError,
+	RequestFailedError,
 } from '../../src/outbound/httpFetch.ts';
 import { USER_AGENT } from '../../src/runtime/constants.ts';
+
+// A stand-in for a pinned dispatcher, told apart by its tag.
+function pinnedAgent(tag: unknown): never {
+	return { __pinned: tag, close: async () => {}, destroy: async () => {} } as never;
+}
 
 describe('utils.fetchCore (via makeApiRequest / fetchPageHtml)', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		vi.mocked(assertPublicDestination).mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
-		vi.mocked(buildPinnedAgent).mockReturnValue({ __pinned: true } as never);
+		vi.mocked(buildPinnedAgent).mockReturnValue(pinnedAgent(true));
 	});
 
 	it('calls assertPublicDestination with the final URL before fetching', async () => {
@@ -64,16 +67,16 @@ describe('utils.fetchCore (via makeApiRequest / fetchPageHtml)', () => {
 	it('pins DNS by passing an Agent built from the resolved addresses to fetch', async () => {
 		const resolved = [{ address: '93.184.216.34', family: 4 as const }];
 		vi.mocked(assertPublicDestination).mockResolvedValueOnce(resolved);
-		const pinned = { __pinned: 'v4-agent' } as never;
+		const pinned = pinnedAgent('v4-agent');
 		vi.mocked(buildPinnedAgent).mockReturnValueOnce(pinned);
 		vi.mocked(fetch).mockResolvedValueOnce(new Response('{}', { status: 200 }));
 
 		await makeApiRequest('https://example.com/w/api.php');
 
-		expect(buildPinnedAgent).toHaveBeenCalledWith('https://example.com/w/api.php', resolved);
+		expect(buildPinnedAgent).toHaveBeenCalledWith(resolved);
 		expect(fetch).toHaveBeenCalledWith(
 			'https://example.com/w/api.php',
-			expect.objectContaining({ agent: pinned }),
+			expect.objectContaining({ dispatcher: pinned }),
 		);
 	});
 
@@ -83,8 +86,8 @@ describe('utils.fetchCore (via makeApiRequest / fetchPageHtml)', () => {
 		vi.mocked(assertPublicDestination)
 			.mockResolvedValueOnce(firstHop)
 			.mockResolvedValueOnce(secondHop);
-		const firstAgent = { __pinned: 'first' } as never;
-		const secondAgent = { __pinned: 'second' } as never;
+		const firstAgent = pinnedAgent('first');
+		const secondAgent = pinnedAgent('second');
 		vi.mocked(buildPinnedAgent).mockReturnValueOnce(firstAgent).mockReturnValueOnce(secondAgent);
 		vi.mocked(fetch)
 			.mockResolvedValueOnce(
@@ -94,17 +97,17 @@ describe('utils.fetchCore (via makeApiRequest / fetchPageHtml)', () => {
 
 		await makeApiRequest<{ ok: boolean }>('https://start.example/api.php');
 
-		expect(buildPinnedAgent).toHaveBeenNthCalledWith(1, 'https://start.example/api.php', firstHop);
-		expect(buildPinnedAgent).toHaveBeenNthCalledWith(2, 'https://other.example/api.php', secondHop);
+		expect(buildPinnedAgent).toHaveBeenNthCalledWith(1, firstHop);
+		expect(buildPinnedAgent).toHaveBeenNthCalledWith(2, secondHop);
 		expect(fetch).toHaveBeenNthCalledWith(
 			1,
 			'https://start.example/api.php',
-			expect.objectContaining({ agent: firstAgent }),
+			expect.objectContaining({ dispatcher: firstAgent }),
 		);
 		expect(fetch).toHaveBeenNthCalledWith(
 			2,
 			'https://other.example/api.php',
-			expect.objectContaining({ agent: secondAgent }),
+			expect.objectContaining({ dispatcher: secondAgent }),
 		);
 	});
 
@@ -215,7 +218,7 @@ describe('fetchFileBytes', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		vi.mocked(assertPublicDestination).mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
-		vi.mocked(buildPinnedAgent).mockReturnValue({ __pinned: true } as never);
+		vi.mocked(buildPinnedAgent).mockReturnValue(pinnedAgent(true));
 	});
 
 	it('returns the body bytes when under the cap', async () => {
@@ -255,7 +258,9 @@ describe('shouldRescueToWiki', () => {
 		expect(shouldRescueToWiki(new HttpStatusError(404, 'https://x/'))).toBe(false);
 		expect(shouldRescueToWiki(new FileTooLargeError(10, 5))).toBe(true);
 		expect(shouldRescueToWiki(new SsrfValidationError('nope'))).toBe(true);
-		expect(shouldRescueToWiki(new FetchError('boom', 'system'))).toBe(true);
+		expect(
+			shouldRescueToWiki(new RequestFailedError('https://x.example/', new Error('boom'))),
+		).toBe(true);
 		const abort = new Error('aborted');
 		abort.name = 'AbortError';
 		expect(shouldRescueToWiki(abort)).toBe(true);
@@ -263,8 +268,8 @@ describe('shouldRescueToWiki', () => {
 	});
 
 	it('rescues on Node reachability syscall codes (DNS / connection failures)', () => {
-		// DNS failure surfaces from assertPublicDestination's lookup, before
-		// node-fetch — a plain Error with a syscall code, not a FetchError.
+		// DNS failure surfaces from assertPublicDestination's lookup, before the
+		// request is sent — a plain Error with a syscall code.
 		const dnsFail = Object.assign(new Error('getaddrinfo ENOTFOUND src.example'), {
 			code: 'ENOTFOUND',
 		});
@@ -285,7 +290,7 @@ describe('postForm', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		vi.mocked(assertPublicDestination).mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
-		vi.mocked(buildPinnedAgent).mockReturnValue({ __pinned: true } as never);
+		vi.mocked(buildPinnedAgent).mockReturnValue(pinnedAgent(true));
 	});
 
 	it('posts a form-encoded body through the guard and returns the response text', async () => {

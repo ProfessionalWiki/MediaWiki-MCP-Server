@@ -1,14 +1,10 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 
 /**
- * The rest of the httpFetch suite mocks node-fetch wholesale, so it cannot see
- * what node-fetch itself does with a request. This file runs the REAL client
- * against a real loopback server, because the failure it pins lives inside
- * node-fetch: handed a body and a signal that is already aborted, it destroys
- * the body stream before anything subscribes, and the resulting unhandled
- * 'error' event ends the process — after the returned promise has already
- * rejected and been handled. Only the SSRF guard is stubbed, since a loopback
- * destination is what a local test server is.
+ * A request cancelled before it is sent has to reject without an error escaping
+ * the HTTP client and ending the process, which only the real client against a
+ * real loopback server can show. Only the SSRF guard is stubbed, since a
+ * loopback destination is what a local test server is.
  */
 vi.mock('../../src/outbound/ssrfGuard.ts', async () => {
 	const actual = await vi.importActual<typeof import('../../src/outbound/ssrfGuard.ts')>(
@@ -17,7 +13,6 @@ vi.mock('../../src/outbound/ssrfGuard.ts', async () => {
 	return {
 		...actual,
 		assertPublicDestination: vi.fn(async () => [{ address: '127.0.0.1', family: 4 }]),
-		buildPinnedAgent: vi.fn(() => undefined),
 	};
 });
 
@@ -65,7 +60,7 @@ async function uncaughtExceptionsDuring(run: () => Promise<void>): Promise<unkno
 	return seen;
 }
 
-describe('httpFetch against the real node-fetch', () => {
+describe('httpFetch against the real HTTP client', () => {
 	it('posts a form body and reads the response back', async () => {
 		const before = requestsServed;
 

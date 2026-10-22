@@ -2,11 +2,10 @@ import { describe, it, expect, vi, beforeAll, beforeEach, afterAll } from 'vites
 
 /**
  * What an over-cap refusal does to the connection is only visible against a
- * real server: the rest of the httpFetch suite mocks node-fetch wholesale, so
- * it never sees a socket. node-fetch holds the connection until the response
- * body is consumed or destroyed, so a refusal that leaves the body untouched
- * strands the socket. Only the SSRF guard is stubbed, since a loopback
- * destination is what a local test server is.
+ * real server. The client holds the connection until the response body is
+ * consumed or cancelled, so a refusal that leaves the body untouched strands the
+ * socket. Only the SSRF guard is stubbed, since a loopback destination is what
+ * a local test server is.
  */
 vi.mock('../../src/outbound/ssrfGuard.ts', async () => {
 	const actual = await vi.importActual<typeof import('../../src/outbound/ssrfGuard.ts')>(
@@ -15,13 +14,19 @@ vi.mock('../../src/outbound/ssrfGuard.ts', async () => {
 	return {
 		...actual,
 		assertPublicDestination: vi.fn(async () => [{ address: '127.0.0.1', family: 4 }]),
-		buildPinnedAgent: vi.fn(() => undefined),
 	};
 });
 
 import { createServer, type Server } from 'node:http';
 import type { Socket } from 'node:net';
-import { fetchFileBytes, postForm, FileTooLargeError } from '../../src/outbound/httpFetch.ts';
+import {
+	fetchFileBytes,
+	makeApiRequest,
+	postForm,
+	shouldRescueToWiki,
+	FileTooLargeError,
+	RequestFailedError,
+} from '../../src/outbound/httpFetch.ts';
 import { RedirectDropsBodyError } from '../../src/outbound/requestChain.ts';
 
 let server: Server;
@@ -69,6 +74,12 @@ beforeAll(async () => {
 				'Content-Length': String(50 * 1024 * 1024),
 			});
 			res.write('x');
+			return;
+		}
+		// The connection drops partway through the body.
+		if (req.url === '/cut-off') {
+			res.writeHead(200, { 'Content-Length': '100' });
+			res.write('x', () => req.socket.destroy());
 			return;
 		}
 		// Anything else is a test asking for a route that does not exist. Refusing
@@ -150,9 +161,7 @@ describe('an over-cap body refused against a real server', () => {
 
 		expect(body).toBe('results');
 		expect(servedSockets).toHaveLength(2);
-		// The final response is read to completion and this file stubs the pinned
-		// agent away, so its socket is pooled rather than closed, by design.
-		expect(await connectionsClosed(servedSockets.slice(0, 1))).toBe(true);
+		expect(await connectionsClosed(servedSockets)).toBe(true);
 	});
 
 	it('closes the connection behind a redirect it refuses to follow', async () => {
@@ -181,3 +190,50 @@ describe('an over-cap body refused against a real server', () => {
 		expect(body).toBe('results');
 	});
 });
+
+describe('a delivered body read against a real server', () => {
+	// Each hop's dispatcher serves only that hop, so nothing would reuse a pooled socket.
+	it('closes the connection once the body has been read', async () => {
+		await postForm(`${origin}/small`, { query: 'x' });
+
+		expect(await connectionsClosed(servedSockets)).toBe(true);
+	});
+});
+
+describe('a source that fails at the network', () => {
+	it('reports a refused connection as a request failure naming the URL', async () => {
+		const url = `http://127.0.0.1:${await closedPort()}/w/api.php`;
+
+		const failure = await makeApiRequest(url).catch((error: unknown) => error);
+
+		expect(failure).toBeInstanceOf(RequestFailedError);
+		expect((failure as Error).message).toMatch(
+			new RegExp(`^request to ${url} failed, reason: connect ECONNREFUSED`),
+		);
+		expect((failure as RequestFailedError).code).toBe('ECONNREFUSED');
+	});
+
+	it('treats a body cut off partway as unreachable, so an upload falls back to the wiki', async () => {
+		const failure = await fetchFileBytes(`${origin}/cut-off`).catch((error: unknown) => error);
+
+		expect(failure).toBeInstanceOf(RequestFailedError);
+		expect(shouldRescueToWiki(failure)).toBe(true);
+	});
+
+	it('reports a body cut off partway as a request failure when it is read whole', async () => {
+		const failure = await postForm(`${origin}/cut-off`, { query: 'x' }).catch(
+			(error: unknown) => error,
+		);
+
+		expect(failure).toBeInstanceOf(RequestFailedError);
+	});
+});
+
+/** A port nothing listens on: one a server held a moment ago. */
+async function closedPort(): Promise<number> {
+	const probe = createServer();
+	await new Promise<void>((resolve) => probe.listen(0, '127.0.0.1', resolve));
+	const address = probe.address();
+	await new Promise<void>((resolve) => probe.close(() => resolve()));
+	return typeof address === 'object' && address !== null ? address.port : 0;
+}

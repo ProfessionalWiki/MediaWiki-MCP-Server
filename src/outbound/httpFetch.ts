@@ -1,7 +1,7 @@
-import { Readable } from 'node:stream';
-import fetch, { Response, FetchError } from 'node-fetch';
+import { fetch, type Response } from 'undici';
 import { USER_AGENT } from '../runtime/constants.ts';
 import { isErrnoException } from '../errors/isErrnoException.ts';
+import { errorMessage } from '../errors/errorMessage.ts';
 import { assertPublicDestination, buildPinnedAgent, SsrfValidationError } from './ssrfGuard.ts';
 import {
 	firstRequest,
@@ -21,8 +21,8 @@ const MAX_ERROR_BODY_BYTES = 8 * 1024;
 // (DNS failure, connection refused/reset, unreachable/timed-out). These should
 // rescue to wiki-side copy-upload — the wiki may reach a host the server can't.
 // DNS failures (ENOTFOUND/EAI_AGAIN) surface from assertPublicDestination's
-// lookup BEFORE node-fetch runs, so they arrive as plain Errors with a code
-// rather than as a node-fetch FetchError.
+// lookup before the request is sent, so they arrive as plain Errors with a code
+// rather than as a RequestFailedError.
 const RESCUABLE_SYSCALL_CODES = new Set([
 	'ENOTFOUND',
 	'EAI_AGAIN',
@@ -65,6 +65,25 @@ export class HttpStatusError extends Error {
 	}
 }
 
+/** The source could not be reached, or the connection failed while its response arrived. */
+export class RequestFailedError extends Error {
+	public readonly code?: string;
+	public constructor(url: string, cause: unknown) {
+		super(`request to ${url} failed, reason: ${errorMessage(cause)}`, { cause });
+		this.name = 'RequestFailedError';
+		const code = typeof cause === 'object' && cause !== null && 'code' in cause ? cause.code : null;
+		this.code = typeof code === 'string' ? code : undefined;
+	}
+}
+
+// undici reports a failed connection or body as a TypeError whose cause is the
+// socket's own error.
+function asRequestFailure(url: string, error: unknown): unknown {
+	return error instanceof TypeError && error.cause !== undefined
+		? new RequestFailedError(url, error.cause)
+		: error;
+}
+
 /** A fetched body exceeded the server-side size cap for the fetch that asked for it. */
 export class FileTooLargeError extends Error {
 	public readonly size: number;
@@ -103,22 +122,23 @@ async function fetchCore(baseUrl: string, options?: FetchOptions): Promise<Respo
 /** One hop, through the SSRF guard and an agent pinned to what it resolved. */
 async function sendHop(request: HopRequest, signal?: AbortSignal): Promise<Response> {
 	const addresses = await assertPublicDestination(request.url);
-	const agent = buildPinnedAgent(request.url, addresses);
-	// Handed a body and a signal that is already aborted, node-fetch destroys
-	// the body stream before anything subscribes to it, and the unhandled
-	// 'error' event takes the process down. The DNS lookup above is a window
-	// wide enough for a cancellation to land in, once per hop, so refuse the
-	// request here instead. Throwing the signal's own reason keeps the
-	// AbortError callers classify on.
-	signal?.throwIfAborted();
-	return await fetch(request.url, {
-		headers: { 'User-Agent': USER_AGENT, ...request.headers },
-		method: request.method,
-		...(request.body === undefined ? {} : { body: request.body }),
-		redirect: 'manual',
-		agent,
-		signal,
-	});
+	const agent = buildPinnedAgent(addresses);
+	try {
+		return await fetch(request.url, {
+			headers: { 'User-Agent': USER_AGENT, ...request.headers },
+			method: request.method,
+			...(request.body === undefined ? {} : { body: request.body }),
+			redirect: 'manual',
+			dispatcher: agent,
+			signal,
+		});
+	} catch (error) {
+		throw asRequestFailure(request.url, error);
+	} finally {
+		// Waits for the response body, so the connection closes once it is read or
+		// cancelled rather than idling in a pool no other request will use.
+		agent.close().catch(() => {});
+	}
 }
 
 /** The two fields the decision reads. */
@@ -141,11 +161,10 @@ async function delivered(response: Response): Promise<Response> {
  * nothing.
  */
 async function readTruncated(response: Response, maxBytes: number): Promise<string> {
-	const chunks: Buffer[] = [];
+	const chunks: Uint8Array[] = [];
 	let total = 0;
 	if (response.body !== null) {
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- node-fetch v3 body is always a Node.js Readable; narrowing to AsyncIterable<Buffer> is safe at this boundary
-		for await (const chunk of response.body as AsyncIterable<Buffer>) {
+		for await (const chunk of response.body) {
 			chunks.push(chunk);
 			total += chunk.length;
 			if (total >= maxBytes) {
@@ -168,7 +187,16 @@ export async function makeApiRequest<T>(
 		signal: options?.signal,
 	});
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- HTTP response body; trusted JSON envelope at this boundary
-	return (await response.json()) as T;
+	return (await readBody(response, () => response.json())) as T;
+}
+
+/** Reads a whole body, reporting a connection lost on the way as unreachable. */
+async function readBody<T>(response: Response, read: () => Promise<T>): Promise<T> {
+	try {
+		return await read();
+	} catch (error) {
+		throw asRequestFailure(response.url, error);
+	}
 }
 
 /**
@@ -195,7 +223,7 @@ export async function postForm(
 		signal: options?.signal,
 	});
 	if (options?.maxBytes === undefined) {
-		return await response.text();
+		return await readBody(response, () => response.text());
 	}
 	return (await readCapped(response, options.maxBytes)).toString('utf8');
 }
@@ -220,12 +248,10 @@ async function readCapped(
 		if (Number.isFinite(declared) && declared > maxBytes) {
 			throw new FileTooLargeError(declared, maxBytes, limitName);
 		}
-		const chunks: Buffer[] = [];
+		const chunks: Uint8Array[] = [];
 		let total = 0;
 		if (response.body !== null) {
-			// node-fetch v3 exposes the body as a Node Readable (async-iterable).
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- node-fetch v3 body is always a Node.js Readable; narrowing to AsyncIterable<Buffer> is safe at this boundary
-			for await (const chunk of response.body as AsyncIterable<Buffer>) {
+			for await (const chunk of response.body) {
 				total += chunk.length;
 				if (total > maxBytes) {
 					throw new FileTooLargeError(total, maxBytes, limitName);
@@ -236,7 +262,7 @@ async function readCapped(
 		return Buffer.concat(chunks);
 	} catch (error) {
 		destroyBody(response);
-		throw error;
+		throw asRequestFailure(response.url, error);
 	}
 }
 
@@ -246,13 +272,9 @@ async function readCapped(
  * never subscribes to it has to do this itself.
  */
 function destroyBody(response: Response): void {
-	// node-fetch v3 hands back a Node Readable, but declares it as the wider
-	// NodeJS.ReadableStream, which has no destroy(). Narrowing by instanceof
-	// rather than asserting means a body that is not a Node stream is left
-	// alone instead of throwing over the refusal being reported.
-	if (response.body instanceof Readable) {
-		response.body.destroy();
-	}
+	// A body a read loop has already let go of is cancelled already, and a refusal
+	// must not be replaced by the rejection that cancelling it again would bring.
+	response.body?.cancel().catch(() => {});
 }
 
 export async function fetchPageHtml(
@@ -274,7 +296,7 @@ export async function fetchPageHtml(
  * feature — and without sending the wiki's credentials to the source host.
  *
  * Throws: SsrfValidationError (non-public address), FileTooLargeError (over cap),
- * HttpStatusError (source returned non-2xx), or node-fetch FetchError / AbortError
+ * HttpStatusError (source returned non-2xx), or RequestFailedError / AbortError
  * (unreachable / timed out). Callers use shouldRescueToWiki() to decide whether to
  * fall back to wiki-side copy-upload.
  */
@@ -310,7 +332,7 @@ export function shouldRescueToWiki(error: unknown): boolean {
 	if (
 		error instanceof FileTooLargeError ||
 		error instanceof SsrfValidationError ||
-		error instanceof FetchError
+		error instanceof RequestFailedError
 	) {
 		return true;
 	}

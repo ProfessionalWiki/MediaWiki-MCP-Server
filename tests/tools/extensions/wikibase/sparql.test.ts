@@ -7,7 +7,6 @@ vi.mock('../../../../src/outbound/httpFetch.ts', async () => {
 	return { ...actual, postForm: vi.fn() };
 });
 
-import { FetchError } from 'node-fetch';
 import {
 	FileTooLargeError,
 	HttpStatusError,
@@ -17,6 +16,7 @@ import { RedirectDropsBodyError } from '../../../../src/outbound/requestChain.ts
 import { runSparqlQuery } from '../../../../src/tools/extensions/wikibase/sparql.ts';
 import { ClassifiedError } from '../../../../src/errors/classifyError.ts';
 import { withRequestFields } from '../../../../src/runtime/requestContext.ts';
+import { RequestFailedError } from '../../../../src/outbound/httpFetch.ts';
 
 const ENDPOINT = 'https://query.example.org/sparql';
 const CATS = 'SELECT ?item WHERE { ?item wdt:P31 wd:Q146 }';
@@ -253,7 +253,9 @@ describe('runSparqlQuery', () => {
 	});
 
 	it('maps an unreachable endpoint to upstream_failure', async () => {
-		vi.mocked(postForm).mockRejectedValue(new FetchError('request failed', 'system'));
+		vi.mocked(postForm).mockRejectedValue(
+			new RequestFailedError('https://source.example/file', new Error('request failed')),
+		);
 
 		expect((await failureOf(runSparqlQuery(ENDPOINT, CATS, MANY_ROWS))).category).toBe(
 			'upstream_failure',
@@ -322,9 +324,9 @@ describe('runSparqlQuery', () => {
 	it('names a redirect-derived URL as the endpoint in an unclassified failure', async () => {
 		const endpoint = 'https://query.example.org/hunter2/sparql';
 		vi.mocked(postForm).mockRejectedValue(
-			new FetchError(
-				'request to https://query.example.org/hunter2/results failed, reason: socket hang up',
-				'system',
+			new RequestFailedError(
+				'https://query.example.org/hunter2/results',
+				new Error('socket hang up'),
 			),
 		);
 
@@ -341,9 +343,9 @@ describe('runSparqlQuery', () => {
 	it('names a redirect-derived URL that extends the endpoint', async () => {
 		const endpoint = 'https://query.example.org/hunter2/sparql';
 		vi.mocked(postForm).mockRejectedValue(
-			new FetchError(
-				'request to https://query.example.org/hunter2/sparql?sig=hunter3 failed, reason: socket hang up',
-				'system',
+			new RequestFailedError(
+				'https://query.example.org/hunter2/sparql?sig=hunter3',
+				new Error('socket hang up'),
 			),
 		);
 

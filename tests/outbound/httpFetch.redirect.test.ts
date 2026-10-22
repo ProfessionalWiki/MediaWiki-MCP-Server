@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, beforeEach, afterAll } from 'vites
 
 /**
  * What a redirect target actually receives is the subject here, so this file
- * runs the REAL node-fetch against a real loopback server that records the
+ * runs the real HTTP client against a real loopback server that records the
  * method, body and headers of every request it serves. Only the SSRF guard is
  * stubbed, since a loopback destination is what a local test server is.
  */
@@ -13,7 +13,6 @@ vi.mock('../../src/outbound/ssrfGuard.ts', async () => {
 	return {
 		...actual,
 		assertPublicDestination: vi.fn(async () => [{ address: '127.0.0.1', family: 4 }]),
-		buildPinnedAgent: vi.fn(() => undefined),
 	};
 });
 

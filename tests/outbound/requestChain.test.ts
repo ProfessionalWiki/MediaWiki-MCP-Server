@@ -160,7 +160,6 @@ describe('credential headers across a hop', () => {
 		expect(headers).not.toHaveProperty('WWW-Authenticate');
 	});
 
-	// node-fetch's own rule would forward the credentials to a subdomain.
 	it('drops them on a hop to a subdomain of the same host', () => {
 		const decision = nextHop(withCredentials(), got(302, 'https://tenant.wiki.example/x'));
 
