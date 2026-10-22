@@ -1,4 +1,4 @@
-import { makeApiRequest } from '../outbound/httpFetch.ts';
+import type { makeApiRequest } from '../outbound/httpFetch.ts';
 import type { WikiRegistry } from './wikiRegistry.ts';
 import type { MwnProvider } from './mwnProvider.ts';
 import type { WikiConfig } from '../config/loadConfig.ts';
@@ -109,6 +109,7 @@ export class WikiProbeImpl implements WikiProbe {
 	public constructor(
 		private readonly wikis: WikiRegistry,
 		private readonly sessions: MwnProvider,
+		private readonly request: typeof makeApiRequest,
 		private readonly now: () => number = monotonicNow,
 	) {}
 
@@ -195,7 +196,7 @@ export class WikiProbeImpl implements WikiProbe {
 		config: Readonly<WikiConfig>,
 	): Promise<SiteInfoResponse> {
 		if (config.private !== true) {
-			const data = await makeApiRequest<SiteInfoResponse>(
+			const data = await this.request<SiteInfoResponse>(
 				`${config.server}${config.scriptpath}/api.php`,
 				SITEINFO_QUERY,
 				{ signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) },

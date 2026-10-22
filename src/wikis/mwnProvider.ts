@@ -1,9 +1,8 @@
-import { Mwn, type MwnOptions } from 'mwn';
+import type { Mwn, MwnOptions } from 'mwn';
 import { USER_AGENT } from '../runtime/constants.ts';
 import { callDeadline, WIKI_CONNECT_TIMEOUT_MS } from '../runtime/callDeadline.ts';
 import { withCallBounds } from './abortableMwn.ts';
 import type { ExecSecret, WikiConfig } from '../config/loadConfig.ts';
-import { runExecSecret } from './execSecret.ts';
 import { redactAuthorizationHeader, wrapMwnErrors } from './mwnErrorSanitizer.ts';
 import type { WikiRegistry } from './wikiRegistry.ts';
 
@@ -25,6 +24,8 @@ export class MwnProviderImpl implements MwnProvider {
 	public constructor(
 		private readonly wikis: WikiRegistry,
 		private readonly getRuntimeToken: (wikiKey: string) => string | undefined,
+		private readonly createMwn: (options: MwnOptions) => Mwn,
+		private readonly runExecSecret: (spec: ExecSecret, descriptor: string) => Promise<string>,
 	) {}
 
 	public async get(wikiKey: string): Promise<Mwn> {
@@ -76,7 +77,7 @@ export class MwnProviderImpl implements MwnProvider {
 		const cacheKey = `${wikiKey} ${field}`;
 		let pending = this.secretCache.get(cacheKey);
 		if (!pending) {
-			pending = runExecSecret(raw, `the "${field}" credential for wiki "${wikiKey}"`);
+			pending = this.runExecSecret(raw, `the "${field}" credential for wiki "${wikiKey}"`);
 			this.secretCache.set(cacheKey, pending);
 			// Evict a rejected resolution so the next use of the wiki retries
 			// rather than permanently caching a transient failure.
@@ -123,7 +124,7 @@ export class MwnProviderImpl implements MwnProvider {
 			options.defaultParams = { ...options.defaultParams, assert: 'user' };
 		}
 
-		const instance = new Mwn(options);
+		const instance = this.createMwn(options);
 		try {
 			// `Mwn.init` constructs and signs in in one step, leaving nowhere to
 			// bound three round-trips that each fund a fresh retry ladder. The
