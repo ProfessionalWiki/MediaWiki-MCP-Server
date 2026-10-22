@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import { assertStructuredError } from '../helpers/structuredResult.ts';
-import { ResponseFormatterImpl } from '../../src/results/response.ts';
+import { ResponseFormatter } from '../../src/results/response.ts';
 import { findReplaceSplice } from '../../src/services/findReplace.ts';
 
 function pageHolding(content: string): object {
@@ -14,7 +14,7 @@ async function refusal(page: object, find: string, replaceWith: string): Promise
 	const splice = await findReplaceSplice(
 		{ title: 'My Page' },
 		{ find, replaceWith },
-		new ResponseFormatterImpl(),
+		new ResponseFormatter(),
 		mwn as never,
 	);
 	if (!('refusal' in splice)) {

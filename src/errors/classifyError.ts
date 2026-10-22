@@ -26,10 +26,6 @@ export class ClassifiedError extends Error {
 	}
 }
 
-export interface ErrorClassifier {
-	classify(err: unknown): { category: ErrorCategory; code?: string };
-}
-
 const MW_CODE_TO_CATEGORY: Record<string, ErrorCategory> = {
 	// not_found
 	missingtitle: 'not_found',
@@ -182,8 +178,8 @@ export function classifyError(
 	return { category: 'upstream_failure' };
 }
 
-export class ErrorClassifierImpl implements ErrorClassifier {
-	public constructor(private readonly extensions: ExtensionErrorVocabulary = NO_EXTENSION_CODES) {}
+export class ErrorClassifier {
+	public constructor(private readonly extensions: ExtensionErrorVocabulary) {}
 
 	public classify(err: unknown): { category: ErrorCategory; code?: string } {
 		return classifyError(err, this.extensions);

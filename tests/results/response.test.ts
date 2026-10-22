@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { ResponseFormatterImpl } from '../../src/results/response.ts';
+import { ResponseFormatter } from '../../src/results/response.ts';
 
-describe('ResponseFormatterImpl', () => {
-	const fmt = new ResponseFormatterImpl();
+describe('ResponseFormatter', () => {
+	const fmt = new ResponseFormatter();
 
 	it('ok produces a content block with markdown text', () => {
 		const result = fmt.ok({ title: 'Foo', size: 5 });

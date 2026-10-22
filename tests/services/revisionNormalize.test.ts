@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { RevisionNormalizerImpl } from '../../src/services/revisionNormalize.ts';
+import { RevisionNormalizer } from '../../src/services/revisionNormalize.ts';
 
-describe('RevisionNormalizerImpl', () => {
-	const norm = new RevisionNormalizerImpl();
+describe('RevisionNormalizer', () => {
+	const norm = new RevisionNormalizer();
 
 	it('hoists slots.main onto the revision', () => {
 		const result = norm.normalise({
