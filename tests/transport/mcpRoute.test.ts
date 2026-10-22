@@ -7,13 +7,13 @@ import {
 	createMcpRouteHandler,
 	extractBearerToken,
 	type McpRouteOptions,
-	type ProxyConfigGetter,
 } from '../../src/transport/mcpRoute.ts';
 import { createRateLimiter } from '../../src/transport/rateLimit.ts';
 import { RATE_LIMITED_ERROR_CODE } from '../../src/transport/errorCodes.ts';
 import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.ts';
 import { mintAccessToken } from '../../src/auth/authorizationServer/jwt.ts';
 import { fakeProxyConfig } from '../helpers/fakeProxyConfig.ts';
+import { fakeHostedProxy } from '../helpers/fakeHostedProxy.ts';
 import { getRuntimeToken } from '../../src/runtime/requestContext.ts';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
 import { readAuthPolicy } from '../../src/runtime/authShape.ts';
@@ -70,7 +70,10 @@ function buildEraApp(): Express {
 		},
 		{ legacy: 'stateless' },
 	);
-	const route = createMcpRouteHandler(handler, { auth: readAuthPolicy(process.env) });
+	const route = createMcpRouteHandler(handler, {
+		auth: readAuthPolicy(process.env),
+		hostedProxy: null,
+	});
 	app.post('/mcp', route);
 	app.get('/mcp', route);
 	app.delete('/mcp', route);
@@ -144,6 +147,7 @@ describe('bearer threading through the route', () => {
 			createMcpRouteHandler(fakeHandler, {
 				auth: readAuthPolicy(process.env),
 				wikiRegistry: oauthRegistry(),
+				hostedProxy: null,
 			}),
 		);
 		return app;
@@ -187,6 +191,7 @@ describe('bearer threading through the route', () => {
 			createMcpRouteHandler(fakeHandler, {
 				auth: readAuthPolicy(process.env),
 				wikiRegistry: registry,
+				hostedProxy: null,
 			}),
 		);
 
@@ -259,6 +264,7 @@ describe('rate limiting on /mcp', () => {
 			'/mcp',
 			createMcpRouteHandler(fakeHandler, {
 				auth: readAuthPolicy(process.env),
+				hostedProxy: null,
 				rateLimiter: createRateLimiter(SETTINGS, frozenClock),
 				...options,
 			}),
@@ -370,8 +376,7 @@ describe('rate limiting on /mcp', () => {
 
 		const captured = { calls: 0 };
 		const app = buildLimitedApp(captured, {
-			getProxyConfig: (() => pcLocal) as ProxyConfigGetter,
-			proxyStore: store,
+			hostedProxy: fakeHostedProxy(pcLocal, store),
 		});
 		const asJwt = (jwt: string, id: number) =>
 			request(app).post('/mcp').set('Authorization', `Bearer ${jwt}`).send(toolsCall(id));
@@ -427,6 +432,7 @@ describe('rate limiting cannot be bypassed by request shape', () => {
 			'/mcp',
 			createMcpRouteHandler(handler, {
 				auth: readAuthPolicy(process.env),
+				hostedProxy: null,
 				rateLimiter: createRateLimiter(SETTINGS, frozenClock),
 			}),
 		);

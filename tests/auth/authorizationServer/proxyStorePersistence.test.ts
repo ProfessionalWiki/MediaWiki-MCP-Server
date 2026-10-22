@@ -200,11 +200,7 @@ describe('createProxyStore', () => {
 		vi.unstubAllEnvs();
 	});
 
-	it('returns a plain in-memory store when there is no proxy config', () => {
-		expect(createProxyStore(null)).toBeInstanceOf(InMemoryProxyStore);
-	});
-
-	it('returns a hydrating persistent store when a proxy config is present', () => {
+	it('hydrates from what an earlier store persisted', () => {
 		vi.stubEnv('MCP_OAUTH_PROXY_STORE_FILE', file);
 		const pc = { signingKey: SIGNING_KEY } as ProxyConfig;
 		const s = createProxyStore(pc);

@@ -31,7 +31,7 @@ import {
 	setProxyStoreStatsProvider,
 } from '../runtime/metrics.ts';
 import { createInFlightCounter, type InFlightCounter } from './inFlight.ts';
-import { createMcpRouteHandler, resolveRequestProto, type ProxyConfigGetter } from './mcpRoute.ts';
+import { createMcpRouteHandler, resolveRequestProto } from './mcpRoute.ts';
 import { createRateLimiter, type RateLimiter } from './rateLimit.ts';
 import { PAYLOAD_TOO_LARGE_ERROR_CODE } from './errorCodes.ts';
 import { sendJsonRpcError } from './jsonRpcError.ts';
@@ -40,23 +40,19 @@ import { loadConfigFromFile } from '../config/loadConfig.ts';
 import type { WikiRegistry } from '../wikis/wikiRegistry.ts';
 import { fetchMetadata, type UpstreamAsMetadata } from '../auth/metadata.ts';
 import { buildProtectedResource } from '../auth/protectedResource.ts';
-import { resolveProxyConfig, type ProxyConfig } from '../auth/authorizationServer/proxyConfig.ts';
-import type { ProxyStore } from '../auth/authorizationServer/proxyStore.ts';
-import { createProxyStore } from '../auth/authorizationServer/proxyStorePersistence.ts';
+import { resolveProxyConfig } from '../auth/authorizationServer/proxyConfig.ts';
+import {
+	AUTHORIZATION_SERVER_PATHS,
+	startHostedProxy,
+	type HostedProxy,
+} from '../auth/authorizationServer/hostedProxy.ts';
 import { mountAuthorizationServer } from '../auth/authorizationServer/router.ts';
-import { buildRedirectPolicy } from '../auth/authorizationServer/redirectPolicy.ts';
-import { buildCimdHostPredicate, CimdResolver } from '../auth/authorizationServer/cimd.ts';
-import { fetchCimdDocument } from '../auth/authorizationServer/cimdFetch.ts';
 import { createAppState, type AppState } from '../wikis/state.ts';
 import { createServer, type ChangePublisher, type CreateServerOptions } from '../server.ts';
 import { emitStartupBanner } from '../runtime/banner.ts';
 import { createSharedContext } from '../runtime/createContext.ts';
 import { registerShutdownHandlers, resolveShutdownGrace } from '../runtime/shutdown.ts';
 import { readAuthPolicy, usesOAuthSignIn, type AuthPolicy } from '../runtime/authShape.ts';
-
-// The exported surface here (BuildAppDeps, and the protected-resource handler's
-// deps) names this type, so a caller has to be able to name it too.
-export type { ProxyConfigGetter };
 
 export function resolveMcpHostValidation(
 	host: string,
@@ -181,10 +177,9 @@ export function handleListenError(
 
 export function createOAuthProtectedResourceHandler(deps: {
 	wikiRegistry: WikiRegistry;
-	// Required: this document exists only while the hosted proxy does, so a caller
-	// that omitted it would silently disable the endpoint rather than select a
-	// fallback. Pass `() => null` to mean "no proxy".
-	getProxyConfig: ProxyConfigGetter;
+	// The hosted proxy's issuer; null without the proxy, which leaves this
+	// document nothing to name.
+	authorizationServer: string | null;
 }): RequestHandler {
 	return async (req, res, next) => {
 		try {
@@ -193,8 +188,8 @@ export function createOAuthProtectedResourceHandler(deps: {
 			// steered clients into minting tokens this server must not accept. Answered
 			// before the metadata fetches below, so an unauthenticated request no
 			// longer triggers one outbound fetch per OAuth wiki.
-			const proxyConfig = deps.getProxyConfig();
-			if (!proxyConfig) {
+			const { authorizationServer } = deps;
+			if (authorizationServer === null) {
 				res.status(404).end();
 				return;
 			}
@@ -228,7 +223,7 @@ export function createOAuthProtectedResourceHandler(deps: {
 				metadatas,
 				requestHost: req.headers.host ?? undefined,
 				requestProto,
-				authorizationServers: [proxyConfig.issuer],
+				authorizationServers: [authorizationServer],
 			});
 			if (!doc) {
 				res.status(404).end();
@@ -256,15 +251,9 @@ function isMcpEndpoint(req: Request): boolean {
 // endpoint speaks JSON-RPC. A body-parser failure happens before routing, so an
 // unrouted path reaches this handler too and gets neither dialect: telling an
 // arbitrary path it is an OAuth endpoint would advertise the whole server as one.
-const AUTHORIZATION_SERVER_PATHS: ReadonlySet<string> = new Set([
-	'/mcp/register',
-	'/mcp/authorize',
-	'/mcp/consent',
-	'/mcp/oauth/callback',
-	'/mcp/token',
-	'/.well-known/oauth-authorization-server',
-	'/.well-known/oauth-authorization-server/mcp',
-]);
+const authorizationServerPaths: ReadonlySet<string> = new Set(
+	Object.values(AUTHORIZATION_SERVER_PATHS),
+);
 
 type ErrorDialect = 'jsonrpc' | 'oauth' | 'plain';
 
@@ -274,7 +263,7 @@ function dialectFor(req: Request): ErrorDialect {
 		return 'jsonrpc';
 	}
 	const withoutTrailingSlash = path.length > 1 ? path.replace(/\/+$/, '') : path;
-	return AUTHORIZATION_SERVER_PATHS.has(withoutTrailingSlash) ? 'oauth' : 'plain';
+	return authorizationServerPaths.has(withoutTrailingSlash) ? 'oauth' : 'plain';
 }
 
 // body-parser tags each of its failures with a `type` discriminator; anything
@@ -364,20 +353,7 @@ export function mountMetricsEndpoint(app: express.Express): void {
 export interface BuildAppDeps {
 	state: AppState;
 	auth: AuthPolicy;
-	getProxyConfig: ProxyConfigGetter;
-	proxyStore: ProxyStore;
-	// The register-time redirect predicate, built once from the resolved proxy
-	// config (built-ins + operator allowlist). Null when the proxy is disabled,
-	// in which case /mcp/register 404s alongside the other proxy endpoints.
-	proxyRedirectPolicy: ((uri: string) => boolean) | null;
-	// The CIMD client resolver, built once from the resolved proxy config. Null when
-	// the proxy is disabled. Resolves a URL client_id into a ClientRecord by fetching
-	// its metadata document (DCR clients keep using the store).
-	cimdResolver: CimdResolver | null;
-	// The default wiki KEY (bound into the consent cookie) and human-readable
-	// sitename (shown on the consent page). Match getProxyConfig's wiki.
-	defaultWikiKey: string;
-	defaultWikiSitename: string;
+	hostedProxy: HostedProxy | null;
 	// Called once per serving unit — every HTTP request under createMcpHandler
 	// (modern or stateless legacy alike) gets a fresh instance. The options
 	// carry the change publisher buildApp wires to the handler's notify facade.
@@ -412,12 +388,7 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 	const {
 		state,
 		auth,
-		getProxyConfig,
-		proxyStore: store,
-		proxyRedirectPolicy,
-		cimdResolver,
-		defaultWikiKey,
-		defaultWikiSitename,
+		hostedProxy,
 		createServerFn,
 		host,
 		allowedHosts,
@@ -506,9 +477,8 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 	const mcpRoute = createMcpRouteHandler(handler, {
 		auth,
 		wikiRegistry: state.wikiRegistry,
-		getProxyConfig,
-		proxyStore: store,
-		defaultWikiKey,
+		hostedProxy,
+		defaultWikiKey: state.defaultWikiKey,
 		onerror: (error) => logger.error(`MCP adapter error: ${error.message}`),
 		rateLimiter,
 	});
@@ -531,18 +501,14 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		'/.well-known/oauth-protected-resource',
 		createOAuthProtectedResourceHandler({
 			wikiRegistry: state.wikiRegistry,
-			getProxyConfig,
+			authorizationServer: hostedProxy?.config.issuer ?? null,
 		}),
 	);
 
-	mountAuthorizationServer(app, {
-		getProxyConfig,
-		store,
-		proxyRedirectPolicy,
-		cimdResolver,
-		defaultWikiKey,
-		defaultWikiSitename,
-	});
+	if (hostedProxy) {
+		mountAuthorizationServer(app, hostedProxy);
+		setProxyStoreStatsProvider(() => hostedProxy.store.stats());
+	}
 
 	mountReadyEndpoint(app, { defaultWikiKey: state.defaultWikiKey, mwnProvider: state.mwnProvider });
 	mountMetricsEndpoint(app);
@@ -550,7 +516,6 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 	// Every open subscriptions/listen stream registers one bus listener, so the
 	// listener count IS the open-stream count (nothing else subscribes).
 	setSubscriptionStreamsProvider(() => bus.listenerCount);
-	setProxyStoreStatsProvider(() => store.stats());
 
 	// Last, so that a throw from any route above reaches it as well as a
 	// body-parser failure from before routing.
@@ -572,40 +537,17 @@ export function startHttpServer(): void {
 	const config = loadConfigFromFile();
 	const state = createAppState(config);
 
-	// Shared hosted-OAuth-proxy infrastructure, reused by the authorization-server
-	// endpoints (AS metadata, register, authorize, callback, token). The proxy is
-	// active only when the default wiki has an oauth2ClientId, the transport is
-	// http, and the JWT signing key + public URL are set (see resolveProxyConfig).
-	//
-	// getDefaultProxyConfig is memoized: resolveProxyConfig reads only the default
-	// wiki and process.env, both fixed for the process lifetime, so resolving once
-	// is sufficient. A ProxyConfigError (e.g. signing key too short) is left to
-	// propagate as a fatal misconfiguration; the eager call at startup (below)
-	// forces it during boot, consistent with how the server treats other fatal
-	// config errors (e.g. the static-credentials guard).
-	let cachedProxyConfig: ProxyConfig | null | undefined;
-	function getDefaultProxyConfig(): ProxyConfig | null {
-		if (cachedProxyConfig === undefined) {
-			const defaultKey = state.defaultWikiKey;
-			const wiki = state.wikiRegistry.get(defaultKey);
-			cachedProxyConfig = wiki ? resolveProxyConfig(defaultKey, wiki, process.env) : null;
-		}
-		return cachedProxyConfig;
-	}
-
-	// The consent cookie binds a deployment-stable wiki id; we use the default
-	// wiki KEY (the same key getDefaultProxyConfig resolves) for that binding, so
-	// signing (buildConsentCookie) and verification (verifyConsent) agree on it.
-	// The sitename is the human-readable display name shown on the consent page.
+	// The hosted OAuth proxy signs users in to the default wiki. A ProxyConfigError
+	// (e.g. signing key too short) fails the boot, like the other fatal config errors.
 	const { defaultWikiKey } = state;
-	const defaultWikiSitename = state.wikiRegistry.get(defaultWikiKey)?.sitename ?? defaultWikiKey;
+	const defaultWiki = state.wikiRegistry.get(defaultWikiKey);
+	const proxyConfig = defaultWiki
+		? resolveProxyConfig(defaultWikiKey, defaultWiki, process.env)
+		: null;
 
 	const { host, port, allowedHosts, allowedOrigins, maxRequestBody, rateLimit, warnings } =
 		resolveHttpConfig();
-	// Resolve the proxy config eagerly so a ProxyConfigError fails the boot rather
-	// than the first request. Memoized, so the route handlers reuse the cached result.
-	const eagerProxyConfig = getDefaultProxyConfig();
-	const proxyEnabled = eagerProxyConfig !== null;
+	const proxyEnabled = proxyConfig !== null;
 	const auth = readAuthPolicy(process.env);
 	const deployment = checkHttpDeployment({
 		wikis: state.wikiRegistry.getAll(),
@@ -620,27 +562,12 @@ export function startHttpServer(): void {
 	for (const warning of [...deployment.warnings, ...warnings]) {
 		logger.warning(warning);
 	}
-	// Single process-wide proxy store, shared by the proxy handlers
-	// (register/authorize/callback/token). It persists its durable state (client
-	// registrations + upstream tokens) to an encrypted local file when the proxy is
-	// enabled; otherwise it is a plain in-memory store. createProxyStore hydrates
-	// synchronously here, before the server binds, so a restart resolves existing
-	// tokens with no browser round-trip.
-	const proxyStore: ProxyStore = createProxyStore(eagerProxyConfig, {
-		onError: (err) => logger.error(`Proxy store persistence write failed: ${err.message}`),
-	});
-	// Built once: the register-time redirect predicate (built-ins + operator
-	// entries from MCP_OAUTH_ALLOWED_REDIRECTS). /authorize keeps matching the
-	// registered URIs verbatim and never re-applies this policy.
-	const proxyRedirectPolicy = eagerProxyConfig
-		? buildRedirectPolicy(eagerProxyConfig.redirectAllowlist)
-		: null;
-	// Built once from the resolved proxy config: resolves a URL client_id into a
-	// ClientRecord by fetching its CIMD metadata document over the SSRF-guarded
-	// fetcher. Null when the proxy is disabled.
-	const cimdResolver = eagerProxyConfig
-		? new CimdResolver(buildCimdHostPredicate(eagerProxyConfig.cimdAllowedHosts), fetchCimdDocument)
-		: null;
+	const hostedProxy =
+		proxyConfig && defaultWiki
+			? startHostedProxy(proxyConfig, defaultWiki.sitename, (err) =>
+					logger.error(`Proxy store persistence write failed: ${err.message}`),
+				)
+			: null;
 	emitStartupBanner(
 		{ transport: 'http', http: { host, port, allowedHosts, allowedOrigins, maxRequestBody } },
 		{
@@ -657,7 +584,7 @@ export function startHttpServer(): void {
 		state,
 		transport: 'http',
 		auth,
-		getProxyConfig: getDefaultProxyConfig,
+		getProxyConfig: () => hostedProxy?.config ?? null,
 	});
 
 	if (rateLimit) {
@@ -675,12 +602,7 @@ export function startHttpServer(): void {
 	const { app, inFlight, mcpHandler } = buildApp({
 		state,
 		auth,
-		getProxyConfig: getDefaultProxyConfig,
-		proxyStore,
-		proxyRedirectPolicy,
-		cimdResolver,
-		defaultWikiKey,
-		defaultWikiSitename,
+		hostedProxy,
 		createServerFn: (opts) => createServer(ctx, opts),
 		host,
 		allowedHosts,

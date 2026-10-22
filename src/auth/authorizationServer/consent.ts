@@ -1,4 +1,5 @@
 import type { ProxyConfig } from './proxyConfig.ts';
+import { AUTHORIZATION_SERVER_PATHS } from './hostedProxy.ts';
 import { signConsent } from './jwt.ts';
 import { isLoopbackHost } from './redirectPolicy.ts';
 import { esc, renderPage } from '../pageShell.ts';
@@ -95,7 +96,7 @@ const TXN_COOKIE_TTL_SECONDS = 15 * 60;
 
 // Scoped to the callback path only — the single endpoint that consumes it — to
 // minimise its blast radius.
-const TXN_COOKIE_PATH = '/mcp/oauth/callback';
+const TXN_COOKIE_PATH = AUTHORIZATION_SERVER_PATHS.callback;
 
 // Carries the proxy transaction id across the upstream-wiki round-trip. MediaWiki's
 // Extension:OAuth drops the `state` parameter on a denial (and uses a non-standard

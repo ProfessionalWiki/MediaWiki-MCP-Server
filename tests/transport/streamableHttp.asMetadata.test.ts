@@ -1,13 +1,13 @@
 import { describe, it, expect, afterEach } from 'vitest';
 
-import express, { type Express, type RequestHandler } from 'express';
+import express, { type Express } from 'express';
 import request from 'supertest';
-import {
-	createOAuthProtectedResourceHandler,
-	type ProxyConfigGetter,
-} from '../../src/transport/streamableHttp.ts';
-import { buildAsMetadata } from '../../src/auth/authorizationServer/asMetadata.ts';
+import { createOAuthProtectedResourceHandler } from '../../src/transport/streamableHttp.ts';
+import { mountAuthorizationServer } from '../../src/auth/authorizationServer/router.ts';
+import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.ts';
+import type { HostedProxy } from '../../src/auth/authorizationServer/hostedProxy.ts';
 import { fakeProxyConfig } from '../helpers/fakeProxyConfig.ts';
+import { fakeHostedProxy } from '../helpers/fakeHostedProxy.ts';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
 import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.ts';
@@ -33,35 +33,25 @@ const PROXY = fakeProxyConfig({
 	upstreamClientId: 'client-id',
 });
 
-// Mirrors the production AS-metadata route handler in streamableHttp.ts so the
-// 200/404 gating can be exercised without booting the side-effecting module.
-function asMetadataHandler(getProxyConfig: ProxyConfigGetter): RequestHandler {
-	return (_req, res) => {
-		const pc = getProxyConfig();
-		if (!pc) {
-			res.status(404).end();
-			return;
-		}
-		res.json(buildAsMetadata(pc));
-	};
-}
-
-function buildApp(registry: WikiRegistry, getProxyConfig: ProxyConfigGetter): Express {
+function buildApp(registry: WikiRegistry, proxy: HostedProxy | null): Express {
 	const app = express();
 	app.use(express.json());
 	app.get(
 		'/.well-known/oauth-protected-resource',
-		createOAuthProtectedResourceHandler({ wikiRegistry: registry, getProxyConfig }),
+		createOAuthProtectedResourceHandler({
+			wikiRegistry: registry,
+			authorizationServer: proxy?.config.issuer ?? null,
+		}),
 	);
-	const handler = asMetadataHandler(getProxyConfig);
-	app.get('/.well-known/oauth-authorization-server', handler);
-	app.get('/.well-known/oauth-authorization-server/mcp', handler);
+	if (proxy) {
+		mountAuthorizationServer(app, proxy);
+	}
 	return app;
 }
 
-describe('GET /.well-known/oauth-authorization-server (proxy enabled)', () => {
+describe('GET /.well-known/oauth-authorization-server', () => {
 	it('returns 200 with self-naming AS metadata at both paths', async () => {
-		const app = buildApp(fakeRegistry({}), () => PROXY);
+		const app = buildApp(fakeRegistry({}), fakeHostedProxy(PROXY, new InMemoryProxyStore()));
 
 		for (const path of [
 			'/.well-known/oauth-authorization-server',
@@ -76,18 +66,6 @@ describe('GET /.well-known/oauth-authorization-server (proxy enabled)', () => {
 			expect(res.body.code_challenge_methods_supported).toEqual(['S256']);
 			expect(res.body.token_endpoint_auth_methods_supported).toEqual(['none']);
 			expect(res.body.authorization_response_iss_parameter_supported).toBe(true);
-		}
-	});
-
-	it('returns 404 at both paths when the proxy is not enabled', async () => {
-		const app = buildApp(fakeRegistry({}), () => null);
-
-		for (const path of [
-			'/.well-known/oauth-authorization-server',
-			'/.well-known/oauth-authorization-server/mcp',
-		]) {
-			const res = await request(app).get(path);
-			expect(res.status).toBe(404);
 		}
 	});
 });
@@ -110,7 +88,10 @@ describe('protected-resource authorization_servers self-advertise', () => {
 			articlepath: '/wiki',
 			oauth2ClientId: 'my-client-id',
 		};
-		const app = buildApp(fakeRegistry({ mywiki: wikiCfg }), () => PROXY);
+		const app = buildApp(
+			fakeRegistry({ mywiki: wikiCfg }),
+			fakeHostedProxy(PROXY, new InMemoryProxyStore()),
+		);
 
 		const res = await request(app).get('/.well-known/oauth-protected-resource');
 		expect(res.status).toBe(200);
@@ -126,7 +107,7 @@ describe('protected-resource authorization_servers self-advertise', () => {
 			articlepath: '/wiki',
 			oauth2ClientId: 'my-client-id',
 		};
-		const app = buildApp(fakeRegistry({ mywiki: wikiCfg }), () => null);
+		const app = buildApp(fakeRegistry({ mywiki: wikiCfg }), null);
 
 		const res = await request(app).get('/.well-known/oauth-protected-resource');
 

@@ -24,6 +24,7 @@ Which role is active depends on configuration. The proxy path turns on only when
 ## Authorization server side (`authorizationServer/`, the hosted proxy)
 
 - `proxyConfig.ts` — resolve the proxy config from a wiki plus environment. `ProxyWikiInput` is the wiki slice it needs (distinct from the client-side `WikiSlice`).
+- `hostedProxy.ts` — `HostedProxy`, the proxy's config, store, redirect policy and CIMD resolver, started once with the HTTP server; and the paths its endpoints are mounted at.
 - `router.ts` — `mountAuthorizationServer` mounts every AS route on the Express app.
 - `asMetadata.ts` — build the RFC 8414 metadata document advertising this server as the authorization server (`AsMetadataDoc`).
 - `register.ts` — dynamic client registration.
