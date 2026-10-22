@@ -182,51 +182,18 @@ export function formatSnak(snak: Snak, labelFor: LabelLookup): string {
  * a lookup slot and reaches no one.
  */
 export function referencedEntityIds(claims: Claims, maxValuesPerProperty: number): string[] {
-	const ids: string[] = Object.keys(claims);
-	for (const statements of Object.values(claims)) {
-		for (const statement of shownStatements(statements, maxValuesPerProperty)) {
-			const id = valueEntityId(statement.mainsnak);
-			if (id !== undefined) {
-				ids.push(id);
-			}
-		}
-	}
-	return [...new Set(ids)];
-}
-
-function valueEntityId(snak: Snak): string | undefined {
-	if (snak.snaktype !== 'value' || snak.datavalue === undefined) {
-		return undefined;
-	}
-	const { value, type } = snak.datavalue;
-	if (type === 'wikibase-entityid') {
-		return entityIdOf(value);
-	}
-	if (type === 'quantity' && isRecord(value)) {
-		return quantityUnitId(value);
-	}
-	if (type === 'globecoordinate' && isRecord(value)) {
-		return globeEntityId(value);
-	}
-	if (type === 'time' && isRecord(value)) {
-		return calendarEntityId(value);
-	}
-	return undefined;
-}
-
-/** The calendar ID a rendering of this time will show, when one is worth a label. */
-function calendarEntityId(value: Record<string, unknown>): string | undefined {
-	if (typeof value.time !== 'string') {
-		return undefined;
-	}
-	const parts = /^([+-])(\d+)-(\d{2})-(\d{2})T/.exec(value.time);
-	if (parts === null) {
-		return undefined;
-	}
-	const precision = typeof value.precision === 'number' ? value.precision : 11;
-	const model = calendarModelOf(value, parts[3], precision);
-	// A raw URI renders as itself, so it has no label to spend a lookup slot on.
-	return model !== undefined && /^[A-Za-z]+\d+$/.test(model) ? model : undefined;
+	const ids = new Set(Object.keys(claims));
+	// The rendering alone decides which IDs it labels, so the lookup asks it
+	// rather than restating its rules.
+	renderClaims(
+		claims,
+		(id) => {
+			ids.add(id);
+			return undefined;
+		},
+		maxValuesPerProperty,
+	);
+	return [...ids];
 }
 
 function formatEntityIdValue(value: unknown, labelFor: LabelLookup): string {
@@ -263,21 +230,6 @@ function isDimensionless(unit: string): boolean {
 	return unit === '' || unit === '1';
 }
 
-function quantityUnitId(value: Record<string, unknown>): string | undefined {
-	if (typeof value.unit !== 'string' || isDimensionless(value.unit)) {
-		return undefined;
-	}
-	return conceptUriId(value.unit);
-}
-
-function globeEntityId(value: Record<string, unknown>): string | undefined {
-	if (typeof value.globe !== 'string' || value.globe === '') {
-		return undefined;
-	}
-	const id = conceptUriId(value.globe);
-	return id === EARTH ? undefined : id;
-}
-
 function formatTimeValue(value: unknown, labelFor: LabelLookup): string {
 	if (!isRecord(value) || typeof value.time !== 'string') {
 		return compactJson(value);
@@ -294,7 +246,12 @@ function formatTimeValue(value: unknown, labelFor: LabelLookup): string {
 	if (calendar === undefined) {
 		return dated;
 	}
-	return `${dated} (${labelFor(calendar) ?? calendar})`;
+	const calendarId = conceptUriId(calendar);
+	// A calendar URI from another vocabulary carries no entity ID. Naming it raw
+	// beats dropping it, which would leave the date reading as Gregorian.
+	return calendarId === undefined
+		? `${dated} (${clamp(calendar)})`
+		: `${dated} (${labelFor(calendarId) ?? calendarId})`;
 }
 
 /**
@@ -317,13 +274,7 @@ function calendarModelOf(
 	if (typeof value.calendarmodel !== 'string' || value.calendarmodel === '') {
 		return undefined;
 	}
-	const id = conceptUriId(value.calendarmodel);
-	if (id === GREGORIAN) {
-		return undefined;
-	}
-	// A calendar URI from another vocabulary carries no entity ID. Naming it raw
-	// beats dropping it, which would leave the date reading as Gregorian.
-	return id ?? clamp(value.calendarmodel);
+	return conceptUriId(value.calendarmodel) === GREGORIAN ? undefined : value.calendarmodel;
 }
 
 // Wikibase records how far a date is actually known, and everything below year

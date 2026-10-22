@@ -338,6 +338,19 @@ describe('formatSnak', () => {
 		expect(formatSnak(snak, noLabels)).toBe(`1, 2 on ${Array.from(globe).slice(0, 200).join('')}…`);
 	});
 
+	it('clamps a calendar uri that would dominate its line', () => {
+		const calendarmodel = `http://example.org/cal/${'c'.repeat(400)}`;
+		const snak = valueSnak(
+			'P569',
+			{ time: '+1542-03-15T00:00:00Z', precision: 11, calendarmodel },
+			'time',
+		);
+
+		expect(formatSnak(snak, noLabels)).toBe(
+			`1542-03-15 (${Array.from(calendarmodel).slice(0, 200).join('')}…)`,
+		);
+	});
+
 	it('clamps a string value that would dominate its line', () => {
 		const snak = valueSnak('P373', 'x'.repeat(600), 'string');
 
@@ -538,6 +551,26 @@ describe('referencedEntityIds', () => {
 		};
 
 		expect(referencedEntityIds(claims, MAX_VALUES_PER_PROPERTY)).not.toContain('Q1985786');
+	});
+
+	it('leaves a foreign calendar uri out of the ids to look up', () => {
+		const claims: Claims = {
+			P569: [
+				{
+					mainsnak: valueSnak(
+						'P569',
+						{
+							time: '+1542-03-15T00:00:00Z',
+							precision: 11,
+							calendarmodel: 'http://example.org/cal/x',
+						},
+						'time',
+					),
+				},
+			],
+		};
+
+		expect(referencedEntityIds(claims, MAX_VALUES_PER_PROPERTY)).toEqual(['P569']);
 	});
 
 	it('leaves a foreign globe uri out of the ids to look up', () => {
