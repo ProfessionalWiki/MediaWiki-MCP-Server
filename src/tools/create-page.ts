@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
-import type { ApiEditResponse } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
-import { buildPageUrl, formatEditComment } from '../wikis/utils.ts';
+import { formatEditComment } from '../wikis/utils.ts';
+import { submitPageEdit } from '../services/pageEdit.ts';
 
 const inputSchema = {
 	source: z.string().describe('Page content in the format specified by the contentModel parameter'),
@@ -53,25 +53,6 @@ export const createPage: Tool<typeof inputSchema> = {
 			...(contentModel !== undefined ? { contentmodel: contentModel } : {}),
 			...(bot === true ? { bot: true } : {}),
 		};
-		const response =
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
-			(await ctx.edit.submit(mwn, params)) as { edit?: ApiEditResponse } | undefined;
-		const edit = response?.edit;
-		if (!edit || edit.result !== 'Success') {
-			return ctx.format.error(
-				'upstream_failure',
-				`Failed to create page: ${JSON.stringify(edit ?? response)}`,
-			);
-		}
-
-		return ctx.format.ok({
-			pageId: edit.pageid,
-			title: edit.title,
-			latestRevisionId: edit.newrevid,
-			latestRevisionTimestamp: edit.newtimestamp,
-			contentModel: edit.contentmodel,
-			...(bot === true ? { botMarked: await ctx.edit.botRight(mwn) } : {}),
-			url: await buildPageUrl(ctx, edit.title),
-		});
+		return submitPageEdit(ctx, mwn, 'create page', params, { title, bot });
 	},
 };
