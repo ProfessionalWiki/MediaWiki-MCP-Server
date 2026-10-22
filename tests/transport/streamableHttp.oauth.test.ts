@@ -11,6 +11,7 @@ import type { WikiConfig } from '../../src/config/loadConfig.ts';
 import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.ts';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 import { readAuthPolicy } from '../../src/runtime/authShape.ts';
+import { metricsOff } from '../helpers/metrics.ts';
 import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.ts';
 import { fakeHostedProxy } from '../helpers/fakeHostedProxy.ts';
 import { fakeProxyConfig } from '../helpers/fakeProxyConfig.ts';
@@ -56,6 +57,7 @@ function buildMcpApp(
 		createMcpRouteHandler(handler, {
 			auth: readAuthPolicy(process.env, 'http', null, null),
 			wikiRegistry: registry,
+			metrics: metricsOff(),
 			...options,
 		}),
 	);

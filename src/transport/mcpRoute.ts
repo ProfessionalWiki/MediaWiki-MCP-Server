@@ -3,7 +3,7 @@ import type { Request, RequestHandler, Response } from 'express';
 import type { McpHttpHandler } from '@modelcontextprotocol/server';
 import { toNodeHandler } from '@modelcontextprotocol/node';
 import { hasStaticCredentials, usesOAuthSignIn, type AuthPolicy } from '../runtime/authShape.ts';
-import { recordRateLimited } from '../runtime/metrics.ts';
+import type { Metrics } from '../runtime/metrics.ts';
 import { withRequestContext, type RuntimeToken } from '../runtime/requestContext.ts';
 import type { WikiConfig } from '../config/loadConfig.ts';
 import type { WikiRegistry } from '../wikis/wikiRegistry.ts';
@@ -160,6 +160,7 @@ export interface McpRouteOptions {
 	onerror?: (error: Error) => void;
 	// Absent when MCP_RATE_LIMIT=0.
 	rateLimiter?: RateLimiter;
+	metrics: Metrics;
 }
 
 /** Who a request to /mcp acts as, or why it is refused before it reaches the server. */
@@ -246,7 +247,7 @@ export function createMcpRouteHandler(
 	handler: Pick<McpHttpHandler, 'fetch'>,
 	options: McpRouteOptions,
 ): RequestHandler {
-	const { auth, rateLimiter } = options;
+	const { auth, rateLimiter, metrics } = options;
 	const nodeHandler = toNodeHandler(handler, { onerror: options.onerror });
 	return async (req, res) => {
 		const caller = await resolveCaller(extractBearerToken(req), options);
@@ -271,7 +272,7 @@ export function createMcpRouteHandler(
 							)
 						: rateLimiter.take(caller.rateLimitKey, cost);
 				if (!decision.allowed) {
-					recordRateLimited(decision.bucket);
+					metrics.recordRateLimited(decision.bucket);
 					emit429RateLimited(req, res, decision.retryAfterSeconds);
 					return;
 				}

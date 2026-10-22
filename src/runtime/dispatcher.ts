@@ -195,7 +195,7 @@ async function runDispatchInner<TSchema extends ZodRawShape, TCtx extends Shared
 		result = structuredResult({ ...result.structuredContent, wiki: resolvedKey });
 	}
 
-	emitToolCall({
+	emitToolCall(ctx.metrics, {
 		toolName: tool.name,
 		target: tool.target,
 		args,

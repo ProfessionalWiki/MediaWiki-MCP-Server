@@ -15,6 +15,7 @@ import { updatePage } from '../../src/tools/update-page.ts';
 import { getPage } from '../../src/tools/get-page.ts';
 import { cargoQuery } from '../../src/tools/extensions/cargo/cargo-query.ts';
 import { fakeAuthPolicy } from '../helpers/fakeAuthPolicy.ts';
+import { metricsOff } from '../helpers/metrics.ts';
 
 // A minimal wiki-scoped tool that reports the wiki it ran against.
 const probe: Tool<Record<string, never>> = {
@@ -138,6 +139,7 @@ describe('dispatch wiki resolution', () => {
 				logger,
 				state,
 				auth: fakeAuthPolicy(),
+				metrics: metricsOff(),
 			}),
 		)({
 			wiki: 'other',

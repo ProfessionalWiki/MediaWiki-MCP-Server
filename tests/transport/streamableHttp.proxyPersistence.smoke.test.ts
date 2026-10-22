@@ -24,6 +24,7 @@ import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServ
 import { runHostedFlow } from '../helpers/fakeMcpClient.ts';
 import { readAuthPolicy } from '../../src/runtime/authShape.ts';
 import { fakeAppDeps } from '../helpers/fakeAppDeps.ts';
+import { metricsOff } from '../helpers/metrics.ts';
 
 const ISSUER = 'https://mcp.example/mcp';
 const SIGNING_KEY = 'k'.repeat(32);
@@ -85,7 +86,7 @@ describe('#451 smoke: proxy sign-in survives a restart (real routes + encrypted 
 		const pc = proxyConfig(fakeAs.url);
 
 		// --- run 1: full sign-in through the real proxy routes ---
-		const store1 = new PersistentProxyStore(new InMemoryProxyStore(), file, KEY);
+		const store1 = new PersistentProxyStore(new InMemoryProxyStore(), file, KEY, metricsOff());
 		store1.hydrate();
 		const { app: app1 } = buildApp(makeDeps(fakeAs.url, store1, pc));
 		const result = await runHostedFlow({ app: app1 });
@@ -103,7 +104,7 @@ describe('#451 smoke: proxy sign-in survives a restart (real routes + encrypted 
 		expect(rawStr).not.toContain(result.clientId);
 
 		// --- simulate a restart: brand-new store hydrated from the same file ---
-		const store2 = new PersistentProxyStore(new InMemoryProxyStore(), file, KEY);
+		const store2 = new PersistentProxyStore(new InMemoryProxyStore(), file, KEY, metricsOff());
 		store2.hydrate();
 		const { app: app2 } = buildApp(makeDeps(fakeAs.url, store2, pc));
 

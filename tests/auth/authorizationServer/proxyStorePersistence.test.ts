@@ -2,13 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import express from 'express';
-import request from 'supertest';
-import {
-	initMetrics,
-	getMetricsHandler,
-	__resetMetricsForTesting,
-} from '../../../src/runtime/metrics.ts';
 import type { ProxyConfig } from '../../../src/auth/authorizationServer/proxyConfig.ts';
 import { InMemoryProxyStore } from '../../../src/auth/authorizationServer/proxyStore.ts';
 import {
@@ -17,13 +10,14 @@ import {
 	createProxyStore,
 } from '../../../src/auth/authorizationServer/proxyStorePersistence.ts';
 import { deriveKey, encrypt } from '../../../src/auth/authorizationServer/proxyStoreCrypto.ts';
+import { liveMetrics, metricsOff, scrape } from '../../helpers/metrics.ts';
 
 const SIGNING_KEY = 'test-signing-key-of-at-least-32-chars!!';
 const KEY = deriveKey(SIGNING_KEY);
 const tick = (): Promise<void> => new Promise((r) => setImmediate(r));
 
 function make(file: string): PersistentProxyStore {
-	const s = new PersistentProxyStore(new InMemoryProxyStore(), file, KEY);
+	const s = new PersistentProxyStore(new InMemoryProxyStore(), file, KEY, metricsOff());
 	s.hydrate();
 	return s;
 }
@@ -52,51 +46,30 @@ describe('PersistentProxyStore', () => {
 		});
 	});
 
-	it('records a flush-duration metric on a durable write when metrics are enabled', async () => {
-		vi.stubEnv('MCP_METRICS', 'true');
-		__resetMetricsForTesting();
-		initMetrics();
-		try {
-			const s = make(file);
-			s.putUpstreamToken({ accessToken: 'a', expiresAt: 111 }); // write-through → flushSync
-			const handler = getMetricsHandler();
-			expect(handler).toBeDefined();
-			const app = express();
-			app.get('/metrics', handler!);
-			const res = await request(app).get('/metrics');
-			expect(res.text).toMatch(/mcp_proxy_store_flush_duration_seconds_count [1-9]/);
-		} finally {
-			__resetMetricsForTesting();
-		}
+	it('records a flush-duration metric on a durable write', async () => {
+		const metrics = liveMetrics();
+		const s = new PersistentProxyStore(new InMemoryProxyStore(), file, KEY, metrics);
+		s.putUpstreamToken({ accessToken: 'a', expiresAt: 111 }); // write-through → flushSync
+		expect(await scrape(metrics)).toMatch(/mcp_proxy_store_flush_duration_seconds_count 1/);
 	});
 
 	it('increments the flush-failure counter when a durable write cannot be persisted', async () => {
-		vi.stubEnv('MCP_METRICS', 'true');
-		__resetMetricsForTesting();
-		initMetrics();
-		try {
-			// Force flushSync to fail: put the store file under a path whose parent is a
-			// regular file, so the mkdirSync/write throws.
-			const blocker = path.join(dir, 'blocker');
-			fs.writeFileSync(blocker, 'x');
-			const onError = vi.fn();
-			const s = new PersistentProxyStore(
-				new InMemoryProxyStore(),
-				path.join(blocker, 's.enc'),
-				KEY,
-				onError,
-			);
-			s.putUpstreamToken({ accessToken: 'a', expiresAt: 111 }); // write-through flush fails
-			expect(onError).toHaveBeenCalledTimes(1); // the failure path ran, but did not throw
-			const handler = getMetricsHandler();
-			expect(handler).toBeDefined();
-			const app = express();
-			app.get('/metrics', handler!);
-			const res = await request(app).get('/metrics');
-			expect(res.text).toMatch(/mcp_proxy_store_flush_failures_total 1/);
-		} finally {
-			__resetMetricsForTesting();
-		}
+		const metrics = liveMetrics();
+		// Force flushSync to fail: put the store file under a path whose parent is a
+		// regular file, so the mkdirSync/write throws.
+		const blocker = path.join(dir, 'blocker');
+		fs.writeFileSync(blocker, 'x');
+		const onError = vi.fn();
+		const s = new PersistentProxyStore(
+			new InMemoryProxyStore(),
+			path.join(blocker, 's.enc'),
+			KEY,
+			metrics,
+			onError,
+		);
+		s.putUpstreamToken({ accessToken: 'a', expiresAt: 111 }); // write-through flush fails
+		expect(onError).toHaveBeenCalledTimes(1); // the failure path ran, but did not throw
+		expect(await scrape(metrics)).toMatch(/mcp_proxy_store_flush_failures_total 1/);
 	});
 
 	it('persists a client registration via the coalesced deferred flush', async () => {
@@ -142,6 +115,7 @@ describe('PersistentProxyStore', () => {
 			new InMemoryProxyStore(),
 			path.join(blocker, 'store.enc'), // parent is a file → mkdir/write fails
 			KEY,
+			metricsOff(),
 			(e) => errors.push(e),
 		);
 		const id = s.putUpstreamToken({ accessToken: 'at', expiresAt: 1 }); // must NOT throw
@@ -163,7 +137,7 @@ describe('PersistentProxyStore', () => {
 
 	it('refuses to start on an undecryptable file', () => {
 		fs.writeFileSync(file, Buffer.from('not a valid envelope'));
-		const s = new PersistentProxyStore(new InMemoryProxyStore(), file, KEY);
+		const s = new PersistentProxyStore(new InMemoryProxyStore(), file, KEY, metricsOff());
 		expect(() => s.hydrate()).toThrow(ProxyStorePersistenceError);
 	});
 
@@ -172,9 +146,10 @@ describe('PersistentProxyStore', () => {
 			new InMemoryProxyStore(),
 			file,
 			deriveKey('another-signing-key-32-characters-xx'),
+			metricsOff(),
 		);
 		other.putUpstreamToken({ accessToken: 'at', expiresAt: 1 });
-		const s = new PersistentProxyStore(new InMemoryProxyStore(), file, KEY);
+		const s = new PersistentProxyStore(new InMemoryProxyStore(), file, KEY, metricsOff());
 		expect(() => s.hydrate()).toThrow(ProxyStorePersistenceError);
 	});
 
@@ -183,7 +158,7 @@ describe('PersistentProxyStore', () => {
 			file,
 			encrypt(KEY, Buffer.from(JSON.stringify({ version: 2, clients: [], upstream: [] }))),
 		);
-		const s = new PersistentProxyStore(new InMemoryProxyStore(), file, KEY);
+		const s = new PersistentProxyStore(new InMemoryProxyStore(), file, KEY, metricsOff());
 		expect(() => s.hydrate()).toThrow(ProxyStorePersistenceError);
 	});
 });
@@ -203,9 +178,9 @@ describe('createProxyStore', () => {
 	it('hydrates from what an earlier store persisted', () => {
 		vi.stubEnv('MCP_OAUTH_PROXY_STORE_FILE', file);
 		const pc = { signingKey: SIGNING_KEY } as ProxyConfig;
-		const s = createProxyStore(pc);
+		const s = createProxyStore(pc, metricsOff());
 		const id = s.putUpstreamToken({ accessToken: 'at', expiresAt: 1 });
 		expect(fs.existsSync(file)).toBe(true);
-		expect(createProxyStore(pc).getUpstreamToken(id)?.accessToken).toBe('at');
+		expect(createProxyStore(pc, metricsOff()).getUpstreamToken(id)?.accessToken).toBe('at');
 	});
 });

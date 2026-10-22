@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/server';
 import type { BuildAppDeps } from '../../src/transport/streamableHttp.ts';
 import { createAppState } from '../../src/wikis/state.ts';
 import { fakeAuthPolicy } from './fakeAuthPolicy.ts';
+import { metricsOff } from './metrics.ts';
 
 // One source for buildApp's deps, so a field added to BuildAppDeps breaks here
 // once rather than in each suite that spells the literal out. A loopback bind
@@ -30,6 +31,7 @@ export function fakeAppDeps(overrides: Partial<BuildAppDeps> = {}): BuildAppDeps
 		allowedHosts: undefined,
 		allowedOrigins: [],
 		maxRequestBody: '1mb',
+		metrics: metricsOff(),
 		...overrides,
 	};
 }

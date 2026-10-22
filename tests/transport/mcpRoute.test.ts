@@ -17,6 +17,7 @@ import { fakeHostedProxy } from '../helpers/fakeHostedProxy.ts';
 import { getRuntimeToken } from '../../src/runtime/requestContext.ts';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
 import { readAuthPolicy } from '../../src/runtime/authShape.ts';
+import { liveMetrics, metricsOff, scrape } from '../helpers/metrics.ts';
 
 afterEach(() => {
 	vi.unstubAllEnvs();
@@ -72,6 +73,7 @@ function buildEraApp(): Express {
 	);
 	const route = createMcpRouteHandler(handler, {
 		auth: readAuthPolicy(process.env, 'http', null, null),
+		metrics: metricsOff(),
 	});
 	app.post('/mcp', route);
 	app.get('/mcp', route);
@@ -146,6 +148,7 @@ describe('bearer threading through the route', () => {
 			createMcpRouteHandler(fakeHandler, {
 				auth: readAuthPolicy(process.env, 'http', null, null),
 				wikiRegistry: oauthRegistry(),
+				metrics: metricsOff(),
 			}),
 		);
 		return app;
@@ -189,6 +192,7 @@ describe('bearer threading through the route', () => {
 			createMcpRouteHandler(fakeHandler, {
 				auth: readAuthPolicy(process.env, 'http', null, null),
 				wikiRegistry: registry,
+				metrics: metricsOff(),
 			}),
 		);
 
@@ -262,6 +266,7 @@ describe('rate limiting on /mcp', () => {
 			createMcpRouteHandler(fakeHandler, {
 				auth: readAuthPolicy(process.env, 'http', null, null),
 				rateLimiter: createRateLimiter(SETTINGS, frozenClock),
+				metrics: metricsOff(),
 				...options,
 			}),
 		);
@@ -356,6 +361,18 @@ describe('rate limiting on /mcp', () => {
 		expect((await asBearer('token-a', 90)).status).toBe(429);
 	});
 
+	it('counts a refusal of an authenticated caller under its own label', async () => {
+		vi.stubEnv('MCP_ALLOW_BEARER_PASSTHROUGH', 'true');
+		const metrics = liveMetrics();
+		const app = buildLimitedApp({ calls: 0 }, { metrics });
+
+		for (let i = 0; i <= SETTINGS.burst; i++) {
+			await request(app).post('/mcp').set('Authorization', 'Bearer token-a').send(toolsCall(i));
+		}
+
+		expect(await scrape(metrics)).toContain('mcp_rate_limited_total{caller="caller"} 1');
+	});
+
 	it('keys proxy callers by their upstream token id', async () => {
 		const store = new InMemoryProxyStore();
 		const pcLocal = fakeProxyConfig({ signingKey: 'k'.repeat(32) });
@@ -429,6 +446,7 @@ describe('rate limiting cannot be bypassed by request shape', () => {
 			createMcpRouteHandler(handler, {
 				auth: readAuthPolicy(process.env, 'http', null, null),
 				rateLimiter: createRateLimiter(SETTINGS, frozenClock),
+				metrics: metricsOff(),
 			}),
 		);
 		return app;

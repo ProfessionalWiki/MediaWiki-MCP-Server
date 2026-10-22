@@ -11,6 +11,7 @@ import { buildApp, type BuildAppDeps } from '../../src/transport/streamableHttp.
 import { createRateLimiter } from '../../src/transport/rateLimit.ts';
 import { RATE_LIMITED_ERROR_CODE } from '../../src/transport/errorCodes.ts';
 import { fakeAppDeps } from '../helpers/fakeAppDeps.ts';
+import { liveMetrics, scrape } from '../helpers/metrics.ts';
 
 const SETTINGS = {
 	ratePerSecond: 1,
@@ -62,6 +63,19 @@ describe('rate limiting through the real app', () => {
 		expect(refused.headers['retry-after']).toBeDefined();
 		expect(refused.body).toMatchObject({ error: { code: RATE_LIMITED_ERROR_CODE } });
 		expect(calls.count).toBe(2);
+	});
+
+	it('counts the refusal in mcp_rate_limited_total', async () => {
+		const metrics = liveMetrics();
+		const { app } = buildApp({ ...makeDeps({ count: 0 }), metrics });
+		const send = () =>
+			request(app).post('/mcp').set('Accept', 'application/json, text/event-stream').send(call(1));
+
+		await send();
+		await send();
+		await send();
+
+		expect(await scrape(metrics)).toContain('mcp_rate_limited_total{caller="anonymous"} 1');
 	});
 
 	it('meters a Content-Type that body-parser would not parse by default', async () => {

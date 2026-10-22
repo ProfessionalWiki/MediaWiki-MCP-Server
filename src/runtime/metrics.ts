@@ -1,6 +1,6 @@
-import type { RequestHandler } from 'express';
 import { Counter, Gauge, Histogram, Registry } from 'prom-client';
 import type { ToolOutcome } from './instrument.ts';
+import type { Transport } from './authShape.ts';
 
 export interface RecordToolCallInput {
 	readonly tool: string;
@@ -15,7 +15,12 @@ export interface RecordToolCallInput {
 // InMemoryProxyStore.stats() by structure at the wiring site.
 type ProxyStoreStats = { readonly upstreamTokens: number; readonly clients: number };
 
-interface Recorder {
+export interface Exposition {
+	readonly contentType: string;
+	render(): Promise<string>;
+}
+
+export interface Metrics {
 	recordToolCall(input: RecordToolCallInput): void;
 	recordReadyFailure(): void;
 	recordRateLimited(caller: 'caller' | 'anonymous'): void;
@@ -24,7 +29,8 @@ interface Recorder {
 	recordStoreFlush(durationMs: number): void;
 	recordStoreFlushFailure(): void;
 	setProxyStoreStatsProvider(fn: () => ProxyStoreStats): void;
-	getMetricsHandler(): RequestHandler | undefined;
+	/** What /metrics serves; undefined when metrics are off, so the route is not mounted. */
+	readonly exposition: Exposition | undefined;
 }
 
 const DURATION_BUCKETS_SECONDS: readonly number[] = [
@@ -38,7 +44,7 @@ const FLUSH_BUCKETS_SECONDS: readonly number[] = [
 	0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1,
 ];
 
-function makeDisabledRecorder(): Recorder {
+function createDisabledMetrics(): Metrics {
 	return {
 		recordToolCall: () => {},
 		recordReadyFailure: () => {},
@@ -48,11 +54,11 @@ function makeDisabledRecorder(): Recorder {
 		recordStoreFlush: () => {},
 		recordStoreFlushFailure: () => {},
 		setProxyStoreStatsProvider: () => {},
-		getMetricsHandler: () => undefined,
+		exposition: undefined,
 	};
 }
 
-function makeLiveRecorder(): Recorder {
+function createLiveMetrics(): Metrics {
 	const registry = new Registry();
 	let inFlightProvider: (() => number) | undefined;
 	let subscriptionStreamsProvider: (() => number) | undefined;
@@ -142,11 +148,6 @@ function makeLiveRecorder(): Recorder {
 		},
 	});
 
-	const handler: RequestHandler = async (_req, res) => {
-		res.set('Content-Type', registry.contentType);
-		res.status(200).send(await registry.metrics());
-	};
-
 	return {
 		recordToolCall(input) {
 			toolCalls.inc({ tool: input.tool, wiki: input.wiki, outcome: input.outcome });
@@ -180,66 +181,15 @@ function makeLiveRecorder(): Recorder {
 		setProxyStoreStatsProvider(fn) {
 			storeStatsProvider = fn;
 		},
-		getMetricsHandler() {
-			return handler;
+		exposition: {
+			contentType: registry.contentType,
+			render: () => registry.metrics(),
 		},
 	};
 }
 
-let recorder: Recorder = makeDisabledRecorder();
-let initialized = false;
-
-export function isMetricsEnabled(): boolean {
-	return process.env.MCP_METRICS === 'true';
-}
-
-export function initMetrics(): void {
-	if (initialized) {
-		return;
-	}
-	initialized = true;
-	recorder = makeLiveRecorder();
-}
-
-export function recordToolCall(input: RecordToolCallInput): void {
-	recorder.recordToolCall(input);
-}
-
-export function recordReadyFailure(): void {
-	recorder.recordReadyFailure();
-}
-
-export function recordRateLimited(caller: 'caller' | 'anonymous'): void {
-	recorder.recordRateLimited(caller);
-}
-
-export function setInFlightProvider(fn: () => number): void {
-	recorder.setInFlightProvider(fn);
-}
-
-export function setSubscriptionStreamsProvider(fn: () => number): void {
-	recorder.setSubscriptionStreamsProvider(fn);
-}
-
-export function recordStoreFlush(durationMs: number): void {
-	recorder.recordStoreFlush(durationMs);
-}
-
-export function recordStoreFlushFailure(): void {
-	recorder.recordStoreFlushFailure();
-}
-
-export function setProxyStoreStatsProvider(fn: () => ProxyStoreStats): void {
-	recorder.setProxyStoreStatsProvider(fn);
-}
-
-export function getMetricsHandler(): RequestHandler | undefined {
-	return recorder.getMetricsHandler();
-}
-
-// Test-only seam: returns the module to its disabled state so tests can re-init
-// without prom-client throwing on duplicate metric registration.
-export function __resetMetricsForTesting(): void {
-	initialized = false;
-	recorder = makeDisabledRecorder();
+export function readMetrics(env: NodeJS.ProcessEnv, transport: Transport): Metrics {
+	return transport === 'http' && env.MCP_METRICS === 'true'
+		? createLiveMetrics()
+		: createDisabledMetrics();
 }

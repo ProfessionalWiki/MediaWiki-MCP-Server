@@ -22,14 +22,7 @@ import {
 import { checkHttpDeployment } from './httpDeployment.ts';
 import { LOCALHOST_HOSTS, resolveHttpConfig } from './httpConfig.ts';
 import { logger } from '../runtime/logger.ts';
-import {
-	getMetricsHandler,
-	initMetrics,
-	isMetricsEnabled,
-	setInFlightProvider,
-	setSubscriptionStreamsProvider,
-	setProxyStoreStatsProvider,
-} from '../runtime/metrics.ts';
+import { readMetrics, type Metrics } from '../runtime/metrics.ts';
 import { createInFlightCounter, type InFlightCounter } from './inFlight.ts';
 import { createMcpRouteHandler, resolveRequestProto } from './mcpRoute.ts';
 import { createRateLimiter, type RateLimiter } from './rateLimit.ts';
@@ -327,15 +320,15 @@ function jsonRpcCodeFor(tooLarge: boolean, parseFailed: boolean): number {
 	return parseFailed ? PARSE_ERROR : INTERNAL_ERROR;
 }
 
-export function mountMetricsEndpoint(app: express.Express): void {
-	if (!isMetricsEnabled()) {
+export function mountMetricsEndpoint(app: express.Express, metrics: Metrics): void {
+	const { exposition } = metrics;
+	if (exposition === undefined) {
 		return;
 	}
-	initMetrics();
-	const handler = getMetricsHandler();
-	if (handler) {
-		app.get('/metrics', handler);
-	}
+	app.get('/metrics', async (_req: Request, res: Response) => {
+		res.set('Content-Type', exposition.contentType);
+		res.status(200).send(await exposition.render());
+	});
 }
 
 // The HTTP server's boot — config load, the static-credentials guard, proxy-
@@ -364,6 +357,7 @@ export interface BuildAppDeps {
 	maxRequestBody: string;
 	// Limits tools/call per caller; omitted when disabled (MCP_RATE_LIMIT=0).
 	rateLimiter?: RateLimiter;
+	metrics: Metrics;
 }
 
 export interface BuiltApp {
@@ -392,6 +386,7 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		allowedOrigins,
 		maxRequestBody,
 		rateLimiter,
+		metrics,
 	} = deps;
 
 	// A `private` wiki challenges anonymous callers with a 401 whose discovery
@@ -477,6 +472,7 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		defaultWikiKey: state.defaultWikiKey,
 		onerror: (error) => logger.error(`MCP adapter error: ${error.message}`),
 		rateLimiter,
+		metrics,
 	});
 	// OPTIONS is routed explicitly: Express answers it from its own default
 	// handler otherwise, which sits outside the route stack and so outside the
@@ -504,15 +500,19 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 	const { hostedProxy } = auth;
 	if (hostedProxy) {
 		mountAuthorizationServer(app, hostedProxy);
-		setProxyStoreStatsProvider(() => hostedProxy.store.stats());
+		metrics.setProxyStoreStatsProvider(() => hostedProxy.store.stats());
 	}
 
-	mountReadyEndpoint(app, { defaultWikiKey: state.defaultWikiKey, mwnProvider: state.mwnProvider });
-	mountMetricsEndpoint(app);
-	setInFlightProvider(inFlight.count);
+	mountReadyEndpoint(app, {
+		defaultWikiKey: state.defaultWikiKey,
+		mwnProvider: state.mwnProvider,
+		metrics,
+	});
+	mountMetricsEndpoint(app, metrics);
+	metrics.setInFlightProvider(inFlight.count);
 	// Every open subscriptions/listen stream registers one bus listener, so the
 	// listener count IS the open-stream count (nothing else subscribes).
-	setSubscriptionStreamsProvider(() => bus.listenerCount);
+	metrics.setSubscriptionStreamsProvider(() => bus.listenerCount);
 
 	// Last, so that a throw from any route above reaches it as well as a
 	// body-parser failure from before routing.
@@ -542,9 +542,10 @@ export function startHttpServer(): void {
 		? resolveProxyConfig(defaultWikiKey, defaultWiki, process.env)
 		: null;
 
+	const metrics = readMetrics(process.env, 'http');
 	const hostedProxy =
 		proxyConfig && defaultWiki
-			? startHostedProxy(proxyConfig, defaultWiki.sitename, (err) =>
+			? startHostedProxy(proxyConfig, defaultWiki.sitename, metrics, (err) =>
 					logger.error(`Proxy store persistence write failed: ${err.message}`),
 				)
 			: null;
@@ -574,7 +575,7 @@ export function startHttpServer(): void {
 		},
 	);
 
-	const ctx = createSharedContext({ logger, state, auth });
+	const ctx = createSharedContext({ logger, state, auth, metrics });
 
 	if (rateLimit) {
 		logger.info(
@@ -597,6 +598,7 @@ export function startHttpServer(): void {
 		allowedOrigins,
 		maxRequestBody,
 		rateLimiter: rateLimit ? createRateLimiter(rateLimit) : undefined,
+		metrics,
 	});
 
 	const httpServer = app.listen(port, host, () => {

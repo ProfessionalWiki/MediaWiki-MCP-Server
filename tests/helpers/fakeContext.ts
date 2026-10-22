@@ -18,6 +18,7 @@ import { UploadDirsImpl, type UploadDirs } from '../../src/wikis/uploadDirs.ts';
 import { fakeLogger } from './fakeLogger.ts';
 import { fakeAuthPolicy } from './fakeAuthPolicy.ts';
 import { StdioSignIn } from '../../src/auth/stdioSignIn.ts';
+import { metricsOff } from './metrics.ts';
 import type { Transport } from '../../src/runtime/authShape.ts';
 import type { MockMwn } from './mock-mwn.ts';
 
@@ -111,6 +112,7 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 		errors: new ErrorClassifier(extensionErrorVocabulary(extensionPacks)),
 		logger: fakeLogger(),
 		auth: fakeAuthPolicy(),
+		metrics: metricsOff(),
 		...overrides,
 	};
 }

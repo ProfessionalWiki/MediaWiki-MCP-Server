@@ -18,6 +18,7 @@ import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
 import { getRuntimeToken } from '../../src/runtime/requestContext.ts';
 import { readAuthPolicy } from '../../src/runtime/authShape.ts';
+import { metricsOff } from '../helpers/metrics.ts';
 
 const pc = fakeProxyConfig({
 	signingKey: 'k'.repeat(32),
@@ -282,6 +283,7 @@ function buildMcpApp(
 			wikiRegistry: registry,
 			refresh,
 			defaultWikiKey: 'test',
+			metrics: metricsOff(),
 		}),
 	);
 	return app;

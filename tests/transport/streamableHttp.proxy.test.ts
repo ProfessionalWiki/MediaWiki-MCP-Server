@@ -330,6 +330,7 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 			logger,
 			state: deps.state,
 			auth: deps.auth,
+			metrics: deps.metrics,
 		});
 
 		const writeResult = await withRequestContext(undefined, () =>

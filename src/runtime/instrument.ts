@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import { emitTelemetryEvent } from './logger.ts';
-import { recordToolCall } from './metrics.ts';
+import type { Metrics } from './metrics.ts';
 import { monotonicNow } from './clock.ts';
 import { ClassifiedError, type ErrorCategory } from '../errors/classifyError.ts';
 
@@ -126,7 +126,7 @@ export interface EmitToolCallOptions<TArgs> {
 	readonly wikiKey: string;
 }
 
-export function emitToolCall<TArgs>(opts: EmitToolCallOptions<TArgs>): void {
+export function emitToolCall<TArgs>(metrics: Metrics, opts: EmitToolCallOptions<TArgs>): void {
 	const level = levelFor(opts.outcome);
 	const targetValue = safeTarget(opts.target, opts.args);
 	const truncated = opts.outcome === 'success' ? detectTruncation(opts.result) : false;
@@ -156,7 +156,7 @@ export function emitToolCall<TArgs>(opts: EmitToolCallOptions<TArgs>): void {
 	// metrics path would propagate up and fail the call. The stderr line
 	// above has already flushed, so we still have an operator-visible record.
 	try {
-		recordToolCall({
+		metrics.recordToolCall({
 			tool: opts.toolName,
 			wiki: opts.wikiKey,
 			outcome: opts.outcome,
