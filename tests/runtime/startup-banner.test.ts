@@ -4,6 +4,10 @@ import { emitStartupBanner } from '../../src/runtime/banner.ts';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
 import { UploadDirsImpl } from '../../src/wikis/uploadDirs.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
+import { fakeAuthPolicy } from '../helpers/fakeAuthPolicy.ts';
+import { fakeHostedProxy } from '../helpers/fakeHostedProxy.ts';
+import { fakeProxyConfig } from '../helpers/fakeProxyConfig.ts';
+import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.ts';
 
 const baseWikiConfig: WikiConfig = {
 	sitename: 'A',
@@ -49,7 +53,7 @@ describe('startup banner', () => {
 				wikiRegistry: mockWikiRegistry,
 				defaultWikiKey: 'a.example',
 				uploadDirs: mockUploadDirs,
-				auth: { bearerPassthrough: false, staticFallback: false },
+				auth: fakeAuthPolicy(),
 			},
 		);
 
@@ -86,7 +90,7 @@ describe('startup banner', () => {
 				wikiRegistry: mockWikiRegistry,
 				defaultWikiKey: 'a.example',
 				uploadDirs: mockUploadDirs,
-				auth: { bearerPassthrough: false, staticFallback: false },
+				auth: fakeAuthPolicy({ transport: 'http' }),
 			},
 		);
 
@@ -113,7 +117,7 @@ describe('startup banner', () => {
 				wikiRegistry: mockWikiRegistry,
 				defaultWikiKey: 'a.example',
 				uploadDirs: mockUploadDirs,
-				auth: { bearerPassthrough: false, staticFallback: false },
+				auth: fakeAuthPolicy({ transport: 'http' }),
 			},
 		);
 
@@ -135,8 +139,10 @@ describe('startup banner', () => {
 				wikiRegistry: mockWikiRegistry,
 				defaultWikiKey: 'a.example',
 				uploadDirs: mockUploadDirs,
-				auth: { bearerPassthrough: false, staticFallback: false },
-				proxyEnabled: true,
+				auth: fakeAuthPolicy({
+					transport: 'http',
+					hostedProxy: fakeHostedProxy(fakeProxyConfig(), new InMemoryProxyStore()),
+				}),
 			},
 		);
 
@@ -162,7 +168,7 @@ describe('startup banner', () => {
 				wikiRegistry: staticRegistry,
 				defaultWikiKey: 'a.example',
 				uploadDirs: mockUploadDirs,
-				auth: { bearerPassthrough: false, staticFallback: false },
+				auth: fakeAuthPolicy(),
 			},
 		);
 

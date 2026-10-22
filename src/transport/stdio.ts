@@ -13,7 +13,7 @@ import { readAuthPolicy } from '../runtime/authShape.ts';
 async function main(): Promise<void> {
 	const config = loadConfigFromFile();
 	const state = createAppState(config);
-	const auth = readAuthPolicy(process.env);
+	const auth = readAuthPolicy(process.env, 'stdio', null);
 	emitStartupBanner(
 		{ transport: 'stdio' },
 		{
@@ -23,7 +23,7 @@ async function main(): Promise<void> {
 			auth,
 		},
 	);
-	const ctx = createSharedContext({ logger, state, transport: 'stdio', auth });
+	const ctx = createSharedContext({ logger, state, auth });
 
 	// serveStdio owns the connection: the opening exchange pins the era, one
 	// instance from the factory serves the connection's lifetime, and on a

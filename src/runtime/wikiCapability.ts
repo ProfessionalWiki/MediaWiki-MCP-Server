@@ -65,10 +65,10 @@ export async function checkWikiCapability(
 	// OAuth-only rejection above is replaced by a narrower step-up: only WRITE
 	// tools require a token, and the error carries the protected-resource URL so
 	// the client can authenticate and retry.
-	if (ctx.transport === 'http') {
+	if (ctx.auth.transport === 'http') {
 		const cfg = ctx.wikis.get(wikiKey);
 		if (cfg) {
-			const pc = ctx.getProxyConfig?.() ?? null;
+			const pc = ctx.auth.hostedProxy?.config;
 			const oauthOnly = usesOAuthSignIn(cfg);
 			const hasStatic = hasStaticCredentials(cfg);
 			const anonymous = getRuntimeToken(wikiKey) === undefined;

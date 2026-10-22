@@ -4,6 +4,7 @@ import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { useTempTokenStore } from '../helpers/tempTokenStore.ts';
 import { createTokenStore } from '../../src/auth/tokenStore.ts';
 import { fakeContext } from '../helpers/fakeContext.ts';
+import { fakeAuthPolicy } from '../helpers/fakeAuthPolicy.ts';
 
 useTempTokenStore();
 
@@ -71,7 +72,10 @@ describe('oauth-logout', () => {
 	it('refuses to delete from the credentials file on HTTP transport', async () => {
 		const store = createTokenStore();
 		await store.put('k1', tok);
-		const result = await dispatch(oauthLogout, fakeContext({ transport: 'http' }))({});
+		const result = await dispatch(
+			oauthLogout,
+			fakeContext({ auth: fakeAuthPolicy({ transport: 'http' }) }),
+		)({});
 		expect(result.isError).toBe(true);
 		const after = await store.read();
 		expect(Object.keys(after.tokens)).toEqual(['k1']);

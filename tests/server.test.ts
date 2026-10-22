@@ -3,6 +3,8 @@ import { Client } from '@modelcontextprotocol/client';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
 import { createServer } from '../src/server.ts';
 import { fakeContext } from './helpers/fakeContext.ts';
+import { fakeAuthPolicy } from './helpers/fakeAuthPolicy.ts';
+import type { SharedContext } from '../src/runtime/context.ts';
 
 const wikiConfig = {
 	sitename: 'Test',
@@ -39,6 +41,35 @@ describe('createServer capabilities', () => {
 			},
 		});
 		await expect(createServer(ctx)).rejects.toThrow('probe exploded');
+	});
+});
+
+async function offeredToolNames(ctx: SharedContext): Promise<string[]> {
+	const server = await createServer(ctx);
+	const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+	const client = new Client({ name: 'server-test', version: '0.0.0' });
+	await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+	try {
+		return (await client.listTools()).tools.map((tool) => tool.name);
+	} finally {
+		await client.close();
+	}
+}
+
+describe('createServer tool offering', () => {
+	it('offers the stored sign-in tools on stdio', async () => {
+		const names = await offeredToolNames(fakeContext());
+
+		expect(names).toContain('oauth-status');
+	});
+
+	it('leaves the stored sign-in tools out over HTTP', async () => {
+		const names = await offeredToolNames(
+			fakeContext({ auth: fakeAuthPolicy({ transport: 'http' }) }),
+		);
+
+		expect(names).toContain('get-page');
+		expect(names).not.toContain('oauth-status');
 	});
 });
 

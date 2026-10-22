@@ -4,6 +4,7 @@ import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { useTempTokenStore } from '../helpers/tempTokenStore.ts';
 import { createTokenStore } from '../../src/auth/tokenStore.ts';
 import { fakeContext } from '../helpers/fakeContext.ts';
+import { fakeAuthPolicy } from '../helpers/fakeAuthPolicy.ts';
 
 useTempTokenStore();
 
@@ -51,7 +52,10 @@ describe('oauth-status', () => {
 			scopes: ['edit'],
 			obtained_at: '2026-04-29T12:00:00.000Z',
 		});
-		const result = await dispatch(oauthStatus, fakeContext({ transport: 'http' }))({});
+		const result = await dispatch(
+			oauthStatus,
+			fakeContext({ auth: fakeAuthPolicy({ transport: 'http' }) }),
+		)({});
 		expect(result.isError).toBe(true);
 		const text = (result.content[0] as { text: string }).text;
 		expect(text).toContain('stdio');

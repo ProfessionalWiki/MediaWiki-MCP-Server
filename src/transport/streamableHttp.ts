@@ -44,7 +44,6 @@ import { resolveProxyConfig } from '../auth/authorizationServer/proxyConfig.ts';
 import {
 	AUTHORIZATION_SERVER_PATHS,
 	startHostedProxy,
-	type HostedProxy,
 } from '../auth/authorizationServer/hostedProxy.ts';
 import { mountAuthorizationServer } from '../auth/authorizationServer/router.ts';
 import { createAppState, type AppState } from '../wikis/state.ts';
@@ -353,7 +352,6 @@ export function mountMetricsEndpoint(app: express.Express): void {
 export interface BuildAppDeps {
 	state: AppState;
 	auth: AuthPolicy;
-	hostedProxy: HostedProxy | null;
 	// Called once per serving unit — every HTTP request under createMcpHandler
 	// (modern or stateless legacy alike) gets a fresh instance. The options
 	// carry the change publisher buildApp wires to the handler's notify facade.
@@ -388,7 +386,6 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 	const {
 		state,
 		auth,
-		hostedProxy,
 		createServerFn,
 		host,
 		allowedHosts,
@@ -477,7 +474,6 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 	const mcpRoute = createMcpRouteHandler(handler, {
 		auth,
 		wikiRegistry: state.wikiRegistry,
-		hostedProxy,
 		defaultWikiKey: state.defaultWikiKey,
 		onerror: (error) => logger.error(`MCP adapter error: ${error.message}`),
 		rateLimiter,
@@ -501,10 +497,11 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 		'/.well-known/oauth-protected-resource',
 		createOAuthProtectedResourceHandler({
 			wikiRegistry: state.wikiRegistry,
-			authorizationServer: hostedProxy?.config.issuer ?? null,
+			authorizationServer: auth.hostedProxy?.config.issuer ?? null,
 		}),
 	);
 
+	const { hostedProxy } = auth;
 	if (hostedProxy) {
 		mountAuthorizationServer(app, hostedProxy);
 		setProxyStoreStatsProvider(() => hostedProxy.store.stats());
@@ -545,15 +542,20 @@ export function startHttpServer(): void {
 		? resolveProxyConfig(defaultWikiKey, defaultWiki, process.env)
 		: null;
 
+	const hostedProxy =
+		proxyConfig && defaultWiki
+			? startHostedProxy(proxyConfig, defaultWiki.sitename, (err) =>
+					logger.error(`Proxy store persistence write failed: ${err.message}`),
+				)
+			: null;
+	const auth = readAuthPolicy(process.env, 'http', hostedProxy);
+
 	const { host, port, allowedHosts, allowedOrigins, maxRequestBody, rateLimit, warnings } =
 		resolveHttpConfig();
-	const proxyEnabled = proxyConfig !== null;
-	const auth = readAuthPolicy(process.env);
 	const deployment = checkHttpDeployment({
 		wikis: state.wikiRegistry.getAll(),
 		defaultWikiKey,
 		auth,
-		proxyEnabled,
 	});
 	if (deployment.refusal !== undefined) {
 		logger.error(deployment.refusal);
@@ -562,30 +564,17 @@ export function startHttpServer(): void {
 	for (const warning of [...deployment.warnings, ...warnings]) {
 		logger.warning(warning);
 	}
-	const hostedProxy =
-		proxyConfig && defaultWiki
-			? startHostedProxy(proxyConfig, defaultWiki.sitename, (err) =>
-					logger.error(`Proxy store persistence write failed: ${err.message}`),
-				)
-			: null;
 	emitStartupBanner(
 		{ transport: 'http', http: { host, port, allowedHosts, allowedOrigins, maxRequestBody } },
 		{
 			wikiRegistry: state.wikiRegistry,
 			defaultWikiKey: state.defaultWikiKey,
 			uploadDirs: state.uploadDirs,
-			proxyEnabled,
 			auth,
 		},
 	);
 
-	const ctx = createSharedContext({
-		logger,
-		state,
-		transport: 'http',
-		auth,
-		getProxyConfig: () => hostedProxy?.config ?? null,
-	});
+	const ctx = createSharedContext({ logger, state, auth });
 
 	if (rateLimit) {
 		logger.info(
@@ -602,7 +591,6 @@ export function startHttpServer(): void {
 	const { app, inFlight, mcpHandler } = buildApp({
 		state,
 		auth,
-		hostedProxy,
 		createServerFn: (opts) => createServer(ctx, opts),
 		host,
 		allowedHosts,

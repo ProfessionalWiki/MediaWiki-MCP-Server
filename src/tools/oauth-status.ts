@@ -22,7 +22,7 @@ export const oauthStatus: Tool<Record<string, never>, SharedContext> = {
 	async handle(_args, ctx: SharedContext): Promise<CallToolResult> {
 		// Defense in depth: offeredWhen already hides this tool on HTTP,
 		// but a forced direct invocation must not read the local credentials file.
-		if (ctx.transport !== 'stdio') {
+		if (ctx.auth.transport !== 'stdio') {
 			return ctx.format.invalidInput('oauth-status is only available on the stdio transport.');
 		}
 		const store = await createTokenStore().read();

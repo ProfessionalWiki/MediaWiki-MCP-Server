@@ -53,7 +53,7 @@ function ctxWith(
 
 // A context on a deployment that forwards a caller-supplied bearer.
 function forwarding<T extends SharedContext>(ctx: T): T {
-	return { ...ctx, auth: { bearerPassthrough: true, staticFallback: false } };
+	return { ...ctx, auth: { ...ctx.auth, bearerPassthrough: true } };
 }
 
 function wikisOf(result: CallToolResult): Array<Record<string, unknown>> {

@@ -11,6 +11,8 @@ import { RevisionNormalizerImpl } from '../../src/services/revisionNormalize.ts'
 import type { WikiIdentity, WikiProbe } from '../../src/wikis/wikiProbe.ts';
 import { UploadDirsImpl, type UploadDirs } from '../../src/wikis/uploadDirs.ts';
 import { fakeLogger } from './fakeLogger.ts';
+import { fakeAuthPolicy } from './fakeAuthPolicy.ts';
+import type { Transport } from '../../src/runtime/authShape.ts';
 import type { MockMwn } from './mock-mwn.ts';
 
 const throws = (label: string) => () => {
@@ -102,8 +104,7 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 		format: new ResponseFormatterImpl(),
 		errors: new ErrorClassifierImpl(extensionErrorVocabulary(extensionPacks)),
 		logger: fakeLogger(),
-		transport: 'stdio' as const,
-		auth: { bearerPassthrough: false, staticFallback: false },
+		auth: fakeAuthPolicy(),
 		...overrides,
 	};
 }
@@ -127,10 +128,7 @@ export function withWikiConfig(ctx: ToolContext, config: Partial<WikiConfig>): T
 // A ctx whose registry and default wiki agree on one wiki — the dispatcher
 // resolves and validates it before applying the OAuth gate, so a ctx whose two
 // halves disagree passes only by accident.
-export function ctxForWiki(
-	config: Record<string, unknown>,
-	transport: ToolContext['transport'],
-): SharedContext {
+export function ctxForWiki(config: Record<string, unknown>, transport: Transport): SharedContext {
 	return ctxForWikis({ 'wiki-key': config }, 'wiki-key', transport);
 }
 
@@ -139,12 +137,12 @@ export function ctxForWiki(
 export function ctxForWikis(
 	registry: Record<string, Record<string, unknown>>,
 	defaultKey: string,
-	transport: ToolContext['transport'],
+	transport: Transport,
 ): SharedContext {
 	const lookup = (key: string): Record<string, unknown> | undefined =>
 		Object.hasOwn(registry, key) ? registry[key] : undefined;
 	return fakeContext({
-		transport,
+		auth: fakeAuthPolicy({ transport }),
 		wikis: {
 			getAll: () => registry as never,
 			get: lookup as never,

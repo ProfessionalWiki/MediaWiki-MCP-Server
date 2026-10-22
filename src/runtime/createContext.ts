@@ -2,7 +2,6 @@ import type { Logger } from './logger.ts';
 import type { SharedContext } from './context.ts';
 import type { AuthPolicy } from './authShape.ts';
 import type { AppState } from '../wikis/state.ts';
-import type { ProxyConfig } from '../auth/authorizationServer/proxyConfig.ts';
 import { WikiCacheImpl } from '../wikis/wikiCache.ts';
 import { SectionServiceImpl } from '../services/sectionService.ts';
 import { EditServiceImpl } from '../services/editService.ts';
@@ -17,11 +16,9 @@ import { callDeadline, WIKI_CALL_TIMEOUT_MS } from './callDeadline.ts';
 export function createSharedContext(deps: {
 	logger: Logger;
 	state: AppState;
-	transport: 'http' | 'stdio';
 	auth: AuthPolicy;
-	getProxyConfig?: () => ProxyConfig | null;
 }): SharedContext {
-	const { logger, state, transport, auth, getProxyConfig } = deps;
+	const { logger, state, auth } = deps;
 	return {
 		// The cached instance is shared, so bounds go on a per-request view rather
 		// than on the instance. Taking the deadline from the request scope is what
@@ -42,8 +39,6 @@ export function createSharedContext(deps: {
 		format: new ResponseFormatterImpl(),
 		errors: new ErrorClassifierImpl(extensionErrorVocabulary(extensionPacks)),
 		logger,
-		transport,
 		auth,
-		getProxyConfig,
 	};
 }

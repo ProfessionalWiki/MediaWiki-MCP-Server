@@ -29,10 +29,6 @@ export interface BannerDeps {
 	readonly wikiRegistry: WikiRegistry;
 	readonly defaultWikiKey: string;
 	readonly uploadDirs: UploadDirs;
-	// True when the hosted OAuth proxy is active for the default wiki, so the
-	// banner can report the "oauth-proxy" auth shape rather than
-	// "bearer-passthrough". Defaults to false (proxy disabled).
-	readonly proxyEnabled?: boolean;
 	readonly auth: AuthPolicy;
 }
 
@@ -42,12 +38,7 @@ export function emitStartupBanner(opts: CreateServerOptions, deps: BannerDeps): 
 		event: 'startup',
 		version: serverInfo.version,
 		transport: opts.transport,
-		auth_shape: classifyAuthShape(
-			wikis,
-			opts.transport,
-			deps.proxyEnabled ?? false,
-			deps.auth.bearerPassthrough,
-		),
+		auth_shape: classifyAuthShape(wikis, deps.auth),
 		default_wiki: deps.defaultWikiKey,
 		wikis: Object.keys(wikis),
 		allow_wiki_management: deps.wikiRegistry.isManagementAllowed(),

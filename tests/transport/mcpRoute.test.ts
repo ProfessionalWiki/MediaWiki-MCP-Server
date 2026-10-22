@@ -71,8 +71,7 @@ function buildEraApp(): Express {
 		{ legacy: 'stateless' },
 	);
 	const route = createMcpRouteHandler(handler, {
-		auth: readAuthPolicy(process.env),
-		hostedProxy: null,
+		auth: readAuthPolicy(process.env, 'http', null),
 	});
 	app.post('/mcp', route);
 	app.get('/mcp', route);
@@ -145,9 +144,8 @@ describe('bearer threading through the route', () => {
 		app.post(
 			'/mcp',
 			createMcpRouteHandler(fakeHandler, {
-				auth: readAuthPolicy(process.env),
+				auth: readAuthPolicy(process.env, 'http', null),
 				wikiRegistry: oauthRegistry(),
-				hostedProxy: null,
 			}),
 		);
 		return app;
@@ -189,9 +187,8 @@ describe('bearer threading through the route', () => {
 		app.post(
 			'/mcp',
 			createMcpRouteHandler(fakeHandler, {
-				auth: readAuthPolicy(process.env),
+				auth: readAuthPolicy(process.env, 'http', null),
 				wikiRegistry: registry,
-				hostedProxy: null,
 			}),
 		);
 
@@ -263,8 +260,7 @@ describe('rate limiting on /mcp', () => {
 		app.post(
 			'/mcp',
 			createMcpRouteHandler(fakeHandler, {
-				auth: readAuthPolicy(process.env),
-				hostedProxy: null,
+				auth: readAuthPolicy(process.env, 'http', null),
 				rateLimiter: createRateLimiter(SETTINGS, frozenClock),
 				...options,
 			}),
@@ -376,7 +372,7 @@ describe('rate limiting on /mcp', () => {
 
 		const captured = { calls: 0 };
 		const app = buildLimitedApp(captured, {
-			hostedProxy: fakeHostedProxy(pcLocal, store),
+			auth: readAuthPolicy(process.env, 'http', fakeHostedProxy(pcLocal, store)),
 		});
 		const asJwt = (jwt: string, id: number) =>
 			request(app).post('/mcp').set('Authorization', `Bearer ${jwt}`).send(toolsCall(id));
@@ -431,8 +427,7 @@ describe('rate limiting cannot be bypassed by request shape', () => {
 		app.post(
 			'/mcp',
 			createMcpRouteHandler(handler, {
-				auth: readAuthPolicy(process.env),
-				hostedProxy: null,
+				auth: readAuthPolicy(process.env, 'http', null),
 				rateLimiter: createRateLimiter(SETTINGS, frozenClock),
 			}),
 		);

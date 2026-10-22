@@ -14,6 +14,7 @@ import type { WikiConfig } from '../../src/config/loadConfig.ts';
 import { updatePage } from '../../src/tools/update-page.ts';
 import { getPage } from '../../src/tools/get-page.ts';
 import { cargoQuery } from '../../src/tools/extensions/cargo/cargo-query.ts';
+import { fakeAuthPolicy } from '../helpers/fakeAuthPolicy.ts';
 
 // A minimal wiki-scoped tool that reports the wiki it ran against.
 const probe: Tool<Record<string, never>> = {
@@ -136,8 +137,7 @@ describe('dispatch wiki resolution', () => {
 			createSharedContext({
 				logger,
 				state,
-				transport: 'stdio',
-				auth: { bearerPassthrough: false, staticFallback: false },
+				auth: fakeAuthPolicy(),
 			}),
 		)({
 			wiki: 'other',
@@ -233,7 +233,7 @@ describe('dispatch capability guard', () => {
 			oauth2ClientId: 'client-id',
 		};
 		const ctx = fakeContext({
-			transport: 'http',
+			auth: fakeAuthPolicy({ transport: 'http' }),
 			wikis: {
 				getAll: () => ({ 'test-wiki': oauthConfig }) as never,
 				get: ((k: string) => (k === 'test-wiki' ? oauthConfig : undefined)) as never,

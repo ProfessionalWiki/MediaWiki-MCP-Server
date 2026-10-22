@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { checkHttpDeployment } from '../../src/transport/httpDeployment.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
 import { readAuthPolicy } from '../../src/runtime/authShape.ts';
+import { fakeHostedProxy } from '../helpers/fakeHostedProxy.ts';
+import { fakeProxyConfig } from '../helpers/fakeProxyConfig.ts';
+import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.ts';
 
 function wiki(overrides: Partial<WikiConfig> = {}): WikiConfig {
 	return {
@@ -20,8 +23,11 @@ function check(
 	return checkHttpDeployment({
 		wikis,
 		defaultWikiKey: Object.keys(wikis)[0],
-		auth: readAuthPolicy(options.env ?? {}),
-		proxyEnabled: options.proxyEnabled ?? false,
+		auth: readAuthPolicy(
+			options.env ?? {},
+			'http',
+			options.proxyEnabled ? fakeHostedProxy(fakeProxyConfig(), new InMemoryProxyStore()) : null,
+		),
 	});
 }
 
