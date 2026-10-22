@@ -18,6 +18,7 @@ import { acquireToken } from '../auth/acquireToken.ts';
 import { structuredResult } from '../results/response.ts';
 import { checkWikiCapability, isWriteTool } from './wikiCapability.ts';
 import { monotonicNow } from './clock.ts';
+import { usesOAuthSignIn } from './authShape.ts';
 
 // The budget can expire before a write is submitted or after it is in flight,
 // and the server cannot tell which. A caller that replays an append assuming it
@@ -62,10 +63,7 @@ export function dispatch<TSchema extends ZodRawShape, TCtx extends SharedContext
 			// that wiki's token. The rest work on server-local state or anonymous
 			// probes, and must stay reachable while that wiki's sign-in is broken.
 			const useOauth =
-				ctx.transport === 'stdio' &&
-				wiki !== undefined &&
-				typeof wiki.config.oauth2ClientId === 'string' &&
-				wiki.config.oauth2ClientId.trim() !== '';
+				ctx.transport === 'stdio' && wiki !== undefined && usesOAuthSignIn(wiki.config);
 
 			if (useOauth) {
 				const { key, config } = wiki;

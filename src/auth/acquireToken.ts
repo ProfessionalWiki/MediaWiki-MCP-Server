@@ -4,6 +4,7 @@ import { fetchMetadata, type WikiSlice } from './metadata.ts';
 import { OAuthFlowError } from './oauthFlow.ts';
 import { refreshIfNeeded } from './tokenRefresh.ts';
 import { createTokenStore } from './tokenStore.ts';
+import { usesOAuthSignIn } from '../runtime/authShape.ts';
 
 export interface AcquireCtx {
 	wiki: WikiSlice;
@@ -13,7 +14,7 @@ export interface AcquireCtx {
 }
 
 export async function acquireToken(wikiKey: string, ctx: AcquireCtx): Promise<string> {
-	if (typeof ctx.oauth2ClientId !== 'string' || ctx.oauth2ClientId.trim() === '') {
+	if (!usesOAuthSignIn(ctx)) {
 		throw new Error(`Wiki '${wikiKey}' has no oauth2ClientId; cannot acquire OAuth token.`);
 	}
 	const cur = (await createTokenStore().read()).tokens[wikiKey];

@@ -2,7 +2,11 @@ import { createHash } from 'node:crypto';
 import type { Request, RequestHandler, Response } from 'express';
 import type { McpHttpHandler } from '@modelcontextprotocol/server';
 import { toNodeHandler } from '@modelcontextprotocol/node';
-import { bearerPassthroughEnabled, hasStaticCredentials } from '../runtime/authShape.ts';
+import {
+	bearerPassthroughEnabled,
+	hasStaticCredentials,
+	usesOAuthSignIn,
+} from '../runtime/authShape.ts';
 import { recordRateLimited } from '../runtime/metrics.ts';
 import { withRequestContext, type RuntimeToken } from '../runtime/requestContext.ts';
 import type { WikiConfig } from '../config/loadConfig.ts';
@@ -45,8 +49,7 @@ export function resolveRequestProto(req: Request): 'http' | 'https' {
 
 // A wiki needs auth when it is OAuth-only with no usable static fallback.
 function wikiNeedsAuth(cfg: WikiConfig, fallbackAllowed: boolean): boolean {
-	const oauthOnly = typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
-	if (!oauthOnly) {
+	if (!usesOAuthSignIn(cfg)) {
 		return false;
 	}
 	const hasStatic = hasStaticCredentials(cfg);

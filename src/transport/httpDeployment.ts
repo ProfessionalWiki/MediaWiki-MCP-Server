@@ -1,5 +1,9 @@
 import type { WikiConfig } from '../config/loadConfig.ts';
-import { bearerPassthroughEnabled, hasStaticCredentials } from '../runtime/authShape.ts';
+import {
+	bearerPassthroughEnabled,
+	hasStaticCredentials,
+	usesOAuthSignIn,
+} from '../runtime/authShape.ts';
 import { evaluateBearerGuard } from './bearerGuard.ts';
 
 export interface HttpDeploymentCheck {
@@ -63,8 +67,6 @@ export function checkHttpDeployment(deployment: {
 		const staticAllowed = env.MCP_ALLOW_STATIC_FALLBACK === 'true';
 		const stranded = Object.entries(wikis)
 			.filter(([key, cfg]) => {
-				const usesOAuth =
-					typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
 				const usableStatic = hasStaticCredentials(cfg) && staticAllowed;
 				// A `private` DEFAULT wiki cannot be rescued by static credentials: the
 				// route challenges a tokenless request before any credential is
@@ -72,7 +74,7 @@ export function checkHttpDeployment(deployment: {
 				if (cfg.private === true && key === defaultWikiKey) {
 					return true;
 				}
-				return (usesOAuth || cfg.private === true) && !usableStatic;
+				return (usesOAuthSignIn(cfg) || cfg.private === true) && !usableStatic;
 			})
 			.map(([key]) => key);
 		if (stranded.length > 0) {

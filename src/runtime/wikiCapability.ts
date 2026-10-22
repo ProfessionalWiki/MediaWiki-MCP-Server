@@ -5,7 +5,7 @@ import { extensionPacks, packToolRefusal } from '../tools/extensions/index.ts';
 import { standardTools } from '../tools/standardTools.ts';
 import { isWikiScoped } from './wikiArg.ts';
 import { getRuntimeToken } from './requestContext.ts';
-import { bearerPassthroughEnabled, hasStaticCredentials } from './authShape.ts';
+import { bearerPassthroughEnabled, hasStaticCredentials, usesOAuthSignIn } from './authShape.ts';
 
 // The wiki-mutating tools. Shared by reconcile's read-only rule and the
 // per-call capability guard.
@@ -69,7 +69,7 @@ export async function checkWikiCapability(
 		const cfg = ctx.wikis.get(wikiKey);
 		if (cfg) {
 			const pc = ctx.getProxyConfig?.() ?? null;
-			const oauthOnly = typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
+			const oauthOnly = usesOAuthSignIn(cfg);
 			const hasStatic = hasStaticCredentials(cfg);
 			const anonymous = getRuntimeToken(wikiKey) === undefined;
 			if (pc) {

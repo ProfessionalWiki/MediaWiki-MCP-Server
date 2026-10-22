@@ -3,6 +3,7 @@ import {
 	bearerPassthroughEnabled,
 	classifyAuthShape,
 	hasStaticCredentials,
+	usesOAuthSignIn,
 } from '../../src/runtime/authShape.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
 
@@ -59,6 +60,22 @@ describe('hasStaticCredentials', () => {
 		const execUser = { exec: { command: 'op', args: ['read', 'user'] } };
 		const execPass = { exec: { command: 'op', args: ['read', 'pass'] } };
 		expect(hasStaticCredentials(wiki({ username: execUser, password: execPass }))).toBe(true);
+	});
+});
+
+describe('usesOAuthSignIn', () => {
+	it('is true for a wiki with an OAuth client id', () => {
+		expect(usesOAuthSignIn(wiki({ oauth2ClientId: 'client' }))).toBe(true);
+	});
+
+	it('is false for a wiki without one', () => {
+		expect(usesOAuthSignIn(wiki())).toBe(false);
+		expect(usesOAuthSignIn(wiki({ oauth2ClientId: null }))).toBe(false);
+	});
+
+	it('is false for a blank client id', () => {
+		expect(usesOAuthSignIn(wiki({ oauth2ClientId: '' }))).toBe(false);
+		expect(usesOAuthSignIn(wiki({ oauth2ClientId: '  ' }))).toBe(false);
 	});
 });
 

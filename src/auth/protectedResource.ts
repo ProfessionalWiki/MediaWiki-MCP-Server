@@ -1,6 +1,7 @@
 // src/auth/protectedResource.ts
 import type { OAuthProtectedResourceMetadata } from '@modelcontextprotocol/server';
 import type { UpstreamAsMetadata } from './metadata.ts';
+import { usesOAuthSignIn } from '../runtime/authShape.ts';
 
 const RESOURCE_DOCUMENTATION =
 	'https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/blob/master/docs/configuration.md#oauth';
@@ -29,12 +30,6 @@ export type ProtectedResourceDoc = OAuthProtectedResourceMetadata &
 	Required<
 		Pick<OAuthProtectedResourceMetadata, 'authorization_servers' | 'bearer_methods_supported'>
 	>;
-
-function anyWikiHasOAuth(wikis: Record<string, { oauth2ClientId?: string | null }>): boolean {
-	return Object.values(wikis).some(
-		(w) => typeof w.oauth2ClientId === 'string' && w.oauth2ClientId.length > 0,
-	);
-}
 
 /**
  * Resolves the public base URL of the MCP server with a guaranteed trailing
@@ -69,7 +64,7 @@ export function resolvePublicBase(
 export function buildProtectedResource(
 	input: ProtectedResourceInput,
 ): ProtectedResourceDoc | undefined {
-	if (!anyWikiHasOAuth(input.wikis) || input.metadatas.length === 0) {
+	if (!Object.values(input.wikis).some(usesOAuthSignIn) || input.metadatas.length === 0) {
 		return undefined;
 	}
 
