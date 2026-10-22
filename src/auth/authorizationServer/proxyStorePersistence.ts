@@ -213,18 +213,11 @@ export class PersistentProxyStore implements ProxyStore {
 	}
 }
 
-/**
- * Build the proxy store for a resolved proxy config. No config (proxy disabled) →
- * a plain in-memory store. Otherwise a PersistentProxyStore hydrated synchronously
- * from disk before it is returned (and thus before the server binds).
- */
+/** Hydrated synchronously, so before the server binds. */
 export function createProxyStore(
-	pc: ProxyConfig | null,
+	pc: ProxyConfig,
 	opts: { onError?: (err: Error) => void } = {},
 ): ProxyStore {
-	if (!pc) {
-		return new InMemoryProxyStore();
-	}
 	const store = new PersistentProxyStore(
 		new InMemoryProxyStore(),
 		getProxyStorePath(),

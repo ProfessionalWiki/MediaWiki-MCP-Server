@@ -17,9 +17,9 @@ import {
 } from '../../src/auth/authorizationServer/proxyStore.ts';
 import { PersistentProxyStore } from '../../src/auth/authorizationServer/proxyStorePersistence.ts';
 import { deriveKey } from '../../src/auth/authorizationServer/proxyStoreCrypto.ts';
-import { buildRedirectPolicy } from '../../src/auth/authorizationServer/redirectPolicy.ts';
 import type { ProxyConfig } from '../../src/auth/authorizationServer/proxyConfig.ts';
 import { fakeProxyConfig } from '../helpers/fakeProxyConfig.ts';
+import { fakeHostedProxy } from '../helpers/fakeHostedProxy.ts';
 import { randomVerifier, s256 } from '../../src/auth/pkce.ts';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 import { runHostedFlow } from '../helpers/fakeMcpClient.ts';
@@ -65,12 +65,7 @@ function makeDeps(fakeAsUrl: string, store: ProxyStore, pc: ProxyConfig): BuildA
 	return {
 		state: appState(fakeAsUrl),
 		auth: readAuthPolicy(process.env),
-		getProxyConfig: () => pc,
-		proxyStore: store,
-		proxyRedirectPolicy: buildRedirectPolicy(pc.redirectAllowlist),
-		cimdResolver: null,
-		defaultWikiKey: 'test',
-		defaultWikiSitename: 'Test Wiki',
+		hostedProxy: fakeHostedProxy(pc, store),
 		createServerFn: () => new McpServer({ name: 'smoke', version: '0.0.0' }, { capabilities: {} }),
 		host: '127.0.0.1',
 		allowedHosts: undefined,

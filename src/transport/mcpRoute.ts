@@ -15,8 +15,7 @@ import {
 } from './errorCodes.ts';
 import { sendJsonRpcError } from './jsonRpcError.ts';
 import type { RateLimitDecision, RateLimiter } from './rateLimit.ts';
-import type { ProxyConfig } from '../auth/authorizationServer/proxyConfig.ts';
-import type { ProxyStore } from '../auth/authorizationServer/proxyStore.ts';
+import type { HostedProxy } from '../auth/authorizationServer/hostedProxy.ts';
 import {
 	resolveUpstreamBearer,
 	UpstreamBearerError,
@@ -51,9 +50,6 @@ function wikiNeedsAuth(cfg: WikiConfig, fallbackAllowed: boolean): boolean {
 	const hasStatic = hasStaticCredentials(cfg);
 	return !(hasStatic && fallbackAllowed);
 }
-
-// Null while the hosted OAuth proxy is disabled.
-export type ProxyConfigGetter = () => ProxyConfig | null;
 
 // The SDK's rule: only a single request object with a string method has an id to echo.
 function echoableRequestId(body: unknown): string | number | undefined {
@@ -157,8 +153,7 @@ export interface McpRouteOptions {
 	auth: AuthPolicy;
 	wikiRegistry?: WikiRegistry;
 	// With the hosted proxy, a bearer is a proxy JWT standing for a stored wiki token.
-	getProxyConfig?: ProxyConfigGetter;
-	proxyStore?: ProxyStore;
+	hostedProxy: HostedProxy | null;
 	// Tests only.
 	refresh?: RefreshFn;
 	// When it is `private`, a tokenless request is refused at connect.
@@ -181,17 +176,11 @@ interface AdmittedCaller {
 const ANONYMOUS: AdmittedCaller = {};
 const UNAUTHENTICATED: Caller = { refusal: 'unauthenticated' };
 
-interface HostedProxy {
-	config: ProxyConfig;
-	store: ProxyStore;
-}
-
 async function resolveCaller(
 	bearer: string | undefined,
-	proxy: HostedProxy | null,
 	options: McpRouteOptions,
 ): Promise<Caller> {
-	const { wikiRegistry, defaultWikiKey, refresh, auth } = options;
+	const { wikiRegistry, defaultWikiKey, refresh, auth, hostedProxy } = options;
 
 	// Challenged at `initialize` too, so a client signs in when it connects.
 	if (
@@ -203,8 +192,8 @@ async function resolveCaller(
 	}
 
 	// A tokenless caller is asked to sign in only by a write, in checkWikiCapability.
-	if (proxy) {
-		return bearer ? signedInCaller(bearer, proxy, refresh) : ANONYMOUS;
+	if (hostedProxy) {
+		return bearer ? signedInCaller(bearer, hostedProxy, refresh) : ANONYMOUS;
 	}
 
 	// A bearer here was issued for the wiki, not for this server, so it is
@@ -258,20 +247,15 @@ export function createMcpRouteHandler(
 	handler: Pick<McpHttpHandler, 'fetch'>,
 	options: McpRouteOptions,
 ): RequestHandler {
-	const { getProxyConfig, proxyStore, rateLimiter } = options;
+	const { hostedProxy, rateLimiter } = options;
 	const nodeHandler = toNodeHandler(handler, { onerror: options.onerror });
 	return async (req, res) => {
-		const pc = getProxyConfig?.() ?? null;
-		const caller = await resolveCaller(
-			extractBearerToken(req),
-			pc && proxyStore ? { config: pc, store: proxyStore } : null,
-			options,
-		);
+		const caller = await resolveCaller(extractBearerToken(req), options);
 		if ('refusal' in caller) {
 			if (caller.refusal === 'unavailable') {
 				emit503Unavailable(req, res);
 			} else {
-				emit401Challenge(req, res, pc !== null);
+				emit401Challenge(req, res, hostedProxy !== null);
 			}
 			return;
 		}

@@ -190,7 +190,7 @@ describe('consent', () => {
 		expect(cookie).toContain('HttpOnly');
 		expect(cookie).toContain('Secure');
 		expect(cookie).toContain('SameSite=Lax');
-		expect(cookie).toContain('Path=/mcp');
+		expect(cookie).toContain('Path=/mcp/oauth/callback;');
 		expect(readTxnCookie('a=1; mcp_txn=txn-123; b=2')).toBe('txn-123');
 		expect(readTxnCookie(undefined)).toBeUndefined();
 	});

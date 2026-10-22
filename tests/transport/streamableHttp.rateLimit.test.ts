@@ -9,7 +9,6 @@ import request from 'supertest';
 import { McpServer } from '@modelcontextprotocol/server';
 import { buildApp, type BuildAppDeps } from '../../src/transport/streamableHttp.ts';
 import { createAppState } from '../../src/wikis/state.ts';
-import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.ts';
 import { createRateLimiter } from '../../src/transport/rateLimit.ts';
 import { RATE_LIMITED_ERROR_CODE } from '../../src/transport/errorCodes.ts';
 import { readAuthPolicy } from '../../src/runtime/authShape.ts';
@@ -45,12 +44,7 @@ function makeDeps(calls: { count: number }): BuildAppDeps {
 			},
 			uploadDirs: [],
 		}),
-		getProxyConfig: () => null,
-		proxyStore: new InMemoryProxyStore(),
-		proxyRedirectPolicy: null,
-		cimdResolver: null,
-		defaultWikiKey: 'test',
-		defaultWikiSitename: 'Test Wiki',
+		hostedProxy: null,
 		createServerFn: () => {
 			const server = new McpServer(
 				{ name: 'rl-app', version: '0.0.0' },

@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import express, { type Request, type Response, type RequestHandler } from 'express';
-import type { ProxyConfig } from './proxyConfig.ts';
-import type { ProxyStore, ClientRecord } from './proxyStore.ts';
+import type { ClientRecord } from './proxyStore.ts';
+import { AUTHORIZATION_SERVER_PATHS, type HostedProxy } from './hostedProxy.ts';
 import { buildAsMetadata } from './asMetadata.ts';
 import { handleRegister } from './register.ts';
-import { isCimdClientId, CimdResolver } from './cimd.ts';
+import { isCimdClientId } from './cimd.ts';
 import { planAuthorize, planDeny, type AuthorizeQuery, type ConsentClaims } from './authorize.ts';
 import {
 	renderConsentPage,
@@ -21,18 +21,6 @@ import {
 import { verifyConsent } from './jwt.ts';
 import { handleCallback } from './callback.ts';
 import { handleToken } from './token.ts';
-
-// Everything the authorization-server routes need. Resolved once (from config/env)
-// by the caller; the routes 404 per-endpoint when the proxy is disabled
-// (getProxyConfig() returns null), exactly as before this was its own module.
-export interface AuthorizationServerDeps {
-	getProxyConfig: () => ProxyConfig | null;
-	store: ProxyStore;
-	proxyRedirectPolicy: ((uri: string) => boolean) | null;
-	cimdResolver: CimdResolver | null;
-	defaultWikiKey: string;
-	defaultWikiSitename: string;
-}
 
 // Persist the proxy transaction id (carried as `state` on the upstream authorize
 // URL) in a cookie, so the callback can recover it even when the upstream drops
@@ -108,53 +96,29 @@ function sendAuthError(res: Response, status: number, reason: string): void {
 
 // Mounts the hosted OAuth proxy's authorization-server endpoints (RFC 8414 metadata,
 // RFC 7591 registration, and the authorize / consent / callback / token flow) on the
-// app. Each endpoint 404s while the proxy is disabled. Kept out of the transport's
-// buildApp so the AS surface lives with the rest of src/auth/authorizationServer/.
-export function mountAuthorizationServer(
-	app: express.Express,
-	deps: AuthorizationServerDeps,
-): void {
-	const {
-		getProxyConfig,
-		store,
-		proxyRedirectPolicy,
-		cimdResolver,
-		defaultWikiKey,
-		defaultWikiSitename,
-	} = deps;
+// app. Kept out of the transport's buildApp so the AS surface lives with the rest of
+// src/auth/authorizationServer/.
+export function mountAuthorizationServer(app: express.Express, proxy: HostedProxy): void {
+	const { config: pc, store, redirectPolicy, cimdResolver, sitename } = proxy;
+	const wikiKey = pc.wikiKey;
+	// The consent decision and the token request are form-encoded, not JSON.
+	const formBody = express.urlencoded({ extended: false });
 
-	// Shared guard: returns the active proxy config, or sends the empty-body 404 and
-	// null when the proxy is disabled. Every AS endpoint exists only while enabled.
-	const proxyEnabledOr404 = (res: Response): ProxyConfig | null => {
-		const pc = getProxyConfig();
-		if (!pc) {
-			res.status(404).end();
-		}
-		return pc;
-	};
-
-	// RFC 8414 authorization-server metadata. Served only when the hosted OAuth
-	// proxy is enabled, in which case this server names itself as the AS. The
+	// RFC 8414 authorization-server metadata, naming this server as the AS. The
 	// `/mcp` suffix variant covers clients that append the resource path segment
 	// to the well-known location.
 	const asMetadataHandler: RequestHandler = (_req, res) => {
-		const pc = proxyEnabledOr404(res);
-		if (!pc) return;
 		res.json(buildAsMetadata(pc));
 	};
-	app.get('/.well-known/oauth-authorization-server', asMetadataHandler);
-	app.get('/.well-known/oauth-authorization-server/mcp', asMetadataHandler);
+	app.get(AUTHORIZATION_SERVER_PATHS.metadata, asMetadataHandler);
+	app.get(AUTHORIZATION_SERVER_PATHS.metadataForMcp, asMetadataHandler);
 
-	// RFC 7591 Dynamic Client Registration. Served only when the hosted OAuth
-	// proxy is enabled. The request body is already parsed by the top-level
-	// express.json() middleware. handleRegister validates redirect_uris against
-	// the proxy's redirect policy before minting a public (PKCE-only) client.
-	app.post('/mcp/register', (req, res) => {
-		if (!getProxyConfig() || !proxyRedirectPolicy) {
-			res.status(404).end();
-			return;
-		}
-		const result = handleRegister(req.body, store, proxyRedirectPolicy);
+	// RFC 7591 Dynamic Client Registration. The request body is already parsed by
+	// the top-level express.json() middleware. handleRegister validates
+	// redirect_uris against the proxy's redirect policy before minting a public
+	// (PKCE-only) client.
+	app.post(AUTHORIZATION_SERVER_PATHS.register, (req, res) => {
+		const result = handleRegister(req.body, store, redirectPolicy);
 		res.status(result.status).json(result.body);
 	});
 
@@ -165,7 +129,7 @@ export function mountAuthorizationServer(
 		client: ClientRecord | undefined;
 		error?: string;
 	}> {
-		if (clientId && cimdResolver && isCimdClientId(clientId)) {
+		if (clientId && isCimdClientId(clientId)) {
 			const r = await cimdResolver.resolve(clientId);
 			if (!r.ok) {
 				return { client: undefined, error: r.reason };
@@ -177,11 +141,9 @@ export function mountAuthorizationServer(
 
 	// GET /mcp/authorize — the proxy authorization endpoint. Validates the client +
 	// redirect, gates on the signed consent cookie (bound to clientId + redirectHost
-	// + the default wiki key), and either renders the consent page or 302s to the
+	// + the proxy wiki key), and either renders the consent page or 302s to the
 	// upstream wiki authorize URL.
-	app.get('/mcp/authorize', async (req, res) => {
-		const pc = proxyEnabledOr404(res);
-		if (!pc) return;
+	app.get(AUTHORIZATION_SERVER_PATHS.authorize, async (req, res) => {
 		const q = readAuthorizeQuery(req.query);
 
 		let consent: ConsentClaims | undefined;
@@ -191,11 +153,11 @@ export function mountAuthorizationServer(
 			const ok = await verifyConsent(cookie, {
 				clientId: q.client_id,
 				redirectHost,
-				wiki: defaultWikiKey,
+				wiki: wikiKey,
 				signingKey: pc.signingKey,
 			});
 			if (ok) {
-				consent = { clientId: q.client_id, redirectHost, wiki: defaultWikiKey };
+				consent = { clientId: q.client_id, redirectHost, wiki: wikiKey };
 			}
 		}
 
@@ -223,7 +185,7 @@ export function mountAuthorizationServer(
 			res.type('html').send(
 				renderConsentPage({
 					clientName: plan.clientName,
-					wiki: defaultWikiSitename,
+					wiki: sitename,
 					authorizeQuery: serializeAuthorizeQuery(q),
 					csrfToken,
 					redirectHost: redirectHost ?? '',
@@ -241,9 +203,7 @@ export function mountAuthorizationServer(
 	// cookie and re-run planAuthorize to 302 to the upstream (Set-Cookie + 302 in
 	// the one response is correct: the browser stores the cookie and follows the
 	// redirect, so the subsequent upstream callback can be matched).
-	app.post('/mcp/consent', express.urlencoded({ extended: false }), async (req, res) => {
-		const pc = proxyEnabledOr404(res);
-		if (!pc) return;
+	app.post(AUTHORIZATION_SERVER_PATHS.consent, formBody, async (req, res) => {
 		const q = readAuthorizeQuery(req.query);
 		const resolved = await resolveClient(q.client_id);
 		if (resolved.error) {
@@ -291,11 +251,11 @@ export function mountAuthorizationServer(
 			await buildConsentCookie(pc, {
 				clientId: q.client_id,
 				redirectHost,
-				wiki: defaultWikiKey,
+				wiki: wikiKey,
 			}),
 		);
 
-		const consent: ConsentClaims = { clientId: q.client_id, redirectHost, wiki: defaultWikiKey };
+		const consent: ConsentClaims = { clientId: q.client_id, redirectHost, wiki: wikiKey };
 		const plan = planAuthorize(q, consent, pc, store, client);
 		if (plan.kind === 'error') {
 			sendAuthError(res, plan.status, errorReason(plan.body, 'invalid request'));
@@ -322,9 +282,7 @@ export function mountAuthorizationServer(
 	// binding authorize set), then hand off to handleCallback, which exchanges the
 	// wiki code on the internal tokenExchangeBase, stores the upstream token, mints a
 	// one-time downstream client code, and 302s back to the client redirect.
-	app.get('/mcp/oauth/callback', async (req, res) => {
-		const pc = proxyEnabledOr404(res);
-		if (!pc) return;
+	app.get(AUTHORIZATION_SERVER_PATHS.callback, async (req, res) => {
 		const queryError = firstScalar(req.query.error);
 		const q = {
 			code: firstScalar(req.query.code),
@@ -350,7 +308,7 @@ export function mountAuthorizationServer(
 			consentOk = await verifyConsent(cookie, {
 				clientId: txn.clientId,
 				redirectHost: new URL(txn.clientRedirectUri).hostname,
-				wiki: defaultWikiKey,
+				wiki: wikiKey,
 				signingKey: pc.signingKey,
 			});
 		}
@@ -363,15 +321,11 @@ export function mountAuthorizationServer(
 		res.redirect(302, plan.location);
 	});
 
-	// POST /mcp/token — the proxy's RFC 6749 token endpoint. Served only when the
-	// hosted OAuth proxy is enabled. Bodies are form-encoded (not JSON), so a route-
-	// local express.urlencoded parser is used. handleToken handles both the
-	// authorization_code grant (verify client PKCE, consume the one-time code, mint
-	// proxy JWTs) and the refresh_token grant (verify the proxy refresh JWT, refresh
-	// the upstream token server-to-server, re-mint).
-	app.post('/mcp/token', express.urlencoded({ extended: false }), async (req, res) => {
-		const pc = proxyEnabledOr404(res);
-		if (!pc) return;
+	// POST /mcp/token — the proxy's RFC 6749 token endpoint. handleToken handles
+	// both the authorization_code grant (verify client PKCE, consume the one-time
+	// code, mint proxy JWTs) and the refresh_token grant (verify the proxy refresh
+	// JWT, refresh the upstream token server-to-server, re-mint).
+	app.post(AUTHORIZATION_SERVER_PATHS.token, formBody, async (req, res) => {
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- form-encoded body is untyped; handleToken reads each field defensively
 		const body = (req.body ?? {}) as Record<string, string>;
 		const result = await handleToken(body, pc, store);
