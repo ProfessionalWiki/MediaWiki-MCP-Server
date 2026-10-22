@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-22
+
 ### Breaking changes
 
 - The NeoWiki tools now need NeoWiki from 2026-09-19 or later. On an earlier NeoWiki, `neowiki-validate-subject` fails before 2026-08-25, `neowiki-create-subject` fails before 2026-09-14 for a subject that is not the page's main subject (ProfessionalWiki/NeoWiki#1422), and `neowiki-search-subjects` needs a schema before 2026-09-19.
@@ -441,7 +443,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - Smithery integration.
 
-[Unreleased]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.16.0...v0.17.0
