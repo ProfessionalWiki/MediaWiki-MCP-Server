@@ -4,7 +4,12 @@ import type { Mwn } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { buildPageUrl } from '../wikis/utils.ts';
-import { contentMaxBytes, truncateByBytes, type TruncationInfo } from '../results/truncation.ts';
+import {
+	contentMaxBytes,
+	truncateByBytes,
+	type TruncatedContent,
+	type TruncationInfo,
+} from '../results/truncation.ts';
 import { sectionContentTruncation } from '../services/sectionMarker.ts';
 
 const MAX_TITLES = 50;
@@ -48,13 +53,6 @@ type FetchResult = {
 	byResolvedTitle: Map<string, ApiPageLike>;
 	aliasTo: Map<string, string>;
 	redirectFrom: Set<string>;
-};
-
-type PendingTruncation = {
-	entryIndex: number;
-	title: string;
-	returnedBytes: number;
-	totalBytes: number;
 };
 
 const inputSchema = {
@@ -208,13 +206,18 @@ async function buildPageEntry(
 // than dropped, so a caller still receives something. At most one page's body
 // is ever cut, and it is always the first. Only bodies are counted; the
 // metadata around them is small and fixed.
-function applyResponseBudget(entries: PageEntry[]): { omitted: string[]; cut?: PendingTruncation } {
+async function fitToResponseBudget(
+	mwn: Mwn,
+	ctx: ToolContext,
+	entries: PageEntry[],
+): Promise<{ pages: PageEntry[]; omitted: string[] }> {
 	const budget = contentMaxBytes();
+	const pages: PageEntry[] = [];
 	let used = 0;
 	let keptABody = false;
-	let cut: PendingTruncation | undefined;
 	for (const [index, entry] of entries.entries()) {
 		if (entry.source === undefined) {
+			pages.push(entry);
 			continue;
 		}
 		const size = Buffer.byteLength(entry.source, 'utf8');
@@ -224,28 +227,44 @@ function applyResponseBudget(entries: PageEntry[]): { omitted: string[]; cut?: P
 		// source with no source anywhere in the response.
 		if (!keptABody && size > budget) {
 			const truncated = truncateByBytes(entry.source, budget);
-			entry.source = truncated.text;
+			pages.push({
+				...entry,
+				source: truncated.text,
+				truncation: await cutTruncation(mwn, ctx, entry, truncated),
+			});
 			used = truncated.returnedBytes;
 			keptABody = true;
-			cut = {
-				entryIndex: index,
-				title: entry.title ?? entry.requestedTitle ?? '',
-				returnedBytes: truncated.returnedBytes,
-				totalBytes: truncated.totalBytes,
-			};
 			continue;
 		}
 		if (used + size > budget) {
 			// Named as the caller named them: a page it asked for by a redirect or
 			// an unnormalised title is one it cannot otherwise account for.
 			const omitted = entries.slice(index).map((e) => e.requestedTitle ?? e.title ?? '');
-			entries.length = index;
-			return { omitted, cut };
+			return { pages, omitted };
 		}
+		pages.push(entry);
 		used += size;
 		keptABody = true;
 	}
-	return { omitted: [], cut };
+	return { pages, omitted: [] };
+}
+
+async function cutTruncation(
+	mwn: Mwn,
+	ctx: ToolContext,
+	entry: PageEntry,
+	truncated: TruncatedContent,
+): Promise<TruncationInfo> {
+	return sectionContentTruncation({
+		entries: await ctx.sections.list(mwn, entry.title ?? entry.requestedTitle ?? ''),
+		// get-pages reads whole pages, so the narrowing on offer is always the
+		// page's own sections.
+		section: undefined,
+		itemNoun: 'wikitext',
+		toolName: 'get-pages',
+		returnedBytes: truncated.returnedBytes,
+		totalBytes: truncated.totalBytes,
+	});
 }
 
 // A continuation exists and is exact — the names of the pages left out — so the
@@ -262,27 +281,6 @@ function omittedPagesTruncation(returnedCount: number, omitted: string[]): Trunc
 		// pipe, which is MediaWiki's own separator for a multi-value argument.
 		continueWith: { param: 'titles', value: omitted.join('|') },
 	};
-}
-
-async function applyTruncation(
-	mwn: Mwn,
-	ctx: ToolContext,
-	entries: PageEntry[],
-	cut: PendingTruncation | undefined,
-): Promise<void> {
-	if (cut === undefined) {
-		return;
-	}
-	entries[cut.entryIndex].truncation = sectionContentTruncation({
-		entries: await ctx.sections.list(mwn, cut.title),
-		// get-pages reads whole pages, so the narrowing on offer is always the
-		// page's own sections.
-		section: undefined,
-		itemNoun: 'wikitext',
-		toolName: 'get-pages',
-		returnedBytes: cut.returnedBytes,
-		totalBytes: cut.totalBytes,
-	});
 }
 
 async function assembleEntries(
@@ -344,15 +342,12 @@ export const getPages: Tool<typeof inputSchema> = {
 				: 'ids|timestamp|contentmodel';
 		const fetched = await fetchPages(mwn, ctx, args, rvprop);
 		const { entries, missing } = await assembleEntries(args, fetched, ctx);
-		const { omitted, cut } = applyResponseBudget(entries);
-		await applyTruncation(mwn, ctx, entries, cut);
+		const { pages, omitted } = await fitToResponseBudget(mwn, ctx, entries);
 
 		return ctx.format.ok({
-			pages: entries,
+			pages,
 			...(missing.length > 0 ? { missing } : {}),
-			...(omitted.length > 0
-				? { truncation: omittedPagesTruncation(entries.length, omitted) }
-				: {}),
+			...(omitted.length > 0 ? { truncation: omittedPagesTruncation(pages.length, omitted) } : {}),
 		});
 	},
 };

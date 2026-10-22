@@ -577,7 +577,7 @@ describe('get-pages', () => {
 				massQueryResponse({
 					pages: [
 						massQueryPage('BigA', 1, 10, 'a'.repeat(1200)),
-						massQueryPage('BigB', 2, 20, 'b'.repeat(700)),
+						massQueryPage('BigB', 2, 20, 'b'.repeat(1200)),
 					],
 				}),
 			);
@@ -740,6 +740,15 @@ describe('get-pages response budget', () => {
 		expect(text).not.toContain('Title: P2');
 	});
 
+	it('names a later page larger than the budget rather than cutting it', async () => {
+		const ctx = pagesOfSize([300, 1500]);
+
+		const text = assertStructuredSuccess(await read(ctx, ['P1', 'P2']));
+
+		expect(text).not.toContain('Title: P2');
+		expect(text).toContain('    Value: P2');
+	});
+
 	// An earlier entry can carry no body at all — a revision whose text the wiki
 	// withholds — and dropping the first real one would answer a request for
 	// source with no source anywhere in the response.
@@ -773,5 +782,24 @@ describe('get-pages response budget', () => {
 		const text = assertStructuredSuccess(await read(ctx, ['P1', 'Shortcut']));
 
 		expect(text).toContain('    Value: Shortcut');
+	});
+
+	it('outlines the page a redirect led to when cutting it', async () => {
+		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '1000');
+		const massQuery = vi.fn().mockResolvedValue(
+			massQueryResponse({
+				pages: [massQueryPage('Target', 1, 100, 'x'.repeat(1500))],
+				redirects: [{ from: 'Shortcut', to: 'Target' }],
+			}),
+		);
+		const request = vi.fn().mockResolvedValue({ parse: { sections: [] } });
+		const mock = createMockMwn({ massQuery, request });
+		const ctx = contextOn(mock, { sections: new SectionServiceImpl() });
+
+		await read(ctx, ['Shortcut']);
+
+		expect(request).toHaveBeenCalledWith(
+			expect.objectContaining({ page: 'Target', prop: 'sections' }),
+		);
 	});
 });
