@@ -1,5 +1,5 @@
 import type express from 'express';
-import { recordReadyFailure } from '../runtime/metrics.ts';
+import type { Metrics } from '../runtime/metrics.ts';
 import { monotonicNow } from '../runtime/clock.ts';
 import type { MwnProvider } from '../wikis/mwnProvider.ts';
 import { withCallBounds } from '../wikis/abortableMwn.ts';
@@ -74,6 +74,7 @@ export function mountReadyEndpoint(
 	deps: {
 		defaultWikiKey: string;
 		mwnProvider: MwnProvider;
+		metrics: Metrics;
 	},
 ): void {
 	let readyCache: ReadyCacheEntry | null = null;
@@ -104,7 +105,7 @@ export function mountReadyEndpoint(
 				// that merely waited on this probe — K8s readiness probes that fire
 				// every second would otherwise inflate the counter for one outage.
 				if (entry.httpStatus !== 200) {
-					recordReadyFailure();
+					deps.metrics.recordReadyFailure();
 				}
 			}
 		}

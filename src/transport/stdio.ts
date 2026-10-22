@@ -10,6 +10,7 @@ import { loadConfigFromFile } from '../config/loadConfig.ts';
 import { createAppState } from '../wikis/state.ts';
 import { readAuthPolicy } from '../runtime/authShape.ts';
 import { StdioSignIn } from '../auth/stdioSignIn.ts';
+import { readMetrics } from '../runtime/metrics.ts';
 
 async function main(): Promise<void> {
 	const config = loadConfigFromFile();
@@ -24,7 +25,12 @@ async function main(): Promise<void> {
 			auth,
 		},
 	);
-	const ctx = createSharedContext({ logger, state, auth });
+	const ctx = createSharedContext({
+		logger,
+		state,
+		auth,
+		metrics: readMetrics(process.env, 'stdio'),
+	});
 
 	// serveStdio owns the connection: the opening exchange pins the era, one
 	// instance from the factory serves the connection's lifetime, and on a

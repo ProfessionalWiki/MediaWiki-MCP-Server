@@ -11,6 +11,7 @@ import type { ErrorClassifier } from '../errors/classifyError.ts';
 import type { WikiConfig } from '../config/loadConfig.ts';
 import type { Logger } from './logger.ts';
 import type { AuthPolicy } from './authShape.ts';
+import type { Metrics } from './metrics.ts';
 
 export interface CallWiki {
 	readonly key: string;
@@ -32,6 +33,7 @@ export interface SharedContext {
 	readonly errors: ErrorClassifier;
 	readonly logger: Logger;
 	readonly auth: AuthPolicy;
+	readonly metrics: Metrics;
 }
 
 /** The context of a call that acts on a wiki: that wiki, and its services. */

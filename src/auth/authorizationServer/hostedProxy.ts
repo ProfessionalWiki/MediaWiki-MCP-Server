@@ -1,5 +1,6 @@
 import type { ProxyConfig } from './proxyConfig.ts';
 import type { ProxyStore } from './proxyStore.ts';
+import type { Metrics } from '../../runtime/metrics.ts';
 import { createProxyStore } from './proxyStorePersistence.ts';
 import { buildRedirectPolicy } from './redirectPolicy.ts';
 import { CimdResolver, buildCimdHostPredicate } from './cimd.ts';
@@ -31,11 +32,12 @@ export const AUTHORIZATION_SERVER_PATHS = {
 export function startHostedProxy(
 	config: ProxyConfig,
 	sitename: string,
+	metrics: Metrics,
 	onPersistError: (err: Error) => void,
 ): HostedProxy {
 	return {
 		config,
-		store: createProxyStore(config, { onError: onPersistError }),
+		store: createProxyStore(config, metrics, { onError: onPersistError }),
 		redirectPolicy: buildRedirectPolicy(config.redirectAllowlist),
 		cimdResolver: new CimdResolver(
 			buildCimdHostPredicate(config.cimdAllowedHosts),

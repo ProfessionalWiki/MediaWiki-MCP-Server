@@ -16,6 +16,7 @@ import {
 	READY_PROBE_TIMEOUT_MS,
 } from '../../src/transport/ready.ts';
 import type { MwnProvider } from '../../src/wikis/mwnProvider.ts';
+import { metricsOff } from '../helpers/metrics.ts';
 
 const mockMwnProvider: MwnProvider = {
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Mwn has 100+ methods; tests only use request().
@@ -25,7 +26,11 @@ const mockMwnProvider: MwnProvider = {
 
 function makeApp() {
 	const app = express();
-	mountReadyEndpoint(app, { defaultWikiKey: 'example.org', mwnProvider: mockMwnProvider });
+	mountReadyEndpoint(app, {
+		defaultWikiKey: 'example.org',
+		mwnProvider: mockMwnProvider,
+		metrics: metricsOff(),
+	});
 	return app;
 }
 
@@ -75,6 +80,7 @@ describe('/ready', () => {
 			defaultWikiKey: 'example.org',
 			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Mwn has 100+ methods; this probe uses request() and rawRequest().
 			mwnProvider: { get: async () => bot as never, invalidate: () => {} },
+			metrics: metricsOff(),
 		});
 
 		await request(app).get('/ready');

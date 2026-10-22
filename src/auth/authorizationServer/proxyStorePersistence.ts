@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { isErrnoException } from '../../errors/isErrnoException.ts';
-import { recordStoreFlush, recordStoreFlushFailure } from '../../runtime/metrics.ts';
+import type { Metrics } from '../../runtime/metrics.ts';
 import { getProxyStorePath } from '../paths.ts';
 import type { ProxyConfig } from './proxyConfig.ts';
 import { deriveKey, decrypt, encrypt } from './proxyStoreCrypto.ts';
@@ -48,6 +48,7 @@ export class PersistentProxyStore implements ProxyStore {
 		private inner: InMemoryProxyStore,
 		private file: string,
 		private key: Buffer,
+		private metrics: Metrics,
 		private onError: (err: Error) => void = () => {},
 	) {}
 
@@ -194,7 +195,7 @@ export class PersistentProxyStore implements ProxyStore {
 			writeFileSync(tmp, blob, { mode: 0o600 });
 			renameSync(tmp, this.file);
 			this.dirty = false;
-			recordStoreFlush(monotonicNow() - start);
+			this.metrics.recordStoreFlush(monotonicNow() - start);
 		} catch (err: unknown) {
 			// Best-effort durability: a disk failure must not break the live request. The
 			// record stays valid in memory; persistence is re-attempted by the next
@@ -203,7 +204,7 @@ export class PersistentProxyStore implements ProxyStore {
 			// snapshot on the token path (where `dirty` is usually already clear).
 			// Count the failure so a slow-and-failing flush is visible to /metrics, not
 			// only in the onError log. inc() never throws, so it stays out of the way.
-			recordStoreFlushFailure();
+			this.metrics.recordStoreFlushFailure();
 			try {
 				this.onError(err instanceof Error ? err : new Error(String(err)));
 			} catch {
@@ -216,12 +217,14 @@ export class PersistentProxyStore implements ProxyStore {
 /** Hydrated synchronously, so before the server binds. */
 export function createProxyStore(
 	pc: ProxyConfig,
+	metrics: Metrics,
 	opts: { onError?: (err: Error) => void } = {},
 ): ProxyStore {
 	const store = new PersistentProxyStore(
 		new InMemoryProxyStore(),
 		getProxyStorePath(),
 		deriveKey(pc.signingKey),
+		metrics,
 		opts.onError,
 	);
 	store.hydrate();

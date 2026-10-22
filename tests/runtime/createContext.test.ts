@@ -8,6 +8,7 @@ import type { Config } from '../../src/config/loadConfig.ts';
 import type { SharedContext } from '../../src/runtime/context.ts';
 import { writingWiki } from '../helpers/writingWiki.ts';
 import { fakeAuthPolicy } from '../helpers/fakeAuthPolicy.ts';
+import { metricsOff } from '../helpers/metrics.ts';
 
 const testConfig: Config = {
 	defaultWiki: 'w',
@@ -51,6 +52,7 @@ function contextHandingOut(instance: () => unknown): SharedContext {
 		logger,
 		state,
 		auth: fakeAuthPolicy(),
+		metrics: metricsOff(),
 	});
 }
 
@@ -63,10 +65,12 @@ async function botRightInOneCall(ctx: SharedContext): Promise<boolean | undefine
 describe('createSharedContext', () => {
 	it('populates all SharedContext fields', () => {
 		const state = createAppState(testConfig);
+		const metrics = metricsOff();
 		const ctx = createSharedContext({
 			logger,
 			state,
 			auth: fakeAuthPolicy(),
+			metrics,
 		});
 		expect(ctx.mwnFor).toBeTypeOf('function');
 		expect(ctx.editFor).toBeTypeOf('function');
@@ -81,6 +85,7 @@ describe('createSharedContext', () => {
 		expect(ctx.format).toBeDefined();
 		expect(ctx.errors).toBeDefined();
 		expect(ctx.logger).toBe(logger);
+		expect(ctx.metrics).toBe(metrics);
 	});
 
 	it('applies the request cancellation signal to the mwn instance it hands out', async () => {
