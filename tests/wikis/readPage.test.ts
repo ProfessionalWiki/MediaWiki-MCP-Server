@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
-import { readPage } from '../../src/wikis/readPage.ts';
+import { readPage, renderPage } from '../../src/wikis/readPage.ts';
 
 function wikiAnsweringRead(response: object): ReturnType<typeof createMockMwn> {
 	return createMockMwn({ request: vi.fn().mockResolvedValue(response) });
@@ -33,5 +33,17 @@ describe('readPage', () => {
 		await expect(readPage(mock as never, '', { redirects: true })).rejects.toThrow(
 			'The wiki returned no page for ""',
 		);
+	});
+});
+
+describe('renderPage', () => {
+	it('reports the title and page ID of the page the wiki rendered', async () => {
+		const mock = wikiAnsweringRead({
+			parse: { title: 'Test Page', pageid: 7, text: '<p>Hello</p>' },
+		});
+
+		const rendered = await renderPage(mock as never, { oldid: 42 });
+
+		expect(rendered).toMatchObject({ title: 'Test Page', pageId: 7 });
 	});
 });
