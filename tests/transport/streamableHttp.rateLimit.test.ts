@@ -8,10 +8,9 @@ import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { McpServer } from '@modelcontextprotocol/server';
 import { buildApp, type BuildAppDeps } from '../../src/transport/streamableHttp.ts';
-import { createAppState } from '../../src/wikis/state.ts';
 import { createRateLimiter } from '../../src/transport/rateLimit.ts';
 import { RATE_LIMITED_ERROR_CODE } from '../../src/transport/errorCodes.ts';
-import { readAuthPolicy } from '../../src/runtime/authShape.ts';
+import { fakeAppDeps } from '../helpers/fakeAppDeps.ts';
 
 const SETTINGS = {
 	ratePerSecond: 1,
@@ -27,23 +26,7 @@ const SETTINGS = {
 const frozenClock = () => 1_000_000;
 
 function makeDeps(calls: { count: number }): BuildAppDeps {
-	return {
-		auth: readAuthPolicy(process.env, 'http', null, null),
-		state: createAppState({
-			defaultWiki: 'test',
-			wikis: {
-				test: {
-					sitename: 'Test Wiki',
-					server: 'http://wiki.invalid',
-					articlepath: '/wiki',
-					scriptpath: '/w',
-					token: null,
-					username: null,
-					password: null,
-				},
-			},
-			uploadDirs: [],
-		}),
+	return fakeAppDeps({
 		createServerFn: () => {
 			const server = new McpServer(
 				{ name: 'rl-app', version: '0.0.0' },
@@ -55,12 +38,8 @@ function makeDeps(calls: { count: number }): BuildAppDeps {
 			});
 			return server;
 		},
-		host: '127.0.0.1',
-		allowedHosts: undefined,
-		allowedOrigins: [],
-		maxRequestBody: '1mb',
 		rateLimiter: createRateLimiter(SETTINGS, frozenClock),
-	};
+	});
 }
 
 const call = (id: number) => ({

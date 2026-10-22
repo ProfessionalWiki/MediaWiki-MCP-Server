@@ -23,6 +23,7 @@ import { withRequestContext, getRuntimeToken } from '../../src/runtime/requestCo
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 import { runHostedFlow, setCookieHeaders } from '../helpers/fakeMcpClient.ts';
 import { readAuthPolicy } from '../../src/runtime/authShape.ts';
+import { fakeAppDeps } from '../helpers/fakeAppDeps.ts';
 
 const ISSUER = 'https://mcp.example/mcp';
 const SIGNING_KEY = 'k'.repeat(32);
@@ -77,18 +78,14 @@ function makeDeps(
 	pc: ProxyConfig | null,
 	onServe?: () => void | Promise<void>,
 ): BuildAppDeps {
-	return {
+	return fakeAppDeps({
 		state: appState(fakeAsUrl),
 		auth: readAuthPolicy(process.env, 'http', pc ? fakeHostedProxy(pc, store) : null, null),
 		createServerFn: async () => {
 			await onServe?.();
 			return stubCreateServer();
 		},
-		host: '127.0.0.1',
-		allowedHosts: undefined,
-		allowedOrigins: [],
-		maxRequestBody: '1mb',
-	};
+	});
 }
 
 // Origin validation must guard the MCP endpoint itself without reaching the
@@ -840,15 +837,11 @@ describe('private wiki — connection-time auth challenge', () => {
 			},
 			uploadDirs: [],
 		});
-		return {
+		return fakeAppDeps({
 			state,
 			auth: readAuthPolicy(process.env, 'http', pc ? fakeHostedProxy(pc, store) : null, null),
 			createServerFn: stubCreateServer,
-			host: '127.0.0.1',
-			allowedHosts: undefined,
-			allowedOrigins: [],
-			maxRequestBody: '1mb',
-		};
+		});
 	}
 
 	it('challenges an anonymous initialize with 401 + WWW-Authenticate', async () => {
@@ -924,15 +917,7 @@ describe('private wiki — connection-time auth challenge', () => {
 			},
 			uploadDirs: [],
 		});
-		buildApp({
-			state,
-			auth: readAuthPolicy(process.env, 'http', null, null),
-			createServerFn: stubCreateServer,
-			host: '127.0.0.1',
-			allowedHosts: undefined,
-			allowedOrigins: [],
-			maxRequestBody: '1mb',
-		});
+		buildApp(fakeAppDeps({ state }));
 
 		expect(warnSpy).toHaveBeenCalledWith(
 			expect.stringContaining('marked private but has no oauth2ClientId'),
@@ -959,15 +944,7 @@ describe('private wiki — connection-time auth challenge', () => {
 			},
 			uploadDirs: [],
 		});
-		buildApp({
-			state,
-			auth: readAuthPolicy(process.env, 'http', null, null),
-			createServerFn: stubCreateServer,
-			host: '127.0.0.1',
-			allowedHosts: undefined,
-			allowedOrigins: [],
-			maxRequestBody: '1mb',
-		});
+		buildApp(fakeAppDeps({ state }));
 
 		expect(warnSpy).not.toHaveBeenCalledWith(
 			expect.stringContaining('marked private but has no oauth2ClientId'),
