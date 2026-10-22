@@ -185,26 +185,24 @@ function isSecretField(name: string): name is SecretFieldName {
 	return (SECRET_FIELDS as readonly string[]).includes(name);
 }
 
-const configPath = process.env.CONFIG || 'config.json';
-
-function replaceEnvVars(value: string): string {
+function replaceEnvVars(value: string, env: NodeJS.ProcessEnv): string {
 	return value.replace(/\$\{([^}]+)\}/g, (match, envVar: string) => {
-		const envValue = process.env[envVar];
+		const envValue = env[envVar];
 		return envValue !== undefined ? envValue : match;
 	});
 }
 
-function replaceEnvVarsInObject(obj: unknown): unknown {
+function replaceEnvVarsInObject(obj: unknown, env: NodeJS.ProcessEnv): unknown {
 	if (typeof obj === 'string') {
-		return replaceEnvVars(obj);
+		return replaceEnvVars(obj, env);
 	}
 	if (Array.isArray(obj)) {
-		return obj.map((item) => replaceEnvVarsInObject(item));
+		return obj.map((item) => replaceEnvVarsInObject(item, env));
 	}
 	if (obj !== null && typeof obj === 'object') {
 		const result: Record<string, unknown> = {};
 		for (const [key, value] of Object.entries(obj)) {
-			result[key] = replaceEnvVarsInObject(value);
+			result[key] = replaceEnvVarsInObject(value, env);
 		}
 		return result;
 	}
@@ -215,13 +213,14 @@ function resolveSecretField(
 	raw: unknown,
 	wikiKey: string,
 	fieldName: SecretFieldName,
+	env: NodeJS.ProcessEnv,
 ): string | ExecSecret | null | undefined {
 	if (raw === null || raw === undefined) {
 		return raw;
 	}
 	if (typeof raw === 'string') {
 		if (raw.includes('${')) {
-			const substituted = replaceEnvVars(raw);
+			const substituted = replaceEnvVars(raw, env);
 			const unresolved = substituted.match(/\$\{([^}]+)\}/);
 			if (unresolved) {
 				throw new Error(
@@ -269,7 +268,11 @@ function parseExecSecret(raw: unknown, fieldPath: string): ExecSecret {
 	return { exec: { command: exec.command, args: (exec.args as string[]) ?? [] } };
 }
 
-function resolveUploadDirs(rawFromConfig: unknown): readonly string[] {
+function resolveUploadDirs(
+	rawFromConfig: unknown,
+	env: NodeJS.ProcessEnv,
+	realpath: (path: string) => string,
+): readonly string[] {
 	const fromConfig: string[] = [];
 	if (rawFromConfig !== undefined) {
 		if (!Array.isArray(rawFromConfig)) {
@@ -286,7 +289,7 @@ function resolveUploadDirs(rawFromConfig: unknown): readonly string[] {
 		}
 	}
 
-	const envRaw = process.env.MCP_UPLOAD_DIRS;
+	const envRaw = env.MCP_UPLOAD_DIRS;
 	const fromEnv: string[] = [];
 	if (envRaw) {
 		for (const entry of envRaw.split(':')) {
@@ -304,7 +307,7 @@ function resolveUploadDirs(rawFromConfig: unknown): readonly string[] {
 	for (const raw of [...fromEnv, ...fromConfig]) {
 		let canonical: string;
 		try {
-			canonical = fs.realpathSync(raw);
+			canonical = realpath(raw);
 		} catch (err) {
 			throw new Error(
 				`Config error: upload directory "${raw}" cannot be resolved (${errorMessage(err)}). Ensure the directory exists before starting the server.`,
@@ -317,7 +320,7 @@ function resolveUploadDirs(rawFromConfig: unknown): readonly string[] {
 	return canonicalised;
 }
 
-function resolveWiki(raw: unknown, wikiKey: string): WikiConfig {
+function resolveWiki(raw: unknown, wikiKey: string, env: NodeJS.ProcessEnv): WikiConfig {
 	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
 		throw new Error(`Config error: wikis.${wikiKey} must be an object`);
 	}
@@ -326,9 +329,9 @@ function resolveWiki(raw: unknown, wikiKey: string): WikiConfig {
 	const resolved: Record<string, unknown> = {};
 	for (const [fieldKey, fieldValue] of Object.entries(src)) {
 		if (isSecretField(fieldKey)) {
-			resolved[fieldKey] = resolveSecretField(fieldValue, wikiKey, fieldKey);
+			resolved[fieldKey] = resolveSecretField(fieldValue, wikiKey, fieldKey, env);
 		} else {
-			resolved[fieldKey] = replaceEnvVarsInObject(fieldValue);
+			resolved[fieldKey] = replaceEnvVarsInObject(fieldValue, env);
 		}
 	}
 	if (resolved.readOnly !== undefined && typeof resolved.readOnly !== 'boolean') {
@@ -338,16 +341,25 @@ function resolveWiki(raw: unknown, wikiKey: string): WikiConfig {
 	return resolved as unknown as WikiConfig;
 }
 
-function resolveConfig(parsed: unknown): Config {
+/**
+ * `env` supplies the `${VAR}` substitutions and the env-var overrides; `realpath`
+ * canonicalises the upload directories.
+ */
+export function parseConfig(
+	text: string,
+	env: NodeJS.ProcessEnv,
+	realpath: (path: string) => string,
+): Config {
+	const parsed: unknown = JSON.parse(text);
 	if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
 		throw new Error('Config error: config.json must be an object');
 	}
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; ajv-validated WikiConfig parsing is a separate follow-up
 	const p = parsed as Record<string, unknown>;
-	const defaultWiki = typeof p.defaultWiki === 'string' ? replaceEnvVars(p.defaultWiki) : '';
+	const defaultWiki = typeof p.defaultWiki === 'string' ? replaceEnvVars(p.defaultWiki, env) : '';
 	const allowWikiManagement =
 		typeof p.allowWikiManagement === 'boolean' ? p.allowWikiManagement : undefined;
-	const uploadDirs = resolveUploadDirs(p.uploadDirs);
+	const uploadDirs = resolveUploadDirs(p.uploadDirs, env, realpath);
 	const rawWikis = p.wikis;
 	if (typeof rawWikis !== 'object' || rawWikis === null || Array.isArray(rawWikis)) {
 		return { defaultWiki, wikis: {}, allowWikiManagement, uploadDirs };
@@ -358,10 +370,10 @@ function resolveConfig(parsed: unknown): Config {
 		if (problem !== undefined) {
 			throw new Error(`Config error: wiki key "${key}" ${wikiKeyProblemMessage(problem)}`);
 		}
-		wikis[key] = resolveWiki(rawWiki, key);
+		wikis[key] = resolveWiki(rawWiki, key, env);
 	}
-	applyOAuth2ClientIdOverride(wikis, defaultWiki);
-	applyOAuth2ClientSecretOverride(wikis, defaultWiki);
+	applyOAuth2ClientIdOverride(wikis, defaultWiki, env);
+	applyOAuth2ClientSecretOverride(wikis, defaultWiki, env);
 	return { defaultWiki, wikis, allowWikiManagement, uploadDirs };
 }
 
@@ -373,8 +385,12 @@ function resolveConfig(parsed: unknown): Config {
  * into config.json. The env value wins over the file; a blank value is ignored so
  * it can't blank out a configured id.
  */
-function applyOAuth2ClientIdOverride(wikis: Record<string, WikiConfig>, defaultWiki: string): void {
-	const fromEnv = process.env.MCP_OAUTH2_CLIENT_ID?.trim();
+function applyOAuth2ClientIdOverride(
+	wikis: Record<string, WikiConfig>,
+	defaultWiki: string,
+	env: NodeJS.ProcessEnv,
+): void {
+	const fromEnv = env.MCP_OAUTH2_CLIENT_ID?.trim();
 	if (fromEnv && wikis[defaultWiki]) {
 		wikis[defaultWiki].oauth2ClientId = fromEnv;
 	}
@@ -389,23 +405,26 @@ function applyOAuth2ClientIdOverride(wikis: Record<string, WikiConfig>, defaultW
 function applyOAuth2ClientSecretOverride(
 	wikis: Record<string, WikiConfig>,
 	defaultWiki: string,
+	env: NodeJS.ProcessEnv,
 ): void {
-	const fromEnv = process.env.MCP_OAUTH2_CLIENT_SECRET?.trim();
+	const fromEnv = env.MCP_OAUTH2_CLIENT_SECRET?.trim();
 	if (fromEnv && wikis[defaultWiki]) {
 		wikis[defaultWiki].oauth2ClientSecret = fromEnv;
 	}
 }
 
 export function loadConfigFromFile(): Config {
+	const configPath = process.env.CONFIG || 'config.json';
 	if (!fs.existsSync(configPath)) {
 		if (process.env.CONFIG) {
 			logger.warning(
 				`CONFIG points at "${configPath}", which does not exist. Falling back to the built-in default configuration (English Wikipedia). A relative path resolves against the server's working directory.`,
 			);
 		}
-		return { ...defaultConfig, uploadDirs: resolveUploadDirs(undefined) };
+		return {
+			...defaultConfig,
+			uploadDirs: resolveUploadDirs(undefined, process.env, fs.realpathSync),
+		};
 	}
-	const rawData = fs.readFileSync(configPath, 'utf-8');
-	const parsed = JSON.parse(rawData);
-	return resolveConfig(parsed);
+	return parseConfig(fs.readFileSync(configPath, 'utf-8'), process.env, fs.realpathSync);
 }
