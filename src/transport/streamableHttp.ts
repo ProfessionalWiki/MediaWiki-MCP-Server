@@ -548,7 +548,7 @@ export function startHttpServer(): void {
 					logger.error(`Proxy store persistence write failed: ${err.message}`),
 				)
 			: null;
-	const auth = readAuthPolicy(process.env, 'http', hostedProxy);
+	const auth = readAuthPolicy(process.env, 'http', hostedProxy, null);
 
 	const { host, port, allowedHosts, allowedOrigins, maxRequestBody, rateLimit, warnings } =
 		resolveHttpConfig();

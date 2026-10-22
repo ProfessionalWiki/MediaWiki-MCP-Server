@@ -12,6 +12,7 @@ import type { WikiIdentity, WikiProbe } from '../../src/wikis/wikiProbe.ts';
 import { UploadDirsImpl, type UploadDirs } from '../../src/wikis/uploadDirs.ts';
 import { fakeLogger } from './fakeLogger.ts';
 import { fakeAuthPolicy } from './fakeAuthPolicy.ts';
+import { StdioSignIn } from '../../src/auth/stdioSignIn.ts';
 import type { Transport } from '../../src/runtime/authShape.ts';
 import type { MockMwn } from './mock-mwn.ts';
 
@@ -142,7 +143,10 @@ export function ctxForWikis(
 	const lookup = (key: string): Record<string, unknown> | undefined =>
 		Object.hasOwn(registry, key) ? registry[key] : undefined;
 	return fakeContext({
-		auth: fakeAuthPolicy({ transport }),
+		auth: fakeAuthPolicy({
+			transport,
+			stdioSignIn: transport === 'stdio' ? new StdioSignIn() : null,
+		}),
 		wikis: {
 			getAll: () => registry as never,
 			get: lookup as never,

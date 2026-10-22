@@ -11,12 +11,6 @@ export interface RefreshContext {
 	metadata: Pick<UpstreamAsMetadata, 'token_endpoint' | 'issuer'>;
 }
 
-const inFlight = new Map<string, Promise<string>>();
-
-export function _resetRefreshDedupForTesting(): void {
-	inFlight.clear();
-}
-
 /**
  * Returns a fresh access_token for `wikiKey`. If `preloaded` is supplied,
  * skips the credentials-file read — callers that already read the store
@@ -44,16 +38,7 @@ export async function refreshIfNeeded(
 		throw new OAuthFlowError('invalid_grant', 'Stored token expired with no refresh_token');
 	}
 
-	const existing = inFlight.get(wikiKey);
-	if (existing !== undefined) {
-		return existing;
-	}
-
-	const pending = doRefresh(wikiKey, ctx, cur.refresh_token, cur.scopes).finally(() => {
-		inFlight.delete(wikiKey);
-	});
-	inFlight.set(wikiKey, pending);
-	return pending;
+	return doRefresh(wikiKey, ctx, cur.refresh_token, cur.scopes);
 }
 
 async function doRefresh(

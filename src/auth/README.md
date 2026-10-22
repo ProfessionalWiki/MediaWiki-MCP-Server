@@ -13,9 +13,9 @@ Which role is active depends on configuration. The proxy path turns on only when
 - `mwOauth2Endpoints.ts` — build a wiki's `rest.php/oauth2/{authorize,access_token}` URLs. Single source of truth for those paths, shared with the proxy side.
 - `oauthFlow.ts` — the low-level token exchange and refresh HTTP calls, plus the error classifier (`invalid_grant` / `invalid_client` / transient / malformed).
 - `upstreamBearer.ts` — resolve a proxy-minted `/mcp` JWT to the stored upstream wiki token it stands for, proactively refreshing near-expiry tokens with per-token coalescing. Used by the HTTP transport's request guard; bridges the two roles.
-- `acquireToken.ts` — orchestrate acquiring a token for a wiki (discovery → browser login → store).
+- `stdioSignIn.ts` — `StdioSignIn`, created once by the stdio transport: acquire a token for a wiki (stored, refreshed, or by browser login), one acquisition per wiki at a time.
 - `browserAuth.ts` — the interactive login: open the browser, catch the redirect on a loopback listener.
-- `tokenRefresh.ts` — refresh a stored token when it is near expiry, with per-wiki dedup.
+- `tokenRefresh.ts` — refresh a stored token when it is near expiry.
 - `tokenStore.ts` — persist and read back acquired tokens on disk.
 - `protectedResource.ts` — build the protected-resource metadata this server advertises to MCP clients.
 - `pkce.ts` — PKCE verifier / challenge helpers (used by both roles).

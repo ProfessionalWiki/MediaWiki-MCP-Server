@@ -28,7 +28,7 @@ const frozenClock = () => 1_000_000;
 
 function makeDeps(calls: { count: number }): BuildAppDeps {
 	return {
-		auth: readAuthPolicy(process.env, 'http', null),
+		auth: readAuthPolicy(process.env, 'http', null, null),
 		state: createAppState({
 			defaultWiki: 'test',
 			wikis: {

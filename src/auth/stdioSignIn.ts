@@ -1,4 +1,4 @@
-// src/auth/acquireToken.ts
+// src/auth/stdioSignIn.ts
 import { browserAuth } from './browserAuth.ts';
 import { fetchMetadata, type WikiSlice } from './metadata.ts';
 import { OAuthFlowError } from './oauthFlow.ts';
@@ -13,7 +13,25 @@ export interface AcquireCtx {
 	callbackPort?: number;
 }
 
-export async function acquireToken(wikiKey: string, ctx: AcquireCtx): Promise<string> {
+/** The stdio server signing in to OAuth wikis itself, with the user's browser. */
+export class StdioSignIn {
+	// Concurrent calls to one wiki share one refresh or one browser sign-in.
+	private readonly pending = new Map<string, Promise<string>>();
+
+	public acquire(wikiKey: string, ctx: AcquireCtx): Promise<string> {
+		const existing = this.pending.get(wikiKey);
+		if (existing !== undefined) {
+			return existing;
+		}
+		const pending = acquireToken(wikiKey, ctx).finally(() => {
+			this.pending.delete(wikiKey);
+		});
+		this.pending.set(wikiKey, pending);
+		return pending;
+	}
+}
+
+async function acquireToken(wikiKey: string, ctx: AcquireCtx): Promise<string> {
 	if (!usesOAuthSignIn(ctx)) {
 		throw new Error(`Wiki '${wikiKey}' has no oauth2ClientId; cannot acquire OAuth token.`);
 	}

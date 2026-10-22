@@ -1,10 +1,6 @@
 // tests/auth/tokenRefresh.test.ts
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-	_resetRefreshDedupForTesting,
-	refreshIfNeeded,
-	type RefreshContext,
-} from '../../src/auth/tokenRefresh.ts';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { refreshIfNeeded, type RefreshContext } from '../../src/auth/tokenRefresh.ts';
 import { createTokenStore, type StoredToken } from '../../src/auth/tokenStore.ts';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 import { fakeClock } from '../helpers/fakeClock.ts';
@@ -14,12 +10,7 @@ useTempTokenStore();
 
 let fakeAs: FakeAsHandle | undefined;
 
-beforeEach(() => {
-	_resetRefreshDedupForTesting();
-});
-
 afterEach(async () => {
-	_resetRefreshDedupForTesting();
 	await fakeAs?.close();
 	fakeAs = undefined;
 	vi.useRealTimers();
@@ -239,42 +230,6 @@ describe('refreshIfNeeded', () => {
 		expect(creds.tokens['my-wiki']).toBeDefined();
 	});
 
-	it('concurrent calls for the same wiki share one in-flight refresh promise', async () => {
-		const clock = fakeClock();
-		vi.setSystemTime(clock.now());
-
-		let callCount = 0;
-		fakeAs = await startFakeAs({
-			token: (_req, res) => {
-				callCount++;
-				res.json({
-					access_token: 'access-refreshed',
-					refresh_token: 'refresh-rotated',
-					expires_in: 3600,
-					scope: 'edit',
-				});
-			},
-		});
-		const store = createTokenStore();
-		await store.put(
-			'my-wiki',
-			storedToken({
-				expires_at: new Date(clock.now() + 30_000).toISOString(),
-			}),
-		);
-
-		const [r1, r2, r3] = await Promise.all([
-			refreshIfNeeded('my-wiki', makeCtx(`${fakeAs.url}/w/rest.php/oauth2/access_token`)),
-			refreshIfNeeded('my-wiki', makeCtx(`${fakeAs.url}/w/rest.php/oauth2/access_token`)),
-			refreshIfNeeded('my-wiki', makeCtx(`${fakeAs.url}/w/rest.php/oauth2/access_token`)),
-		]);
-
-		expect(callCount).toBe(1);
-		expect(r1).toBe('access-refreshed');
-		expect(r2).toBe('access-refreshed');
-		expect(r3).toBe('access-refreshed');
-	});
-
 	it('uses stored scopes when AS response does not include scope', async () => {
 		const clock = fakeClock();
 		vi.setSystemTime(clock.now());
@@ -300,48 +255,5 @@ describe('refreshIfNeeded', () => {
 
 		const creds = await store.read();
 		expect(creds.tokens['my-wiki']?.scopes).toEqual(['edit', 'read']);
-	});
-
-	it('_resetRefreshDedupForTesting clears in-flight map', async () => {
-		const clock = fakeClock();
-		vi.setSystemTime(clock.now());
-
-		// Simulates that a second batch of calls after reset creates a new in-flight entry.
-		let callCount = 0;
-		fakeAs = await startFakeAs({
-			token: (_req, res) => {
-				callCount++;
-				res.json({
-					access_token: `access-${callCount}`,
-					refresh_token: `refresh-${callCount}`,
-					expires_in: 3600,
-					scope: 'edit',
-				});
-			},
-		});
-		const store = createTokenStore();
-
-		await store.put(
-			'my-wiki',
-			storedToken({
-				expires_at: new Date(clock.now() + 30_000).toISOString(),
-			}),
-		);
-		await refreshIfNeeded('my-wiki', makeCtx(`${fakeAs.url}/w/rest.php/oauth2/access_token`));
-
-		// After reset, token is now fresh (stored fresh from first refresh).
-		// To trigger a second refresh, we need to re-write an expiring token.
-		_resetRefreshDedupForTesting();
-
-		await store.put(
-			'my-wiki',
-			storedToken({
-				expires_at: new Date(clock.now() + 30_000).toISOString(),
-				refresh_token: 'another-refresh',
-			}),
-		);
-
-		await refreshIfNeeded('my-wiki', makeCtx(`${fakeAs.url}/w/rest.php/oauth2/access_token`));
-		expect(callCount).toBe(2);
 	});
 });

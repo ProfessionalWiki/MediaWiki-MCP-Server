@@ -54,7 +54,7 @@ function buildMcpApp(
 	app.post(
 		'/mcp',
 		createMcpRouteHandler(handler, {
-			auth: readAuthPolicy(process.env, 'http', null),
+			auth: readAuthPolicy(process.env, 'http', null, null),
 			wikiRegistry: registry,
 			...options,
 		}),

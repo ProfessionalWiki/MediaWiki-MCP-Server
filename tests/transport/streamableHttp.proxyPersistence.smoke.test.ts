@@ -64,7 +64,7 @@ function proxyConfig(fakeAsUrl: string): ProxyConfig {
 function makeDeps(fakeAsUrl: string, store: ProxyStore, pc: ProxyConfig): BuildAppDeps {
 	return {
 		state: appState(fakeAsUrl),
-		auth: readAuthPolicy(process.env, 'http', fakeHostedProxy(pc, store)),
+		auth: readAuthPolicy(process.env, 'http', fakeHostedProxy(pc, store), null),
 		createServerFn: () => new McpServer({ name: 'smoke', version: '0.0.0' }, { capabilities: {} }),
 		host: '127.0.0.1',
 		allowedHosts: undefined,

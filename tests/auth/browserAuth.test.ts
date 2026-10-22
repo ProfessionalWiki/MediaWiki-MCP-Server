@@ -1,11 +1,7 @@
 // tests/auth/browserAuth.test.ts
 import { ChildProcess } from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-	browserAuth,
-	BrowserAuthError,
-	_resetBrowserAuthDedupForTesting,
-} from '../../src/auth/browserAuth.ts';
+import { browserAuth, BrowserAuthError } from '../../src/auth/browserAuth.ts';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 import { useTempTokenStore } from '../helpers/tempTokenStore.ts';
 import { createTokenStore } from '../../src/auth/tokenStore.ts';
@@ -23,7 +19,6 @@ beforeEach(() => vi.clearAllMocks());
 afterEach(async () => {
 	await fakeAs?.close();
 	_resetMetadataCacheForTesting();
-	_resetBrowserAuthDedupForTesting();
 	vi.unstubAllEnvs();
 });
 
@@ -168,29 +163,6 @@ describe('browserAuth', () => {
 		);
 		expect(wrote).toBe(true);
 		stderrSpy.mockRestore();
-	});
-
-	it('concurrent calls for the same wiki share one dance (open called once)', async () => {
-		fakeAs = await startFakeAs();
-		vi.mocked(openMod).mockImplementation(
-			fakeBrowserDriver(fakeAs.url, 'consent') as typeof openMod,
-		);
-
-		const [t1, t2] = await Promise.all([
-			browserAuth('test-wiki', {
-				wiki: makeWiki(fakeAs.url),
-				clientId: 'my-client',
-				scopes: ['edit'],
-			}),
-			browserAuth('test-wiki', {
-				wiki: makeWiki(fakeAs.url),
-				clientId: 'my-client',
-				scopes: ['edit'],
-			}),
-		]);
-
-		expect(t1).toBe(t2);
-		expect(vi.mocked(openMod).mock.calls.length).toBe(1);
 	});
 
 	it('BrowserAuthError is an instanceof Error', async () => {

@@ -207,7 +207,7 @@ describe('origin validation (middleware)', () => {
 		app.post(
 			'/mcp',
 			...guard,
-			createMcpRouteHandler(handler, { auth: readAuthPolicy(process.env, 'http', null) }),
+			createMcpRouteHandler(handler, { auth: readAuthPolicy(process.env, 'http', null, null) }),
 		);
 		return app;
 	}

@@ -9,11 +9,12 @@ import { registerShutdownHandlers } from '../runtime/shutdown.ts';
 import { loadConfigFromFile } from '../config/loadConfig.ts';
 import { createAppState } from '../wikis/state.ts';
 import { readAuthPolicy } from '../runtime/authShape.ts';
+import { StdioSignIn } from '../auth/stdioSignIn.ts';
 
 async function main(): Promise<void> {
 	const config = loadConfigFromFile();
 	const state = createAppState(config);
-	const auth = readAuthPolicy(process.env, 'stdio', null);
+	const auth = readAuthPolicy(process.env, 'stdio', null, new StdioSignIn());
 	emitStartupBanner(
 		{ transport: 'stdio' },
 		{

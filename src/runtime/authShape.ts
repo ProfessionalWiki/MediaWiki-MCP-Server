@@ -1,6 +1,7 @@
 import type { WikiConfig } from '../config/loadConfig.ts';
 import { isCredentialConfigured } from '../config/loadConfig.ts';
 import type { HostedProxy } from '../auth/authorizationServer/hostedProxy.ts';
+import type { StdioSignIn } from '../auth/stdioSignIn.ts';
 
 // How the server authenticates, to its wikis and its callers. Consumed by runtime/
 // (banner, wiki capability) and transport/ (the startup bearer guard,
@@ -25,7 +26,6 @@ export type Transport = 'stdio' | 'http';
 
 /** How the deployment lets callers authenticate, decided once at startup. */
 export interface AuthPolicy {
-	/** On stdio the server signs in to an OAuth wiki itself, through the user's browser. */
 	readonly transport: Transport;
 	/**
 	 * Forward a caller-supplied bearer to the wiki. Deprecated and off unless opted
@@ -36,18 +36,22 @@ export interface AuthPolicy {
 	readonly staticFallback: boolean;
 	/** On HTTP, when configured: this server signs callers in to one wiki and issues their tokens. */
 	readonly hostedProxy: HostedProxy | null;
+	/** On stdio: the server signs in to an OAuth wiki itself, through the user's browser. */
+	readonly stdioSignIn: StdioSignIn | null;
 }
 
 export function readAuthPolicy(
 	env: NodeJS.ProcessEnv,
 	transport: Transport,
 	hostedProxy: HostedProxy | null,
+	stdioSignIn: StdioSignIn | null,
 ): AuthPolicy {
 	return {
 		transport,
 		bearerPassthrough: env.MCP_ALLOW_BEARER_PASSTHROUGH === 'true',
 		staticFallback: env.MCP_ALLOW_STATIC_FALLBACK === 'true',
 		hostedProxy,
+		stdioSignIn,
 	};
 }
 

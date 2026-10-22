@@ -7,6 +7,7 @@ export function fakeAuthPolicy(overrides: Partial<AuthPolicy> = {}): AuthPolicy 
 		bearerPassthrough: false,
 		staticFallback: false,
 		hostedProxy: null,
+		stdioSignIn: null,
 		...overrides,
 	};
 }

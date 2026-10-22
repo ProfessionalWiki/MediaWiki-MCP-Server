@@ -159,18 +159,22 @@ describe('classifyAuthShape', () => {
 
 describe('readAuthPolicy', () => {
 	it('leaves forwarding and the static fallback off when their variables are unset', () => {
-		expect(readAuthPolicy({}, 'stdio', null)).toMatchObject({
+		expect(readAuthPolicy({}, 'stdio', null, null)).toMatchObject({
 			bearerPassthrough: false,
 			staticFallback: false,
 		});
 	});
 
 	it('turns each on only for its own variable set to "true"', () => {
-		expect(readAuthPolicy({ MCP_ALLOW_BEARER_PASSTHROUGH: 'true' }, 'stdio', null)).toMatchObject({
+		expect(
+			readAuthPolicy({ MCP_ALLOW_BEARER_PASSTHROUGH: 'true' }, 'stdio', null, null),
+		).toMatchObject({
 			bearerPassthrough: true,
 			staticFallback: false,
 		});
-		expect(readAuthPolicy({ MCP_ALLOW_STATIC_FALLBACK: 'true' }, 'stdio', null)).toMatchObject({
+		expect(
+			readAuthPolicy({ MCP_ALLOW_STATIC_FALLBACK: 'true' }, 'stdio', null, null),
+		).toMatchObject({
 			bearerPassthrough: false,
 			staticFallback: true,
 		});
@@ -181,6 +185,7 @@ describe('readAuthPolicy', () => {
 			readAuthPolicy(
 				{ MCP_ALLOW_BEARER_PASSTHROUGH: value, MCP_ALLOW_STATIC_FALLBACK: value },
 				'stdio',
+				null,
 				null,
 			),
 		).toMatchObject({ bearerPassthrough: false, staticFallback: false });
