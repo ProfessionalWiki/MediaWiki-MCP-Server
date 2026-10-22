@@ -52,6 +52,7 @@ import { createServer, type ChangePublisher, type CreateServerOptions } from '..
 import { emitStartupBanner } from '../runtime/banner.ts';
 import { createSharedContext } from '../runtime/createContext.ts';
 import { registerShutdownHandlers, resolveShutdownGrace } from '../runtime/shutdown.ts';
+import { usesOAuthSignIn } from '../runtime/authShape.ts';
 
 // The exported surface here (BuildAppDeps, and the protected-resource handler's
 // deps) names this type, so a caller has to be able to name it too.
@@ -198,9 +199,7 @@ export function createOAuthProtectedResourceHandler(deps: {
 				return;
 			}
 			const wikis = deps.wikiRegistry.getAll();
-			const oauthWikis = Object.entries(wikis).filter(
-				([, w]) => typeof w.oauth2ClientId === 'string' && w.oauth2ClientId.trim() !== '',
-			);
+			const oauthWikis = Object.entries(wikis).filter(([, w]) => usesOAuthSignIn(w));
 			if (oauthWikis.length === 0) {
 				res.status(404).end();
 				return;
@@ -429,8 +428,7 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 	// document only resolves to an authorization server when the wiki has an
 	// `oauth2ClientId`. Warn the operator about a private wiki that lacks one.
 	for (const [key, cfg] of Object.entries(state.wikiRegistry.getAll())) {
-		const hasAs = typeof cfg.oauth2ClientId === 'string' && cfg.oauth2ClientId.trim() !== '';
-		if (cfg.private === true && !hasAs) {
+		if (cfg.private === true && !usesOAuthSignIn(cfg)) {
 			logger.warning(
 				`Wiki "${key}" is marked private but has no oauth2ClientId, so a client cannot be ` +
 					'pointed anywhere to sign in. Configure hosted OAuth sign-in (oauth2ClientId, ' +

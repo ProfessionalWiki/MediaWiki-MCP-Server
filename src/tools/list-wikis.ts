@@ -2,7 +2,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { SharedContext } from '../runtime/context.ts';
 import { extensionPacks, packToolRefusal } from './extensions/index.ts';
-import { bearerPassthroughEnabled } from '../runtime/authShape.ts';
+import { bearerPassthroughEnabled, usesOAuthSignIn } from '../runtime/authShape.ts';
 import { fetchMetadata } from '../auth/metadata.ts';
 
 interface WikiSummary {
@@ -55,11 +55,7 @@ export const listWikis: Tool<Record<string, never>, SharedContext> = {
 						.map((tool) => tool.name),
 				);
 				let authorizationServer: string | undefined;
-				if (
-					bearerPassthroughEnabled() &&
-					typeof config.oauth2ClientId === 'string' &&
-					config.oauth2ClientId.trim() !== ''
-				) {
+				if (bearerPassthroughEnabled() && usesOAuthSignIn(config)) {
 					try {
 						const md = await fetchMetadata(key, {
 							server: config.server,

@@ -13,6 +13,12 @@ export function hasStaticCredentials(wiki: WikiConfig): boolean {
 	return isCredentialConfigured(wiki.username) && isCredentialConfigured(wiki.password);
 }
 
+export function usesOAuthSignIn<T extends { oauth2ClientId?: string | null }>(
+	wiki: T,
+): wiki is T & { oauth2ClientId: string } {
+	return typeof wiki.oauth2ClientId === 'string' && wiki.oauth2ClientId.trim() !== '';
+}
+
 export type AuthShape = 'anonymous' | 'static-credential' | 'bearer-passthrough' | 'oauth-proxy';
 export type Transport = 'stdio' | 'http';
 
