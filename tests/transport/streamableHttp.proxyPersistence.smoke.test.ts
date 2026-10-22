@@ -3,7 +3,6 @@
 // through the REAL buildApp routes + a real encrypted on-disk store.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
-import { McpServer } from '@modelcontextprotocol/server';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
@@ -24,6 +23,7 @@ import { randomVerifier, s256 } from '../../src/auth/pkce.ts';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 import { runHostedFlow } from '../helpers/fakeMcpClient.ts';
 import { readAuthPolicy } from '../../src/runtime/authShape.ts';
+import { fakeAppDeps } from '../helpers/fakeAppDeps.ts';
 
 const ISSUER = 'https://mcp.example/mcp';
 const SIGNING_KEY = 'k'.repeat(32);
@@ -62,15 +62,10 @@ function proxyConfig(fakeAsUrl: string): ProxyConfig {
 }
 
 function makeDeps(fakeAsUrl: string, store: ProxyStore, pc: ProxyConfig): BuildAppDeps {
-	return {
+	return fakeAppDeps({
 		state: appState(fakeAsUrl),
 		auth: readAuthPolicy(process.env, 'http', fakeHostedProxy(pc, store), null),
-		createServerFn: () => new McpServer({ name: 'smoke', version: '0.0.0' }, { capabilities: {} }),
-		host: '127.0.0.1',
-		allowedHosts: undefined,
-		allowedOrigins: [],
-		maxRequestBody: '1mb',
-	};
+	});
 }
 
 describe('#451 smoke: proxy sign-in survives a restart (real routes + encrypted file)', () => {
