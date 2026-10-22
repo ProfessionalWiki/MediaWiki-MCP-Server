@@ -56,6 +56,19 @@ describe('create-page', () => {
 		expect(text).toContain('/wiki/New_Page');
 	});
 
+	it('reports the title the wiki saved the page under', async () => {
+		const wiki = fakeWiki();
+
+		const result = await createPage.handle(
+			{ source: 'Hello', title: 'new_Page' },
+			contextWritingTo(wiki),
+		);
+
+		const text = assertStructuredSuccess(result);
+		expect(text).toContain('Title: New Page');
+		expect(text).toContain('/wiki/New_Page');
+	});
+
 	it("tags the edit with the wiki's configured change tags", async () => {
 		const wiki = fakeWiki();
 
