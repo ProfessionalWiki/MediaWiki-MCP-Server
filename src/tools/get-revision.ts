@@ -1,11 +1,16 @@
 import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
-import type { ApiPage, ApiRevision } from 'mwn';
+import type { ApiPage, ApiRevision, Mwn } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { buildPageUrl } from '../wikis/utils.ts';
+import { renderPage, type RenderedPage } from '../wikis/readPage.ts';
 import { ContentFormat } from '../results/contentFormat.ts';
-import { truncateByBytes, type TruncationInfo } from '../results/truncation.ts';
+import {
+	truncateByBytes,
+	type TruncatedContent,
+	type TruncationInfo,
+} from '../results/truncation.ts';
 
 // What helps depends on which revision was asked for. A revision ID taken from
 // get-page metadata or from an edit that just landed is the current one, and
@@ -21,29 +26,6 @@ const PAST_REVISION_REMEDY =
 // be unknown; the remedy then names both routes rather than asserting either.
 const UNKNOWN_REVISION_REMEDY =
 	"If this is the page's current revision, call get-page with section=N to read part of it; otherwise use compare-pages.";
-
-function remedyFor(isCurrent: boolean | undefined): string {
-	if (isCurrent === undefined) {
-		return UNKNOWN_REVISION_REMEDY;
-	}
-	return isCurrent ? CURRENT_REVISION_REMEDY : PAST_REVISION_REMEDY;
-}
-
-function revisionTruncation(
-	itemNoun: string,
-	returnedBytes: number,
-	totalBytes: number,
-	isCurrent: boolean | undefined,
-): TruncationInfo {
-	return {
-		reason: 'content-truncated',
-		returnedBytes,
-		totalBytes,
-		itemNoun,
-		toolName: 'get-revision',
-		remedyHint: remedyFor(isCurrent),
-	};
-}
 
 const inputSchema = {
 	revisionId: z.number().int().positive().describe('Revision ID'),
@@ -61,6 +43,30 @@ const inputSchema = {
 		.default(false),
 } as const;
 
+type GetRevisionArgs = z.infer<z.ZodObject<typeof inputSchema>>;
+
+interface RevisionPayload {
+	revisionId?: number;
+	pageId?: number;
+	title?: string;
+	url?: string;
+	userid?: number;
+	user?: string;
+	timestamp?: string;
+	comment?: string;
+	size?: number;
+	minor?: boolean;
+	source?: string;
+	html?: string;
+	truncation?: TruncationInfo;
+}
+
+interface PageRevision {
+	page: ApiPage;
+	revision: ApiRevision;
+	isCurrent: boolean | undefined;
+}
+
 export const getRevision: Tool<typeof inputSchema> = {
 	name: 'get-revision',
 	description:
@@ -76,119 +82,171 @@ export const getRevision: Tool<typeof inputSchema> = {
 	failureVerb: 'retrieve revision data',
 	target: (a) => String(a.revisionId),
 
-	async handle({ revisionId, content, metadata }, ctx: ToolContext): Promise<CallToolResult> {
-		if (content === ContentFormat.none && !metadata) {
-			return ctx.format.invalidInput('When content is set to "none", metadata must be true');
+	async handle(args, ctx: ToolContext): Promise<CallToolResult> {
+		const validationError = validateArgs(args);
+		if (validationError !== undefined) {
+			return ctx.format.invalidInput(validationError);
 		}
 
 		const mwn = await ctx.mwn();
-		const payload: {
-			revisionId?: number;
-			pageId?: number;
-			title?: string;
-			url?: string;
-			userid?: number;
-			user?: string;
-			timestamp?: string;
-			comment?: string;
-			size?: number;
-			minor?: boolean;
-			contentModel?: string;
-			source?: string;
-			html?: string;
-			truncation?: TruncationInfo;
-		} = {};
-
-		// Left undefined when nothing this call does reveals it.
-		let isCurrentRevision: boolean | undefined;
-		const needsSource = content === ContentFormat.source;
-		const needsMetadata = metadata || content === ContentFormat.none;
-
-		if (needsSource || needsMetadata) {
-			const rvprop = needsSource
-				? 'ids|timestamp|user|userid|comment|size|flags|content'
-				: 'ids|timestamp|user|userid|comment|size|flags';
-
-			const response = await mwn.request({
-				action: 'query',
-				prop: 'revisions|info',
-				revids: revisionId,
-				rvprop,
-				formatversion: '2',
-			});
-
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
-			const page = response.query?.pages?.[0] as (ApiPage & { lastrevid?: number }) | undefined;
-			const rev: ApiRevision | undefined = page?.revisions?.[0];
-			if (rev?.revid !== undefined && page?.lastrevid !== undefined) {
-				isCurrentRevision = rev.revid === page.lastrevid;
-			}
-
-			if (!rev || !page || page.missing) {
-				return ctx.format.notFound(`Revision ${revisionId} not found`);
-			}
-
-			payload.revisionId = rev.revid;
-			payload.pageId = page.pageid;
-			payload.title = page.title;
-			payload.url = await buildPageUrl(ctx, page.title);
-
-			if (needsMetadata) {
-				payload.userid = rev.userid;
-				payload.user = rev.user;
-				payload.timestamp = rev.timestamp;
-				payload.comment = rev.comment;
-				payload.size = rev.size;
-				payload.minor = rev.minor ?? false;
-			}
-
-			if (needsSource && rev.content !== undefined) {
-				const truncated = truncateByBytes(rev.content);
-				payload.source = truncated.text;
-				if (truncated.truncated) {
-					payload.truncation = revisionTruncation(
-						'wikitext',
-						truncated.returnedBytes,
-						truncated.totalBytes,
-						isCurrentRevision,
-					);
-				}
-			}
+		if (!needsRevisionQuery(args)) {
+			return ctx.format.ok(await htmlPayload(mwn, args, ctx, undefined));
 		}
 
-		if (content === ContentFormat.html) {
-			const parseResult = await mwn.request({
-				action: 'parse',
-				oldid: revisionId,
-				prop: 'text',
-				formatversion: '2',
-			});
-			const html: string | undefined = parseResult.parse?.text;
-			if (html !== undefined) {
-				const truncated = truncateByBytes(html);
-				payload.html = truncated.text;
-				if (truncated.truncated) {
-					payload.truncation = revisionTruncation(
-						'HTML',
-						truncated.returnedBytes,
-						truncated.totalBytes,
-						isCurrentRevision,
-					);
-				}
-			}
-
-			if (payload.revisionId === undefined) {
-				payload.revisionId = revisionId;
-				if (parseResult.parse?.pageid !== undefined) {
-					payload.pageId = parseResult.parse.pageid;
-				}
-				if (parseResult.parse?.title !== undefined) {
-					payload.title = parseResult.parse.title;
-					payload.url = await buildPageUrl(ctx, parseResult.parse.title);
-				}
-			}
+		const revision = await queryRevision(mwn, args);
+		if (revision === undefined) {
+			return ctx.format.notFound(`Revision ${args.revisionId} not found`);
 		}
-
-		return ctx.format.ok(payload);
+		return ctx.format.ok({
+			...(await revisionPayload(revision, args, ctx)),
+			...(args.content === ContentFormat.html
+				? await htmlPayload(mwn, args, ctx, revision.isCurrent)
+				: {}),
+		});
 	},
 };
+
+function validateArgs({ content, metadata }: GetRevisionArgs): string | undefined {
+	if (content === ContentFormat.none && !metadata) {
+		return 'When content is set to "none", metadata must be true';
+	}
+	return undefined;
+}
+
+function needsRevisionQuery({ content, metadata }: GetRevisionArgs): boolean {
+	return metadata || content !== ContentFormat.html;
+}
+
+async function queryRevision(
+	mwn: Mwn,
+	{ revisionId, content }: GetRevisionArgs,
+): Promise<PageRevision | undefined> {
+	const response = await mwn.request({
+		action: 'query',
+		prop: 'revisions|info',
+		revids: revisionId,
+		rvprop:
+			content === ContentFormat.source
+				? 'ids|timestamp|user|userid|comment|size|flags|content'
+				: 'ids|timestamp|user|userid|comment|size|flags',
+		formatversion: '2',
+	});
+
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
+	const page = response.query?.pages?.[0] as (ApiPage & { lastrevid?: number }) | undefined;
+	const revision = page?.revisions?.[0];
+	if (!revision || !page || page.missing) {
+		return undefined;
+	}
+	return { page, revision, isCurrent: isCurrentRevision(revision, page.lastrevid) };
+}
+
+function isCurrentRevision(
+	revision: ApiRevision,
+	lastRevisionId: number | undefined,
+): boolean | undefined {
+	if (revision.revid === undefined || lastRevisionId === undefined) {
+		return undefined;
+	}
+	return revision.revid === lastRevisionId;
+}
+
+async function revisionPayload(
+	{ page, revision, isCurrent }: PageRevision,
+	args: GetRevisionArgs,
+	ctx: ToolContext,
+): Promise<RevisionPayload> {
+	return {
+		revisionId: revision.revid,
+		pageId: page.pageid,
+		title: page.title,
+		url: await buildPageUrl(ctx, page.title),
+		...(args.metadata ? revisionMetadata(revision) : {}),
+		...(args.content === ContentFormat.source ? sourcePayload(revision.content, isCurrent) : {}),
+	};
+}
+
+function revisionMetadata(revision: ApiRevision): RevisionPayload {
+	return {
+		userid: revision.userid,
+		user: revision.user,
+		timestamp: revision.timestamp,
+		comment: revision.comment,
+		size: revision.size,
+		minor: revision.minor ?? false,
+	};
+}
+
+function sourcePayload(
+	content: string | undefined,
+	isCurrent: boolean | undefined,
+): RevisionPayload {
+	if (content === undefined) {
+		return {};
+	}
+	const source = truncateByBytes(content);
+	return { source: source.text, ...truncationPayload(source, 'wikitext', isCurrent) };
+}
+
+function truncationPayload(
+	content: TruncatedContent,
+	itemNoun: string,
+	isCurrent: boolean | undefined,
+): RevisionPayload {
+	if (!content.truncated) {
+		return {};
+	}
+	return {
+		truncation: {
+			reason: 'content-truncated',
+			returnedBytes: content.returnedBytes,
+			totalBytes: content.totalBytes,
+			itemNoun,
+			toolName: 'get-revision',
+			remedyHint: remedyFor(isCurrent),
+		},
+	};
+}
+
+function remedyFor(isCurrent: boolean | undefined): string {
+	if (isCurrent === undefined) {
+		return UNKNOWN_REVISION_REMEDY;
+	}
+	return isCurrent ? CURRENT_REVISION_REMEDY : PAST_REVISION_REMEDY;
+}
+
+async function htmlPayload(
+	mwn: Mwn,
+	args: GetRevisionArgs,
+	ctx: ToolContext,
+	isCurrent: boolean | undefined,
+): Promise<RevisionPayload> {
+	const rendered = await renderPage(mwn, { oldid: args.revisionId });
+	return {
+		...renderedHtml(rendered.html, isCurrent),
+		// Without metadata, the render is the only read that names the revision.
+		...(args.metadata ? {} : await renderedRevisionIdentity(rendered, args.revisionId, ctx)),
+	};
+}
+
+function renderedHtml(html: string | undefined, isCurrent: boolean | undefined): RevisionPayload {
+	if (html === undefined) {
+		return {};
+	}
+	const capped = truncateByBytes(html);
+	return { html: capped.text, ...truncationPayload(capped, 'HTML', isCurrent) };
+}
+
+async function renderedRevisionIdentity(
+	rendered: RenderedPage,
+	revisionId: number,
+	ctx: ToolContext,
+): Promise<RevisionPayload> {
+	return {
+		revisionId,
+		pageId: rendered.pageId,
+		...(rendered.title !== undefined
+			? { title: rendered.title, url: await buildPageUrl(ctx, rendered.title) }
+			: {}),
+	};
+}

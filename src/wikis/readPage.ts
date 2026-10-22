@@ -29,3 +29,26 @@ export async function readPage(
 	}
 	return page;
 }
+
+export interface RenderedPage {
+	html?: string;
+	title?: string;
+	pageId?: number;
+}
+
+export async function renderPage(
+	mwn: Mwn,
+	target: { page: string; section?: number } | { oldid: number },
+): Promise<RenderedPage> {
+	const response = await mwn.request({
+		action: 'parse',
+		...target,
+		prop: 'text',
+		formatversion: '2',
+	});
+	return {
+		html: response.parse?.text,
+		title: response.parse?.title,
+		pageId: response.parse?.pageid,
+	};
+}
