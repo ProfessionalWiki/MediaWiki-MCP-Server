@@ -23,6 +23,7 @@ import { fakeProxyConfig } from '../helpers/fakeProxyConfig.ts';
 import { randomVerifier, s256 } from '../../src/auth/pkce.ts';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 import { runHostedFlow } from '../helpers/fakeMcpClient.ts';
+import { readAuthPolicy } from '../../src/runtime/authShape.ts';
 
 const ISSUER = 'https://mcp.example/mcp';
 const SIGNING_KEY = 'k'.repeat(32);
@@ -63,6 +64,7 @@ function proxyConfig(fakeAsUrl: string): ProxyConfig {
 function makeDeps(fakeAsUrl: string, store: ProxyStore, pc: ProxyConfig): BuildAppDeps {
 	return {
 		state: appState(fakeAsUrl),
+		auth: readAuthPolicy(process.env),
 		getProxyConfig: () => pc,
 		proxyStore: store,
 		proxyRedirectPolicy: buildRedirectPolicy(pc.redirectAllowlist),

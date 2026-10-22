@@ -16,6 +16,7 @@ import { mintAccessToken } from '../../src/auth/authorizationServer/jwt.ts';
 import { fakeProxyConfig } from '../helpers/fakeProxyConfig.ts';
 import { getRuntimeToken } from '../../src/runtime/requestContext.ts';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
+import { readAuthPolicy } from '../../src/runtime/authShape.ts';
 
 afterEach(() => {
 	vi.unstubAllEnvs();
@@ -69,7 +70,7 @@ function buildEraApp(): Express {
 		},
 		{ legacy: 'stateless' },
 	);
-	const route = createMcpRouteHandler(handler);
+	const route = createMcpRouteHandler(handler, { auth: readAuthPolicy(process.env) });
 	app.post('/mcp', route);
 	app.get('/mcp', route);
 	app.delete('/mcp', route);
@@ -138,7 +139,13 @@ describe('bearer threading through the route', () => {
 				});
 			},
 		};
-		app.post('/mcp', createMcpRouteHandler(fakeHandler, { wikiRegistry: oauthRegistry() }));
+		app.post(
+			'/mcp',
+			createMcpRouteHandler(fakeHandler, {
+				auth: readAuthPolicy(process.env),
+				wikiRegistry: oauthRegistry(),
+			}),
+		);
 		return app;
 	}
 
@@ -175,7 +182,13 @@ describe('bearer threading through the route', () => {
 			getAll: () => ({ ex: { sitename: 'Ex' } }),
 			get: () => ({ sitename: 'Ex' }),
 		} as unknown as WikiRegistry;
-		app.post('/mcp', createMcpRouteHandler(fakeHandler, { wikiRegistry: registry }));
+		app.post(
+			'/mcp',
+			createMcpRouteHandler(fakeHandler, {
+				auth: readAuthPolicy(process.env),
+				wikiRegistry: registry,
+			}),
+		);
 
 		const res = await request(app)
 			.post('/mcp')
@@ -245,6 +258,7 @@ describe('rate limiting on /mcp', () => {
 		app.post(
 			'/mcp',
 			createMcpRouteHandler(fakeHandler, {
+				auth: readAuthPolicy(process.env),
 				rateLimiter: createRateLimiter(SETTINGS, frozenClock),
 				...options,
 			}),
@@ -411,7 +425,10 @@ describe('rate limiting cannot be bypassed by request shape', () => {
 		);
 		app.post(
 			'/mcp',
-			createMcpRouteHandler(handler, { rateLimiter: createRateLimiter(SETTINGS, frozenClock) }),
+			createMcpRouteHandler(handler, {
+				auth: readAuthPolicy(process.env),
+				rateLimiter: createRateLimiter(SETTINGS, frozenClock),
+			}),
 		);
 		return app;
 	}

@@ -5,7 +5,7 @@ import { extensionPacks, packToolRefusal } from '../tools/extensions/index.ts';
 import { standardTools } from '../tools/standardTools.ts';
 import { isWikiScoped } from './wikiArg.ts';
 import { getRuntimeToken } from './requestContext.ts';
-import { bearerPassthroughEnabled, hasStaticCredentials, usesOAuthSignIn } from './authShape.ts';
+import { hasStaticCredentials, usesOAuthSignIn } from './authShape.ts';
 
 // The wiki-mutating tools. Shared by reconcile's read-only rule and the
 // per-call capability guard.
@@ -94,7 +94,7 @@ export async function checkWikiCapability(
 				// asking for a token the transport would refuse.
 				return ctx.format.error(
 					'authentication',
-					bearerPassthroughEnabled()
+					ctx.auth.bearerPassthrough
 						? `Wiki "${wikiKey}" requires an authenticated user. Send an Authorization: Bearer ` +
 								'token obtained from that wiki for this caller.'
 						: `Wiki "${wikiKey}" requires an authenticated user, and this server has no way ` +

@@ -133,7 +133,12 @@ describe('dispatch wiki resolution', () => {
 
 		await dispatch(
 			writing,
-			createSharedContext({ logger, state, transport: 'stdio' }),
+			createSharedContext({
+				logger,
+				state,
+				transport: 'stdio',
+				auth: { bearerPassthrough: false, staticFallback: false },
+			}),
 		)({
 			wiki: 'other',
 		} as never);
