@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { checkHttpDeployment } from '../../src/transport/httpDeployment.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
+import { readAuthPolicy } from '../../src/runtime/authShape.ts';
 
 function wiki(overrides: Partial<WikiConfig> = {}): WikiConfig {
 	return {
@@ -19,7 +20,7 @@ function check(
 	return checkHttpDeployment({
 		wikis,
 		defaultWikiKey: Object.keys(wikis)[0],
-		env: options.env ?? {},
+		auth: readAuthPolicy(options.env ?? {}),
 		proxyEnabled: options.proxyEnabled ?? false,
 	});
 }

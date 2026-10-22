@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { logger } from './logger.ts';
-import { classifyAuthShape } from './authShape.ts';
+import { classifyAuthShape, type AuthPolicy } from './authShape.ts';
 import type { WikiRegistry } from '../wikis/wikiRegistry.ts';
 import type { UploadDirs } from '../wikis/uploadDirs.ts';
 
@@ -33,6 +33,7 @@ export interface BannerDeps {
 	// banner can report the "oauth-proxy" auth shape rather than
 	// "bearer-passthrough". Defaults to false (proxy disabled).
 	readonly proxyEnabled?: boolean;
+	readonly auth: AuthPolicy;
 }
 
 export function emitStartupBanner(opts: CreateServerOptions, deps: BannerDeps): void {
@@ -41,7 +42,12 @@ export function emitStartupBanner(opts: CreateServerOptions, deps: BannerDeps): 
 		event: 'startup',
 		version: serverInfo.version,
 		transport: opts.transport,
-		auth_shape: classifyAuthShape(wikis, opts.transport, deps.proxyEnabled ?? false),
+		auth_shape: classifyAuthShape(
+			wikis,
+			opts.transport,
+			deps.proxyEnabled ?? false,
+			deps.auth.bearerPassthrough,
+		),
 		default_wiki: deps.defaultWikiKey,
 		wikis: Object.keys(wikis),
 		allow_wiki_management: deps.wikiRegistry.isManagementAllowed(),

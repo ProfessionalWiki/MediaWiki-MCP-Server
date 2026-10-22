@@ -52,7 +52,7 @@ import { createServer, type ChangePublisher, type CreateServerOptions } from '..
 import { emitStartupBanner } from '../runtime/banner.ts';
 import { createSharedContext } from '../runtime/createContext.ts';
 import { registerShutdownHandlers, resolveShutdownGrace } from '../runtime/shutdown.ts';
-import { usesOAuthSignIn } from '../runtime/authShape.ts';
+import { readAuthPolicy, usesOAuthSignIn, type AuthPolicy } from '../runtime/authShape.ts';
 
 // The exported surface here (BuildAppDeps, and the protected-resource handler's
 // deps) names this type, so a caller has to be able to name it too.
@@ -363,6 +363,7 @@ export function mountMetricsEndpoint(app: express.Express): void {
 // app.listen, no process.exit guard, no encrypted-store hydration).
 export interface BuildAppDeps {
 	state: AppState;
+	auth: AuthPolicy;
 	getProxyConfig: ProxyConfigGetter;
 	proxyStore: ProxyStore;
 	// The register-time redirect predicate, built once from the resolved proxy
@@ -410,6 +411,7 @@ export interface BuiltApp {
 export function buildApp(deps: BuildAppDeps): BuiltApp {
 	const {
 		state,
+		auth,
 		getProxyConfig,
 		proxyStore: store,
 		proxyRedirectPolicy,
@@ -502,6 +504,7 @@ export function buildApp(deps: BuildAppDeps): BuiltApp {
 	});
 
 	const mcpRoute = createMcpRouteHandler(handler, {
+		auth,
 		wikiRegistry: state.wikiRegistry,
 		getProxyConfig,
 		proxyStore: store,
@@ -603,10 +606,11 @@ export function startHttpServer(): void {
 	// than the first request. Memoized, so the route handlers reuse the cached result.
 	const eagerProxyConfig = getDefaultProxyConfig();
 	const proxyEnabled = eagerProxyConfig !== null;
+	const auth = readAuthPolicy(process.env);
 	const deployment = checkHttpDeployment({
 		wikis: state.wikiRegistry.getAll(),
 		defaultWikiKey,
-		env: process.env,
+		auth,
 		proxyEnabled,
 	});
 	if (deployment.refusal !== undefined) {
@@ -644,6 +648,7 @@ export function startHttpServer(): void {
 			defaultWikiKey: state.defaultWikiKey,
 			uploadDirs: state.uploadDirs,
 			proxyEnabled,
+			auth,
 		},
 	);
 
@@ -651,6 +656,7 @@ export function startHttpServer(): void {
 		logger,
 		state,
 		transport: 'http',
+		auth,
 		getProxyConfig: getDefaultProxyConfig,
 	});
 
@@ -668,6 +674,7 @@ export function startHttpServer(): void {
 	}
 	const { app, inFlight, mcpHandler } = buildApp({
 		state,
+		auth,
 		getProxyConfig: getDefaultProxyConfig,
 		proxyStore,
 		proxyRedirectPolicy,

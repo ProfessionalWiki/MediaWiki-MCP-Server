@@ -1,9 +1,5 @@
 import type { WikiConfig } from '../config/loadConfig.ts';
-import {
-	bearerPassthroughEnabled,
-	hasStaticCredentials,
-	usesOAuthSignIn,
-} from '../runtime/authShape.ts';
+import { hasStaticCredentials, usesOAuthSignIn, type AuthPolicy } from '../runtime/authShape.ts';
 import { evaluateBearerGuard } from './bearerGuard.ts';
 
 export interface HttpDeploymentCheck {
@@ -16,13 +12,13 @@ export interface HttpDeploymentCheck {
 export function checkHttpDeployment(deployment: {
 	wikis: Readonly<Record<string, WikiConfig>>;
 	defaultWikiKey: string;
-	env: NodeJS.ProcessEnv;
+	auth: AuthPolicy;
 	proxyEnabled: boolean;
 }): HttpDeploymentCheck {
-	const { wikis, defaultWikiKey, env, proxyEnabled } = deployment;
+	const { wikis, defaultWikiKey, auth, proxyEnabled } = deployment;
 	const warnings: string[] = [];
 
-	const guard = evaluateBearerGuard(wikis, env);
+	const guard = evaluateBearerGuard(wikis, auth.staticFallback);
 	if (guard.kind === 'block') {
 		return {
 			refusal:
@@ -46,8 +42,7 @@ export function checkHttpDeployment(deployment: {
 		);
 	}
 
-	const passthrough = bearerPassthroughEnabled(env);
-	if (passthrough) {
+	if (auth.bearerPassthrough) {
 		warnings.push(
 			proxyEnabled
 				? 'MCP_ALLOW_BEARER_PASSTHROUGH=true is set but has no effect: hosted OAuth sign-in ' +
@@ -63,11 +58,10 @@ export function checkHttpDeployment(deployment: {
 	// A deployment can be configured so that nothing it serves can authenticate:
 	// wikis that require OAuth, no hosted sign-in to mint a token, and no opted-in
 	// forwarding to carry one. Nothing a client sends can fix that.
-	if (!proxyEnabled && !passthrough) {
-		const staticAllowed = env.MCP_ALLOW_STATIC_FALLBACK === 'true';
+	if (!proxyEnabled && !auth.bearerPassthrough) {
 		const stranded = Object.entries(wikis)
 			.filter(([key, cfg]) => {
-				const usableStatic = hasStaticCredentials(cfg) && staticAllowed;
+				const usableStatic = hasStaticCredentials(cfg) && auth.staticFallback;
 				// A `private` DEFAULT wiki cannot be rescued by static credentials: the
 				// route challenges a tokenless request before any credential is
 				// resolved, so every request to such a deployment is answered 401.

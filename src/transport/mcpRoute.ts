@@ -2,11 +2,7 @@ import { createHash } from 'node:crypto';
 import type { Request, RequestHandler, Response } from 'express';
 import type { McpHttpHandler } from '@modelcontextprotocol/server';
 import { toNodeHandler } from '@modelcontextprotocol/node';
-import {
-	bearerPassthroughEnabled,
-	hasStaticCredentials,
-	usesOAuthSignIn,
-} from '../runtime/authShape.ts';
+import { hasStaticCredentials, usesOAuthSignIn, type AuthPolicy } from '../runtime/authShape.ts';
 import { recordRateLimited } from '../runtime/metrics.ts';
 import { withRequestContext, type RuntimeToken } from '../runtime/requestContext.ts';
 import type { WikiConfig } from '../config/loadConfig.ts';
@@ -158,6 +154,7 @@ function toolsCallCost(body: unknown): number {
 }
 
 export interface McpRouteOptions {
+	auth: AuthPolicy;
 	wikiRegistry?: WikiRegistry;
 	// With the hosted proxy, a bearer is a proxy JWT standing for a stored wiki token.
 	getProxyConfig?: ProxyConfigGetter;
@@ -194,7 +191,7 @@ async function resolveCaller(
 	proxy: HostedProxy | null,
 	options: McpRouteOptions,
 ): Promise<Caller> {
-	const { wikiRegistry, defaultWikiKey, refresh } = options;
+	const { wikiRegistry, defaultWikiKey, refresh, auth } = options;
 
 	// Challenged at `initialize` too, so a client signs in when it connects.
 	if (
@@ -212,7 +209,7 @@ async function resolveCaller(
 
 	// A bearer here was issued for the wiki, not for this server, so it is
 	// refused rather than ignored, whatever the wikis' `oauth2ClientId`.
-	if (!bearerPassthroughEnabled()) {
+	if (!auth.bearerPassthrough) {
 		return bearer ? UNAUTHENTICATED : ANONYMOUS;
 	}
 	if (bearer) {
@@ -220,7 +217,9 @@ async function resolveCaller(
 	}
 
 	// A 401 only helps while the caller can answer it by forwarding a token.
-	return wikiRegistry && everyWikiNeedsAuth(wikiRegistry) ? UNAUTHENTICATED : ANONYMOUS;
+	return wikiRegistry && everyWikiNeedsAuth(wikiRegistry, auth.staticFallback)
+		? UNAUTHENTICATED
+		: ANONYMOUS;
 }
 
 async function signedInCaller(
@@ -248,17 +247,16 @@ function forwardedCaller(bearer: string): AdmittedCaller {
 	return { token: { value: bearer, wikiKey: null }, rateLimitKey: `bearer:${digest}` };
 }
 
-function everyWikiNeedsAuth(wikiRegistry: WikiRegistry): boolean {
+function everyWikiNeedsAuth(wikiRegistry: WikiRegistry, staticFallback: boolean): boolean {
 	const all = Object.values(wikiRegistry.getAll());
-	const fallbackAllowed = process.env.MCP_ALLOW_STATIC_FALLBACK === 'true';
-	return all.length > 0 && all.every((cfg) => wikiNeedsAuth(cfg, fallbackAllowed));
+	return all.length > 0 && all.every((cfg) => wikiNeedsAuth(cfg, staticFallback));
 }
 
 // Serves POST, GET and DELETE: the SDK handler falls back to stateless serving
 // for 2025-era traffic, which answers GET and DELETE with 405.
 export function createMcpRouteHandler(
 	handler: Pick<McpHttpHandler, 'fetch'>,
-	options: McpRouteOptions = {},
+	options: McpRouteOptions,
 ): RequestHandler {
 	const { getProxyConfig, proxyStore, rateLimiter } = options;
 	const nodeHandler = toNodeHandler(handler, { onerror: options.onerror });

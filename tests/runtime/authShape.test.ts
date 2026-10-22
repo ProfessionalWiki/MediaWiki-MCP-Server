@@ -1,8 +1,8 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
-	bearerPassthroughEnabled,
 	classifyAuthShape,
 	hasStaticCredentials,
+	readAuthPolicy,
 	usesOAuthSignIn,
 } from '../../src/runtime/authShape.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
@@ -89,13 +89,13 @@ describe('classifyAuthShape', () => {
 
 	it('returns static-credential when any wiki has a token', () => {
 		const wikis = { a: { ...baseWiki, token: 't' } };
-		expect(classifyAuthShape(wikis, 'http')).toBe('static-credential');
-		expect(classifyAuthShape(wikis, 'stdio')).toBe('static-credential');
+		expect(classifyAuthShape(wikis, 'http', false, false)).toBe('static-credential');
+		expect(classifyAuthShape(wikis, 'stdio', false, false)).toBe('static-credential');
 	});
 
 	it('returns static-credential when any wiki has username and password', () => {
 		const wikis = { a: { ...baseWiki, username: 'u', password: 'p' } };
-		expect(classifyAuthShape(wikis, 'http')).toBe('static-credential');
+		expect(classifyAuthShape(wikis, 'http', false, false)).toBe('static-credential');
 	});
 
 	it('returns anonymous on http when no static creds and passthrough is off', () => {
@@ -112,22 +112,22 @@ describe('classifyAuthShape', () => {
 
 	it('returns anonymous on stdio when no static creds', () => {
 		const wikis = { a: baseWiki };
-		expect(classifyAuthShape(wikis, 'stdio')).toBe('anonymous');
+		expect(classifyAuthShape(wikis, 'stdio', false, false)).toBe('anonymous');
 	});
 
 	it('returns oauth-proxy on http when the hosted proxy is enabled', () => {
 		const wikis = { a: baseWiki };
-		expect(classifyAuthShape(wikis, 'http', true)).toBe('oauth-proxy');
+		expect(classifyAuthShape(wikis, 'http', true, false)).toBe('oauth-proxy');
 	});
 
 	it('static credentials take precedence over the proxy flag', () => {
 		const wikis = { a: { ...baseWiki, token: 't' } };
-		expect(classifyAuthShape(wikis, 'http', true)).toBe('static-credential');
+		expect(classifyAuthShape(wikis, 'http', true, false)).toBe('static-credential');
 	});
 
 	it('proxy flag is ignored on stdio', () => {
 		const wikis = { a: baseWiki };
-		expect(classifyAuthShape(wikis, 'stdio', true)).toBe('anonymous');
+		expect(classifyAuthShape(wikis, 'stdio', true, false)).toBe('anonymous');
 	});
 
 	it('is unaffected by partial credentials (username only or password only)', () => {
@@ -138,29 +138,25 @@ describe('classifyAuthShape', () => {
 	});
 });
 
-describe('bearerPassthroughEnabled', () => {
-	afterEach(() => {
-		vi.unstubAllEnvs();
+describe('readAuthPolicy', () => {
+	it('leaves forwarding and the static fallback off when their variables are unset', () => {
+		expect(readAuthPolicy({})).toEqual({ bearerPassthrough: false, staticFallback: false });
 	});
 
-	it('is off unless the variable is exactly "true"', () => {
-		expect(bearerPassthroughEnabled({} as NodeJS.ProcessEnv)).toBe(false);
-		expect(
-			bearerPassthroughEnabled({ MCP_ALLOW_BEARER_PASSTHROUGH: '1' } as NodeJS.ProcessEnv),
-		).toBe(false);
-		expect(
-			bearerPassthroughEnabled({ MCP_ALLOW_BEARER_PASSTHROUGH: 'TRUE' } as NodeJS.ProcessEnv),
-		).toBe(false);
-		expect(
-			bearerPassthroughEnabled({ MCP_ALLOW_BEARER_PASSTHROUGH: 'true' } as NodeJS.ProcessEnv),
-		).toBe(true);
+	it('turns each on only for its own variable set to "true"', () => {
+		expect(readAuthPolicy({ MCP_ALLOW_BEARER_PASSTHROUGH: 'true' })).toEqual({
+			bearerPassthrough: true,
+			staticFallback: false,
+		});
+		expect(readAuthPolicy({ MCP_ALLOW_STATIC_FALLBACK: 'true' })).toEqual({
+			bearerPassthrough: false,
+			staticFallback: true,
+		});
 	});
 
-	it('reads process.env when given no environment', () => {
-		// The call sites in the request path take no argument, so this default is the
-		// one production actually uses.
-		expect(bearerPassthroughEnabled()).toBe(false);
-		vi.stubEnv('MCP_ALLOW_BEARER_PASSTHROUGH', 'true');
-		expect(bearerPassthroughEnabled()).toBe(true);
+	it.each(['TRUE', '1', 'yes', ' true ', ''])('treats %p as off', (value) => {
+		expect(
+			readAuthPolicy({ MCP_ALLOW_BEARER_PASSTHROUGH: value, MCP_ALLOW_STATIC_FALLBACK: value }),
+		).toEqual({ bearerPassthrough: false, staticFallback: false });
 	});
 });

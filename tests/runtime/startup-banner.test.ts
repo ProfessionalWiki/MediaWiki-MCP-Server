@@ -49,6 +49,7 @@ describe('startup banner', () => {
 				wikiRegistry: mockWikiRegistry,
 				defaultWikiKey: 'a.example',
 				uploadDirs: mockUploadDirs,
+				auth: { bearerPassthrough: false, staticFallback: false },
 			},
 		);
 
@@ -85,6 +86,7 @@ describe('startup banner', () => {
 				wikiRegistry: mockWikiRegistry,
 				defaultWikiKey: 'a.example',
 				uploadDirs: mockUploadDirs,
+				auth: { bearerPassthrough: false, staticFallback: false },
 			},
 		);
 
@@ -111,6 +113,7 @@ describe('startup banner', () => {
 				wikiRegistry: mockWikiRegistry,
 				defaultWikiKey: 'a.example',
 				uploadDirs: mockUploadDirs,
+				auth: { bearerPassthrough: false, staticFallback: false },
 			},
 		);
 
@@ -132,6 +135,7 @@ describe('startup banner', () => {
 				wikiRegistry: mockWikiRegistry,
 				defaultWikiKey: 'a.example',
 				uploadDirs: mockUploadDirs,
+				auth: { bearerPassthrough: false, staticFallback: false },
 				proxyEnabled: true,
 			},
 		);
@@ -158,6 +162,7 @@ describe('startup banner', () => {
 				wikiRegistry: staticRegistry,
 				defaultWikiKey: 'a.example',
 				uploadDirs: mockUploadDirs,
+				auth: { bearerPassthrough: false, staticFallback: false },
 			},
 		);
 

@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { listWikis } from '../../src/tools/list-wikis.ts';
 import { fakeContext } from '../helpers/fakeContext.ts';
+import type { SharedContext } from '../../src/runtime/context.ts';
 
 const fetchMetadata = vi.fn();
 vi.mock('../../src/auth/metadata.ts', () => ({
@@ -48,6 +49,11 @@ function ctxWith(
 			})) as never,
 		},
 	});
+}
+
+// A context on a deployment that forwards a caller-supplied bearer.
+function forwarding<T extends SharedContext>(ctx: T): T {
+	return { ...ctx, auth: { bearerPassthrough: true, staticFallback: false } };
 }
 
 function wikisOf(result: CallToolResult): Array<Record<string, unknown>> {
@@ -151,7 +157,6 @@ describe('list-wikis', () => {
 	});
 
 	it('reports the authorization server issuer for an OAuth-configured wiki', async () => {
-		vi.stubEnv('MCP_ALLOW_BEARER_PASSTHROUGH', 'true');
 		fetchMetadata.mockResolvedValue({ issuer: 'https://oauth.wiki' });
 		const ctx = ctxWith({}, new Set(), {
 			'oauth-wiki': {
@@ -162,7 +167,7 @@ describe('list-wikis', () => {
 				oauth2ClientId: 'client-id-123',
 			},
 		});
-		const result = await dispatch(listWikis, ctx)({} as never);
+		const result = await dispatch(listWikis, forwarding(ctx))({} as never);
 		const wiki = wikisOf(result).find((w) => w.key === 'oauth-wiki')!;
 		expect(wiki.authorizationServer).toBe('https://oauth.wiki');
 	});
@@ -203,7 +208,6 @@ describe('list-wikis', () => {
 	});
 
 	it('omits authorizationServer for a wiki whose metadata fetch fails, without failing the call', async () => {
-		vi.stubEnv('MCP_ALLOW_BEARER_PASSTHROUGH', 'true');
 		fetchMetadata.mockImplementation((key: string) => {
 			if (key === 'broken-wiki') {
 				return Promise.reject(new Error('metadata unavailable'));
@@ -226,7 +230,7 @@ describe('list-wikis', () => {
 				oauth2ClientId: 'broken-client',
 			},
 		});
-		const result = await dispatch(listWikis, ctx)({} as never);
+		const result = await dispatch(listWikis, forwarding(ctx))({} as never);
 		expect(result.isError).not.toBe(true);
 		const good = wikisOf(result).find((w) => w.key === 'good-wiki')!;
 		const broken = wikisOf(result).find((w) => w.key === 'broken-wiki')!;

@@ -14,17 +14,17 @@ function wiki(overrides: Partial<WikiConfig> = {}): WikiConfig {
 
 describe('evaluateBearerGuard', () => {
 	it('returns ok when there are no wikis', () => {
-		expect(evaluateBearerGuard({}, {})).toEqual({ kind: 'ok' });
+		expect(evaluateBearerGuard({}, false)).toEqual({ kind: 'ok' });
 	});
 
 	it('returns ok when no wiki has credentials', () => {
 		const wikis = { a: wiki(), b: wiki({ token: null }) };
-		expect(evaluateBearerGuard(wikis, {})).toEqual({ kind: 'ok' });
+		expect(evaluateBearerGuard(wikis, false)).toEqual({ kind: 'ok' });
 	});
 
-	it('returns block when a wiki has a token and the override env is unset', () => {
+	it('returns block when a wiki has a token and the static fallback is off', () => {
 		const wikis = { a: wiki({ token: 'abc' }) };
-		expect(evaluateBearerGuard(wikis, {})).toEqual({
+		expect(evaluateBearerGuard(wikis, false)).toEqual({
 			kind: 'block',
 			wikis: ['a'],
 		});
@@ -32,30 +32,19 @@ describe('evaluateBearerGuard', () => {
 
 	it('returns block when a wiki has bot-password credentials', () => {
 		const wikis = { a: wiki({ username: 'u', password: 'p' }) };
-		expect(evaluateBearerGuard(wikis, {})).toEqual({
+		expect(evaluateBearerGuard(wikis, false)).toEqual({
 			kind: 'block',
 			wikis: ['a'],
 		});
 	});
 
-	it('returns override when MCP_ALLOW_STATIC_FALLBACK is exactly "true"', () => {
+	it('returns override when the static fallback is on', () => {
 		const wikis = { a: wiki({ token: 'abc' }) };
-		expect(evaluateBearerGuard(wikis, { MCP_ALLOW_STATIC_FALLBACK: 'true' })).toEqual({
+		expect(evaluateBearerGuard(wikis, true)).toEqual({
 			kind: 'override',
 			wikis: ['a'],
 		});
 	});
-
-	it.each(['TRUE', '1', 'yes', ' true ', ''])(
-		'returns block when MCP_ALLOW_STATIC_FALLBACK is %p (not exactly "true")',
-		(value) => {
-			const wikis = { a: wiki({ token: 'abc' }) };
-			expect(evaluateBearerGuard(wikis, { MCP_ALLOW_STATIC_FALLBACK: value })).toEqual({
-				kind: 'block',
-				wikis: ['a'],
-			});
-		},
-	);
 
 	it('lists only credentialed wikis, in insertion order', () => {
 		const wikis = {
@@ -64,22 +53,22 @@ describe('evaluateBearerGuard', () => {
 			c: wiki(),
 			d: wiki({ username: 'u', password: 'p' }),
 		};
-		expect(evaluateBearerGuard(wikis, {})).toEqual({
+		expect(evaluateBearerGuard(wikis, false)).toEqual({
 			kind: 'block',
 			wikis: ['b', 'd'],
 		});
 	});
 
-	it('returns ok regardless of MCP_ALLOW_STATIC_FALLBACK when no wiki has credentials', () => {
-		expect(evaluateBearerGuard({}, { MCP_ALLOW_STATIC_FALLBACK: 'true' })).toEqual({
+	it('returns ok regardless of the static fallback when no wiki has credentials', () => {
+		expect(evaluateBearerGuard({}, true)).toEqual({
 			kind: 'ok',
 		});
 	});
 
-	it('returns block for a wiki with an exec-backed token when MCP_ALLOW_STATIC_FALLBACK is unset', () => {
+	it('returns block for a wiki with an exec-backed token when the static fallback is off', () => {
 		const execToken = { exec: { command: 'op', args: ['read', 'x'] } };
 		const wikis = { a: wiki({ token: execToken }) };
-		expect(evaluateBearerGuard(wikis, {})).toEqual({
+		expect(evaluateBearerGuard(wikis, false)).toEqual({
 			kind: 'block',
 			wikis: ['a'],
 		});

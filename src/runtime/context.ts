@@ -11,6 +11,7 @@ import type { ErrorClassifier } from '../errors/classifyError.ts';
 import type { ProxyConfig } from '../auth/authorizationServer/proxyConfig.ts';
 import type { WikiConfig } from '../config/loadConfig.ts';
 import type { Logger } from './logger.ts';
+import type { AuthPolicy } from './authShape.ts';
 
 export interface CallWiki {
 	readonly key: string;
@@ -32,6 +33,7 @@ export interface SharedContext {
 	readonly errors: ErrorClassifier;
 	readonly logger: Logger;
 	readonly transport: 'http' | 'stdio';
+	readonly auth: AuthPolicy;
 	// Returns the active hosted-OAuth-proxy config, or null when the proxy is
 	// disabled. Wired only on the HTTP transport (createContext.ts), so on stdio
 	// and in tests it defaults to undefined (treated as "proxy disabled").

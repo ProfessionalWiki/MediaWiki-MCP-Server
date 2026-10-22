@@ -8,19 +8,22 @@ import { createSharedContext } from '../runtime/createContext.ts';
 import { registerShutdownHandlers } from '../runtime/shutdown.ts';
 import { loadConfigFromFile } from '../config/loadConfig.ts';
 import { createAppState } from '../wikis/state.ts';
+import { readAuthPolicy } from '../runtime/authShape.ts';
 
 async function main(): Promise<void> {
 	const config = loadConfigFromFile();
 	const state = createAppState(config);
+	const auth = readAuthPolicy(process.env);
 	emitStartupBanner(
 		{ transport: 'stdio' },
 		{
 			wikiRegistry: state.wikiRegistry,
 			defaultWikiKey: state.defaultWikiKey,
 			uploadDirs: state.uploadDirs,
+			auth,
 		},
 	);
-	const ctx = createSharedContext({ logger, state, transport: 'stdio' });
+	const ctx = createSharedContext({ logger, state, transport: 'stdio', auth });
 
 	// serveStdio owns the connection: the opening exchange pins the era, one
 	// instance from the factory serves the connection's lifetime, and on a

@@ -10,6 +10,7 @@ import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
 import { _resetMetadataCacheForTesting } from '../../src/auth/metadata.ts';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
+import { readAuthPolicy } from '../../src/runtime/authShape.ts';
 
 function fakeRegistry(wikis: Record<string, Partial<WikiConfig>>): WikiRegistry {
 	return {
@@ -44,7 +45,7 @@ const WITH_PROXY = { getProxyConfig: () => ({ issuer: PROXY_ISSUER }) as never }
 
 function buildMcpApp(
 	registry?: WikiRegistry,
-	options: Omit<McpRouteOptions, 'wikiRegistry'> = {},
+	options: Omit<McpRouteOptions, 'wikiRegistry' | 'auth'> = {},
 ): Express {
 	const app = express();
 	app.use(express.json());
@@ -52,7 +53,14 @@ function buildMcpApp(
 		() => new McpServer({ name: 'oauth-test-server', version: '0.0.0' }, { capabilities: {} }),
 		{ legacy: 'stateless' },
 	);
-	app.post('/mcp', createMcpRouteHandler(handler, { wikiRegistry: registry, ...options }));
+	app.post(
+		'/mcp',
+		createMcpRouteHandler(handler, {
+			auth: readAuthPolicy(process.env),
+			wikiRegistry: registry,
+			...options,
+		}),
+	);
 	return app;
 }
 

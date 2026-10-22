@@ -19,6 +19,7 @@ import { fakeProxyConfig } from '../helpers/fakeProxyConfig.ts';
 import type { WikiRegistry } from '../../src/wikis/wikiRegistry.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
 import { getRuntimeToken } from '../../src/runtime/requestContext.ts';
+import { readAuthPolicy } from '../../src/runtime/authShape.ts';
 
 const pc = fakeProxyConfig({
 	signingKey: 'k'.repeat(32),
@@ -280,6 +281,7 @@ function buildMcpApp(
 	app.post(
 		'/mcp',
 		createMcpRouteHandler(fakeHandler, {
+			auth: readAuthPolicy(process.env),
 			wikiRegistry: registry,
 			getProxyConfig,
 			proxyStore: store,

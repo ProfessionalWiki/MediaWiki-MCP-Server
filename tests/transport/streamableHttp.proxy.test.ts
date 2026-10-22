@@ -22,6 +22,7 @@ import { logger } from '../../src/runtime/logger.ts';
 import { withRequestContext, getRuntimeToken } from '../../src/runtime/requestContext.ts';
 import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServer.ts';
 import { runHostedFlow, setCookieHeaders } from '../helpers/fakeMcpClient.ts';
+import { readAuthPolicy } from '../../src/runtime/authShape.ts';
 
 const ISSUER = 'https://mcp.example/mcp';
 const SIGNING_KEY = 'k'.repeat(32);
@@ -78,6 +79,7 @@ function makeDeps(
 ): BuildAppDeps {
 	return {
 		state: appState(fakeAsUrl),
+		auth: readAuthPolicy(process.env),
 		getProxyConfig: () => pc,
 		proxyStore: store,
 		proxyRedirectPolicy: pc ? buildRedirectPolicy(pc.redirectAllowlist) : null,
@@ -337,6 +339,7 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 			logger,
 			state: deps.state,
 			transport: 'http',
+			auth: deps.auth,
 			getProxyConfig: deps.getProxyConfig,
 		});
 
@@ -841,6 +844,7 @@ describe('private wiki — connection-time auth challenge', () => {
 		});
 		return {
 			state,
+			auth: readAuthPolicy(process.env),
 			getProxyConfig: () => pc,
 			proxyStore: store,
 			proxyRedirectPolicy: pc ? buildRedirectPolicy(pc.redirectAllowlist) : null,
@@ -930,6 +934,7 @@ describe('private wiki — connection-time auth challenge', () => {
 		});
 		buildApp({
 			state,
+			auth: readAuthPolicy(process.env),
 			getProxyConfig: () => null,
 			proxyStore: new InMemoryProxyStore(),
 			proxyRedirectPolicy: null,
@@ -970,6 +975,7 @@ describe('private wiki — connection-time auth challenge', () => {
 		});
 		buildApp({
 			state,
+			auth: readAuthPolicy(process.env),
 			getProxyConfig: () => null,
 			proxyStore: new InMemoryProxyStore(),
 			proxyRedirectPolicy: null,

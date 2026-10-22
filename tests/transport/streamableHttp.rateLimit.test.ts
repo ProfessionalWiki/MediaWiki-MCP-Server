@@ -12,6 +12,7 @@ import { createAppState } from '../../src/wikis/state.ts';
 import { InMemoryProxyStore } from '../../src/auth/authorizationServer/proxyStore.ts';
 import { createRateLimiter } from '../../src/transport/rateLimit.ts';
 import { RATE_LIMITED_ERROR_CODE } from '../../src/transport/errorCodes.ts';
+import { readAuthPolicy } from '../../src/runtime/authShape.ts';
 
 const SETTINGS = {
 	ratePerSecond: 1,
@@ -28,6 +29,7 @@ const frozenClock = () => 1_000_000;
 
 function makeDeps(calls: { count: number }): BuildAppDeps {
 	return {
+		auth: readAuthPolicy(process.env),
 		state: createAppState({
 			defaultWiki: 'test',
 			wikis: {

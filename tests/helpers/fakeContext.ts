@@ -103,6 +103,7 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
 		errors: new ErrorClassifierImpl(extensionErrorVocabulary(extensionPacks)),
 		logger: fakeLogger(),
 		transport: 'stdio' as const,
+		auth: { bearerPassthrough: false, staticFallback: false },
 		...overrides,
 	};
 }

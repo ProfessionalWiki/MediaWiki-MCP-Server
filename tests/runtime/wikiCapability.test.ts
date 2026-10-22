@@ -8,6 +8,7 @@ import {
 import { fakeContext } from '../helpers/fakeContext.ts';
 import { withRequestFields } from '../../src/runtime/requestContext.ts';
 import type { WikiConfig } from '../../src/config/loadConfig.ts';
+import type { SharedContext } from '../../src/runtime/context.ts';
 
 const rwWiki: WikiConfig = {
 	sitename: 'X',
@@ -46,6 +47,11 @@ function ctx(
 			}),
 		},
 	});
+}
+
+// A context on a deployment that forwards a caller-supplied bearer.
+function forwarding<T extends SharedContext>(ctx: T): T {
+	return { ...ctx, auth: { bearerPassthrough: true, staticFallback: false } };
 }
 
 describe('checkWikiCapability', () => {
@@ -112,8 +118,11 @@ describe('checkWikiCapability', () => {
 	});
 
 	it('asks the caller for a token instead once forwarding is opted into', async () => {
-		vi.stubEnv('MCP_ALLOW_BEARER_PASSTHROUGH', 'true');
-		const result = await checkWikiCapability('get-page', 'w', ctx(false, oauthWiki, true, 'http'));
+		const result = await checkWikiCapability(
+			'get-page',
+			'w',
+			forwarding(ctx(false, oauthWiki, true, 'http')),
+		);
 		expect(result?.isError).toBe(true);
 		const raw = result?.content?.map((c) => (c as { text?: string }).text).join('') ?? '';
 		const message = (JSON.parse(raw) as { message: string }).message;

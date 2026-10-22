@@ -24,6 +24,7 @@ import { createMcpRouteHandler } from '../../src/transport/mcpRoute.ts';
 import { createInFlightCounter } from '../../src/transport/inFlight.ts';
 import { getRuntimeToken, withRequestContext } from '../../src/runtime/requestContext.ts';
 import { logger } from '../../src/runtime/logger.ts';
+import { readAuthPolicy } from '../../src/runtime/authShape.ts';
 
 describe('handleListenError', () => {
 	function listenErr(code: string): NodeJS.ErrnoException {
@@ -203,7 +204,11 @@ describe('origin validation (middleware)', () => {
 			() => new McpServer({ name: 'origin-test-server', version: '0.0.0' }, { capabilities: {} }),
 			{ legacy: 'stateless' },
 		);
-		app.post('/mcp', ...guard, createMcpRouteHandler(handler));
+		app.post(
+			'/mcp',
+			...guard,
+			createMcpRouteHandler(handler, { auth: readAuthPolicy(process.env) }),
+		);
 		return app;
 	}
 

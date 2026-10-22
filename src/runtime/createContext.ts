@@ -1,5 +1,6 @@
 import type { Logger } from './logger.ts';
 import type { SharedContext } from './context.ts';
+import type { AuthPolicy } from './authShape.ts';
 import type { AppState } from '../wikis/state.ts';
 import type { ProxyConfig } from '../auth/authorizationServer/proxyConfig.ts';
 import { WikiCacheImpl } from '../wikis/wikiCache.ts';
@@ -17,9 +18,10 @@ export function createSharedContext(deps: {
 	logger: Logger;
 	state: AppState;
 	transport: 'http' | 'stdio';
+	auth: AuthPolicy;
 	getProxyConfig?: () => ProxyConfig | null;
 }): SharedContext {
-	const { logger, state, transport, getProxyConfig } = deps;
+	const { logger, state, transport, auth, getProxyConfig } = deps;
 	return {
 		// The cached instance is shared, so bounds go on a per-request view rather
 		// than on the instance. Taking the deadline from the request scope is what
@@ -41,6 +43,7 @@ export function createSharedContext(deps: {
 		errors: new ErrorClassifierImpl(extensionErrorVocabulary(extensionPacks)),
 		logger,
 		transport,
+		auth,
 		getProxyConfig,
 	};
 }

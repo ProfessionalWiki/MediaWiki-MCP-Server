@@ -38,13 +38,26 @@ function contextOverStubbedBot(): {
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- stub covering only the surface under test
 		mwnProvider: { get: async (): Promise<unknown> => bot } as unknown as AppState['mwnProvider'],
 	};
-	return { ctx: createSharedContext({ logger, state, transport: 'stdio' }), calls };
+	return {
+		ctx: createSharedContext({
+			logger,
+			state,
+			transport: 'stdio',
+			auth: { bearerPassthrough: false, staticFallback: false },
+		}),
+		calls,
+	};
 }
 
 describe('createSharedContext', () => {
 	it('populates all SharedContext fields', () => {
 		const state = createAppState(testConfig);
-		const ctx = createSharedContext({ logger, state, transport: 'stdio' });
+		const ctx = createSharedContext({
+			logger,
+			state,
+			transport: 'stdio',
+			auth: { bearerPassthrough: false, staticFallback: false },
+		});
 		expect(ctx.mwnFor).toBeTypeOf('function');
 		expect(ctx.editFor).toBeTypeOf('function');
 		expect(ctx.wikis).toBeDefined();
