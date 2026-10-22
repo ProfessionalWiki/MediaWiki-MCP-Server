@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import { Agent as HttpsAgent } from 'node:https';
+import { Agent } from 'undici';
 import type { assertPublicDestination, buildPinnedAgent } from '../../../src/outbound/ssrfGuard.ts';
 
 // Held in top-level variables (like fetchMock below) rather than created inline
@@ -12,7 +12,7 @@ import type { assertPublicDestination, buildPinnedAgent } from '../../../src/out
 const assertPublicDestinationMock = vi.fn<typeof assertPublicDestination>(async () => [
 	{ address: '93.184.216.34', family: 4 },
 ]);
-const buildPinnedAgentMock = vi.fn<typeof buildPinnedAgent>(() => new HttpsAgent());
+const buildPinnedAgentMock = vi.fn<typeof buildPinnedAgent>(() => new Agent());
 vi.mock('../../../src/outbound/ssrfGuard.ts', async () => {
 	const actual = await vi.importActual<typeof import('../../../src/outbound/ssrfGuard.ts')>(
 		'../../../src/outbound/ssrfGuard.ts',
@@ -26,7 +26,10 @@ vi.mock('../../../src/outbound/ssrfGuard.ts', async () => {
 	};
 });
 const fetchMock = vi.fn();
-vi.mock('node-fetch', () => ({ default: (...a: unknown[]) => fetchMock(...a) }));
+vi.mock('undici', async () => {
+	const actual = await vi.importActual<typeof import('undici')>('undici');
+	return { ...actual, fetch: (...a: unknown[]) => fetchMock(...a) };
+});
 
 import {
 	fetchCimdDocument,
@@ -55,7 +58,7 @@ describe('fetchCimdDocument', () => {
 		});
 		const r = await fetchCimdDocument('https://vscode.dev/c.json');
 		expect(r).toEqual({ status: 200, body: '{"client_id":"x"}', cacheControl: 'max-age=3600' });
-		expect(fetchMock.mock.calls[0][1]).toHaveProperty('agent');
+		expect(fetchMock.mock.calls[0][1]).toHaveProperty('dispatcher');
 		expect(fetchMock.mock.calls[0][1].signal).toBeDefined();
 	});
 

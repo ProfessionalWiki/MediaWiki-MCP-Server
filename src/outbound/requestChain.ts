@@ -5,9 +5,7 @@
  * caller that sends a body sends the whole request in it. It follows an `https`
  * to `http` hop with the credentials stripped; this refuses that too.
  *
- * Credentials go on any change of origin. node-fetch keeps them across a
- * subdomain and ignores the port, which on a host that gives its tenants
- * subdomains would hand one tenant's credentials to another.
+ * Credentials go on any change of origin, the port included.
  */
 
 /** Every other 3xx is delivered as the status it is. */

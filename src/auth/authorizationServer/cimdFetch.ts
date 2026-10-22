@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+import { fetch, type Agent } from 'undici';
 import { USER_AGENT } from '../../runtime/constants.ts';
 import {
 	assertPublicDestination,
@@ -41,22 +41,22 @@ export async function fetchCimdDocument(
 
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), timeoutMs);
+	let agent: Agent | undefined;
 	try {
 		const addresses = await assertPublicDestination(url);
-		const agent = buildPinnedAgent(url, addresses);
+		agent = buildPinnedAgent(addresses);
 		const response = await fetch(url, {
 			method: 'GET',
 			headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
 			redirect: 'manual', // MUST NOT follow redirects (IETF CIMD draft).
-			agent,
+			dispatcher: agent,
 			signal: controller.signal,
 		});
 
 		let total = 0;
-		const chunks: Buffer[] = [];
+		const chunks: Uint8Array[] = [];
 		if (response.body !== null) {
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- node-fetch v3 body is a Node Readable
-			for await (const chunk of response.body as AsyncIterable<Buffer>) {
+			for await (const chunk of response.body) {
 				total += chunk.length;
 				if (total > maxBytes) {
 					throw new CimdFetchError(`document exceeds ${maxBytes}-byte cap`);
@@ -79,5 +79,6 @@ export async function fetchCimdDocument(
 		throw new CimdFetchError(`could not fetch CIMD document: ${errorMessage(e)}`);
 	} finally {
 		clearTimeout(timer);
+		agent?.destroy().catch(() => {});
 	}
 }

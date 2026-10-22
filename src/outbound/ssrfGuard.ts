@@ -1,7 +1,7 @@
 import { lookup } from 'node:dns/promises';
 import type { LookupAddress } from 'node:dns';
-import { Agent as HttpAgent } from 'node:http';
-import { Agent as HttpsAgent } from 'node:https';
+import type { LookupFunction } from 'node:net';
+import { Agent } from 'undici';
 import ipaddr from 'ipaddr.js';
 
 export class SsrfValidationError extends Error {
@@ -81,39 +81,23 @@ export async function assertPublicDestination(urlString: string): Promise<Lookup
 	return addresses;
 }
 
-export function buildPinnedAgent(
-	urlString: string,
-	addresses: LookupAddress[],
-): HttpAgent | HttpsAgent {
-	const url = new URL(urlString);
-	// The Agent's lookup is invoked by net.connect for each TCP connection, so
-	// returning our pre-resolved addresses ensures fetch() cannot re-resolve
-	// the hostname into a different (private) address between validation and
-	// connection. SNI and the Host header are derived from the original URL,
-	// so HTTPS and virtual-hosted HTTP still work correctly.
-	//
-	// Pinning assumes direct connections. A future HTTPS_PROXY / CONNECT-tunnel
-	// Agent would bypass this lookup (the proxy resolves the hostname) and
-	// would need its own SSRF defense at the proxy layer.
-	const pinnedLookup = (
-		_hostname: string,
-		options: { all?: boolean },
-		callback: (
-			err: NodeJS.ErrnoException | null,
-			addressOrAll: string | LookupAddress[],
-			family?: number,
-		) => void,
-	): void => {
-		if (options.all) {
+/**
+ * A dispatcher that connects only to `addresses`, so a request cannot re-resolve
+ * its hostname into a different (private) address between validation and
+ * connection. SNI and the Host header still come from the URL.
+ */
+export function buildPinnedAgent(addresses: LookupAddress[]): Agent {
+	// Pinning assumes direct connections: a proxy would resolve the hostname
+	// itself and need its own SSRF defense.
+	const pinnedLookup: LookupFunction = (_hostname, options, callback) => {
+		if (options.all === true) {
 			callback(null, addresses);
 			return;
 		}
 		const first = addresses[0];
 		callback(null, first.address, first.family);
 	};
-
-	const AgentCtor = url.protocol === 'https:' ? HttpsAgent : HttpAgent;
-	return new AgentCtor({ lookup: pinnedLookup });
+	return new Agent({ connect: { lookup: pinnedLookup } });
 }
 
 function assertAddressIsUnicast(address: string, urlString: string): void {

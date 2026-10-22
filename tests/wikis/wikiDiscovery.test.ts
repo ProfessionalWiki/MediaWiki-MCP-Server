@@ -131,9 +131,9 @@ describe('discoverWiki', () => {
 	});
 
 	it('reports running out of time as a timeout, not as a URL that is not a wiki', async () => {
-		// What an expired budget actually produces: `AbortSignal.timeout`'s reason
-		// is a TimeoutError, and node-fetch raises AbortError. Driven directly so
-		// the test does not wait out the real budget.
+		// What an expired budget actually produces: `AbortSignal.timeout`'s reason,
+		// a TimeoutError, which the HTTP client rejects with. Driven directly so the
+		// test does not wait out the real budget.
 		vi.mocked(makeApiRequest).mockRejectedValue(
 			new DOMException('The operation was aborted due to timeout', 'TimeoutError'),
 		);

@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { FetchError } from 'node-fetch';
 
 vi.mock('../../src/outbound/httpFetch.ts', async () => {
 	const actual = await vi.importActual<typeof import('../../src/outbound/httpFetch.ts')>(
@@ -18,6 +17,7 @@ import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
 import { contextWritingTo, writingWiki } from '../helpers/writingWiki.ts';
 import { FILE_EXISTS, FILE_MISSING, UPLOADED } from '../helpers/uploadingWiki.ts';
+import { RequestFailedError } from '../../src/outbound/httpFetch.ts';
 
 const CAT = { url: 'https://source.example/cat.jpg', title: 'File:Cat.jpg', text: 'A cat.' };
 
@@ -51,7 +51,9 @@ describe('upload-file-from-url', () => {
 	});
 
 	it('asks the wiki to fetch the file when the server cannot reach the URL', async () => {
-		vi.mocked(fetchFileBytes).mockRejectedValue(new FetchError('connect ECONNREFUSED', 'system'));
+		vi.mocked(fetchFileBytes).mockRejectedValue(
+			new RequestFailedError('https://source.example/file', new Error('connect ECONNREFUSED')),
+		);
 		const wiki = wikiWithoutFile();
 
 		const result = await uploadFileFromUrl.handle(CAT, contextWritingTo(wiki));
@@ -104,7 +106,9 @@ describe('upload-file-from-url', () => {
 	});
 
 	it('says both routes failed when the server cannot reach the URL and the wiki has copy-upload disabled', async () => {
-		vi.mocked(fetchFileBytes).mockRejectedValue(new FetchError('timeout', 'system'));
+		vi.mocked(fetchFileBytes).mockRejectedValue(
+			new RequestFailedError('https://source.example/file', new Error('timeout')),
+		);
 		const wiki = wikiWithoutFile({
 			error: { code: 'copyuploaddisabled', info: 'Uploads by URL are not enabled.' },
 		});
@@ -127,7 +131,9 @@ describe('upload-file-from-url', () => {
 	});
 
 	it("tags a copy-upload with the wiki's configured tags", async () => {
-		vi.mocked(fetchFileBytes).mockRejectedValue(new FetchError('refused', 'system'));
+		vi.mocked(fetchFileBytes).mockRejectedValue(
+			new RequestFailedError('https://source.example/file', new Error('refused')),
+		);
 		const wiki = wikiWithoutFile();
 
 		await uploadFileFromUrl.handle(CAT, contextWritingTo(wiki, 'mcp-server'));
