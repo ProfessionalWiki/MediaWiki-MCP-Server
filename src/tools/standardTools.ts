@@ -15,6 +15,7 @@ import { getRevision } from './get-revision.ts';
 import { getSiteInfo } from './get-site-info.ts';
 import { getCategoryMembers } from './get-category-members.ts';
 import { getLinksHere } from './get-links-here.ts';
+import { getRandomPages } from './get-random-pages.ts';
 import { listWikis } from './list-wikis.ts';
 import { whoami } from './whoami.ts';
 import { createPage } from './create-page.ts';
@@ -54,6 +55,7 @@ export const standardTools: Tool<any>[] = [
 	getSiteInfo,
 	getCategoryMembers,
 	getLinksHere,
+	getRandomPages,
 	listWikis,
 	whoami,
 	createPage,

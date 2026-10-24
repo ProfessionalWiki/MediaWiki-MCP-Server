@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- `get-random-pages` tool that returns a random sample of wiki pages from one namespace, as Special:Random does for readers. It excludes redirects by default.
+
 ## [0.20.0] - 2026-10-22
 
 ### Breaking changes
