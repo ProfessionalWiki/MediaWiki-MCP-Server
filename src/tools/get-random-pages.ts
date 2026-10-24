@@ -33,7 +33,7 @@ const inputSchema = {
 export const getRandomPages: Tool<typeof inputSchema> = {
 	name: 'get-random-pages',
 	description:
-		"Returns a random sample of wiki pages from one namespace, as each page's title, page ID, and namespace ID, as Special:Random does for readers. Use when a task needs pages sampled without bias toward recent edits or search ranking, such as spot-checking page quality across the wiki. Each call draws a fresh sample; there is no continuation, and separate calls can return the same page. For page content, pass the titles to get-pages.",
+		"Returns randomly chosen wiki pages from one namespace, as each page's title, page ID, and namespace ID, as Special:Random does for readers. Use when a task needs pages picked independently of edit recency or search ranking, such as spot-checking page quality across the wiki. Only the starting point is random: the wiki keeps its pages in one fixed shuffled order, and a call returns the run of pages that follows that point, so calls starting near each other overlap. For pages drawn independently of one another, make several calls with a small limit. There is no continuation; each call picks a new starting point. For page content, pass the titles to get-pages.",
 	inputSchema,
 	annotations: {
 		title: 'Get random pages',
