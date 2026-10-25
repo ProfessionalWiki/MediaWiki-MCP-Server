@@ -7,6 +7,7 @@ import { sectionNotFound } from '../errors/tailoredErrors.ts';
 import { formatEditComment } from '../wikis/utils.ts';
 import { findReplaceSplice } from '../services/findReplace.ts';
 import { submitPageEdit } from '../services/pageEdit.ts';
+import { sectionHeadingError } from '../services/sectionHeadingGuard.ts';
 import { subsectionRemovalError } from '../services/subsectionGuard.ts';
 import { unreadContentError } from '../services/unreadContentGuard.ts';
 
@@ -32,7 +33,7 @@ const inputSchema = {
 		.string()
 		.optional()
 		.describe(
-			'The content to write, in the existing page\'s content model. Required for every operation except find-replace, and refused for that one. An appended source that opens a new section must begin on its own line, as in "\\n\\n== History ==\\n\\nBody."; without the leading newline the heading runs on from the last line of the page and is not recognised as a heading.',
+			'The content to write, in the existing page\'s content model. Required for every operation except find-replace, and refused for that one. A section replace includes the section heading: begin the source with that heading (get-page with section set returns it), or with a new heading at the same level to rename the section. A source that does not open with a heading at the section\'s level is refused, because it would delete the heading. An appended source that opens a new section must begin on its own line, as in "\\n\\n== History ==\\n\\nBody."; without the leading newline the heading runs on from the last line of the page and is not recognised as a heading.',
 		),
 	find: z
 		.string()
@@ -88,7 +89,7 @@ const inputSchema = {
 		.boolean()
 		.optional()
 		.describe(
-			'Confirms that replacing this section is meant to remove the subsections nested under it. Required only when section is set and source contains fewer subsection headings than the section currently has.',
+			'Confirms that replacing this section is meant to remove the subsections nested under it. Required only when section is set and source contains fewer subsection headings than the section currently has. It does not waive the heading checks: the source must still begin with the section heading and must not introduce a sibling heading.',
 		),
 } as const;
 
@@ -227,7 +228,7 @@ async function findReplace(
 export const updatePage: Tool<typeof inputSchema> = {
 	name: 'update-page',
 	description:
-		"Writes to an existing wiki page and returns the new revision ID. Fails if the page does not exist; for new pages, use create-page. operation says what the write does and section says where: omit section to act on the whole page, or set it to confine the write to one section. For changing part of a page, use operation='find-replace', which carries only the text being rewritten, so nothing outside find can be lost and the rest of the page never has to travel to or from the caller; a find that matches nothing, or more than one place, is refused without writing, which also makes it safe to resend a call whose result never arrived. For replacing a target outright, use operation='replace', whose source must carry every byte meant to survive; it is refused when source would shorten a target too large for one read to return whole, since the rest was never seen. With section set it also takes out every subsection nested under that section, is refused when source would drop them, and needs latestId to say which revision the section number was read from. operation='append' and 'prepend' add a delta: a new section at the end of the page is an append whose source begins with the heading, and with section set a prepend inserts one immediately above that section. Pass latestId (reported as latestRevisionId by any get-page read that returns wikitext) for edit-conflict detection: the write is rejected rather than silently clobbering a concurrent change. Each call is a separate revision, and resending an append or prepend whose result never arrived adds the delta a second time.",
+		"Writes to an existing wiki page and returns the new revision ID. Fails if the page does not exist; for new pages, use create-page. operation says what the write does and section says where: omit section to act on the whole page, or set it to confine the write to one section. For changing part of a page, use operation='find-replace', which carries only the text being rewritten, so nothing outside find can be lost and the rest of the page never has to travel to or from the caller; a find that matches nothing, or more than one place, is refused without writing, which also makes it safe to resend a call whose result never arrived. For replacing a target outright, use operation='replace', whose source must carry every byte meant to survive; it is refused when source would shorten a target too large for one read to return whole, since the rest was never seen. With section set it also takes out every subsection nested under that section, is refused when source would drop them, is refused when source does not begin with the section's heading or introduces a sibling heading, and needs latestId to say which revision the section number was read from. operation='append' and 'prepend' add a delta: a new section at the end of the page is an append whose source begins with the heading, and with section set a prepend inserts one immediately above that section. Pass latestId (reported as latestRevisionId by any get-page read that returns wikitext) for edit-conflict detection: the write is rejected rather than silently clobbering a concurrent change. Each call is a separate revision, and resending an append or prepend whose result never arrived adds the delta a second time.",
 	inputSchema,
 	annotations: {
 		title: 'Update page',
@@ -260,6 +261,10 @@ export const updatePage: Tool<typeof inputSchema> = {
 			const unreadError = await unreadContentError(args, plan.source, mwn);
 			if (unreadError) {
 				return ctx.format.invalidInput(unreadError);
+			}
+			const headingError = await sectionHeadingError(args, plan.source, ctx.sections, mwn);
+			if (headingError) {
+				return ctx.format.invalidInput(headingError);
 			}
 			const removalError = await subsectionRemovalError(args, plan.source, ctx.sections, mwn);
 			if (removalError) {

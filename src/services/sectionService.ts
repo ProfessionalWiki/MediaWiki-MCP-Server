@@ -9,6 +9,12 @@ export interface SectionEntry {
 	line: string;
 	/** False when the section is transcluded and cannot be edited on this page. */
 	editable: boolean;
+	/**
+	 * Byte offset of the heading in the parsed text, when the API reports it.
+	 * A section replace must begin at this heading, so the offset tells the
+	 * guard whether anything precedes it in the source.
+	 */
+	byteOffset?: number;
 }
 
 export interface SectionService {
@@ -20,6 +26,7 @@ interface PageSectionsApi {
 	index?: string;
 	level?: string;
 	line?: string;
+	byteoffset?: string;
 }
 
 // The API reports `index` as `T-1`, `T-2`, … for sections that arrive by
@@ -64,11 +71,13 @@ export class SectionServiceImpl implements SectionService {
 			(await mwn.request(params)) as { parse?: { sections?: PageSectionsApi[] } } | undefined;
 		return (response?.parse?.sections ?? []).map((s) => {
 			const index = s.index ?? '';
+			const byteOffset = Number.parseInt(s.byteoffset ?? '', 10);
 			return {
 				index,
 				level: Number.parseInt(s.level ?? '', 10) || 0,
 				line: s.line ?? '',
 				editable: isEditableIndex(index),
+				...(Number.isNaN(byteOffset) ? {} : { byteOffset }),
 			};
 		});
 	}
