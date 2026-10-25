@@ -38,6 +38,18 @@ describe('SectionServiceImpl', () => {
 	it('returns an empty list for a page with no headings', async () => {
 		expect(await new SectionServiceImpl().list(mockWithSections([]) as never, 'Empty')).toEqual([]);
 	});
+
+	it('carries the heading byte offset when the parser reports it', async () => {
+		const mock = mockWithSections([
+			{ index: '1', level: '2', line: 'History', byteoffset: '0' },
+			{ index: '2', level: '2', line: 'References', byteoffset: '30' },
+		]);
+
+		expect(await new SectionServiceImpl().list(mock as never, 'Japan')).toEqual([
+			{ index: '1', level: 2, line: 'History', editable: true, byteOffset: 0 },
+			{ index: '2', level: 2, line: 'References', editable: true, byteOffset: 30 },
+		]);
+	});
 });
 
 describe('listInSource', () => {

@@ -574,7 +574,9 @@ describe('update-page', () => {
 		});
 
 		it('allows the destructive replace when removeSubsections is set', async () => {
-			const { edits, ctx } = fakeEditWithOutline();
+			const { edits, ctx } = fakeEditWithOutline(JAPAN_OUTLINE, [
+				{ index: '1', level: 2, line: 'History', editable: true, byteOffset: 0 },
+			]);
 
 			const result = await callTool(ctx, 'update-page', {
 				title: 'Japan',
@@ -589,7 +591,9 @@ describe('update-page', () => {
 		});
 
 		it('does not guard a section that has no subsections', async () => {
-			const { edits, ctx, listInSource } = fakeEditWithOutline();
+			const { edits, ctx, listInSource } = fakeEditWithOutline(JAPAN_OUTLINE, [
+				{ index: '1', level: 2, line: 'Etymology', editable: true, byteOffset: 0 },
+			]);
 
 			const result = await callTool(ctx, 'update-page', {
 				title: 'Japan',
@@ -600,9 +604,9 @@ describe('update-page', () => {
 
 			assertStructuredSuccess(result);
 			expect(edits()).toHaveLength(1);
-			// The source parse is the guard's second request; a leaf section must
-			// not pay for it.
-			expect(listInSource).not.toHaveBeenCalled();
+			// The heading guard parses the source on every section replace; the
+			// subsection guard then finds no children to protect.
+			expect(listInSource).toHaveBeenCalledTimes(1);
 		});
 
 		// A transcluded heading can never appear as an `=` run in the host page's
@@ -616,7 +620,9 @@ describe('update-page', () => {
 				{ index: 'T-2', level: 3, line: 'Candidate B', editable: false },
 				{ index: '2', level: 2, line: 'Closed', editable: true },
 			];
-			const { edits, ctx, listInSource } = fakeEditWithOutline(outline);
+			const { edits, ctx, listInSource } = fakeEditWithOutline(outline, [
+				{ index: '1', level: 2, line: 'Nominations', editable: true, byteOffset: 0 },
+			]);
 
 			const result = await callTool(ctx, 'update-page', {
 				title: 'Wikipedia:Requests for adminship',
@@ -627,7 +633,9 @@ describe('update-page', () => {
 
 			assertStructuredSuccess(result);
 			expect(edits()).toHaveLength(1);
-			expect(listInSource).not.toHaveBeenCalled();
+			// The heading guard parses the source; the subsection guard has no
+			// editable children to protect.
+			expect(listInSource).toHaveBeenCalledTimes(1);
 		});
 
 		it('guards on an editable child only, naming just that child, when a sibling child is transcluded', async () => {
@@ -744,6 +752,149 @@ describe('update-page', () => {
 			expect(envelope.message).toContain('source parse failed');
 			expect(edits()).toHaveLength(0);
 		});
+	});
+});
+
+describe('update-page section heading guard', () => {
+	// MediaWiki replaces a section including its heading, and splices the source
+	// in place of the heading and its subtree. A source that omits the heading
+	// therefore deletes it; a source carrying a later heading at the same level
+	// duplicates a sibling section.
+	it('refuses a section replace whose source does not begin with the heading', async () => {
+		const { edits, ctx } = fakeEditWithOutline(JAPAN_OUTLINE, []);
+
+		const result = await callTool(ctx, 'update-page', {
+			title: 'Japan',
+			source: 'Rewritten.',
+			section: 2,
+			latestId: 41,
+		});
+
+		const envelope = assertStructuredError(result, 'invalid_input');
+		expect(envelope.message).toContain('does not begin with a heading');
+		expect(envelope.message).toContain('heading would be deleted');
+		expect(edits()).toHaveLength(0);
+	});
+
+	it('refuses a source that puts text before the heading', async () => {
+		const { edits, ctx } = fakeEditWithOutline(JAPAN_OUTLINE, [
+			{ index: '1', level: 2, line: 'History', editable: true, byteOffset: 8 },
+		]);
+
+		const result = await callTool(ctx, 'update-page', {
+			title: 'Japan',
+			source: 'Intro.\n\n== History ==\nRewritten.',
+			section: 2,
+			latestId: 41,
+		});
+
+		const envelope = assertStructuredError(result, 'invalid_input');
+		expect(envelope.message).toContain('does not begin with a heading');
+		expect(edits()).toHaveLength(0);
+	});
+
+	it('allows a rename that keeps the heading at the same level', async () => {
+		const { edits, ctx } = fakeEditWithOutline(JAPAN_OUTLINE, [
+			{ index: '1', level: 2, line: 'Origins', editable: true, byteOffset: 0 },
+		]);
+
+		const result = await callTool(ctx, 'update-page', {
+			title: 'Japan',
+			source: '== Origins ==\nRewritten.',
+			section: 1,
+			latestId: 41,
+		});
+
+		assertStructuredSuccess(result);
+		expect(edits()).toHaveLength(1);
+	});
+
+	it('refuses a source that introduces a second heading at the section level', async () => {
+		const { edits, ctx } = fakeEditWithOutline(JAPAN_OUTLINE, [
+			{ index: '1', level: 2, line: 'History', editable: true, byteOffset: 0 },
+			{ index: '2', level: 2, line: 'References', editable: true, byteOffset: 30 },
+		]);
+
+		const result = await callTool(ctx, 'update-page', {
+			title: 'Japan',
+			source: '== History ==\nRewritten.\n\n== References ==\n<references/>',
+			section: 2,
+			latestId: 41,
+		});
+
+		const envelope = assertStructuredError(result, 'invalid_input');
+		expect(envelope.message).toContain('duplicate a sibling section');
+		expect(envelope.message).toContain('References');
+		expect(edits()).toHaveLength(0);
+	});
+
+	it('does not waive the heading check for removeSubsections', async () => {
+		const { edits, ctx } = fakeEditWithOutline(JAPAN_OUTLINE, []);
+
+		const result = await callTool(ctx, 'update-page', {
+			title: 'Japan',
+			source: 'Rewritten.',
+			section: 2,
+			latestId: 41,
+			removeSubsections: true,
+		});
+
+		assertStructuredError(result, 'invalid_input');
+		expect(edits()).toHaveLength(0);
+	});
+
+	// A source that is a truncated prefix may appear to omit its heading simply
+	// because the heading lies past the cut, so the unread-content guard answers
+	// first.
+	it('reports unread content before the missing heading', async () => {
+		const base = fakeEdit();
+		const request = vi.fn().mockImplementation((params: Record<string, unknown>) => {
+			if (params.action === 'query' && params.prop === 'info') {
+				return Promise.resolve({ query: { pages: [{ title: 'Japan', length: 150000 }] } });
+			}
+			if (params.action === 'query' && params.prop === 'revisions') {
+				return Promise.resolve({
+					query: {
+						pages: [{ revisions: [{ slots: { main: { content: 'y'.repeat(120000) } } }] }],
+					},
+				});
+			}
+			return base.request(params);
+		});
+		const mock = createMockMwn({ request, getCsrfToken: vi.fn().mockResolvedValue('t') });
+		const ctx = contextOn(mock, {
+			edit: base.ctx.edit,
+			sections: { list: vi.fn().mockResolvedValue(JAPAN_OUTLINE), listInSource: vi.fn() },
+		});
+
+		const result = await callTool(ctx, 'update-page', {
+			title: 'Japan',
+			source: 'short',
+			section: 2,
+			latestId: 41,
+		});
+
+		const envelope = assertStructuredError(result, 'invalid_input');
+		expect(envelope.message).toContain('bytes');
+	});
+
+	it('does not guard a full-page replace or an append', async () => {
+		const full = fakeEditWithOutline();
+		assertStructuredSuccess(
+			await callTool(full.ctx, 'update-page', { title: 'Japan', source: 'Whole new page.' }),
+		);
+		expect(full.listInSource).not.toHaveBeenCalled();
+
+		const append = fakeEditWithOutline();
+		assertStructuredSuccess(
+			await callTool(append.ctx, 'update-page', {
+				title: 'Japan',
+				source: '\n\nMore.',
+				section: 2,
+				mode: 'append',
+			}),
+		);
+		expect(append.listInSource).not.toHaveBeenCalled();
 	});
 });
 

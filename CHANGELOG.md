@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Fixed
+
+- `update-page` refuses a section replace whose source does not begin with the section's heading, or that introduces a later heading at the section's level. MediaWiki splices the source in place of the heading and its subtree, so the first deletes the heading and the second duplicates a sibling section. The refusal names the heading to restore, and `removeSubsections: true` does not waive it.
+
 ## [0.20.0] - 2026-10-22
 
 ### Breaking changes
