@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Security
 
-- Updated the Docker image to Node.js 24.22.2 to resolve known advisories, among them a high-severity issue in decompressing request bodies that let an unauthenticated client crash the server or possibly run code in it. If you run the server from npm, update Node.js to 22.23.4, 24.22.1, 26.12.1 or later.
+- Updated the Docker image to Node.js 24.22.2 and updated dependencies to resolve known advisories, among them high-severity issues in how the HTTP transport decompresses and parses request bodies, which let an unauthenticated client crash the server or possibly run code in it. If you run the server from npm, update Node.js to 22.23.4, 24.22.1, 26.12.1 or later.
 
 ## [0.20.0] - 2026-10-22
 
