@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-10-29
+
 ### Security
 
 - Updated the Docker image to Node.js 24.22.2 and updated dependencies to resolve known advisories, among them high-severity issues in how the HTTP transport decompresses and parses request bodies, which let an unauthenticated client crash the server or possibly run code in it. If you run the server from npm, update Node.js to 22.23.4, 24.22.1, 26.12.1 or later.
@@ -447,7 +449,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - Smithery integration.
 
-[Unreleased]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.20.1...HEAD
+[0.20.1]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.20.0...v0.20.1
 [0.20.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.17.0...v0.18.0
