@@ -186,4 +186,79 @@ describe('wikibase-edit-entity', () => {
 	it('is annotated as a write tool so the read-only gate covers it', () => {
 		expect(wikibaseEditEntity.annotations.readOnlyHint).toBe(false);
 	});
+
+	describe('bot flag', () => {
+		// botRight is stubbed per test. fakeContext's own version throws, so a call
+		// that never asks for the flag also proves it never probes the account's rights.
+		function contextWithRights(botRight = vi.fn().mockResolvedValue(true)) {
+			const submit = vi.fn().mockResolvedValue(SAVED);
+			const ctx = contextOn(createMockMwn(), { edit: { ...baseEdit, submit, botRight } });
+			return { ctx, submit, botRight };
+		}
+
+		it('sends no bot parameter and does not probe the rights by default', async () => {
+			const { ctx, submit, botRight } = contextWithRights();
+
+			const result = await wikibaseEditEntity.handle(
+				toolArgs(wikibaseEditEntity, { entityId: 'Q1234', data: LABEL_DATA }),
+				ctx,
+			);
+
+			expect(submit.mock.calls[0][1]).not.toHaveProperty('bot');
+			expect(botRight).not.toHaveBeenCalled();
+			expect(assertStructuredData(result)).not.toHaveProperty('botMarked');
+		});
+
+		it('passes bot through and reports botMarked true when the account has the right', async () => {
+			const { ctx, submit } = contextWithRights();
+
+			const result = await wikibaseEditEntity.handle(
+				toolArgs(wikibaseEditEntity, { entityId: 'Q1234', data: LABEL_DATA, bot: true }),
+				ctx,
+			);
+
+			expect(submit.mock.calls[0][1]).toMatchObject({ action: 'wbeditentity', bot: true });
+			expect(assertStructuredData(result)).toMatchObject({ botMarked: true });
+		});
+
+		// MediaWiki saves the edit without the flag when the account lacks the right,
+		// so the response is the only place that says the flag did not apply.
+		it('reports botMarked false when the account lacks the bot right', async () => {
+			const { ctx } = contextWithRights(vi.fn().mockResolvedValue(false));
+
+			const result = await wikibaseEditEntity.handle(
+				toolArgs(wikibaseEditEntity, { entityId: 'Q1234', data: LABEL_DATA, bot: true }),
+				ctx,
+			);
+
+			expect(assertStructuredData(result)).toMatchObject({ botMarked: false });
+		});
+
+		it('omits botMarked, and still saves, when the rights probe fails', async () => {
+			const { ctx } = contextWithRights(vi.fn().mockResolvedValue(undefined));
+
+			const result = await wikibaseEditEntity.handle(
+				toolArgs(wikibaseEditEntity, { entityId: 'Q1234', data: LABEL_DATA, bot: true }),
+				ctx,
+			);
+
+			// The key is present with no value, and JSON serialisation drops it, as for
+			// the page tools, so the caller sees no botMarked at all.
+			const data = assertStructuredData(result);
+			expect(data).toMatchObject({ entityId: 'Q1234' });
+			expect(data.botMarked).toBeUndefined();
+		});
+
+		it('treats bot=false like an unflagged edit', async () => {
+			const { ctx, submit, botRight } = contextWithRights();
+
+			await wikibaseEditEntity.handle(
+				toolArgs(wikibaseEditEntity, { entityId: 'Q1234', data: LABEL_DATA, bot: false }),
+				ctx,
+			);
+
+			expect(submit.mock.calls[0][1]).not.toHaveProperty('bot');
+			expect(botRight).not.toHaveBeenCalled();
+		});
+	});
 });

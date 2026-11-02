@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { formatEditComment } from '../../../wikis/utils.ts';
+import { botInput } from './botInput.ts';
 
 const inputSchema = {
 	entityId: z
@@ -32,6 +33,7 @@ const inputSchema = {
 			'Removes everything the entity currently holds before applying data, instead of merging into it.',
 		),
 	comment: z.string().optional().describe('Edit summary, appended to the generated one.'),
+	bot: botInput,
 } as const;
 
 interface EditEntityResponse {
@@ -54,7 +56,7 @@ export const wikibaseEditEntity: Tool<typeof inputSchema> = {
 	target: (a) => a.entityId ?? a.entityType,
 
 	async handle(
-		{ entityId, entityType, data, clear, comment },
+		{ entityId, entityType, data, clear, comment, bot },
 		ctx: ToolContext,
 	): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
@@ -65,6 +67,7 @@ export const wikibaseEditEntity: Tool<typeof inputSchema> = {
 			data: JSON.stringify(data),
 			...(clear === true ? { clear: true } : {}),
 			...(summary !== undefined ? { summary } : {}),
+			...(bot === true ? { bot: true } : {}),
 		};
 
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- wbeditentity response shape; trusted at this boundary
@@ -81,6 +84,7 @@ export const wikibaseEditEntity: Tool<typeof inputSchema> = {
 			entityId: entity.id,
 			entityType: entity.type,
 			latestRevisionId: entity.lastrevid,
+			...(bot === true ? { botMarked: await ctx.edit.botRight(mwn) } : {}),
 		});
 	},
 };
