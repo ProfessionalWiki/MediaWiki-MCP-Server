@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
-import { RedirectFilter } from './get-links-here.ts';
+import { RedirectFilter } from '../wikis/redirectFilter.ts';
 
 interface RandomEntry {
 	id: number;
@@ -33,7 +33,7 @@ const inputSchema = {
 export const getRandomPages: Tool<typeof inputSchema> = {
 	name: 'get-random-pages',
 	description:
-		"Returns randomly chosen wiki pages from one namespace, as each page's title, page ID, and namespace ID; the API counterpart of Special:Random. Only the starting point is random: the wiki keeps its pages in one fixed shuffled order, and a call returns the run of pages that follows that point, so calls starting near each other overlap. For pages drawn independently of one another, make several calls with a small limit. There is no continuation; each call picks a new starting point. For page content, pass the titles to get-pages.",
+		"Returns randomly chosen wiki pages from one namespace, as each page's title, page ID, and namespace ID; the API counterpart of Special:Random. One call's pages are a fair random sample; separate calls can overlap because they read the same ordering from different starting points. There is no continuation; each call picks a new starting point. For page content, pass the titles to get-pages.",
 	inputSchema,
 	annotations: {
 		title: 'Get random pages',

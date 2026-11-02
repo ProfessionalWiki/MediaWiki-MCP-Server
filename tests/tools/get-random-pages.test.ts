@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
 import { contextOn } from '../helpers/fakeContext.ts';
 import { getRandomPages } from '../../src/tools/get-random-pages.ts';
-import { RedirectFilter } from '../../src/tools/get-links-here.ts';
+import { RedirectFilter } from '../../src/wikis/redirectFilter.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
 

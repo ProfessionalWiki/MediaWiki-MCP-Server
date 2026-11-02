@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
 import { contextOn } from '../helpers/fakeContext.ts';
-import { getLinksHere, LinkType, RedirectFilter } from '../../src/tools/get-links-here.ts';
+import { getLinksHere, LinkType } from '../../src/tools/get-links-here.ts';
+import { RedirectFilter } from '../../src/wikis/redirectFilter.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import {
 	assertStructuredData,
