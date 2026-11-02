@@ -3,17 +3,12 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import type { TruncationInfo } from '../results/truncation.ts';
+import { RedirectFilter } from '../wikis/redirectFilter.ts';
 
 export enum LinkType {
 	wikilinks = 'wikilinks',
 	transclusions = 'transclusions',
 	fileusage = 'fileusage',
-}
-
-export enum RedirectFilter {
-	all = 'all',
-	redirects = 'redirects',
-	nonredirects = 'nonredirects',
 }
 
 // Each relationship maps to a MediaWiki list module, its parameter prefix, and

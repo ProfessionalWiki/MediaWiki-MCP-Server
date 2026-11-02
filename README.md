@@ -21,6 +21,7 @@ Every tool that operates on a wiki accepts an optional `wiki` argument naming th
 | `get-page` | Fetch a wiki page. |
 | `get-page-history` | List recent revisions of a wiki page. |
 | `get-pages` | Fetch multiple wiki pages in one call (up to 50). |
+| `get-random-pages` | List a random sample of wiki pages from one namespace (main by default, redirects excluded by default, up to 500 per call). |
 | `get-recent-changes` | List recent change events across the wiki, filterable by timestamp, namespace, user, tag, type, and hide flags (up to 50 per call, paginated via `continue`). |
 | `get-revision` | Fetch a specific revision of a page. |
 | `get-site-info` | Get a wiki's key settings: MediaWiki version, content language, title-case rules, namespaces, installed extensions, license, and (optionally) statistics. |
