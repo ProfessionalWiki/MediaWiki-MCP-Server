@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { ToolContext } from '../../src/runtime/context.ts';
-import { buildPageUrl, formatEditComment } from '../../src/wikis/utils.ts';
+import { buildPageUrl, formatEditComment, resolveBotFlag } from '../../src/wikis/utils.ts';
 import { fakeContext, probeReporting, withWikiConfig } from '../helpers/fakeContext.ts';
 
 function ctxWithAttribution(attributeEdits?: boolean): ToolContext {
@@ -77,5 +77,35 @@ describe('buildPageUrl', () => {
 	it('keeps dollar signs in the title literal', async () => {
 		const url = await buildPageUrl(ctxWithArticlePath('/w/index.php?title=$1'), 'Ca$$h');
 		expect(url).toBe('https://test.wiki/w/index.php?title=Ca$$h');
+	});
+});
+
+describe('resolveBotFlag', () => {
+	// The whole decision table: the call's own value wins in both directions,
+	// the wiki setting decides only when the call says nothing, and with neither
+	// the answer is false, which is the behaviour from before the setting existed.
+	it.each([
+		{ call: undefined, wiki: undefined, expected: false },
+		{ call: undefined, wiki: false, expected: false },
+		{ call: undefined, wiki: true, expected: true },
+		{ call: true, wiki: undefined, expected: true },
+		{ call: true, wiki: false, expected: true },
+		{ call: true, wiki: true, expected: true },
+		{ call: false, wiki: undefined, expected: false },
+		{ call: false, wiki: false, expected: false },
+		{ call: false, wiki: true, expected: false },
+	])(
+		'is $expected when the call says $call and the wiki says $wiki',
+		({ call, wiki, expected }) => {
+			const ctx = withWikiConfig(fakeContext(), { bot: wiki });
+
+			expect(resolveBotFlag(ctx, call)).toBe(expected);
+		},
+	);
+
+	it('does not flag an edit for a configured string such as "false"', () => {
+		const ctx = withWikiConfig(fakeContext(), { bot: 'false' as never });
+
+		expect(resolveBotFlag(ctx, undefined)).toBe(false);
 	});
 });

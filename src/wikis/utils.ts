@@ -11,6 +11,11 @@ export async function buildPageUrl(ctx: ToolContext, title: string): Promise<str
 	);
 }
 
+/** Whether a write asks for a bot edit: the call's `bot` wins, else the wiki's `bot` setting. */
+export function resolveBotFlag(ctx: ToolContext, bot: boolean | undefined): boolean {
+	return bot ?? ctx.wiki.config.bot === true;
+}
+
 /**
  * The edit summary a write should carry, attributed to the tool making it, or
  * `undefined` when there is none: a wiki that has turned attribution off and a

@@ -181,6 +181,20 @@ describe('parseConfig', () => {
 		});
 	});
 
+	describe('bot', () => {
+		it.each([true, false])('preserves bot: %s through the loader', (bot) => {
+			const config = parse({ defaultWiki: 'w', wikis: { w: { ...baseWiki, token: null, bot } } });
+
+			expect(config.wikis.w.bot).toBe(bot);
+		});
+
+		it('leaves bot undefined when the field is absent, so no edit is flagged', () => {
+			const config = parse({ defaultWiki: 'w', wikis: { w: { ...baseWiki, token: null } } });
+
+			expect(config.wikis.w.bot).toBeUndefined();
+		});
+	});
+
 	describe('wiki keys', () => {
 		// Percent-encoding carries these through to a reachable resource URI.
 		it.each(['a/b', 'a?b', 'a#b', 'my wiki'])('accepts a wiki key containing %j', (key) => {

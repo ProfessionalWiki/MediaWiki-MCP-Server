@@ -5,7 +5,7 @@ import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { botArgSchema } from '../runtime/botArg.ts';
 import { sectionNotFound } from '../errors/tailoredErrors.ts';
-import { formatEditComment } from '../wikis/utils.ts';
+import { formatEditComment, resolveBotFlag } from '../wikis/utils.ts';
 import { findReplaceSplice } from '../services/findReplace.ts';
 import { submitPageEdit } from '../services/pageEdit.ts';
 import { sectionHeadingError } from '../services/sectionHeadingGuard.ts';
@@ -176,7 +176,7 @@ function commonEditParams(
 		...(summary !== undefined ? { summary } : {}),
 		nocreate: true,
 		...(section !== undefined ? { section: String(section) } : {}),
-		...(bot === true ? { bot: true } : {}),
+		...(resolveBotFlag(ctx, bot) ? { bot: true } : {}),
 	};
 }
 

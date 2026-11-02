@@ -1,6 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { fakeContext, withoutEditAttribution, contextOn } from '../../../helpers/fakeContext.ts';
+import {
+	fakeContext,
+	withoutEditAttribution,
+	withWikiConfig,
+	contextOn,
+} from '../../../helpers/fakeContext.ts';
 import { toolArgs } from '../../../helpers/toolArgs.ts';
 import { wikibaseEditEntity } from '../../../../src/tools/extensions/wikibase/wikibase-edit-entity.ts';
 import { dispatch } from '../../../../src/runtime/dispatcher.ts';
@@ -271,6 +276,30 @@ describe('wikibase-edit-entity', () => {
 			await wikibaseEditEntity.handle(
 				toolArgs(wikibaseEditEntity, { ...EDIT, bot: false }),
 				wiki.ctx,
+			);
+
+			expect(wiki.write()).not.toHaveProperty('bot');
+			expect(wiki.rightsChecked()).toBe(false);
+		});
+
+		it('flags the edit when the wiki is configured to, without the call asking', async () => {
+			const wiki = wikiWithRights(['bot']);
+
+			const result = await wikibaseEditEntity.handle(
+				toolArgs(wikibaseEditEntity, EDIT),
+				withWikiConfig(wiki.ctx, { bot: true }),
+			);
+
+			expect(wiki.write()).toMatchObject({ bot: true });
+			expect(assertStructuredData(result)).toMatchObject({ botMarked: true });
+		});
+
+		it('lets a call opt out of a wiki that flags every edit', async () => {
+			const wiki = wikiWithRights(['bot']);
+
+			await wikibaseEditEntity.handle(
+				toolArgs(wikibaseEditEntity, { ...EDIT, bot: false }),
+				withWikiConfig(wiki.ctx, { bot: true }),
 			);
 
 			expect(wiki.write()).not.toHaveProperty('bot');
