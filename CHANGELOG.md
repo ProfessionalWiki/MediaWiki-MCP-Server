@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Breaking changes
 
 - The server now needs Node.js 22.19 or later (was 22.12). On Node.js 22.12–22.18 it fails at startup.
+- `update-page` now refuses a `section=N` replace whose source does not begin with a heading, and quotes the heading to keep. Empty sources, appends, prepends, `find-replace`, the lead and full-page replaces are exempt.
 
 ### Added
 

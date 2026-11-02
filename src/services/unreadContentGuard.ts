@@ -1,6 +1,7 @@
 import type { Mwn } from 'mwn';
 import { contentMaxBytes } from '../results/truncation.ts';
 import type { EditTarget } from './pageEdit.ts';
+import { sectionWikitext } from './sectionWikitext.ts';
 
 // A target larger than one read cannot have been read whole, so a shorter
 // source would delete bytes the caller never saw.
@@ -40,24 +41,9 @@ export async function unreadContentError(
 			? unreadContentMessage(`Page "${title}"`, pageBytes, sourceBytes, cap)
 			: undefined;
 	}
-	// The write resolves the section number against latestId, so the section is
-	// measured there too. Only the lead, which cannot move, arrives without one.
-	const sectionRead =
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mwn API response shape; trusted at this boundary
-		(await mwn.request({
-			action: 'query',
-			prop: 'revisions',
-			...(latestId === undefined ? { titles: title } : { revids: latestId }),
-			rvprop: 'content',
-			rvslots: 'main',
-			rvsection: section,
-			formatversion: '2',
-		})) as
-			| { query?: { pages?: { revisions?: { slots?: { main?: { content?: string } } }[] }[] } }
-			| undefined;
-	const current = sectionRead?.query?.pages?.[0]?.revisions?.[0]?.slots?.main?.content;
+	const current = await sectionWikitext({ title, section, latestId }, mwn);
 	// A section the revision does not have is the edit's own error to report.
-	if (typeof current !== 'string') {
+	if (current === undefined) {
 		return undefined;
 	}
 	const sectionBytes = Buffer.byteLength(current, 'utf8');
