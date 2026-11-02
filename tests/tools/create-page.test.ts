@@ -3,6 +3,7 @@ import { createPage } from '../../src/tools/create-page.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
 import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
 import { contextWritingTo, writingWiki, type WritingWiki } from '../helpers/writingWiki.ts';
+import { withWikiConfig } from '../helpers/fakeContext.ts';
 
 const CREATED = {
 	edit: {
@@ -166,6 +167,31 @@ describe('create-page', () => {
 			);
 
 			expect(assertStructuredSuccess(result)).toContain('Bot marked: false');
+		});
+
+		it('marks the edit as a bot edit when the wiki is configured to, without the call asking', async () => {
+			const wiki = fakeWiki({ rights: ['bot'] });
+
+			const result = await createPage.handle(
+				{ source: 'Hello', title: 'New Page' },
+				withWikiConfig(contextWritingTo(wiki), { bot: true }),
+			);
+
+			expect(wiki.sentWrite().get('bot')).toBe('1');
+			expect(assertStructuredSuccess(result)).toContain('Bot marked: true');
+		});
+
+		it('lets a call opt out of a wiki that flags every edit', async () => {
+			const wiki = fakeWiki({ rights: ['bot'] });
+
+			const result = await createPage.handle(
+				{ source: 'Hello', title: 'New Page', bot: false },
+				withWikiConfig(contextWritingTo(wiki), { bot: true }),
+			);
+
+			expect(wiki.sentWrite().has('bot')).toBe(false);
+			expect(wiki.rightsQueries()).toBe(0);
+			expect(assertStructuredSuccess(result)).not.toContain('Bot marked');
 		});
 	});
 });

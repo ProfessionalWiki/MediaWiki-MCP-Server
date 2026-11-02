@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
-import { fakeContext, contextOn } from '../helpers/fakeContext.ts';
+import { fakeContext, contextOn, withWikiConfig } from '../helpers/fakeContext.ts';
 import { wikiAnswering } from '../helpers/wikiAnswering.ts';
 import { updatePage } from '../../src/tools/update-page.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
@@ -464,6 +464,30 @@ describe('update-page', () => {
 			const { edits, rightsChecked, ctx } = fakeEdit();
 
 			await updatePage.handle({ title: 'My Page', source: 'content', bot: false }, ctx);
+
+			expect(edits()[0]).not.toHaveProperty('bot');
+			expect(rightsChecked()).toBe(false);
+		});
+
+		it('flags the edit when the wiki is configured to, without the call asking', async () => {
+			const { edits, ctx } = fakeEdit(successResponse(), { rights: ['bot'] });
+
+			const result = await updatePage.handle(
+				{ title: 'My Page', source: 'content' },
+				withWikiConfig(ctx, { bot: true }),
+			);
+
+			expect(edits()[0]).toMatchObject({ bot: true });
+			expect(assertStructuredSuccess(result)).toContain('Bot marked: true');
+		});
+
+		it('lets a call opt out of a wiki that flags every edit', async () => {
+			const { edits, rightsChecked, ctx } = fakeEdit(successResponse(), { rights: ['bot'] });
+
+			await updatePage.handle(
+				{ title: 'My Page', source: 'content', bot: false },
+				withWikiConfig(ctx, { bot: true }),
+			);
 
 			expect(edits()[0]).not.toHaveProperty('bot');
 			expect(rightsChecked()).toBe(false);

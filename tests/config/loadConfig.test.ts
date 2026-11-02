@@ -181,6 +181,28 @@ describe('parseConfig', () => {
 		});
 	});
 
+	describe('bot', () => {
+		it.each([true, false])('preserves bot: %s through the loader', (bot) => {
+			const config = parse({ defaultWiki: 'w', wikis: { w: { ...baseWiki, token: null, bot } } });
+
+			expect(config.wikis.w.bot).toBe(bot);
+		});
+
+		it('leaves bot undefined when the field is absent, so no edit is flagged', () => {
+			const config = parse({ defaultWiki: 'w', wikis: { w: { ...baseWiki, token: null } } });
+
+			expect(config.wikis.w.bot).toBeUndefined();
+		});
+
+		// A string such as "false" is truthy in JavaScript, so accepting one would
+		// flag edits when the operator meant the opposite.
+		it.each(['yes', 'false', 1, null])('throws when bot is %j rather than a boolean', (bot) => {
+			expect(() =>
+				parse({ defaultWiki: 'w', wikis: { w: { ...baseWiki, token: null, bot } } }),
+			).toThrow('Config error: wikis.w.bot must be a boolean');
+		});
+	});
+
 	describe('wiki keys', () => {
 		// Percent-encoding carries these through to a reachable resource URI.
 		it.each(['a/b', 'a?b', 'a#b', 'my wiki'])('accepts a wiki key containing %j', (key) => {

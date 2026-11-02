@@ -2,7 +2,8 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
-import { formatEditComment } from '../../../wikis/utils.ts';
+import { formatEditComment, resolveBotFlag } from '../../../wikis/utils.ts';
+import { botInput } from './botInput.ts';
 
 const inputSchema = {
 	entityId: z
@@ -32,6 +33,7 @@ const inputSchema = {
 			'Removes everything the entity currently holds before applying data, instead of merging into it.',
 		),
 	comment: z.string().optional().describe('Edit summary, appended to the generated one.'),
+	bot: botInput,
 } as const;
 
 interface EditEntityResponse {
@@ -54,17 +56,22 @@ export const wikibaseEditEntity: Tool<typeof inputSchema> = {
 	target: (a) => a.entityId ?? a.entityType,
 
 	async handle(
-		{ entityId, entityType, data, clear, comment },
+		{ entityId, entityType, data, clear, comment, bot },
 		ctx: ToolContext,
 	): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
 		const summary = formatEditComment(ctx, 'wikibase-edit-entity', comment);
+		// The call's `bot` input wins; otherwise the wiki's setting decides. Either
+		// way the parameter is sent only when true, so the default request is
+		// byte-for-byte what it was before the option existed.
+		const markAsBot = resolveBotFlag(ctx, bot);
 		const params: Record<string, string | number | boolean> = {
 			action: 'wbeditentity',
 			...(entityId !== undefined ? { id: entityId.toUpperCase() } : { new: entityType }),
 			data: JSON.stringify(data),
 			...(clear === true ? { clear: true } : {}),
 			...(summary !== undefined ? { summary } : {}),
+			...(markAsBot ? { bot: true } : {}),
 		};
 
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- wbeditentity response shape; trusted at this boundary
@@ -81,6 +88,9 @@ export const wikibaseEditEntity: Tool<typeof inputSchema> = {
 			entityId: entity.id,
 			entityType: entity.type,
 			latestRevisionId: entity.lastrevid,
+			// MediaWiki ignores `bot` without the right and still saves the edit, so
+			// say whether the flag applied. A failed probe leaves this out.
+			...(markAsBot ? { botMarked: await ctx.edit.botRight(mwn) } : {}),
 		});
 	},
 };

@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- `wikibase-edit-entity` and `wikibase-add-statement` accept a `bot` parameter that marks the edit as a bot edit, and report `botMarked` when it is set. The flag takes effect only when the account has the `bot` right.
+- A per-wiki `bot` setting marks that wiki's edits as bot edits by default. Without it, nothing changes: no edit is flagged. See [docs/configuration.md](docs/configuration.md#bot-edits-bot).
+
+### Changed
+
+- On a wiki with `bot: true`, `create-page` and `update-page` flag an edit as a bot edit unless the call passes `bot: false`. Their behaviour is unchanged on a wiki without the setting.
+
 ## [0.20.1] - 2026-10-29
 
 ### Security

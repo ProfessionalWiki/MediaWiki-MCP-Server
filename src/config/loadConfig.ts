@@ -101,6 +101,17 @@ export interface WikiConfig {
 	 * you control the target wiki.
 	 */
 	attributeEdits?: boolean;
+	/**
+	 * Whether edits made through this MCP server are marked as bot edits by
+	 * default, so Special:RecentChanges hides them from people who hide bot
+	 * edits. Defaults to false: no edit is flagged unless this is set or a call
+	 * asks for it with its own `bot` input, which wins over this default in both
+	 * directions. It takes effect only on writes whose API module has a `bot`
+	 * parameter (page edits, `wbeditentity`, `wbcreateclaim`), and only when the
+	 * authenticated account holds the `bot` right; without the right MediaWiki
+	 * saves the edit unflagged, and the response reports `botMarked: false`.
+	 */
+	bot?: boolean;
 }
 
 /**
@@ -336,6 +347,11 @@ function resolveWiki(raw: unknown, wikiKey: string, env: NodeJS.ProcessEnv): Wik
 	}
 	if (resolved.readOnly !== undefined && typeof resolved.readOnly !== 'boolean') {
 		throw new Error(`Config error: wikis.${wikiKey}.readOnly must be a boolean`);
+	}
+	// Strict on purpose: a string such as "false" is truthy in JavaScript, so
+	// accepting it would flag edits as bot edits when the operator meant the opposite.
+	if (resolved.bot !== undefined && typeof resolved.bot !== 'boolean') {
+		throw new Error(`Config error: wikis.${wikiKey}.bot must be a boolean`);
 	}
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON.parse boundary; ajv-validated WikiConfig parsing is a separate follow-up
 	return resolved as unknown as WikiConfig;

@@ -1,6 +1,6 @@
 # Advanced configuration
 
-Covers configuration topics beyond the basic `config.json` shape documented in [README.md](../README.md#configuration): the full field reference, environment variable substitution, secret sources, plaintext fallback, and the `tags` and `attributeEdits` fields.
+Covers configuration topics beyond the basic `config.json` shape documented in [README.md](../README.md#configuration): the full field reference, environment variable substitution, secret sources, plaintext fallback, and the `tags`, `attributeEdits` and `bot` fields.
 
 ## Configuration fields
 
@@ -31,6 +31,7 @@ Covers configuration topics beyond the basic `config.json` shape documented in [
 | `readOnly` | No | When `true`, the 🔐 write tools are refused on this wiki, and hidden from `tools/list` when every configured wiki sets it. Pairs with `allowWikiManagement: false` for a [hosted read-only endpoint](deployment.md). Default: `false` |
 | `tags` | No | Change tag(s) to apply to every write (string or array). The tag must exist and be active at `Special:Tags` — see [change tags](#change-tags-tags) for details. |
 | `attributeEdits` | No | Whether writes carry the `(via <tool> on MediaWiki MCP Server)` suffix in their edit summary. Default: `true`. See [edit attribution](#edit-attribution-attributeedits). |
+| `bot` | No | Whether edits are marked as bot edits by default. Default: `false`. A call's own `bot` input overrides it. See [bot edits](#bot-edits-bot). |
 
 URLs returned to the caller — page links, and the `server` field in `list-wikis` and `mcp://wikis` resources — are built from the public address the wiki reports, so an internal `server` hostname does not leak into links. Until the server has read that address, they use the configured `server`; a wiki on an internal host is only read once the host is listed in [`MCP_TRUSTED_HOSTS`](deployment.md#outbound-ssrf-guard).
 
@@ -137,6 +138,24 @@ Set `attributeEdits` to `false` to drop the suffix. The write then carries the c
 ```
 
 A change [`tags`](#change-tags-tags) value keeps MCP writes identifiable without the suffix, and stays visible in recent changes and page history.
+
+## Bot edits (`bot`)
+
+Set `bot` to `true` to mark a wiki's edits as bot edits, which Special:RecentChanges hides by default. With no `bot` setting, no edit is flagged.
+
+```json
+{
+  "wikis": {
+    "my.wiki.org": {
+      "bot": true
+    }
+  }
+}
+```
+
+The setting applies to `create-page`, `update-page`, `wikibase-edit-entity` and `wikibase-add-statement`. The other write tools have no bot flag. Each of these four tools also takes a `bot` input. When a call gives one, it wins over the setting in both directions: `bot: false` leaves a single edit unflagged on a wiki that flags every edit.
+
+The flag takes effect only when the account has the `bot` right: membership of the bot group, or the **High-volume editing** grant on a bot password or OAuth consumer. Without the right, the wiki saves the edit unflagged and does not return an error. A write that asked for the flag reports `botMarked` in its response, `false` when the account lacked the right.
 
 ## Upload directories
 

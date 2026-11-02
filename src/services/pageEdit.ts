@@ -1,7 +1,7 @@
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Mwn } from 'mwn';
 import type { ToolContext } from '../runtime/context.ts';
-import { buildPageUrl } from '../wikis/utils.ts';
+import { buildPageUrl, resolveBotFlag } from '../wikis/utils.ts';
 
 /** The page a write lands on, or one of its sections as numbered at `latestId`. */
 export interface EditTarget {
@@ -43,7 +43,8 @@ export async function submitPageEdit(
 		latestRevisionId: edit.newrevid,
 		latestRevisionTimestamp: edit.newtimestamp,
 		contentModel: edit.contentmodel,
-		...(bot === true ? { botMarked: await ctx.edit.botRight(mwn) } : {}),
+		// `bot` is the call's own input; the wiki's default applies when it is absent.
+		...(resolveBotFlag(ctx, bot) ? { botMarked: await ctx.edit.botRight(mwn) } : {}),
 		url: await buildPageUrl(ctx, resolvedTitle),
 	});
 }

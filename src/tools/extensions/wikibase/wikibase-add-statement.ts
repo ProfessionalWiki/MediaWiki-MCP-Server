@@ -2,7 +2,8 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
-import { formatEditComment } from '../../../wikis/utils.ts';
+import { formatEditComment, resolveBotFlag } from '../../../wikis/utils.ts';
+import { botInput } from './botInput.ts';
 
 // Datatypes whose value this tool can build from a plain string. Everything
 // else (time, quantity, coordinates, monolingual text) needs a structured
@@ -27,6 +28,7 @@ const inputSchema = {
 			'The value, as text: an entity ID (Q515) for a wikibase-item property, otherwise the literal string, identifier or URL.',
 		),
 	comment: z.string().optional().describe('Edit summary, appended to the generated one.'),
+	bot: botInput,
 } as const;
 
 interface PropertyResponse {
@@ -55,7 +57,7 @@ export const wikibaseAddStatement: Tool<typeof inputSchema> = {
 	target: (a) => a.entityId,
 
 	async handle(
-		{ entityId, propertyId, value, comment },
+		{ entityId, propertyId, value, comment, bot },
 		ctx: ToolContext,
 	): Promise<CallToolResult> {
 		const entity = entityId.toUpperCase();
@@ -93,6 +95,9 @@ export const wikibaseAddStatement: Tool<typeof inputSchema> = {
 		}
 
 		const summary = formatEditComment(ctx, 'wikibase-add-statement', comment);
+		// The call's `bot` input wins; otherwise the wiki's setting decides. Sent
+		// only when true, so the default request is unchanged.
+		const markAsBot = resolveBotFlag(ctx, bot);
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- wbcreateclaim response shape; trusted at this boundary
 		const response = (await ctx.edit.submit(mwn, {
 			action: 'wbcreateclaim',
@@ -101,6 +106,7 @@ export const wikibaseAddStatement: Tool<typeof inputSchema> = {
 			snaktype: 'value',
 			value: snakValue,
 			...(summary !== undefined ? { summary } : {}),
+			...(markAsBot ? { bot: true } : {}),
 		})) as CreateClaimResponse | undefined;
 
 		const statementId = response?.claim?.id;
@@ -116,6 +122,9 @@ export const wikibaseAddStatement: Tool<typeof inputSchema> = {
 			propertyId: property,
 			statementId,
 			latestRevisionId: response?.pageinfo?.lastrevid,
+			// MediaWiki ignores `bot` without the right and still saves the edit, so
+			// say whether the flag applied. A failed probe leaves this out.
+			...(markAsBot ? { botMarked: await ctx.edit.botRight(mwn) } : {}),
 		});
 	},
 };

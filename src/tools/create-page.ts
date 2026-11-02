@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
-import { formatEditComment } from '../wikis/utils.ts';
+import { formatEditComment, resolveBotFlag } from '../wikis/utils.ts';
 import { submitPageEdit } from '../services/pageEdit.ts';
 
 const inputSchema = {
@@ -19,7 +19,7 @@ const inputSchema = {
 		.boolean()
 		.optional()
 		.describe(
-			'Marks the edit as a bot edit, which Special:RecentChanges hides by default. Takes effect only when the authenticated account has the `bot` right (granted by the bot group, or by the high-volume grant on a bot password or OAuth consumer); without it the edit saves unflagged and the response reports botMarked: false. Use when performing bulk or automated edit runs, or when the user requests it.',
+			'Marks the edit as a bot edit, which Special:RecentChanges hides by default. When omitted, the setting configured for the wiki decides, and that is off unless the operator turned it on; pass false to leave a single edit unflagged. Takes effect only when the authenticated account has the `bot` right (granted by the bot group, or by the high-volume grant on a bot password or OAuth consumer); without it the edit saves unflagged and the response reports botMarked: false. Use when performing bulk or automated edit runs, or when the user requests it.',
 		),
 } as const;
 
@@ -51,7 +51,7 @@ export const createPage: Tool<typeof inputSchema> = {
 			summary: formatEditComment(ctx, 'create-page', comment),
 			createonly: true,
 			...(contentModel !== undefined ? { contentmodel: contentModel } : {}),
-			...(bot === true ? { bot: true } : {}),
+			...(resolveBotFlag(ctx, bot) ? { bot: true } : {}),
 		};
 		return submitPageEdit(ctx, mwn, 'create page', params, { title, bot });
 	},

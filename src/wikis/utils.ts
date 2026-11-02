@@ -12,6 +12,20 @@ export async function buildPageUrl(ctx: ToolContext, title: string): Promise<str
 }
 
 /**
+ * Whether a write should ask MediaWiki to mark the edit as a bot edit.
+ *
+ * The call's own `bot` input wins when it is given, in both directions, so a
+ * single edit can opt out of a wiki that flags everything, or opt in on one that
+ * flags nothing. When the call says nothing, the wiki's `bot` setting decides,
+ * and without one the answer is false, which is the behaviour before the setting
+ * existed. Whether the flag then takes effect is up to the wiki: it needs the
+ * `bot` right, and an account without it saves the edit unflagged.
+ */
+export function resolveBotFlag(ctx: ToolContext, bot?: boolean): boolean {
+	return bot ?? ctx.wiki.config.bot === true;
+}
+
+/**
  * The edit summary a write should carry, attributed to the tool making it, or
  * `undefined` when there is none: a wiki that has turned attribution off and a
  * caller that gave no comment. An absent summary is not an empty one — MediaWiki
