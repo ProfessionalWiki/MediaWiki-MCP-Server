@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Breaking changes
+
+- The server now needs Node.js 22.19 or later (was 22.12). On Node.js 22.12–22.18 it fails at startup.
+
 ### Added
 
 - `get-random-pages` tool that returns a random sample of wiki pages from one namespace, as Special:Random does for readers. It excludes redirects by default.
