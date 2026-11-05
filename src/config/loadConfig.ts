@@ -101,6 +101,11 @@ export interface WikiConfig {
 	 * you control the target wiki.
 	 */
 	attributeEdits?: boolean;
+	/**
+	 * Whether this wiki's page and Wikibase edits are marked as bot edits unless
+	 * the call's own `bot` input says otherwise. Defaults to false.
+	 */
+	bot?: boolean;
 }
 
 /**

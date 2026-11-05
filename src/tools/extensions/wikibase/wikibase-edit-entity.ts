@@ -2,8 +2,8 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
-import { formatEditComment } from '../../../wikis/utils.ts';
 import { botArgSchema } from '../../../runtime/botArg.ts';
+import { formatEditComment, resolveBotFlag } from '../../../wikis/utils.ts';
 
 const inputSchema = {
 	entityId: z
@@ -61,13 +61,14 @@ export const wikibaseEditEntity: Tool<typeof inputSchema> = {
 	): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
 		const summary = formatEditComment(ctx, 'wikibase-edit-entity', comment);
+		const markAsBot = resolveBotFlag(ctx, bot);
 		const params: Record<string, string | number | boolean> = {
 			action: 'wbeditentity',
 			...(entityId !== undefined ? { id: entityId.toUpperCase() } : { new: entityType }),
 			data: JSON.stringify(data),
 			...(clear === true ? { clear: true } : {}),
 			...(summary !== undefined ? { summary } : {}),
-			...(bot === true ? { bot: true } : {}),
+			...(markAsBot ? { bot: true } : {}),
 		};
 
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- wbeditentity response shape; trusted at this boundary
@@ -84,7 +85,7 @@ export const wikibaseEditEntity: Tool<typeof inputSchema> = {
 			entityId: entity.id,
 			entityType: entity.type,
 			latestRevisionId: entity.lastrevid,
-			...(bot === true ? { botMarked: await ctx.edit.botRight(mwn) } : {}),
+			...(markAsBot ? { botMarked: await ctx.edit.botRight(mwn) } : {}),
 		});
 	},
 };

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createMockMwn } from '../helpers/mock-mwn.ts';
-import { fakeContext, contextOn } from '../helpers/fakeContext.ts';
+import { fakeContext, contextOn, withWikiConfig } from '../helpers/fakeContext.ts';
 import { wikiAnswering } from '../helpers/wikiAnswering.ts';
 import { updatePage } from '../../src/tools/update-page.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
@@ -115,11 +115,14 @@ function fakeFindReplace(current: string = PAGE, revid = 41) {
 	});
 }
 
-// A wiki holding `page`: the read gets it back, and the write goes to fakeEdit's.
+// A wiki holding `page`: the read gets it back, and the write and the rights
+// check go to fakeEdit's.
 function fakeFindReplaceOf(page: object) {
 	const base = fakeEdit();
-	const request = vi.fn(async (params: { action?: string }) =>
-		params.action === 'query' ? { query: { pages: [page] } } : base.request(params),
+	const request = vi.fn(async (params: { action?: string; meta?: string }) =>
+		params.action === 'query' && params.meta === undefined
+			? { query: { pages: [page] } }
+			: base.request(params),
 	);
 	const mock = createMockMwn({
 		request,
@@ -127,7 +130,9 @@ function fakeFindReplaceOf(page: object) {
 	});
 	const ctx = contextOn(mock, { edit: base.ctx.edit });
 	const pageReads = (): Record<string, unknown>[] =>
-		request.mock.calls.map(([params]) => params).filter((params) => params.action === 'query');
+		request.mock.calls
+			.map(([params]) => params)
+			.filter((params) => params.action === 'query' && params.meta === undefined);
 	return { ...base, ctx, pageReads };
 }
 
@@ -472,6 +477,30 @@ describe('update-page', () => {
 			const { edits, rightsChecked, ctx } = fakeEdit();
 
 			await updatePage.handle({ title: 'My Page', source: 'content', bot: false }, ctx);
+
+			expect(edits()[0]).not.toHaveProperty('bot');
+			expect(rightsChecked()).toBe(false);
+		});
+
+		it('flags the edit when the wiki is configured to, without the call asking', async () => {
+			const { edits, ctx } = fakeEdit(successResponse(), { rights: ['bot'] });
+
+			const result = await updatePage.handle(
+				{ title: 'My Page', source: 'content' },
+				withWikiConfig(ctx, { bot: true }),
+			);
+
+			expect(edits()[0]).toMatchObject({ bot: true });
+			expect(assertStructuredSuccess(result)).toContain('Bot marked: true');
+		});
+
+		it('lets a call opt out of a wiki that flags every edit', async () => {
+			const { edits, rightsChecked, ctx } = fakeEdit(successResponse(), { rights: ['bot'] });
+
+			await updatePage.handle(
+				{ title: 'My Page', source: 'content', bot: false },
+				withWikiConfig(ctx, { bot: true }),
+			);
 
 			expect(edits()[0]).not.toHaveProperty('bot');
 			expect(rightsChecked()).toBe(false);
@@ -1116,7 +1145,7 @@ describe('update-page find-replace', () => {
 	it('carries the comment and the bot flag like every other write', async () => {
 		const { edits, ctx } = fakeFindReplace();
 
-		await callTool(ctx, 'update-page', {
+		const result = await callTool(ctx, 'update-page', {
 			title: 'My Page',
 			operation: 'find-replace',
 			find: 'founded in 1104',
@@ -1127,6 +1156,7 @@ describe('update-page find-replace', () => {
 
 		expect(edits()[0]).toMatchObject({ bot: true });
 		expect(edits()[0].summary).toContain('date correction');
+		expect(assertStructuredSuccess(result)).toContain('Bot marked: true');
 	});
 
 	// The subsection guard exists for a replace, which takes the subtree with it.

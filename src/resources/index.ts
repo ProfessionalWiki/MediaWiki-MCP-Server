@@ -10,7 +10,7 @@ import { decodeWikiKey, encodeWikiKey } from '../runtime/wikiKey.ts';
 // WikiConfig field is private until someone adds it here. Credentials
 // (`token`, `username`, `password`, `oauth2ClientSecret`) and server-side
 // operational settings (`publicServer`, `oauth2CallbackPort`, `tags`,
-// `attributeEdits`, `oauth2ClientId`) are all absent by construction.
+// `attributeEdits`, `bot`, `oauth2ClientId`) are all absent by construction.
 // Undefined optional fields drop out of the JSON body, as before.
 function toPublicConfig(wikiConfig: Readonly<WikiConfig>): PublicWikiConfig {
 	return {

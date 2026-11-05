@@ -3,7 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { botArgSchema } from '../runtime/botArg.ts';
-import { formatEditComment } from '../wikis/utils.ts';
+import { formatEditComment, resolveBotFlag } from '../wikis/utils.ts';
 import { submitPageEdit } from '../services/pageEdit.ts';
 
 const inputSchema = {
@@ -47,8 +47,8 @@ export const createPage: Tool<typeof inputSchema> = {
 			summary: formatEditComment(ctx, 'create-page', comment),
 			createonly: true,
 			...(contentModel !== undefined ? { contentmodel: contentModel } : {}),
-			...(bot === true ? { bot: true } : {}),
+			...(resolveBotFlag(ctx, bot) ? { bot: true } : {}),
 		};
-		return submitPageEdit(ctx, mwn, 'create page', params, { title, bot });
+		return submitPageEdit(ctx, mwn, 'create page', params, { title });
 	},
 };

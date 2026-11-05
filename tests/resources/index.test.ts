@@ -116,6 +116,7 @@ describe('wikis resource', () => {
 			readOnly: true,
 			tags: 'mcp-edit',
 			attributeEdits: false,
+			bot: true,
 		};
 		const ctx = fakeContext({
 			wikis: {
