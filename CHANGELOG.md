@@ -17,6 +17,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - `wikibase-edit-entity` and `wikibase-add-statement` accept a `bot` parameter that marks the edit as a bot edit, and report `botMarked`, as `create-page` and `update-page` do.
 - A per-wiki `bot` setting marks the edits of `create-page`, `update-page`, `wikibase-edit-entity` and `wikibase-add-statement` as bot edits unless the call passes `bot: false`. Without it, nothing changes. See [docs/configuration.md](docs/configuration.md#bot-edits-bot).
 
+### Changed
+
+- The Docker image runs on Node.js 26 (was 24).
+
 ## [0.20.1] - 2026-10-29
 
 ### Security
