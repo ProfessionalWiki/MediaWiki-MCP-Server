@@ -4,6 +4,7 @@ import { fakeContext, withoutEditAttribution, contextOn } from '../../../helpers
 import { toolArgs } from '../../../helpers/toolArgs.ts';
 import { wikibaseEditEntity } from '../../../../src/tools/extensions/wikibase/wikibase-edit-entity.ts';
 import { dispatch } from '../../../../src/runtime/dispatcher.ts';
+import { EditServiceImpl } from '../../../../src/services/editService.ts';
 import { assertStructuredData, assertStructuredError } from '../../../helpers/structuredResult.ts';
 
 const SAVED = { entity: { id: 'Q1234', type: 'item', lastrevid: 987 }, success: 1 };
@@ -188,58 +189,73 @@ describe('wikibase-edit-entity', () => {
 	});
 
 	describe('bot flag', () => {
-		// botRight is stubbed per test. fakeContext's own version throws, so a call
-		// that never asks for the flag also proves it never probes the account's rights.
-		function contextWithRights(botRight = vi.fn().mockResolvedValue(true)) {
-			const submit = vi.fn().mockResolvedValue(SAVED);
-			const ctx = contextOn(createMockMwn(), { edit: { ...baseEdit, submit, botRight } });
-			return { ctx, submit, botRight };
+		const EDIT = { entityId: 'Q1234', data: LABEL_DATA };
+
+		// The real edit service, over a wiki that answers a rights check with
+		// `rights`, or fails it when `rights` is an error.
+		function wikiWithRights(rights: string[] | Error = ['bot']) {
+			const request = vi.fn(async (params: Record<string, unknown>) => {
+				if (params.meta !== 'userinfo') {
+					return SAVED;
+				}
+				if (rights instanceof Error) {
+					throw rights;
+				}
+				return { query: { userinfo: { rights } } };
+			});
+			const mock = createMockMwn({
+				request,
+				getCsrfToken: vi.fn().mockResolvedValue('csrf-token'),
+			});
+			const sent = (): Record<string, unknown>[] => request.mock.calls.map(([params]) => params);
+			return {
+				ctx: contextOn(mock, { edit: new EditServiceImpl(null) }),
+				write: () => sent().find((params) => params.action === 'wbeditentity'),
+				rightsChecked: () => sent().some((params) => params.meta === 'userinfo'),
+			};
 		}
 
-		it('sends no bot parameter and does not probe the rights by default', async () => {
-			const { ctx, submit, botRight } = contextWithRights();
+		it('sends no bot parameter and does not check the rights by default', async () => {
+			const wiki = wikiWithRights();
 
-			const result = await wikibaseEditEntity.handle(
-				toolArgs(wikibaseEditEntity, { entityId: 'Q1234', data: LABEL_DATA }),
-				ctx,
-			);
+			const result = await wikibaseEditEntity.handle(toolArgs(wikibaseEditEntity, EDIT), wiki.ctx);
 
-			expect(submit.mock.calls[0][1]).not.toHaveProperty('bot');
-			expect(botRight).not.toHaveBeenCalled();
+			expect(wiki.write()).not.toHaveProperty('bot');
+			expect(wiki.rightsChecked()).toBe(false);
 			expect(assertStructuredData(result)).not.toHaveProperty('botMarked');
 		});
 
 		it('passes bot through and reports botMarked true when the account has the right', async () => {
-			const { ctx, submit } = contextWithRights();
+			const wiki = wikiWithRights(['bot']);
 
 			const result = await wikibaseEditEntity.handle(
-				toolArgs(wikibaseEditEntity, { entityId: 'Q1234', data: LABEL_DATA, bot: true }),
-				ctx,
+				toolArgs(wikibaseEditEntity, { ...EDIT, bot: true }),
+				wiki.ctx,
 			);
 
-			expect(submit.mock.calls[0][1]).toMatchObject({ action: 'wbeditentity', bot: true });
+			expect(wiki.write()).toMatchObject({ bot: true });
 			expect(assertStructuredData(result)).toMatchObject({ botMarked: true });
 		});
 
 		// MediaWiki saves the edit without the flag when the account lacks the right,
 		// so the response is the only place that says the flag did not apply.
 		it('reports botMarked false when the account lacks the bot right', async () => {
-			const { ctx } = contextWithRights(vi.fn().mockResolvedValue(false));
+			const wiki = wikiWithRights([]);
 
 			const result = await wikibaseEditEntity.handle(
-				toolArgs(wikibaseEditEntity, { entityId: 'Q1234', data: LABEL_DATA, bot: true }),
-				ctx,
+				toolArgs(wikibaseEditEntity, { ...EDIT, bot: true }),
+				wiki.ctx,
 			);
 
 			expect(assertStructuredData(result)).toMatchObject({ botMarked: false });
 		});
 
-		it('omits botMarked, and still saves, when the rights probe fails', async () => {
-			const { ctx } = contextWithRights(vi.fn().mockResolvedValue(undefined));
+		it('omits botMarked, and still reports the save, when the rights check fails', async () => {
+			const wiki = wikiWithRights(new Error('rights check failed'));
 
 			const result = await wikibaseEditEntity.handle(
-				toolArgs(wikibaseEditEntity, { entityId: 'Q1234', data: LABEL_DATA, bot: true }),
-				ctx,
+				toolArgs(wikibaseEditEntity, { ...EDIT, bot: true }),
+				wiki.ctx,
 			);
 
 			// The key is present with no value, and JSON serialisation drops it, as for
@@ -250,15 +266,15 @@ describe('wikibase-edit-entity', () => {
 		});
 
 		it('treats bot=false like an unflagged edit', async () => {
-			const { ctx, submit, botRight } = contextWithRights();
+			const wiki = wikiWithRights();
 
 			await wikibaseEditEntity.handle(
-				toolArgs(wikibaseEditEntity, { entityId: 'Q1234', data: LABEL_DATA, bot: false }),
-				ctx,
+				toolArgs(wikibaseEditEntity, { ...EDIT, bot: false }),
+				wiki.ctx,
 			);
 
-			expect(submit.mock.calls[0][1]).not.toHaveProperty('bot');
-			expect(botRight).not.toHaveBeenCalled();
+			expect(wiki.write()).not.toHaveProperty('bot');
+			expect(wiki.rightsChecked()).toBe(false);
 		});
 	});
 });
