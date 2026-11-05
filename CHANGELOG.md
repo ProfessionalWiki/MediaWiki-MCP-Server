@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-05
+
 ### Breaking changes
 
 - The server now needs Node.js 22.19 or later (was 22.12). On Node.js 22.12–22.18 it fails at startup.
@@ -464,7 +466,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - Smithery integration.
 
-[Unreleased]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.20.1...HEAD
+[Unreleased]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.20.1...v0.21.0
 [0.20.1]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.20.0...v0.20.1
 [0.20.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.18.0...v0.19.0
