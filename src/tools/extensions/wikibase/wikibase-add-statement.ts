@@ -3,7 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { formatEditComment } from '../../../wikis/utils.ts';
-import { botInput } from './botInput.ts';
+import { botArgSchema } from '../../../runtime/botArg.ts';
 
 // Datatypes whose value this tool can build from a plain string. Everything
 // else (time, quantity, coordinates, monolingual text) needs a structured
@@ -28,7 +28,7 @@ const inputSchema = {
 			'The value, as text: an entity ID (Q515) for a wikibase-item property, otherwise the literal string, identifier or URL.',
 		),
 	comment: z.string().optional().describe('Edit summary, appended to the generated one.'),
-	bot: botInput,
+	bot: botArgSchema,
 } as const;
 
 interface PropertyResponse {

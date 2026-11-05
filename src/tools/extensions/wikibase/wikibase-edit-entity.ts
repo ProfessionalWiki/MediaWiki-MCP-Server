@@ -3,7 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { formatEditComment } from '../../../wikis/utils.ts';
-import { botInput } from './botInput.ts';
+import { botArgSchema } from '../../../runtime/botArg.ts';
 
 const inputSchema = {
 	entityId: z
@@ -33,7 +33,7 @@ const inputSchema = {
 			'Removes everything the entity currently holds before applying data, instead of merging into it.',
 		),
 	comment: z.string().optional().describe('Edit summary, appended to the generated one.'),
-	bot: botInput,
+	bot: botArgSchema,
 } as const;
 
 interface EditEntityResponse {
