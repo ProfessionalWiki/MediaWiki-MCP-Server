@@ -4,7 +4,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { neowikiRequest } from './neowikiRequest.ts';
-import { flattenSubject, type SubjectData } from './subjects.ts';
+import { presentSubject, type SubjectData } from './subjects.ts';
 
 const inputSchema = {
 	id: z
@@ -37,7 +37,7 @@ async function readSubject(
 export const neowikiGetSubject: Tool<typeof inputSchema> = {
 	name: 'neowiki-get-subject',
 	description:
-		'Fetches one NeoWiki Subject by ID — its label, display name, schema, the wiki page holding it, and statements with typed values — as the latest revision of its page holds it, with that revision ID as revisionId, the baseRevisionId the NeoWiki write tools take. Where the latest revision cannot be read, such as a draft an approval extension hides, it returns the revision the wiki publishes, without revisionId. Enabled only when the wiki has NeoWiki installed. Richer than a flattened Cypher node: it preserves multi-part values and per-statement types. `select` values are option IDs — decode them with neowiki-get-schema. A Dependent Subject has no label and carries hostSubject, the Subject it belongs to, and is named after its Schema and that Host Subject ("Birth of Pablo Picasso"). Get an ID from neowiki-search-subjects or a Cypher query.',
+		'Fetches one NeoWiki Subject by ID — its label, display name, schema, the wiki page holding it, and its statements as NeoWiki stores them, a map of property name to { propertyType, value } that the write tools take back — as the latest revision of its page holds it, with that revision ID as revisionId, the baseRevisionId the NeoWiki write tools take. Where the latest revision cannot be read, such as a draft an approval extension hides, it returns the revision the wiki publishes, without revisionId. Enabled only when the wiki has NeoWiki installed. Richer than a flattened Cypher node: it preserves multi-part values and per-statement types. `select` values are option IDs — decode them with neowiki-get-schema. A Dependent Subject has no label and carries hostSubject, the Subject it belongs to, and is named after its Schema and that Host Subject ("Birth of Pablo Picasso"). Get an ID from neowiki-search-subjects or a Cypher query.',
 	inputSchema,
 	annotations: {
 		title: 'Get NeoWiki subject',
@@ -55,7 +55,7 @@ export const neowikiGetSubject: Tool<typeof inputSchema> = {
 		const latestSubject = latest.subjects?.[id];
 		if (latestSubject !== undefined) {
 			return ctx.format.ok({
-				...flattenSubject(latestSubject, id),
+				...presentSubject(latestSubject, id),
 				...(typeof latest.revisionId === 'number' ? { revisionId: latest.revisionId } : {}),
 			});
 		}
@@ -66,6 +66,6 @@ export const neowikiGetSubject: Tool<typeof inputSchema> = {
 			return ctx.format.notFound(`NeoWiki subject "${id}" not found`);
 		}
 
-		return ctx.format.ok(flattenSubject(published, id));
+		return ctx.format.ok(presentSubject(published, id));
 	},
 };

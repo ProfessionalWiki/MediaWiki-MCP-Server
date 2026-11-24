@@ -167,7 +167,7 @@ describe('neowiki-update-subject', () => {
 
 		expect(result.structuredContent).toMatchObject({
 			violations: [violation],
-			subject: { statements: [{ property: 'Founded', type: 'number', value: 2019 }] },
+			subject: { statements: { Founded: { propertyType: 'number', value: 2019 } } },
 		});
 	});
 

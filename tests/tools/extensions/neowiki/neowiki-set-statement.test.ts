@@ -64,7 +64,7 @@ describe('neowiki-set-statement', () => {
 		expect(result.structuredContent).toMatchObject({
 			subjectId: 's1demo',
 			revisionId: 1235,
-			subject: { statements: [{ property: 'Founded at', type: 'number', value: 2019 }] },
+			subject: { statements: { 'Founded at': { propertyType: 'number', value: 2019 } } },
 		});
 	});
 

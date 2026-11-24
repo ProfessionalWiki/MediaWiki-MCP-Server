@@ -159,7 +159,7 @@ describe('neowiki-create-subject', () => {
 			violations: [violation],
 			subject: {
 				displayName: 'Berlin',
-				statements: [{ property: 'Country', type: 'text', value: ['DE'] }],
+				statements: { Country: { propertyType: 'text', value: ['DE'] } },
 			},
 		});
 	});
