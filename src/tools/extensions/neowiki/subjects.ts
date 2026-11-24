@@ -47,6 +47,7 @@ export function flattenSubject(
 export interface SubjectWriteResponse {
 	status?: string;
 	subjectId?: string;
+	revisionId?: number;
 	violations?: unknown[];
 	subject?: SubjectData;
 }
@@ -54,8 +55,9 @@ export interface SubjectWriteResponse {
 export function writeResult(
 	data: SubjectWriteResponse,
 	subjectId: string,
-): { violations: unknown[]; subject?: ReturnType<typeof flattenSubject> } {
+): { revisionId?: number; violations: unknown[]; subject?: ReturnType<typeof flattenSubject> } {
 	return {
+		...(typeof data.revisionId === 'number' ? { revisionId: data.revisionId } : {}),
 		violations: Array.isArray(data.violations) ? data.violations : [],
 		...(data.subject !== undefined ? { subject: flattenSubject(data.subject, subjectId) } : {}),
 	};

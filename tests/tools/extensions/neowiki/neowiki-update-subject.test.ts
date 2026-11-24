@@ -7,6 +7,8 @@ import { assertStructuredError } from '../../../helpers/structuredResult.ts';
 import { httpError } from '../../../helpers/httpError.ts';
 import { dispatch } from '../../../../src/runtime/dispatcher.ts';
 
+const subject = { id: 's1demo', baseRevisionId: 1234 };
+
 const stmts = { Founded: { propertyType: 'number', value: 2019 } };
 
 const birth = {
@@ -39,7 +41,7 @@ describe('neowiki-update-subject', () => {
 		});
 		const ctx = contextOn(mock);
 		const result = await neowikiUpdateSubject.handle(
-			{ id: 's1demo', label: 'ACME', statements: stmts, comment: 'tidy' },
+			{ ...subject, label: 'ACME', statements: stmts, comment: 'tidy' },
 			ctx,
 		);
 		const call = mock.rawRequest.mock.calls[0][0] as {
@@ -55,17 +57,31 @@ describe('neowiki-update-subject', () => {
 		expect(result.structuredContent).toMatchObject({ subjectId: 's1demo', status: 'updated' });
 	});
 
+	it('sends the revision the change was made from', async () => {
+		const { mock, ctx } = contextWith(updated);
+
+		await neowikiUpdateSubject.handle({ ...subject, statements: stmts }, ctx);
+
+		expect(sentBody(mock)).toMatchObject({ baseRevisionId: 1234 });
+	});
+
+	it('returns the revision the page is at after the write', async () => {
+		const { ctx } = contextWith({ ...updated, revisionId: 1235 });
+
+		const result = await neowikiUpdateSubject.handle({ ...subject, statements: stmts }, ctx);
+
+		expect(result.structuredContent).toMatchObject({ revisionId: 1235 });
+	});
+
 	it('attributes the write to the tool that made it, after the caller comment', async () => {
 		const { mock, ctx } = contextWith(updated);
 
 		await neowikiUpdateSubject.handle(
-			{ id: 's1demo', label: 'ACME', statements: stmts, comment: 'tidy' },
+			{ ...subject, label: 'ACME', statements: stmts, comment: 'tidy' },
 			ctx,
 		);
 
-		expect(sentBody(mock)).toEqual({
-			label: 'ACME',
-			statements: stmts,
+		expect(sentBody(mock)).toMatchObject({
 			comment: 'tidy (via neowiki-update-subject on MediaWiki MCP Server)',
 		});
 	});
@@ -73,7 +89,7 @@ describe('neowiki-update-subject', () => {
 	it('attributes a write the caller gave no comment for', async () => {
 		const { mock, ctx } = contextWith(updated);
 
-		await neowikiUpdateSubject.handle({ id: 's1demo', label: 'ACME', statements: stmts }, ctx);
+		await neowikiUpdateSubject.handle({ ...subject, label: 'ACME', statements: stmts }, ctx);
 
 		expect(sentBody(mock)).toMatchObject({
 			comment: 'Automated edit (via neowiki-update-subject on MediaWiki MCP Server)',
@@ -84,7 +100,7 @@ describe('neowiki-update-subject', () => {
 		const { mock, ctx } = contextWith(updated);
 
 		await neowikiUpdateSubject.handle(
-			{ id: 's1demo', label: 'ACME', statements: stmts, comment: 'tidy' },
+			{ ...subject, label: 'ACME', statements: stmts, comment: 'tidy' },
 			withoutEditAttribution(ctx),
 		);
 
@@ -95,7 +111,7 @@ describe('neowiki-update-subject', () => {
 		const { mock, ctx } = contextWith(updated);
 
 		await neowikiUpdateSubject.handle(
-			{ id: 's1demo', label: 'ACME', statements: stmts },
+			{ ...subject, label: 'ACME', statements: stmts },
 			withoutEditAttribution(ctx),
 		);
 
@@ -106,7 +122,7 @@ describe('neowiki-update-subject', () => {
 		const { mock, ctx } = contextWith(updated);
 
 		await neowikiUpdateSubject.handle(
-			{ id: 's1demo', statements: stmts, dependentSubjects: [birth] },
+			{ ...subject, statements: stmts, dependentSubjects: [birth] },
 			ctx,
 		);
 
@@ -120,7 +136,7 @@ describe('neowiki-update-subject', () => {
 	it('omits the label when none is given, which clears it', async () => {
 		const { mock, ctx } = contextWith(updated);
 
-		await neowikiUpdateSubject.handle({ id: 's1demo', statements: stmts }, ctx);
+		await neowikiUpdateSubject.handle({ ...subject, statements: stmts }, ctx);
 
 		expect(sentBody(mock)).not.toHaveProperty('label');
 	});
@@ -145,7 +161,7 @@ describe('neowiki-update-subject', () => {
 			},
 		});
 		const result = await neowikiUpdateSubject.handle(
-			{ id: 's1demo', label: 'ACME', statements: stmts },
+			{ ...subject, label: 'ACME', statements: stmts },
 			ctx,
 		);
 
@@ -164,7 +180,7 @@ describe('neowiki-update-subject', () => {
 		const result = await dispatch(
 			neowikiUpdateSubject,
 			ctx,
-		)({ id: 'sX', label: 'X', statements: {} });
+		)({ ...subject, id: 'sX', label: 'X', statements: {} });
 		assertStructuredError(result, 'not_found');
 	});
 });

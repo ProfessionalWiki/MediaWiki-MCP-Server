@@ -80,6 +80,42 @@ describe('neowiki-get-subject', () => {
 		expect(result.structuredContent).toMatchObject({ hostSubject });
 	});
 
+	it('reads the latest revision and returns its revision ID', async () => {
+		const mock = createMockMwn({
+			rawRequest: vi.fn().mockResolvedValue({
+				data: {
+					requestedId: 's1demo1aaaaaaa1',
+					revisionId: 1234,
+					subjects: { s1demo1aaaaaaa1: { id: 's1demo1aaaaaaa1', schema: 'Company' } },
+				},
+			}),
+		});
+		const result = await neowikiGetSubject.handle({ id: 's1demo1aaaaaaa1' }, contextOn(mock));
+
+		expect(requestedUrl(mock).searchParams.get('latest')).toBe('1');
+		expect(result.structuredContent).toMatchObject({ revisionId: 1234 });
+	});
+
+	it('returns the published subject, without a revision ID, when the latest revision is hidden', async () => {
+		const mock = createMockMwn({
+			rawRequest: vi
+				.fn()
+				.mockResolvedValueOnce({ data: { subject: null } })
+				.mockResolvedValueOnce({
+					data: {
+						requestedId: 's1demo1aaaaaaa1',
+						subjects: {
+							s1demo1aaaaaaa1: { id: 's1demo1aaaaaaa1', label: 'ACME Inc', schema: 'Company' },
+						},
+					},
+				}),
+		});
+		const result = await neowikiGetSubject.handle({ id: 's1demo1aaaaaaa1' }, contextOn(mock));
+
+		expect(result.structuredContent).toMatchObject({ id: 's1demo1aaaaaaa1', label: 'ACME Inc' });
+		expect(result.structuredContent).not.toHaveProperty('revisionId');
+	});
+
 	it('returns not_found when the subject is absent', async () => {
 		const mock = createMockMwn({
 			rawRequest: vi.fn().mockResolvedValue({ data: { requestedId: 'sX', subjects: {} } }),
