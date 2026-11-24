@@ -77,6 +77,7 @@ Each pack's tools register only on wikis where its extension is installed.
 | `neowiki-search-subjects` | Find subject IDs by name, or list the subjects of given schemas. |
 | `neowiki-list-subjects` | List subjects page by page, by schema or text, in a chosen order. |
 | `neowiki-get-subject` | Fetch one subject's structured data by ID. |
+| `neowiki-get-referencing-subjects` | List the subjects whose relations point at a subject. |
 | `neowiki-get-page-subjects` | List the subjects attached to a wiki page. |
 | `neowiki-create-subject` | Create a subject (main or other) on a page. Requires the `edit` right. |
 | `neowiki-update-subject` | Replace a subject's label and statements. Requires the `edit` right. |

@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Added
 
+- `neowiki-get-referencing-subjects` lists the NeoWiki subjects whose relations point at a subject, on any NeoWiki wiki, with or without a graph store.
 - `neowiki-create-schema`, `neowiki-update-schema` and `neowiki-delete-schema` create, replace and delete NeoWiki schemas. Create and update take a schema in the shape `neowiki-get-schema` returns. Create refuses a schema that exists, and update one that does not.
 - `neowiki-list-subjects` lists NeoWiki subjects page by page, filtered by schema or by text in their name, page title or ID, and sorted by creation, name, schema, page or last edit.
 - `neowiki-move-subject` moves a NeoWiki subject, with its dependent subjects, to another page and keeps its ID.
