@@ -24,7 +24,8 @@ export interface SubjectData {
 	statements?: Record<string, SubjectStatement>;
 }
 
-export function flattenSubject(
+/** A Subject as the read tools return it: NeoWiki's, with its statements as NeoWiki stores them. */
+export function presentSubject(
 	subject: SubjectData,
 	fallbackId: string,
 ): {
@@ -35,13 +36,8 @@ export function flattenSubject(
 	hostSubject?: unknown;
 	pageId?: number;
 	pageTitle?: string;
-	statements: Array<{ property: string; type: string; value: unknown }>;
+	statements: Record<string, SubjectStatement>;
 } {
-	const statements = Object.entries(subject.statements ?? {}).map(([property, statement]) => ({
-		property,
-		type: typeof statement.propertyType === 'string' ? statement.propertyType : '',
-		value: statement.value,
-	}));
 	return {
 		id: subject.id ?? fallbackId,
 		label: subject.label ?? '',
@@ -50,7 +46,7 @@ export function flattenSubject(
 		...(subject.hostSubject !== undefined ? { hostSubject: subject.hostSubject } : {}),
 		...(subject.pageId !== undefined ? { pageId: subject.pageId } : {}),
 		...(subject.pageTitle !== undefined ? { pageTitle: subject.pageTitle } : {}),
-		statements,
+		statements: subject.statements ?? {},
 	};
 }
 
@@ -65,10 +61,10 @@ export interface SubjectWriteResponse {
 export function writeResult(
 	data: SubjectWriteResponse,
 	subjectId: string,
-): { revisionId?: number; violations: unknown[]; subject?: ReturnType<typeof flattenSubject> } {
+): { revisionId?: number; violations: unknown[]; subject?: ReturnType<typeof presentSubject> } {
 	return {
 		...(typeof data.revisionId === 'number' ? { revisionId: data.revisionId } : {}),
 		violations: Array.isArray(data.violations) ? data.violations : [],
-		...(data.subject !== undefined ? { subject: flattenSubject(data.subject, subjectId) } : {}),
+		...(data.subject !== undefined ? { subject: presentSubject(data.subject, subjectId) } : {}),
 	};
 }

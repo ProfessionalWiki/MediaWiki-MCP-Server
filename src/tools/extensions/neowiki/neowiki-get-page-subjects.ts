@@ -3,7 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { neowikiRequest } from './neowikiRequest.ts';
-import { flattenSubject, type SubjectData } from './subjects.ts';
+import { presentSubject, type SubjectData } from './subjects.ts';
 import { resolvePageId, hasOnePageRef } from './pageId.ts';
 
 const inputSchema = {
@@ -60,7 +60,7 @@ export const neowikiGetPageSubjects: Tool<typeof inputSchema> = {
 
 		const mainSubjectId = data.mainSubjectId ?? null;
 		const subjects = Object.entries(data.subjects ?? {}).map(([id, subject]) => ({
-			...flattenSubject(subject, id),
+			...presentSubject(subject, id),
 			isMain: id === mainSubjectId,
 		}));
 

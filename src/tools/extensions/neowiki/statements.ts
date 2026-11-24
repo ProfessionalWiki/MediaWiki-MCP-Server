@@ -9,9 +9,7 @@ const statementSchema = z.object({
 	propertyType: z
 		.string()
 		.min(1)
-		.describe(
-			"The property's type. The key is propertyType, NOT the `type` key read tools return.",
-		),
+		.describe("The property's type, as neowiki-get-subject returns it under propertyType."),
 	value: z.unknown().describe(`Value shaped by propertyType: ${VALUE_FORMATS}.`),
 });
 

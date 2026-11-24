@@ -43,7 +43,7 @@ describe('neowiki-get-page-subjects', () => {
 					id: 'sMain',
 					isMain: true,
 					schema: 'Museum',
-					statements: [{ property: 'Founded', type: 'number', value: 1800 }],
+					statements: { Founded: { propertyType: 'number', value: 1800 } },
 				},
 				{ id: 'sChild', isMain: false, schema: 'Attendance' },
 			],

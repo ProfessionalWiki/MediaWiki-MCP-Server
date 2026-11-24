@@ -19,7 +19,7 @@ function mockReturningSubject(fields: Record<string, unknown>): MockMwn {
 }
 
 describe('neowiki-get-subject', () => {
-	it('unwraps the subject envelope and flattens statements', async () => {
+	it('unwraps the subject envelope and returns its statements as NeoWiki stores them', async () => {
 		const mock = createMockMwn({
 			rawRequest: vi.fn().mockResolvedValue({
 				data: {
@@ -45,7 +45,7 @@ describe('neowiki-get-subject', () => {
 			id: 's1demo1aaaaaaa1',
 			label: 'ACME Inc',
 			schema: 'Company',
-			statements: [{ property: 'Status', type: 'select', value: ['o1demo1aaaaaaa1'] }],
+			statements: { Status: { propertyType: 'select', value: ['o1demo1aaaaaaa1'] } },
 		});
 	});
 
