@@ -1,6 +1,9 @@
 import type { ExtensionPack } from '../types.ts';
 import { neowikiListSchemas } from './neowiki-list-schemas.ts';
 import { neowikiGetSchema } from './neowiki-get-schema.ts';
+import { neowikiCreateSchema } from './neowiki-create-schema.ts';
+import { neowikiUpdateSchema } from './neowiki-update-schema.ts';
+import { neowikiDeleteSchema } from './neowiki-delete-schema.ts';
 import { neowikiCypherQuery } from './neowiki-cypher-query.ts';
 import { neowikiSearchSubjects } from './neowiki-search-subjects.ts';
 import { neowikiListSubjects } from './neowiki-list-subjects.ts';
@@ -22,6 +25,9 @@ export const neowikiPack: ExtensionPack = {
 	tools: [
 		neowikiListSchemas,
 		neowikiGetSchema,
+		neowikiCreateSchema,
+		neowikiUpdateSchema,
+		neowikiDeleteSchema,
 		neowikiCypherQuery,
 		neowikiSearchSubjects,
 		neowikiListSubjects,

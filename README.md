@@ -70,6 +70,9 @@ Each pack's tools register only on wikis where its extension is installed.
 |---|---|
 | `neowiki-list-schemas` | List schemas (entity types) and their property counts. |
 | `neowiki-get-schema` | Get one schema's property definitions, relations, and select options. |
+| `neowiki-create-schema` | Create a schema. Requires the rights to create a page in the Schema namespace. |
+| `neowiki-update-schema` | Replace a schema's description, labels, flags and properties. Requires the rights to edit a page in the Schema namespace. |
+| `neowiki-delete-schema` | Delete a schema. Requires the `delete` right. |
 | `neowiki-cypher-query` | Run a read-only Cypher query against the knowledge graph. |
 | `neowiki-search-subjects` | Find subject IDs by name, or list the subjects of given schemas. |
 | `neowiki-list-subjects` | List subjects page by page, by schema or text, in a chosen order. |
@@ -85,7 +88,7 @@ Each pack's tools register only on wikis where its extension is installed.
 | `neowiki-validate-subject` | Dry-run validate a proposed subject and return violations. |
 | `neowiki-mint-subject-ids` | Mint unused subject IDs for dependent subjects written with their host. |
 
-Writing a controlled subject also needs the `neowiki-controlled-subject-edit` right, which OAuth grants with `Edit protected pages`.
+Writing a controlled subject, or the schema of controlled subjects, also needs the `neowiki-controlled-subject-edit` right, which OAuth grants with `Edit protected pages`.
 
 **[Semantic MediaWiki](https://www.mediawiki.org/wiki/Extension:Semantic_MediaWiki)**
 
