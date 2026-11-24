@@ -80,6 +80,7 @@ Each pack's tools register only on wikis where its extension is installed.
 | `neowiki-remove-statement` | Remove one statement from a subject. Requires the `edit` right. |
 | `neowiki-delete-subject` | Delete a subject by ID. Requires the `edit` right. |
 | `neowiki-set-main-subject` | Set or clear a page's main subject. Requires the `edit` right. |
+| `neowiki-move-subject` | Move a subject to another page, keeping its ID. Requires the `edit` right. |
 | `neowiki-validate-subject` | Dry-run validate a proposed subject and return violations. |
 | `neowiki-mint-subject-ids` | Mint unused subject IDs for dependent subjects written with their host. |
 
