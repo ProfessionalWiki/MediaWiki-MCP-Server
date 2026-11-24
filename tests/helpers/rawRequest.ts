@@ -23,19 +23,39 @@ export function writeContextReturning(data: unknown): { mock: MockMwn; ctx: Tool
 	return { mock, ctx: contextOn(mock) };
 }
 
-/** The first raw request the tool sent, with its JSON body parsed. */
-export function sentRequest(mock: MockMwn): {
+/** A tool context whose wiki hands out a CSRF token and answers successive raw requests with `data`, in turn. */
+export function writeContextReturningInTurn(...data: unknown[]): {
+	mock: MockMwn;
+	ctx: ToolContext;
+} {
+	const rawRequest = vi.fn();
+	for (const answer of data) {
+		rawRequest.mockResolvedValueOnce({ data: answer });
+	}
+	const mock = createMockMwn({ getCsrfToken: vi.fn().mockResolvedValue('tok'), rawRequest });
+	return { mock, ctx: contextOn(mock) };
+}
+
+interface SentRequest {
 	url: string;
 	method: string;
 	headers: Record<string, string>;
+	data?: string;
 	body: Record<string, unknown>;
-} {
-	const call = mock.rawRequest.mock.calls[0][0] as {
-		url: string;
-		method: string;
-		headers: Record<string, string>;
-		data: string;
-	};
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON body the tool sent
-	return { ...call, body: JSON.parse(call.data) as Record<string, unknown> };
+}
+
+/** Every raw request the tool sent, in order, each with its JSON body parsed. */
+export function sentRequests(mock: MockMwn): SentRequest[] {
+	return mock.rawRequest.mock.calls.map(([call]) => {
+		const request = call as Omit<SentRequest, 'body'>;
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON body the tool sent
+		const body =
+			request.data === undefined ? {} : (JSON.parse(request.data) as Record<string, unknown>);
+		return { ...request, body };
+	});
+}
+
+/** The first raw request the tool sent, with its JSON body parsed. */
+export function sentRequest(mock: MockMwn): SentRequest {
+	return sentRequests(mock)[0];
 }

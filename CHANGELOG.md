@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Added
 
+- `neowiki-create-schema`, `neowiki-update-schema` and `neowiki-delete-schema` create, replace and delete NeoWiki schemas. Create and update take a schema in the shape `neowiki-get-schema` returns. Create refuses a schema that exists, and update one that does not.
 - `neowiki-list-subjects` lists NeoWiki subjects page by page, filtered by schema or by text in their name, page title or ID, and sorted by creation, name, schema, page or last edit.
 - `neowiki-move-subject` moves a NeoWiki subject, with its dependent subjects, to another page and keeps its ID.
 - `neowiki-set-statement` and `neowiki-remove-statement` change one statement of a NeoWiki subject and leave its label and other statements as they are. Like `neowiki-update-subject`, they take a `baseRevisionId` and need NeoWiki with ProfessionalWiki/NeoWiki#1870 or later.
