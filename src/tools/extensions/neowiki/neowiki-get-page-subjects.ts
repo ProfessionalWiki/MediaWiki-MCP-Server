@@ -29,7 +29,7 @@ interface PageSubjectsResponse {
 export const neowikiGetPageSubjects: Tool<typeof inputSchema> = {
 	name: 'neowiki-get-page-subjects',
 	description:
-		"Lists the NeoWiki Subjects attached to a wiki page — each with full structured data — and identifies the page's Main Subject. Enabled only when the wiki has NeoWiki installed. This is the bridge from a wiki page (which you may already have from get-page) into its knowledge-graph data: one call returns every subject's statements, so you don't need to resolve subject IDs first. Dependent Subjects are listed with the hostSubject they belong to. Accepts a page title or a numeric page ID. Pre-1.0: the NeoWiki API may change without notice.",
+		"Lists the NeoWiki Subjects attached to a wiki page — each with full structured data — and identifies the page's Main Subject. Enabled only when the wiki has NeoWiki installed. This is the bridge from a wiki page (which you may already have from get-page) into its knowledge-graph data: one call returns every subject's statements, so you don't need to resolve subject IDs first. Dependent Subjects are listed with the hostSubject they belong to. Accepts a page title or a numeric page ID.",
 	inputSchema,
 	annotations: {
 		title: 'Get NeoWiki page subjects',
