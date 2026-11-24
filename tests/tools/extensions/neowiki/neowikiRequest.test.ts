@@ -112,6 +112,32 @@ describe('neowikiRequest', () => {
 		});
 	});
 
+	it("carries the English reason of a refused write that NeoWiki made through MediaWiki's action API", async () => {
+		const mock = createMockMwn({
+			rawRequest: vi.fn().mockRejectedValue(
+				httpError(400, {
+					actionModuleErrorCode: 'neowiki-invalid-schema',
+					messageTranslations: { en: 'Property "Founded" needs a type.' },
+					errorKey: 'apierror-neowiki-invalid-schema',
+					httpCode: 400,
+					httpReason: 'Bad Request',
+				}),
+			),
+		});
+
+		await expect(
+			neowikiRequest(mock as never, {
+				method: 'PUT',
+				path: '/schema/Company',
+				body: {},
+				csrf: true,
+			}),
+		).rejects.toMatchObject({
+			category: 'invalid_input',
+			message: 'Property "Founded" needs a type.',
+		});
+	});
+
 	it('maps a read-denied envelope to permission_denied', async () => {
 		const mock = createMockMwn({
 			rawRequest: vi
