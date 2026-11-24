@@ -3,6 +3,7 @@ import { FileTooLargeError, HttpStatusError, postForm } from '../../../outbound/
 import { RedirectDropsBodyError } from '../../../outbound/requestChain.ts';
 import { getRequestSignal } from '../../../runtime/requestContext.ts';
 import { errorMessage } from '../../../errors/errorMessage.ts';
+import { sparqlResultsFrom, type SparqlResults } from '../../../results/sparqlResults.ts';
 
 /** Matches the query timeout most Wikibase query services enforce themselves. */
 const QUERY_TIMEOUT_MS = 60_000;
@@ -18,9 +19,6 @@ const MAX_RESULT_BYTES = 10 * 1024 * 1024;
 /** Characters of a query service's own error text passed back to the caller. */
 const MAX_SERVICE_MESSAGE_CHARS = 500;
 
-/** A line break inside a cell, which `GROUP_CONCAT` puts there routinely. */
-const LINE_BREAK = /\r\n|[\r\n]/g;
-
 /** An absolute URL sitting in a message, running to the first space. */
 const ABSOLUTE_URL = /https?:\/\/\S+/g;
 
@@ -29,22 +27,6 @@ const ABSOLUTE_URL = /https?:\/\/\S+/g;
  * the subject of the sentence a transport error puts it in.
  */
 const QUERY_SERVICE = "the wiki's query service";
-
-export interface SparqlResults {
-	columns: string[];
-	/** One line per solution, cells joined with ` | ` in column order. At most `maxRows`. */
-	rows: string[];
-	/** Solutions the service returned, which is what `rows` was cut down from. */
-	totalRows: number;
-	/** Set instead of rows for an ASK query. */
-	boolean?: boolean;
-}
-
-interface SparqlJson {
-	head?: { vars?: unknown };
-	results?: { bindings?: unknown };
-	boolean?: unknown;
-}
 
 export async function runSparqlQuery(
 	endpoint: string,
@@ -83,33 +65,12 @@ function parseResults(body: string, maxRows: number): SparqlResults {
 	} catch {
 		throw notSparqlResults();
 	}
-	// A body of `null` parses, and reading a property off it throws. This runs
-	// outside the catch that classifies failures, so that TypeError would reach
-	// the caller unclassified.
-	if (typeof envelope !== 'object' || envelope === null) {
+
+	const results = sparqlResultsFrom(envelope, maxRows);
+	if (results === null) {
 		throw notSparqlResults();
 	}
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SPARQL results envelope; shape is checked below
-	const parsed = envelope as SparqlJson;
-
-	if (typeof parsed.boolean === 'boolean') {
-		return { columns: [], rows: [], totalRows: 0, boolean: parsed.boolean };
-	}
-
-	const vars = parsed.head?.vars;
-	const bindings = parsed.results?.bindings;
-	if (!Array.isArray(vars) || !Array.isArray(bindings)) {
-		throw notSparqlResults();
-	}
-
-	const columns = vars.filter((name): name is string => typeof name === 'string');
-	// Cut to the row cap before rendering: the solutions past it reach no one, and
-	// a service answering an unLIMITed query returns them by the hundred thousand.
-	return {
-		columns,
-		rows: bindings.slice(0, maxRows).map((binding) => renderRow(binding, columns)),
-		totalRows: bindings.length,
-	};
+	return results;
 }
 
 function notSparqlResults(): ClassifiedError {
@@ -117,20 +78,6 @@ function notSparqlResults(): ClassifiedError {
 		'upstream_failure',
 		'The query service returned a response that is not SPARQL JSON results.',
 	);
-}
-
-// Unbound variables keep their column as an empty cell: dropping them would
-// shift every later cell one column left. Line breaks inside a cell become
-// spaces, since a solution is a line.
-function renderRow(binding: unknown, columns: string[]): string {
-	const cells = typeof binding === 'object' && binding !== null ? binding : {};
-	return columns
-		.map((column) => {
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SPARQL binding term; narrowed to read `value`
-			const term = (cells as Record<string, { value?: unknown } | undefined>)[column];
-			return typeof term?.value === 'string' ? term.value.replace(LINE_BREAK, ' ') : '';
-		})
-		.join(' | ');
 }
 
 function classifyQueryFailure(err: unknown, endpoint: string): ClassifiedError {
