@@ -11,6 +11,7 @@ import { neowikiSetStatement } from './neowiki-set-statement.ts';
 import { neowikiRemoveStatement } from './neowiki-remove-statement.ts';
 import { neowikiDeleteSubject } from './neowiki-delete-subject.ts';
 import { neowikiSetMainSubject } from './neowiki-set-main-subject.ts';
+import { neowikiMoveSubject } from './neowiki-move-subject.ts';
 import { neowikiValidateSubject } from './neowiki-validate-subject.ts';
 import { neowikiMintSubjectIds } from './neowiki-mint-subject-ids.ts';
 
@@ -30,6 +31,7 @@ export const neowikiPack: ExtensionPack = {
 		neowikiRemoveStatement,
 		neowikiDeleteSubject,
 		neowikiSetMainSubject,
+		neowikiMoveSubject,
 		neowikiValidateSubject,
 		neowikiMintSubjectIds,
 	],

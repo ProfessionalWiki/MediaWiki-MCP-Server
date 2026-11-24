@@ -233,6 +233,7 @@ describe('WRITE_TOOL_NAMES', () => {
 				'upload-file-from-url',
 				'neowiki-create-subject',
 				'neowiki-delete-subject',
+				'neowiki-move-subject',
 				'neowiki-remove-statement',
 				'neowiki-set-main-subject',
 				'neowiki-set-statement',
