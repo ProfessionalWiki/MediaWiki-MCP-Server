@@ -7,6 +7,8 @@ import { neowikiGetSubject } from './neowiki-get-subject.ts';
 import { neowikiGetPageSubjects } from './neowiki-get-page-subjects.ts';
 import { neowikiCreateSubject } from './neowiki-create-subject.ts';
 import { neowikiUpdateSubject } from './neowiki-update-subject.ts';
+import { neowikiSetStatement } from './neowiki-set-statement.ts';
+import { neowikiRemoveStatement } from './neowiki-remove-statement.ts';
 import { neowikiDeleteSubject } from './neowiki-delete-subject.ts';
 import { neowikiSetMainSubject } from './neowiki-set-main-subject.ts';
 import { neowikiValidateSubject } from './neowiki-validate-subject.ts';
@@ -24,6 +26,8 @@ export const neowikiPack: ExtensionPack = {
 		neowikiGetPageSubjects,
 		neowikiCreateSubject,
 		neowikiUpdateSubject,
+		neowikiSetStatement,
+		neowikiRemoveStatement,
 		neowikiDeleteSubject,
 		neowikiSetMainSubject,
 		neowikiValidateSubject,

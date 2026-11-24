@@ -57,7 +57,7 @@ describe('extensionPacks', () => {
 		expect(bucket?.extensionNames).toEqual(['Bucket']);
 	});
 
-	it('exposes the twelve NeoWiki tools including the write tools', () => {
+	it('exposes the fourteen NeoWiki tools including the write tools', () => {
 		const neowiki = extensionPacks.find((p) => p.id === 'neowiki');
 		expect(neowiki?.tools.map((t) => t.name)).toEqual([
 			'neowiki-list-schemas',
@@ -68,6 +68,8 @@ describe('extensionPacks', () => {
 			'neowiki-get-page-subjects',
 			'neowiki-create-subject',
 			'neowiki-update-subject',
+			'neowiki-set-statement',
+			'neowiki-remove-statement',
 			'neowiki-delete-subject',
 			'neowiki-set-main-subject',
 			'neowiki-validate-subject',

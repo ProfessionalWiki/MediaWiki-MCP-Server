@@ -13,3 +13,29 @@ export function contextReturning(data: unknown): { mock: MockMwn; ctx: ToolConte
 export function requestedUrl(mock: MockMwn): URL {
 	return new URL((mock.rawRequest.mock.calls[0][0] as { url: string }).url);
 }
+
+/** A tool context whose wiki hands out a CSRF token and answers every raw request with `data`. */
+export function writeContextReturning(data: unknown): { mock: MockMwn; ctx: ToolContext } {
+	const mock = createMockMwn({
+		getCsrfToken: vi.fn().mockResolvedValue('tok'),
+		rawRequest: vi.fn().mockResolvedValue({ data }),
+	});
+	return { mock, ctx: contextOn(mock) };
+}
+
+/** The first raw request the tool sent, with its JSON body parsed. */
+export function sentRequest(mock: MockMwn): {
+	url: string;
+	method: string;
+	headers: Record<string, string>;
+	body: Record<string, unknown>;
+} {
+	const call = mock.rawRequest.mock.calls[0][0] as {
+		url: string;
+		method: string;
+		headers: Record<string, string>;
+		data: string;
+	};
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON body the tool sent
+	return { ...call, body: JSON.parse(call.data) as Record<string, unknown> };
+}

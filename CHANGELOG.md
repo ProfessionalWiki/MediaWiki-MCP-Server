@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Added
 
+- `neowiki-set-statement` and `neowiki-remove-statement` change one statement of a NeoWiki subject and leave its label and other statements as they are. Like `neowiki-update-subject`, they take a `baseRevisionId` and need NeoWiki with ProfessionalWiki/NeoWiki#1870 or later.
 - `neowiki-get-schema` returns a schema's `labels`, and `subjectsAreControlled: true` for a schema of controlled subjects. `neowiki-list-schemas` returns `subjectsAreControlled` only when it is `true`, as it does `subjectsAreDependent`.
 - `neowiki-search-subjects` lists the subjects of the given schemas in name order when called without `search`.
 
