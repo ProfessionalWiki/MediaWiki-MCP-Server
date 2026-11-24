@@ -17,10 +17,7 @@ const saved = {
 const company = {
 	name: 'Company',
 	description: 'A company',
-	properties: [
-		{ name: 'Website', type: 'url' },
-		{ name: 'Founded', type: 'number' },
-	],
+	propertyDefinitions: { Website: { type: 'url' }, Founded: { type: 'number' } },
 };
 
 describe('neowiki-update-schema', () => {

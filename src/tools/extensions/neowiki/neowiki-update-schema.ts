@@ -4,12 +4,10 @@ import type { ToolContext } from '../../../runtime/context.ts';
 import { formatEditComment } from '../../../wikis/utils.ts';
 import {
 	PROPERTY_ATTRIBUTES,
-	duplicatePropertyName,
 	presentSchema,
 	readSchema,
 	saveSchema,
 	schemaInputSchema,
-	toSchemaJson,
 } from './schemas.ts';
 
 const inputSchema = {
@@ -17,8 +15,8 @@ const inputSchema = {
 	subjectsAreDependent: schemaInputSchema.subjectsAreDependent.describe(
 		'As the Schema has it: true for a Schema of Dependent Subjects, omitted otherwise. It cannot change after the Schema is created.',
 	),
-	properties: schemaInputSchema.properties.describe(
-		`Every property the Schema keeps, each { name, type, … } as neowiki-get-schema returns it; a property left out is removed. ${PROPERTY_ATTRIBUTES}`,
+	propertyDefinitions: schemaInputSchema.propertyDefinitions.describe(
+		`Every property the Schema keeps, as neowiki-get-schema returns them: a map of property name to its definition; a property left out is removed. ${PROPERTY_ATTRIBUTES}`,
 	),
 } as const;
 
@@ -38,11 +36,6 @@ export const neowikiUpdateSchema: Tool<typeof inputSchema> = {
 	target: (a) => a.name,
 
 	async handle({ name, comment, ...schema }, ctx: ToolContext): Promise<CallToolResult> {
-		const duplicate = duplicatePropertyName(schema.properties);
-		if (duplicate !== undefined) {
-			return ctx.format.invalidInput(`Property "${duplicate}" is listed more than once.`);
-		}
-
 		const mwn = await ctx.mwn();
 		if ((await readSchema(mwn, name)) === null) {
 			return ctx.format.notFound(
@@ -51,7 +44,7 @@ export const neowikiUpdateSchema: Tool<typeof inputSchema> = {
 		}
 
 		const editComment = formatEditComment(ctx, 'neowiki-update-schema', comment);
-		const saved = await saveSchema(mwn, name, toSchemaJson(schema), editComment);
+		const saved = await saveSchema(mwn, name, schema, editComment);
 
 		return ctx.format.ok({ status: 'updated', ...presentSchema(name, saved) });
 	},

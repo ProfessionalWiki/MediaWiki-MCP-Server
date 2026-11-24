@@ -2,14 +2,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { formatEditComment } from '../../../wikis/utils.ts';
-import {
-	duplicatePropertyName,
-	presentSchema,
-	readSchema,
-	saveSchema,
-	schemaInputSchema,
-	toSchemaJson,
-} from './schemas.ts';
+import { presentSchema, readSchema, saveSchema, schemaInputSchema } from './schemas.ts';
 
 const inputSchema = schemaInputSchema;
 
@@ -29,11 +22,6 @@ export const neowikiCreateSchema: Tool<typeof inputSchema> = {
 	target: (a) => a.name,
 
 	async handle({ name, comment, ...schema }, ctx: ToolContext): Promise<CallToolResult> {
-		const duplicate = duplicatePropertyName(schema.properties);
-		if (duplicate !== undefined) {
-			return ctx.format.invalidInput(`Property "${duplicate}" is listed more than once.`);
-		}
-
 		const mwn = await ctx.mwn();
 		if ((await readSchema(mwn, name)) !== null) {
 			return ctx.format.conflict(
@@ -42,7 +30,7 @@ export const neowikiCreateSchema: Tool<typeof inputSchema> = {
 		}
 
 		const editComment = formatEditComment(ctx, 'neowiki-create-schema', comment);
-		const saved = await saveSchema(mwn, name, toSchemaJson(schema), editComment);
+		const saved = await saveSchema(mwn, name, schema, editComment);
 
 		return ctx.format.ok({ status: 'created', ...presentSchema(name, saved) });
 	},
