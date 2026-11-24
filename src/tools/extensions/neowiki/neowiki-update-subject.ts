@@ -17,7 +17,7 @@ const inputSchema = {
 		.string()
 		.optional()
 		.describe(
-			'New display label. Omit it, or pass an empty string, to clear the label, as a Dependent Subject (one with hostSubject) requires.',
+			'New label. Omit it, or pass an empty string, to clear the label, as a Dependent Subject (one with hostSubject) requires.',
 		),
 	statements: statementsSchema.describe(
 		'Full replacement statement map (property name → { propertyType, value }). Property names absent from this map are deleted; pass {} to clear all statements.',

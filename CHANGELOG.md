@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - `neowiki-update-subject` needs NeoWiki with ProfessionalWiki/NeoWiki#1870 (2026-11-24) or later, and takes a required `baseRevisionId`: the revision ID the change was made from. NeoWiki with that change refused every update the tool sent before.
 - `neowiki-search-subjects` takes `schema` as an array of schema names, so that one search covers several. A single name given as a string is refused.
+- `neowiki-search-subjects` returns each subject's name as `displayName`, as `neowiki-get-subject` and `neowiki-list-subjects` do, instead of as `label`.
 
 ### Added
 

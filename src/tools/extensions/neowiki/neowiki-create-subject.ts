@@ -30,7 +30,7 @@ const inputSchema = {
 		.string()
 		.optional()
 		.describe(
-			'Display label for the new Subject. Omit, or pass an empty string, for a Subject without one: a Main Subject is then shown under its page title, any other Subject under its Schema name.',
+			'Label of the new Subject. Omit, or pass an empty string, for a Subject without one: a Main Subject is then shown under its page title, any other Subject under its Schema name.',
 		),
 	schema: z
 		.string()
