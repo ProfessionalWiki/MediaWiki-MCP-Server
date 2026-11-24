@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Added
 
+- `neowiki-list-subjects` lists NeoWiki subjects page by page, filtered by schema or by text in their name, page title or ID, and sorted by creation, name, schema, page or last edit.
 - `neowiki-move-subject` moves a NeoWiki subject, with its dependent subjects, to another page and keeps its ID.
 - `neowiki-set-statement` and `neowiki-remove-statement` change one statement of a NeoWiki subject and leave its label and other statements as they are. Like `neowiki-update-subject`, they take a `baseRevisionId` and need NeoWiki with ProfessionalWiki/NeoWiki#1870 or later.
 - `neowiki-get-schema` returns a schema's `labels`, and `subjectsAreControlled: true` for a schema of controlled subjects. `neowiki-list-schemas` returns `subjectsAreControlled` only when it is `true`, as it does `subjectsAreDependent`.

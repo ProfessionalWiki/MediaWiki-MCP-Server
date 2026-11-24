@@ -3,6 +3,7 @@ import { neowikiListSchemas } from './neowiki-list-schemas.ts';
 import { neowikiGetSchema } from './neowiki-get-schema.ts';
 import { neowikiCypherQuery } from './neowiki-cypher-query.ts';
 import { neowikiSearchSubjects } from './neowiki-search-subjects.ts';
+import { neowikiListSubjects } from './neowiki-list-subjects.ts';
 import { neowikiGetSubject } from './neowiki-get-subject.ts';
 import { neowikiGetPageSubjects } from './neowiki-get-page-subjects.ts';
 import { neowikiCreateSubject } from './neowiki-create-subject.ts';
@@ -23,6 +24,7 @@ export const neowikiPack: ExtensionPack = {
 		neowikiGetSchema,
 		neowikiCypherQuery,
 		neowikiSearchSubjects,
+		neowikiListSubjects,
 		neowikiGetSubject,
 		neowikiGetPageSubjects,
 		neowikiCreateSubject,

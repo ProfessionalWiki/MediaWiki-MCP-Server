@@ -72,6 +72,7 @@ Each pack's tools register only on wikis where its extension is installed.
 | `neowiki-get-schema` | Get one schema's property definitions, relations, and select options. |
 | `neowiki-cypher-query` | Run a read-only Cypher query against the knowledge graph. |
 | `neowiki-search-subjects` | Find subject IDs by name, or list the subjects of given schemas. |
+| `neowiki-list-subjects` | List subjects page by page, by schema or text, in a chosen order. |
 | `neowiki-get-subject` | Fetch one subject's structured data by ID. |
 | `neowiki-get-page-subjects` | List the subjects attached to a wiki page. |
 | `neowiki-create-subject` | Create a subject (main or other) on a page. Requires the `edit` right. |
