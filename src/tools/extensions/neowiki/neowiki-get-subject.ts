@@ -11,7 +11,7 @@ const inputSchema = {
 		.string()
 		.min(1)
 		.describe(
-			'Subject ID (starts with s…). Use neowiki-search-subjects to resolve one from a label.',
+			'Subject ID (starts with s…). Use neowiki-search-subjects to resolve one from a name.',
 		),
 } as const;
 

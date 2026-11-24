@@ -34,7 +34,7 @@ interface SubjectLabel {
 export const neowikiSearchSubjects: Tool<typeof inputSchema> = {
 	name: 'neowiki-search-subjects',
 	description:
-		"Finds NeoWiki Subjects by name, returning each one's opaque Subject ID (s…), its name as `label`, and the page title of the wiki page holding it. Enabled only when the wiki has NeoWiki installed. With a search, it finds the Subjects whose name starts with it; without one, it lists the Subjects of the given schemas in name order. A Subject's name is its label, or for a Main Subject without one, the title of its page, unless the page is titled by the ID of a Subject on it. Dependent Subjects are never returned, and other Subjects without a name are not found by a search. Subject IDs are not human-readable, so use this to resolve a name to an ID for neowiki-get-subject or a parameterized neowiki-cypher-query. Returns at most 50 Subjects; to page through more, or match text anywhere in a name, use neowiki-list-subjects.",
+		"Finds NeoWiki Subjects by name, returning each one's opaque Subject ID (s…), its name as displayName, and the page title of the wiki page holding it. Enabled only when the wiki has NeoWiki installed. With a search, it finds the Subjects whose name starts with it; without one, it lists the Subjects of the given schemas in name order. A Subject's name is its label, or for a Main Subject without one, the title of its page, unless the page is titled by the ID of a Subject on it. Dependent Subjects are never returned, and other Subjects without a name are not found by a search. Subject IDs are not human-readable, so use this to resolve a name to an ID for neowiki-get-subject or a parameterized neowiki-cypher-query. Returns at most 50 Subjects; to page through more, or match text anywhere in a name, use neowiki-list-subjects.",
 	inputSchema,
 	annotations: {
 		title: 'Search NeoWiki subjects',
@@ -63,7 +63,11 @@ export const neowikiSearchSubjects: Tool<typeof inputSchema> = {
 			},
 		})) as SubjectLabel[];
 
-		const subjects = Array.isArray(data) ? data : [];
+		// The endpoint returns the name under `label`, which in NeoWiki is the label a Subject stores.
+		const subjects = (Array.isArray(data) ? data : []).map(({ label, ...row }) => ({
+			...row,
+			displayName: label,
+		}));
 		const truncation: TruncationInfo | null =
 			subjects.length >= RESULT_LIMIT
 				? {

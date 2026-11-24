@@ -16,8 +16,17 @@ describe('neowiki-search-subjects', () => {
 		expect(url.pathname).toBe('/w/rest.php/neowiki/v0/subject-labels');
 		expect(url.searchParams.get('schema')).toBe('Company');
 		expect(url.searchParams.get('search')).toBe('a');
-		expect(result.structuredContent).toMatchObject({
-			subjects: [{ id: 's1demo1aaaaaaa1', label: 'ACME Inc' }],
+		expect(result.structuredContent).toMatchObject({ subjects: [{ id: 's1demo1aaaaaaa1' }] });
+	});
+
+	it("returns each subject's name as its displayName, which is not its label", async () => {
+		const { ctx } = contextReturning([
+			{ id: 's1demo1aaaaaaa1', label: 'ACME', pageTitle: 'ACME (company)' },
+		]);
+		const result = await neowikiSearchSubjects.handle({ search: 'a' }, ctx);
+
+		expect(result.structuredContent).toEqual({
+			subjects: [{ id: 's1demo1aaaaaaa1', displayName: 'ACME', pageTitle: 'ACME (company)' }],
 		});
 	});
 
