@@ -3,9 +3,8 @@ import { z } from 'zod';
 const VALUE_FORMATS =
 	'text/url/date/dateTime → array of strings (date "2020-12-31", dateTime "2020-12-31T14:30:00Z", with Z or an offset); select → array of option IDs (resolve labels via neowiki-get-schema); number → a number; boolean → a boolean; relation → array of { target: "<subjectId>" }; monolingualText → array of { text, language }';
 
-// The write API reads `propertyType` (NOT the `type` key read tools return) and
-// silently drops entries without it, so require it here — a malformed statement
-// becomes an input error, not a no-op.
+// NeoWiki before ProfessionalWiki/NeoWiki#1833 drops an entry without
+// `propertyType` and saves the rest, so require it here.
 const statementSchema = z.object({
 	propertyType: z
 		.string()

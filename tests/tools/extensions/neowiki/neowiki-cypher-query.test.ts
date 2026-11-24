@@ -74,4 +74,22 @@ describe('neowiki-cypher-query', () => {
 		const result = await dispatch(neowikiCypherQuery, ctx)({ cypher: 'CREATE (x)' });
 		assertStructuredError(result, 'invalid_input');
 	});
+
+	it('says a wiki that cannot answer Cypher queries has no Neo4j store', async () => {
+		const mock = createMockMwn({
+			rawRequest: vi.fn().mockRejectedValue(
+				httpError(404, {
+					errorKey: 'rest-no-match',
+					messageTranslations: {
+						en: 'The requested relative path did not match any known handler',
+					},
+					httpCode: 404,
+					httpReason: 'Not Found',
+				}),
+			),
+		});
+		const result = await dispatch(neowikiCypherQuery, contextOn(mock))({ cypher: 'RETURN 1' });
+
+		expect(assertStructuredError(result, 'invalid_input').message).toContain('Neo4j');
+	});
 });

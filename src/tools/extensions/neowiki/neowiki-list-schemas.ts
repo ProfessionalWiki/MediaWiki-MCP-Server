@@ -21,6 +21,8 @@ interface SchemaSummary {
 	description?: string;
 	propertyCount?: number;
 	subjectsAreDependent?: boolean;
+	subjectsAreControlled?: boolean;
+	labels?: Record<string, string>;
 }
 
 interface ListSchemasResponse {
@@ -31,7 +33,7 @@ interface ListSchemasResponse {
 export const neowikiListSchemas: Tool<typeof inputSchema> = {
 	name: 'neowiki-list-schemas',
 	description:
-		"Lists the Schemas (entity types, e.g. Person, Company) defined in the wiki's NeoWiki knowledge graph, each with its description and property count; subjectsAreDependent is present, as true, only on a Schema whose Subjects are Dependent Subjects. Enabled only when the wiki has NeoWiki installed. Start here to discover what types exist, then use neowiki-get-schema for one type's properties, or neowiki-cypher-query to query the graph. Paginate with continueFrom. Pre-1.0: the NeoWiki API may change without notice.",
+		"Lists the Schemas (entity types, e.g. Person, Company) defined in the wiki's NeoWiki knowledge graph, each with its description, property count and, where it has them, its labels: what the UI calls it, by language tag. subjectsAreDependent and subjectsAreControlled are present, as true, only on a Schema whose Subjects are Dependent Subjects or Controlled Subjects, as neowiki-get-schema describes. Enabled only when the wiki has NeoWiki installed. Start here to discover what types exist, then use neowiki-get-schema for one type's properties, or neowiki-cypher-query to query the graph. Paginate with continueFrom. Pre-1.0: the NeoWiki API may change without notice.",
 	inputSchema,
 	annotations: {
 		title: 'List NeoWiki schemas',
@@ -55,8 +57,11 @@ export const neowikiListSchemas: Tool<typeof inputSchema> = {
 		})) as ListSchemasResponse;
 
 		const schemas = (Array.isArray(data.schemas) ? data.schemas : []).map(
-			({ subjectsAreDependent, ...summary }) =>
-				subjectsAreDependent === true ? { ...summary, subjectsAreDependent } : summary,
+			({ subjectsAreDependent, subjectsAreControlled, ...summary }) => ({
+				...summary,
+				...(subjectsAreDependent === true ? { subjectsAreDependent } : {}),
+				...(subjectsAreControlled === true ? { subjectsAreControlled } : {}),
+			}),
 		);
 		const truncation: TruncationInfo | null =
 			typeof data.nextCursor === 'string'

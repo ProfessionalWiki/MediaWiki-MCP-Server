@@ -16,6 +16,8 @@ export interface NeoWikiRequestSpec {
 	 * reads and the `validate` dry-runs, which take no token.
 	 */
 	readonly csrf?: boolean;
+	/** What the error says where the wiki serves no such endpoint, as for a store it lacks. */
+	readonly unavailable?: string;
 }
 
 // NeoWiki's `errorType` strings are stable across releases (per query-api docs);
@@ -102,11 +104,11 @@ export async function neowikiRequest(mwn: Mwn, spec: NeoWikiRequestSpec): Promis
 		if (err instanceof WikiTimeoutError) {
 			throw err;
 		}
-		throw classifyNeoWikiError(err);
+		throw classifyNeoWikiError(err, spec);
 	}
 }
 
-function classifyNeoWikiError(err: unknown): ClassifiedError {
+function classifyNeoWikiError(err: unknown, spec: NeoWikiRequestSpec): ClassifiedError {
 	// axios throws on non-2xx with `err.response.{status,data}`.
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- axios error shape at this boundary
 	const response = (err as { response?: { status?: number; data?: unknown } }).response;
@@ -116,6 +118,12 @@ function classifyNeoWikiError(err: unknown): ClassifiedError {
 	if (data !== null && typeof data === 'object') {
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- verified non-null object above; narrow to inspect keys
 		const record = data as Record<string, unknown>;
+
+		// MediaWiki's answer for a path no handler serves: an endpoint this NeoWiki lacks.
+		if (record.errorKey === 'rest-no-match') {
+			const message = spec.unavailable ?? `The wiki's NeoWiki has no ${spec.path} endpoint.`;
+			return new ClassifiedError('invalid_input', message, status);
+		}
 
 		const errorType = record.errorType;
 		if (typeof errorType === 'string') {

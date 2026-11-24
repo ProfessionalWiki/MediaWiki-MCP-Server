@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { contextReturning, requestedUrl } from '../../../helpers/rawRequest.ts';
 import { neowikiSearchSubjects } from '../../../../src/tools/extensions/neowiki/neowiki-search-subjects.ts';
+import { assertStructuredError } from '../../../helpers/structuredResult.ts';
 
 function matches(count: number): Array<{ id: string; label: string }> {
 	return Array.from({ length: count }, (_, i) => ({ id: `s${i}`, label: `A${i}` }));
@@ -9,7 +10,7 @@ function matches(count: number): Array<{ id: string; label: string }> {
 describe('neowiki-search-subjects', () => {
 	it('passes schema and search and returns matches', async () => {
 		const { mock, ctx } = contextReturning([{ id: 's1demo1aaaaaaa1', label: 'ACME Inc' }]);
-		const result = await neowikiSearchSubjects.handle({ schema: 'Company', search: 'a' }, ctx);
+		const result = await neowikiSearchSubjects.handle({ schema: ['Company'], search: 'a' }, ctx);
 
 		const url = requestedUrl(mock);
 		expect(url.pathname).toBe('/w/rest.php/neowiki/v0/subject-labels');
@@ -18,6 +19,30 @@ describe('neowiki-search-subjects', () => {
 		expect(result.structuredContent).toMatchObject({
 			subjects: [{ id: 's1demo1aaaaaaa1', label: 'ACME Inc' }],
 		});
+	});
+
+	it('searches several schemas at once', async () => {
+		const { mock, ctx } = contextReturning([]);
+		await neowikiSearchSubjects.handle({ schema: ['Person', 'Group'], search: 'a' }, ctx);
+
+		expect(requestedUrl(mock).searchParams.get('schema')).toBe('Person|Group');
+	});
+
+	it('lists the subjects of the given schemas when there is no search', async () => {
+		const { mock, ctx } = contextReturning([]);
+		await neowikiSearchSubjects.handle({ schema: ['Material'] }, ctx);
+
+		const params = requestedUrl(mock).searchParams;
+		expect(params.get('schema')).toBe('Material');
+		expect(params.has('search')).toBe(false);
+	});
+
+	it('refuses a call with neither a search nor a schema', async () => {
+		const { mock, ctx } = contextReturning([]);
+		const result = await neowikiSearchSubjects.handle({}, ctx);
+
+		assertStructuredError(result, 'invalid_input');
+		expect(mock.rawRequest).not.toHaveBeenCalled();
 	});
 
 	it('searches every schema when none is given', async () => {
@@ -52,7 +77,7 @@ describe('neowiki-search-subjects', () => {
 
 	it('returns an empty list when the response is not an array', async () => {
 		const { ctx } = contextReturning({});
-		const result = await neowikiSearchSubjects.handle({ schema: 'Company', search: 'zzz' }, ctx);
+		const result = await neowikiSearchSubjects.handle({ schema: ['Company'], search: 'zzz' }, ctx);
 
 		expect(result.structuredContent).toMatchObject({ subjects: [] });
 	});
