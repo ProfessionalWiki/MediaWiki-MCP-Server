@@ -18,6 +18,8 @@ export interface NeoWikiRequestSpec {
 	readonly csrf?: boolean;
 	/** What the error says where the wiki serves no such endpoint, as for a store it lacks. */
 	readonly unavailable?: string;
+	/** The most bytes of an answer to read, for an endpoint that bounds none, and what the error says past them. */
+	readonly sizeCap?: { readonly bytes: number; readonly exceeded: string };
 }
 
 // NeoWiki's `errorType` strings are stable across releases (per query-api docs);
@@ -26,11 +28,13 @@ const ERROR_TYPE_TO_CATEGORY: Record<string, ErrorCategory> = {
 	emptyQuery: 'invalid_input',
 	parameterMissing: 'invalid_input',
 	cypherSyntaxError: 'invalid_input',
+	sparqlSyntaxError: 'invalid_input',
 	writeQueryRejected: 'invalid_input',
 	queryTimeout: 'upstream_failure',
 	rateLimitExceeded: 'rate_limited',
 	permissionDenied: 'permission_denied',
 	backendUnavailable: 'upstream_failure',
+	sparqlStoreUnavailable: 'upstream_failure',
 	internalError: 'upstream_failure',
 };
 
@@ -95,6 +99,7 @@ export async function neowikiRequest(mwn: Mwn, spec: NeoWikiRequestSpec): Promis
 			method: spec.method,
 			headers,
 			...(spec.body !== undefined ? { data: JSON.stringify(spec.body) } : {}),
+			...(spec.sizeCap !== undefined ? { maxContentLength: spec.sizeCap.bytes } : {}),
 		});
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- axios response body at this boundary
 		return (response as { data: unknown }).data;
@@ -109,6 +114,11 @@ export async function neowikiRequest(mwn: Mwn, spec: NeoWikiRequestSpec): Promis
 }
 
 function classifyNeoWikiError(err: unknown, spec: NeoWikiRequestSpec): ClassifiedError {
+	// axios refuses an answer past `maxContentLength` with this message and no response.
+	if (spec.sizeCap !== undefined && /maxContentLength/.test(errorMessage(err))) {
+		return new ClassifiedError('invalid_input', spec.sizeCap.exceeded);
+	}
+
 	// axios throws on non-2xx with `err.response.{status,data}`.
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- axios error shape at this boundary
 	const response = (err as { response?: { status?: number; data?: unknown } }).response;

@@ -73,7 +73,8 @@ Each pack's tools register only on wikis where its extension is installed.
 | `neowiki-create-schema` | Create a schema. Requires the rights to create a page in the Schema namespace. |
 | `neowiki-update-schema` | Replace a schema's description, labels, flags and properties. Requires the rights to edit a page in the Schema namespace. |
 | `neowiki-delete-schema` | Delete a schema. Requires the `delete` right. |
-| `neowiki-cypher-query` | Run a read-only Cypher query against the knowledge graph. |
+| `neowiki-cypher-query` | Run a read-only Cypher query against the knowledge graph in Neo4j. |
+| `neowiki-sparql-query` | Run a read-only SPARQL query against the knowledge graph in a SPARQL store. |
 | `neowiki-search-subjects` | Find subject IDs by name, or list the subjects of given schemas. |
 | `neowiki-list-subjects` | List subjects page by page, by schema or text, in a chosen order. |
 | `neowiki-get-subject` | Fetch one subject's structured data by ID. |

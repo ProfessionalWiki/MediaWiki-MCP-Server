@@ -218,6 +218,32 @@ describe('neowikiRequest', () => {
 		).rejects.toMatchObject({ category: 'invalid_input', message: 'The wiki has no Neo4j store.' });
 	});
 
+	it('reads no more of an answer than the request caps it at', async () => {
+		const mock = createMockMwn({ rawRequest: vi.fn().mockResolvedValue({ data: {} }) });
+
+		await neowikiRequest(mock as never, {
+			method: 'POST',
+			path: '/query/sparql',
+			sizeCap: { bytes: 100, exceeded: 'Too much.' },
+		});
+
+		expect(mock.rawRequest.mock.calls[0][0]).toMatchObject({ maxContentLength: 100 });
+	});
+
+	it('words an answer past its cap as the request asks', async () => {
+		const mock = createMockMwn({
+			rawRequest: vi.fn().mockRejectedValue(new Error('maxContentLength size of 100 exceeded')),
+		});
+
+		await expect(
+			neowikiRequest(mock as never, {
+				method: 'POST',
+				path: '/query/sparql',
+				sizeCap: { bytes: 100, exceeded: 'Add LIMIT to the query.' },
+			}),
+		).rejects.toMatchObject({ category: 'invalid_input', message: 'Add LIMIT to the query.' });
+	});
+
 	it('sanitizes an internal-exception body to message only', async () => {
 		const mock = createMockMwn({
 			rawRequest: vi.fn().mockRejectedValue(

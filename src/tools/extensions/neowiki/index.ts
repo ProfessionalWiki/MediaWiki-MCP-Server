@@ -5,6 +5,7 @@ import { neowikiCreateSchema } from './neowiki-create-schema.ts';
 import { neowikiUpdateSchema } from './neowiki-update-schema.ts';
 import { neowikiDeleteSchema } from './neowiki-delete-schema.ts';
 import { neowikiCypherQuery } from './neowiki-cypher-query.ts';
+import { neowikiSparqlQuery } from './neowiki-sparql-query.ts';
 import { neowikiSearchSubjects } from './neowiki-search-subjects.ts';
 import { neowikiListSubjects } from './neowiki-list-subjects.ts';
 import { neowikiGetSubject } from './neowiki-get-subject.ts';
@@ -30,6 +31,7 @@ export const neowikiPack: ExtensionPack = {
 		neowikiUpdateSchema,
 		neowikiDeleteSchema,
 		neowikiCypherQuery,
+		neowikiSparqlQuery,
 		neowikiSearchSubjects,
 		neowikiListSubjects,
 		neowikiGetSubject,
