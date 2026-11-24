@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Breaking changes
+
+- `neowiki-update-subject` needs NeoWiki with ProfessionalWiki/NeoWiki#1870 (2026-11-24) or later, and takes a required `baseRevisionId`: the revision ID the change was made from. NeoWiki with that change refused every update the tool sent before.
+
+### Changed
+
+- `neowiki-get-subject` returns a subject as the latest revision of its page holds it, with that revision ID as `revisionId`. Where the latest revision cannot be read, it returns the revision the wiki publishes, without one. `neowiki-create-subject` and `neowiki-update-subject` return the revision ID the page is at after the write as `revisionId`.
+
 ## [0.21.0] - 2026-11-05
 
 ### Breaking changes

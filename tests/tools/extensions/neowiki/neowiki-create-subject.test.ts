@@ -105,6 +105,17 @@ describe('neowiki-create-subject', () => {
 		expect(sentBody(mock)).toMatchObject({ dependentSubjects: [birth] });
 	});
 
+	it('returns the revision the page is at after the write', async () => {
+		const { ctx } = contextWith({ ...created, revisionId: 1235 });
+
+		const result = await neowikiCreateSubject.handle(
+			{ pageId: 7, schema: 'City', statements: stmts },
+			ctx,
+		);
+
+		expect(result.structuredContent).toMatchObject({ revisionId: 1235 });
+	});
+
 	it('takes an empty label as no label', () => {
 		expect(neowikiCreateSubject.inputSchema.label.safeParse('').success).toBe(true);
 	});
