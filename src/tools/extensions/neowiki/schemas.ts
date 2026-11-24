@@ -41,39 +41,26 @@ export async function saveSchema(
 	return data.schema ?? schema;
 }
 
-/** The shape neowiki-get-schema returns and the Schema write tools take. */
+/** The shape neowiki-get-schema returns and the Schema write tools take: NeoWiki's, with the name. */
 export function presentSchema(
 	name: string,
 	schema: SchemaJson,
-): {
-	name: string;
-	description: string;
-	labels?: Record<string, string>;
-	subjectsAreDependent?: true;
-	subjectsAreControlled?: true;
-	properties: Array<Record<string, unknown>>;
-} {
+): SchemaJson & { name: string; description: string } {
 	return {
 		name,
 		description: schema.description ?? '',
 		...(schema.labels !== undefined ? { labels: schema.labels } : {}),
-		...(schema.subjectsAreDependent === true ? { subjectsAreDependent: true as const } : {}),
-		...(schema.subjectsAreControlled === true ? { subjectsAreControlled: true as const } : {}),
-		properties: Object.entries(schema.propertyDefinitions ?? {}).map(
-			([propertyName, definition]) => ({
-				name: propertyName,
-				...definition,
-			}),
-		),
+		...(schema.subjectsAreDependent === true ? { subjectsAreDependent: true } : {}),
+		...(schema.subjectsAreControlled === true ? { subjectsAreControlled: true } : {}),
+		propertyDefinitions: schema.propertyDefinitions ?? {},
 	};
 }
 
 export const PROPERTY_ATTRIBUTES =
-	'Every property takes description, labels (by language tag), required and default; and by type: multiple (text, monolingualText, url, select, relation), uniqueItems (text, url; with multiple), uniqueLanguages (monolingualText; with multiple), minLength and maxLength (text, monolingualText), minimum and maximum (number; date and dateTime as ISO 8601 strings), precision (number: decimal places shown), options (select: [{ id, label }], each id unique within the property and kept when its label changes, since Statements hold ids) and targetSchemas (relation, required: the names of the Schemas a target may follow). A constraint is a bare value, which only warns, or { value, severity } with severity error or warning; a boolean constraint set to true is { severity }.';
+	'Besides type, every definition takes description, labels (by language tag), required and default; and by type: multiple (text, monolingualText, url, select, relation), uniqueItems (text, url; with multiple), uniqueLanguages (monolingualText; with multiple), minLength and maxLength (text, monolingualText), minimum and maximum (number; date and dateTime as ISO 8601 strings), precision (number: decimal places shown), options (select: [{ id, label }], each id unique within the property and kept when its label changes, since Statements hold ids) and targetSchemas (relation, required: the names of the Schemas a target may follow). A constraint is a bare value, which only warns, or { value, severity } with severity error or warning; a boolean constraint set to true is { severity }.';
 
-const propertySchema = z
+const propertyDefinitionSchema = z
 	.object({
-		name: z.string().min(1).describe('Property name, the key its Statements are stored under.'),
 		type: z
 			.string()
 			.min(1)
@@ -109,42 +96,10 @@ export const schemaInputSchema = {
 		.describe(
 			'True for a Schema of Controlled Subjects, a controlled vocabulary that only holders of the neowiki-controlled-subject-edit right can change.',
 		),
-	properties: z
-		.array(propertySchema)
+	propertyDefinitions: z
+		.record(z.string(), propertyDefinitionSchema)
 		.describe(
-			`The Schema's properties, each { name, type, … } as neowiki-get-schema returns it. ${PROPERTY_ATTRIBUTES}`,
+			`The Schema's properties, as neowiki-get-schema returns them: a map of property name, the key its Statements are stored under, to its definition. ${PROPERTY_ATTRIBUTES}`,
 		),
 	comment: z.string().optional().describe('Optional edit summary.'),
 } as const;
-
-type SchemaInput = {
-	description?: string;
-	labels?: Record<string, string>;
-	subjectsAreDependent?: boolean;
-	subjectsAreControlled?: boolean;
-	properties: Array<z.infer<typeof propertySchema>>;
-};
-
-export function duplicatePropertyName(properties: SchemaInput['properties']): string | undefined {
-	const seen = new Set<string>();
-	for (const { name } of properties) {
-		if (seen.has(name)) {
-			return name;
-		}
-		seen.add(name);
-	}
-	return undefined;
-}
-
-/** The input as the Schema NeoWiki stores: properties keyed by name, flags only when true. */
-export function toSchemaJson(input: SchemaInput): SchemaJson {
-	return {
-		...(input.description !== undefined ? { description: input.description } : {}),
-		...(input.labels !== undefined ? { labels: input.labels } : {}),
-		...(input.subjectsAreDependent === true ? { subjectsAreDependent: true } : {}),
-		...(input.subjectsAreControlled === true ? { subjectsAreControlled: true } : {}),
-		propertyDefinitions: Object.fromEntries(
-			input.properties.map(({ name, ...definition }) => [name, definition]),
-		),
-	};
-}

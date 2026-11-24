@@ -6,7 +6,7 @@ import { neowikiGetSchema } from '../../../../src/tools/extensions/neowiki/neowi
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
 
 describe('neowiki-get-schema', () => {
-	it('normalizes propertyDefinitions to a properties array, preserving relation/select metadata', async () => {
+	it('returns the property definitions keyed by property name, as NeoWiki stores them', async () => {
 		const mock = createMockMwn({
 			rawRequest: vi.fn().mockResolvedValue({
 				data: {
@@ -31,14 +31,10 @@ describe('neowiki-get-schema', () => {
 		expect(result.structuredContent).toMatchObject({
 			name: 'Company',
 			description: 'A company.',
-			properties: [
-				{
-					name: 'Main product',
-					type: 'relation',
-					targetSchemas: ['Product'],
-				},
-				{ name: 'Status', type: 'select', options: [{ id: 'o1', label: 'Active' }] },
-			],
+			propertyDefinitions: {
+				'Main product': { type: 'relation', targetSchemas: ['Product'], multiple: false },
+				Status: { type: 'select', required: true, options: [{ id: 'o1', label: 'Active' }] },
+			},
 		});
 	});
 

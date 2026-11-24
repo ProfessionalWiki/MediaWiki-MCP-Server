@@ -12,7 +12,7 @@ const saved = {
 const company = {
 	name: 'Company',
 	description: 'A company',
-	properties: [{ name: 'Website', type: 'url' }],
+	propertyDefinitions: { Website: { type: 'url' } },
 };
 
 describe('neowiki-create-schema', () => {
@@ -27,28 +27,7 @@ describe('neowiki-create-schema', () => {
 		expect(write.headers['X-CSRF-TOKEN']).toBe('tok');
 	});
 
-	it('sends the properties as the property definitions NeoWiki stores', async () => {
-		const { mock, ctx } = writeContextReturningInTurn(absent, saved);
-
-		await neowikiCreateSchema.handle(
-			{ ...company, properties: [{ name: 'Founded at', type: 'number', minimum: 1800 }] },
-			ctx,
-		);
-
-		expect(sentRequests(mock)[1].body).toMatchObject({
-			schema: { propertyDefinitions: { 'Founded at': { type: 'number', minimum: 1800 } } },
-		});
-	});
-
-	it('sends a schema without properties with an empty object of property definitions', async () => {
-		const { mock, ctx } = writeContextReturningInTurn(absent, saved);
-
-		await neowikiCreateSchema.handle({ name: 'Tag', properties: [] }, ctx);
-
-		expect(sentRequests(mock)[1].data).toContain('"propertyDefinitions":{}');
-	});
-
-	it('sends the labels and flags it is given', async () => {
+	it('sends the schema it is given', async () => {
 		const { mock, ctx } = writeContextReturningInTurn(absent, saved);
 
 		await neowikiCreateSchema.handle(
@@ -57,7 +36,12 @@ describe('neowiki-create-schema', () => {
 		);
 
 		expect(sentRequests(mock)[1].body).toMatchObject({
-			schema: { labels: { de: 'Unternehmen' }, subjectsAreControlled: true },
+			schema: {
+				description: 'A company',
+				labels: { de: 'Unternehmen' },
+				subjectsAreControlled: true,
+				propertyDefinitions: { Website: { type: 'url' } },
+			},
 		});
 	});
 
@@ -70,35 +54,12 @@ describe('neowiki-create-schema', () => {
 		expect(sentRequests(mock)).toHaveLength(1);
 	});
 
-	it('refuses two properties of one name, sending nothing', async () => {
-		const { mock, ctx } = writeContextReturningInTurn(absent, saved);
-
-		const result = await neowikiCreateSchema.handle(
-			{
-				name: 'Company',
-				properties: [
-					{ name: 'Website', type: 'url' },
-					{ name: 'Website', type: 'text' },
-				],
-			},
-			ctx,
-		);
-
-		assertStructuredError(result, 'invalid_input');
-		expect(mock.rawRequest).not.toHaveBeenCalled();
-	});
-
 	it('returns the schema as saved, in the shape neowiki-get-schema returns', async () => {
 		const { ctx } = writeContextReturningInTurn(absent, saved);
 
 		const result = await neowikiCreateSchema.handle(company, ctx);
 
-		expect(result.structuredContent).toEqual({
-			status: 'created',
-			name: 'Company',
-			description: 'A company',
-			properties: [{ name: 'Website', type: 'url' }],
-		});
+		expect(result.structuredContent).toEqual({ status: 'created', ...company });
 	});
 
 	it('attributes the write to the tool that made it', async () => {
