@@ -2,8 +2,7 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
-import type { TruncationInfo } from '../../../results/truncation.ts';
-import { capLinesByBytes } from '../../../results/truncation.ts';
+import { sparqlToolResult } from '../../../results/sparqlResults.ts';
 import { runSparqlQuery } from './sparql.ts';
 import { resolveSiteInfo } from '../../../wikis/siteInfo.ts';
 
@@ -42,52 +41,6 @@ export const wikibaseQuery: Tool<typeof inputSchema> = {
 		const effectiveLimit = limit ?? HARD_LIMIT;
 		const results = await runSparqlQuery(endpoint, query, effectiveLimit);
 
-		if (results.boolean !== undefined) {
-			return ctx.format.ok({ boolean: results.boolean });
-		}
-
-		const byteCapped = capLinesByBytes(results.rows);
-
-		return ctx.format.ok({
-			columns: results.columns,
-			rows: byteCapped.lines,
-			...truncationOf(byteCapped, results.totalRows, effectiveLimit),
-		});
+		return ctx.format.ok(sparqlToolResult(results, effectiveLimit, 'wikibase-query'));
 	},
 };
-
-function truncationOf(
-	capped: { lines: string[]; returnedBytes: number; totalBytes: number; truncated: boolean },
-	totalRows: number,
-	limit: number,
-): { truncation?: TruncationInfo } {
-	if (capped.truncated) {
-		return {
-			truncation: {
-				reason: 'content-truncated',
-				returnedBytes: capped.returnedBytes,
-				totalBytes: capped.totalBytes,
-				itemNoun: 'rows',
-				toolName: 'wikibase-query',
-				// A byte-truncated response that also hit the row cap leaves a caller
-				// told only about the bytes believing the rest is one page away.
-				remedyHint:
-					totalRows > limit
-						? `To read the rest of the ${totalRows} rows the query matched (${capped.lines.length} delivered before the byte cap), narrow the projection or page with LIMIT and OFFSET.`
-						: 'To read the rest, narrow the projection or page with LIMIT and OFFSET.',
-			},
-		};
-	}
-	if (totalRows > limit) {
-		return {
-			truncation: {
-				reason: 'capped-no-continuation',
-				returnedCount: limit,
-				limit,
-				itemNoun: 'rows',
-				narrowHint: `the query matched ${totalRows} — page through them with LIMIT and OFFSET in the query.`,
-			},
-		};
-	}
-	return {};
-}
