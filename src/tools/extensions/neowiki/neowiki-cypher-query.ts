@@ -50,6 +50,7 @@ export const neowikiCypherQuery: Tool<typeof inputSchema> = {
 			method: 'POST',
 			path: '/query/cypher',
 			body: { cypher, ...(parameters !== undefined ? { parameters } : {}) },
+			unavailable: 'The wiki has no Neo4j store, which Cypher queries need.',
 		})) as CypherResponse;
 
 		const columns = Array.isArray(data.columns) ? data.columns : [];

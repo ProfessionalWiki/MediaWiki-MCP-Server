@@ -40,6 +40,24 @@ describe('neowiki-list-schemas', () => {
 		});
 	});
 
+	it('flags only the schemas whose subjects are controlled', async () => {
+		const { ctx } = contextReturning({
+			schemas: [
+				{ name: 'Person', description: '', propertyCount: 3, subjectsAreControlled: false },
+				{ name: 'Material', description: '', propertyCount: 1, subjectsAreControlled: true },
+			],
+			nextCursor: null,
+		});
+		const result = await neowikiListSchemas.handle({}, ctx);
+
+		expect(result.structuredContent).toEqual({
+			schemas: [
+				{ name: 'Person', description: '', propertyCount: 3 },
+				{ name: 'Material', description: '', propertyCount: 1, subjectsAreControlled: true },
+			],
+		});
+	});
+
 	it('hands back the next cursor as continueFrom while more schemas remain', async () => {
 		const { ctx } = contextReturning({
 			schemas: [{ name: 'A', description: '', propertyCount: 1 }],

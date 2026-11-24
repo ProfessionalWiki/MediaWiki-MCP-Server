@@ -9,9 +9,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Breaking changes
 
 - `neowiki-update-subject` needs NeoWiki with ProfessionalWiki/NeoWiki#1870 (2026-11-24) or later, and takes a required `baseRevisionId`: the revision ID the change was made from. NeoWiki with that change refused every update the tool sent before.
+- `neowiki-search-subjects` takes `schema` as an array of schema names, so that one search covers several. A single name given as a string is refused.
+
+### Added
+
+- `neowiki-get-schema` returns a schema's `labels`, and `subjectsAreControlled: true` for a schema of controlled subjects. `neowiki-list-schemas` returns `subjectsAreControlled` only when it is `true`, as it does `subjectsAreDependent`.
+- `neowiki-search-subjects` lists the subjects of the given schemas in name order when called without `search`.
 
 ### Changed
 
+- On a wiki whose NeoWiki lacks the endpoint a NeoWiki tool calls, the tool fails as invalid input naming that endpoint, not as not found. `neowiki-cypher-query` says instead that the wiki has no Neo4j store.
 - `neowiki-get-subject` returns a subject as the latest revision of its page holds it, with that revision ID as `revisionId`. Where the latest revision cannot be read, it returns the revision the wiki publishes, without one. `neowiki-create-subject` and `neowiki-update-subject` return the revision ID the page is at after the write as `revisionId`.
 
 ## [0.21.0] - 2026-11-05

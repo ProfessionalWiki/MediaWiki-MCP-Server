@@ -51,11 +51,30 @@ describe('neowiki-get-schema', () => {
 		expect(result.structuredContent).toMatchObject({ subjectsAreDependent: true });
 	});
 
-	it('leaves a schema of standalone subjects unflagged', async () => {
+	it('says when the schema describes Controlled Subjects', async () => {
+		const { ctx } = contextReturning({
+			schema: { subjectsAreControlled: true, propertyDefinitions: {} },
+		});
+		const result = await neowikiGetSchema.handle({ name: 'Material' }, ctx);
+
+		expect(result.structuredContent).toMatchObject({ subjectsAreControlled: true });
+	});
+
+	it('leaves out the flags of a schema that sets neither', async () => {
 		const { ctx } = contextReturning({ schema: { propertyDefinitions: {} } });
 		const result = await neowikiGetSchema.handle({ name: 'Person' }, ctx);
 
 		expect(result.structuredContent).not.toHaveProperty('subjectsAreDependent');
+		expect(result.structuredContent).not.toHaveProperty('subjectsAreControlled');
+	});
+
+	it('returns what the UI calls the schema in each language', async () => {
+		const { ctx } = contextReturning({
+			schema: { labels: { de: 'Unternehmen' }, propertyDefinitions: {} },
+		});
+		const result = await neowikiGetSchema.handle({ name: 'Company' }, ctx);
+
+		expect(result.structuredContent).toMatchObject({ labels: { de: 'Unternehmen' } });
 	});
 
 	it('returns not_found when the response has no schema', async () => {

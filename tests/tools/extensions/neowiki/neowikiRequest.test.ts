@@ -169,6 +169,29 @@ describe('neowikiRequest', () => {
 		).rejects.toMatchObject({ category: 'not_found' });
 	});
 
+	it('reports an endpoint the wiki does not serve as invalid input, naming it', async () => {
+		const mock = createMockMwn({ rawRequest: vi.fn().mockRejectedValue(noSuchEndpoint()) });
+
+		await expect(
+			neowikiRequest(mock as never, { method: 'GET', path: '/subject-counts' }),
+		).rejects.toMatchObject({
+			category: 'invalid_input',
+			message: expect.stringContaining('/subject-counts'),
+		});
+	});
+
+	it('words an endpoint the wiki does not serve as the request asks', async () => {
+		const mock = createMockMwn({ rawRequest: vi.fn().mockRejectedValue(noSuchEndpoint()) });
+
+		await expect(
+			neowikiRequest(mock as never, {
+				method: 'POST',
+				path: '/query/cypher',
+				unavailable: 'The wiki has no Neo4j store.',
+			}),
+		).rejects.toMatchObject({ category: 'invalid_input', message: 'The wiki has no Neo4j store.' });
+	});
+
 	it('sanitizes an internal-exception body to message only', async () => {
 		const mock = createMockMwn({
 			rawRequest: vi.fn().mockRejectedValue(
@@ -265,3 +288,13 @@ describe('neowikiRequest', () => {
 		}
 	});
 });
+
+/** What MediaWiki answers for a REST path no handler serves. */
+function noSuchEndpoint(): Error {
+	return httpError(404, {
+		errorKey: 'rest-no-match',
+		messageTranslations: { en: 'The requested relative path did not match any known handler' },
+		httpCode: 404,
+		httpReason: 'Not Found',
+	});
+}
