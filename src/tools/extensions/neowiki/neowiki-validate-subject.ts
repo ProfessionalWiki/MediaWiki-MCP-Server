@@ -32,7 +32,7 @@ interface ValidateResponse {
 export const neowikiValidateSubject: Tool<typeof inputSchema> = {
 	name: 'neowiki-validate-subject',
 	description:
-		"Dry-runs validation of a proposed NeoWiki Subject's statements against its Schema and returns any violations WITHOUT writing. Enabled only when the wiki has NeoWiki installed. Provide id to validate an update to an existing Subject (its schema is used), or omit id and provide schema to validate a new Subject. Use before neowiki-create-subject / neowiki-update-subject to catch type mismatches, missing required properties, and the propertyType-vs-type footgun. Returns { violations: [] } when valid; each violation carries a stable code, the propertyName it concerns, and a severity of error or warning. The rules for Dependent Subjects are checked only when a write runs. Pre-1.0: the NeoWiki API may change without notice.",
+		"Dry-runs validation of a proposed NeoWiki Subject's statements against its Schema and returns any violations WITHOUT writing. Enabled only when the wiki has NeoWiki installed. Provide id to validate an update to an existing Subject (its schema is used), or omit id and provide schema to validate a new Subject. Use before neowiki-create-subject / neowiki-update-subject to catch type mismatches, missing required properties, and the propertyType-vs-type footgun. Returns { violations: [] } when valid; each violation carries a stable code, the propertyName it concerns, and a severity of error or warning. The rules for Dependent Subjects are checked only when a write runs.",
 	inputSchema,
 	annotations: {
 		title: 'Validate NeoWiki subject',

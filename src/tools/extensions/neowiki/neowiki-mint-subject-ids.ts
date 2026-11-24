@@ -15,7 +15,7 @@ interface MintResponse {
 export const neowikiMintSubjectIds: Tool<typeof inputSchema> = {
 	name: 'neowiki-mint-subject-ids',
 	description:
-		'Mints unused NeoWiki Subject IDs and returns them as subjectIds, without writing anything. Enabled only when the wiki has NeoWiki installed. A minted ID lets a relation target a Subject in the same write that creates it: the ID of each Dependent Subject passed in the dependentSubjects of neowiki-create-subject or neowiki-update-subject. Pre-1.0: the NeoWiki API may change without notice.',
+		'Mints unused NeoWiki Subject IDs and returns them as subjectIds, without writing anything. Enabled only when the wiki has NeoWiki installed. A minted ID lets a relation target a Subject in the same write that creates it: the ID of each Dependent Subject passed in the dependentSubjects of neowiki-create-subject or neowiki-update-subject.',
 	inputSchema,
 	annotations: {
 		title: 'Mint NeoWiki subject IDs',
