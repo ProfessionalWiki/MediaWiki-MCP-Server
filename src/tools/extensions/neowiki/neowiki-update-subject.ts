@@ -4,7 +4,7 @@ import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { neowikiRequest } from './neowikiRequest.ts';
 import { formatEditComment } from '../../../wikis/utils.ts';
-import { writeResult, type SubjectWriteResponse } from './subjects.ts';
+import { baseRevisionIdSchema, writeResult, type SubjectWriteResponse } from './subjects.ts';
 import { dependentSubjectsSchema, statementsSchema } from './statements.ts';
 
 const inputSchema = {
@@ -12,13 +12,7 @@ const inputSchema = {
 		.string()
 		.min(1)
 		.describe('Subject ID to replace (starts with s…). Resolve one with neowiki-search-subjects.'),
-	baseRevisionId: z
-		.number()
-		.int()
-		.positive()
-		.describe(
-			'Revision ID the change was made from: the revisionId of the neowiki-get-subject read, or of the neowiki-create-subject or neowiki-update-subject write, that returned the Subject being changed. A later revision ID makes the write overwrite the changes made after that read.',
-		),
+	baseRevisionId: baseRevisionIdSchema,
 	label: z
 		.string()
 		.optional()
@@ -39,7 +33,7 @@ const inputSchema = {
 export const neowikiUpdateSubject: Tool<typeof inputSchema> = {
 	name: 'neowiki-update-subject',
 	description:
-		"Replaces a NeoWiki Subject's label and statements — a FULL replace of the Subject as of baseRevisionId: an omitted or empty label is cleared, property names absent from `statements` are deleted, and {} clears all statements. Changes made after that revision to anything the write leaves as it was are kept beside the write; where both changed the same label or statement to different values, or one removed a Dependent Subject the other changed, the write is refused as an edit conflict and writes nothing, and neowiki-get-subject returns the Subject as it now is, with the revisionId to base a new write on. Returns the revision ID the page is at after the write as revisionId, the violations of its Schema the Subject was saved with, and the Subject as saved. Enabled only when the wiki has NeoWiki installed. The Subject's id, schema and page are immutable. Requires the edit right, and for a Controlled Subject, of a Schema with subjectsAreControlled in neowiki-get-schema, the neowiki-controlled-subject-edit right too. Read the current state and its revisionId with neowiki-get-subject first. Dependent Subjects are written through dependentSubjects as with neowiki-create-subject, and passing the ID of one this Subject reaches replaces it; dropping the last relation to a Dependent Subject deletes it. A write that breaks a rule for Dependent Subjects is refused; other violations are warnings unless the wiki enforces validation, which refuses a write that introduces an error-severity one. Pre-validate with neowiki-validate-subject. Pre-1.0: the NeoWiki API may change without notice.",
+		"Replaces a NeoWiki Subject's label and statements — a FULL replace of the Subject as of baseRevisionId: an omitted or empty label is cleared, property names absent from `statements` are deleted, and {} clears all statements. Changes made after that revision to anything the write leaves as it was are kept beside the write; where both changed the same label or statement to different values, or one removed a Dependent Subject the other changed, the write is refused as an edit conflict and writes nothing, and neowiki-get-subject returns the Subject as it now is, with the revisionId to base a new write on. Returns the revision ID the page is at after the write as revisionId, the violations of its Schema the Subject was saved with, and the Subject as saved. Enabled only when the wiki has NeoWiki installed. The Subject's id, schema and page are immutable. Requires the edit right, and for a Controlled Subject, of a Schema with subjectsAreControlled in neowiki-get-schema, the neowiki-controlled-subject-edit right too. Read the current state and its revisionId with neowiki-get-subject first; to change one Statement and leave the rest as it is, use neowiki-set-statement or neowiki-remove-statement. Dependent Subjects are written through dependentSubjects as with neowiki-create-subject, and passing the ID of one this Subject reaches replaces it; dropping the last relation to a Dependent Subject deletes it. A write that breaks a rule for Dependent Subjects is refused; other violations are warnings unless the wiki enforces validation, which refuses a write that introduces an error-severity one. Pre-validate with neowiki-validate-subject. Pre-1.0: the NeoWiki API may change without notice.",
 	inputSchema,
 	annotations: {
 		title: 'Update NeoWiki subject',

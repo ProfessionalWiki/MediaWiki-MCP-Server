@@ -1,3 +1,13 @@
+import { z } from 'zod';
+
+export const baseRevisionIdSchema = z
+	.number()
+	.int()
+	.positive()
+	.describe(
+		'Revision ID the change was made from: the revisionId of the neowiki-get-subject read, or of the write, that returned the Subject being changed. A later revision ID makes the write overwrite the changes made after that read.',
+	);
+
 interface SubjectStatement {
 	propertyType?: string;
 	value?: unknown;
