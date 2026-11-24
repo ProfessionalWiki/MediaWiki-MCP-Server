@@ -132,17 +132,17 @@ function classifyNeoWikiError(err: unknown, spec: NeoWikiRequestSpec): Classifie
 			return new ClassifiedError(category, message, status);
 		}
 
-		// MediaWiki REST envelope, from parameter validation or a read denial:
-		// { error, messageTranslations?: { en } }.
-		if (typeof record.error === 'string') {
-			const translations = record.messageTranslations;
-			// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- messageTranslations sub-object shape at this boundary
-			const en =
-				translations !== null && typeof translations === 'object'
-					? (translations as { en?: unknown }).en
-					: undefined;
-			const message = typeof en === 'string' ? en : record.error;
-			return new ClassifiedError(categoryForStatus(status) ?? 'invalid_input', message, status);
+		// MediaWiki REST envelope, from parameter validation, a read denial, or an
+		// action module a Schema write runs: { error?, messageTranslations?: { en } }.
+		const translations = record.messageTranslations;
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- messageTranslations sub-object shape at this boundary
+		const en =
+			translations !== null && typeof translations === 'object'
+				? (translations as { en?: unknown }).en
+				: undefined;
+		const restMessage = typeof en === 'string' ? en : record.error;
+		if (typeof restMessage === 'string') {
+			return new ClassifiedError(categoryForStatus(status) ?? 'invalid_input', restMessage, status);
 		}
 
 		// Internal RuntimeException: { message, exception: {…backtrace…} }.
