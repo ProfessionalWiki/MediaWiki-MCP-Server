@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Added
 
+- `get-file-content` reads a wiki file for model consumption: an image block for raster images and SVG (wiki-rendered), and decoded text for text files and PDFs (best-effort extraction). `format` selects `auto`, `image`, `source`, or `both`, and `width` controls the image rendition. Text sources follow the shared `content-truncated` marker convention; non-renderable files return an error pointing to `get-file`.
 - `neowiki-sparql-query` runs a read-only SPARQL query against a NeoWiki wiki's SPARQL store, so a wiki without Neo4j, where `neowiki-cypher-query` cannot run, can be queried too.
 - `neowiki-get-referencing-subjects` lists the NeoWiki subjects whose relations point at a subject, on any NeoWiki wiki, with or without a graph store.
 - `neowiki-create-schema`, `neowiki-update-schema` and `neowiki-delete-schema` create, replace and delete NeoWiki schemas. Create and update take a schema in the shape `neowiki-get-schema` returns. Create refuses a schema that exists, and update one that does not.

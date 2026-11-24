@@ -11,6 +11,7 @@ import { parseWikitext } from './parse-wikitext.ts';
 import { comparePages } from './compare-pages.ts';
 import { getFile } from './get-file.ts';
 import { getFileData } from './get-file-data.ts';
+import { getFileContent } from './get-file-content.ts';
 import { getRevision } from './get-revision.ts';
 import { getSiteInfo } from './get-site-info.ts';
 import { getCategoryMembers } from './get-category-members.ts';
@@ -51,6 +52,7 @@ export const standardTools: Tool<any>[] = [
 	comparePages,
 	getFile,
 	getFileData,
+	getFileContent,
 	getRevision,
 	getSiteInfo,
 	getCategoryMembers,
