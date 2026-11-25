@@ -130,20 +130,29 @@ function fittingPrefix(sizes: number[], maxBytes: number): { count: number; byte
 	return { count, bytes };
 }
 
-// UTF-8 continuation bytes are 0b10xxxxxx. A cut whose next byte is one of them
-// lands inside a multi-byte character.
-function isContinuationByte(byte: number): boolean {
-	return (byte & 0xc0) === 0x80;
-}
-
 export function truncateByBytes(
 	text: string,
 	maxBytes: number = contentMaxBytes(),
 ): TruncatedContent {
 	const buffer = Buffer.from(text, 'utf8');
-	const totalBytes = buffer.byteLength;
-	if (totalBytes <= maxBytes) {
-		return { text, truncated: false, returnedBytes: totalBytes, totalBytes };
+	const cut = truncateUtf8(buffer, maxBytes);
+	return {
+		text: cut.truncated ? cut.bytes.toString('utf8') : text,
+		truncated: cut.truncated,
+		returnedBytes: cut.returnedBytes,
+		totalBytes: buffer.byteLength,
+	};
+}
+
+export interface TruncatedUtf8 {
+	bytes: Buffer;
+	truncated: boolean;
+	returnedBytes: number;
+}
+
+export function truncateUtf8(bytes: Buffer, maxBytes: number): TruncatedUtf8 {
+	if (bytes.byteLength <= maxBytes) {
+		return { bytes, truncated: false, returnedBytes: bytes.byteLength };
 	}
 	// Cut back to a character boundary, so the text returned is a byte-exact
 	// prefix of the input. Slicing mid-sequence leaves Node decoding the partial
@@ -152,13 +161,14 @@ export function truncateByBytes(
 	// Clamped here rather than at the call sites, because maxBytes is a public
 	// parameter and a negative one would make subarray count from the end.
 	let end = Math.max(0, maxBytes);
-	while (end > 0 && isContinuationByte(buffer[end])) {
+	while (end > 0 && isContinuationByte(bytes[end])) {
 		end--;
 	}
-	return {
-		text: buffer.subarray(0, end).toString('utf8'),
-		truncated: true,
-		returnedBytes: end,
-		totalBytes,
-	};
+	return { bytes: bytes.subarray(0, end), truncated: true, returnedBytes: end };
+}
+
+// UTF-8 continuation bytes are 0b10xxxxxx. A cut whose next byte is one of them
+// lands inside a multi-byte character.
+function isContinuationByte(byte: number): boolean {
+	return (byte & 0xc0) === 0x80;
 }
