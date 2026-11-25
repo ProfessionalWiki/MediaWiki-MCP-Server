@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Added
 
+- `get-file-data` with `format: 'original'` returns the contents of a text-based original file, such as SVG, JSON or XML, so a client that cannot download the file can still read it. Contents are cut at `MCP_CONTENT_MAX_BYTES` (default 75000 bytes); other file types are refused.
 - `neowiki-sparql-query` runs a read-only SPARQL query against a NeoWiki wiki's SPARQL store, so a wiki without Neo4j, where `neowiki-cypher-query` cannot run, can be queried too.
 - `neowiki-get-referencing-subjects` lists the NeoWiki subjects whose relations point at a subject, on any NeoWiki wiki, with or without a graph store.
 - `neowiki-create-schema`, `neowiki-update-schema` and `neowiki-delete-schema` create, replace and delete NeoWiki schemas. Create and update take a schema in the shape `neowiki-get-schema` returns. Create refuses a schema that exists, and update one that does not.

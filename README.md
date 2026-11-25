@@ -16,7 +16,7 @@ Every tool that operates on a wiki accepts an optional `wiki` argument naming th
 | `compare-pages` | Diff two versions of a wiki page by revision, title, or supplied wikitext. |
 | `get-category-members` | List members of a category (up to 500 per call, paginated via `continueFrom`). |
 | `get-file` | Fetch a file page. |
-| `get-file-data` | Fetch a file's image bytes inline (base64) for visual analysis — for clients that can't reach the wiki host. Returns a scaled rendition (set `width`); non-renderable types (audio, video, binaries) error. For metadata or a download URL, use `get-file`. |
+| `get-file-data` | Fetch a file through the server, for clients that can't reach the wiki host: a scaled rendition for visual analysis (set `width`), or with `format: 'original'` the contents of a text-based original file. Audio, video and other binaries error. For metadata or a download URL, use `get-file`. |
 | `get-links-here` | List pages that reference a wiki page — pages that link to it, embed it as a template, or display it as a file (select via `type`), including pages that reach it through a redirect. Up to 500 per call, paginated via `continueFrom`. |
 | `get-page` | Fetch a wiki page. |
 | `get-page-history` | List recent revisions of a wiki page. |
@@ -154,8 +154,8 @@ The variables below are relevant to any setup. Variables that only apply when se
 | `CONFIG` | Path to your configuration file | `config.json` |
 | `MCP_TRANSPORT` | Type of MCP server transport (`stdio` or `http`) | `stdio` |
 | `MCP_LOG_LEVEL` | Minimum severity for logger output. One of `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`, or `silent`. | `debug` |
-| `MCP_CONTENT_MAX_BYTES` | Byte cap for the content bodies and result blocks tools return (wikitext, rendered HTML, diffs, statement and row listings), applied once per response. Tune to the target LLM client's tool-response budget. | `75000` |
-| `MCP_FILE_DATA_MAX_BYTES` | Hard cap on the base64-encoded size of a `get-file-data` response. A transport/safety backstop; tune the actual size per call with the tool's `width`. Over-cap calls error rather than truncate. | `1000000` |
+| `MCP_CONTENT_MAX_BYTES` | Byte cap for the content bodies and result blocks tools return (wikitext, rendered HTML, diffs, original text files, statement and row listings), applied once per response. Tune to the target LLM client's tool-response budget. | `75000` |
+| `MCP_FILE_DATA_MAX_BYTES` | Hard cap on the base64-encoded size of a `get-file-data` rendition. A transport/safety backstop; tune the actual size per call with the tool's `width`. Over-cap renditions error rather than truncate. | `1000000` |
 | `MCP_UPLOAD_MAX_BYTES` | Memory cap on the server-side fetch used by `upload-file-from-url` / `update-file-from-url`. Files larger than this are handed to the wiki's own copy-upload instead of being buffered by the server. Guards this server's memory, not the wiki's `$wgMaxUploadSize`. | `104857600` |
 | `MCP_USER_AGENT` | Replaces the `User-Agent` header of every outbound request, so wiki operators can reach you. Give a name and an email or URL, e.g. `ExampleBot/1.0 (bot@example.org)`. | `mediawiki-mcp-server/<version> (https://github.com/ProfessionalWiki/MediaWiki-MCP-Server)` |
 | `MCP_OAUTH_CREDENTIALS_FILE` | Override the default credentials store path. Default: `~/.config/mediawiki-mcp/credentials.json` (Linux/macOS) or `%APPDATA%\mediawiki-mcp\credentials.json` (Windows). | `unset` |

@@ -29,13 +29,13 @@
         },
         {
           "name": "MCP_CONTENT_MAX_BYTES",
-          "description": "Byte cap for the content bodies and result blocks tools return (wikitext, rendered HTML, diffs, statement and row listings). An oversized response is truncated with a trailing marker describing what was left out.",
+          "description": "Byte cap for the content bodies and result blocks tools return (wikitext, rendered HTML, diffs, original text files, statement and row listings). An oversized response is truncated with a trailing marker describing what was left out.",
           "format": "number",
           "default": "75000"
         },
         {
           "name": "MCP_FILE_DATA_MAX_BYTES",
-          "description": "Hard cap on the base64-encoded size of a get-file-data response. A transport/safety backstop; callers tune actual size with the tool's width parameter. Over-cap responses error rather than truncate.",
+          "description": "Hard cap on the base64-encoded size of a get-file-data rendition. A transport/safety backstop; callers tune actual size with the tool's width parameter. Over-cap renditions error rather than truncate.",
           "format": "number",
           "default": "1000000"
         },
@@ -144,13 +144,13 @@
         },
         {
           "name": "MCP_CONTENT_MAX_BYTES",
-          "description": "Byte cap for the content bodies and result blocks tools return (wikitext, rendered HTML, diffs, statement and row listings). An oversized response is truncated with a trailing marker describing what was left out.",
+          "description": "Byte cap for the content bodies and result blocks tools return (wikitext, rendered HTML, diffs, original text files, statement and row listings). An oversized response is truncated with a trailing marker describing what was left out.",
           "format": "number",
           "default": "75000"
         },
         {
           "name": "MCP_FILE_DATA_MAX_BYTES",
-          "description": "Hard cap on the base64-encoded size of a get-file-data response. A transport/safety backstop; callers tune actual size with the tool's width parameter. Over-cap responses error rather than truncate.",
+          "description": "Hard cap on the base64-encoded size of a get-file-data rendition. A transport/safety backstop; callers tune actual size with the tool's width parameter. Over-cap renditions error rather than truncate.",
           "format": "number",
           "default": "1000000"
         },

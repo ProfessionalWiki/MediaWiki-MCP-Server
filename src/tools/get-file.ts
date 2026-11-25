@@ -12,7 +12,7 @@ const inputSchema = {
 export const getFile: Tool<typeof inputSchema> = {
 	name: 'get-file',
 	description:
-		'Returns metadata for a file (uploader, timestamp, size, MIME type) along with download URLs for the thumbnail, preview, and original. The File: prefix is added automatically if omitted.',
+		'Returns metadata for a file (uploader, timestamp, size, MIME type) along with download URLs for a thumbnail and the original file. For the file itself through the server, as an image to look at or as the contents of a text-based file, use get-file-data. The File: prefix is added automatically if omitted.',
 	inputSchema,
 	annotations: {
 		title: 'Get file',
