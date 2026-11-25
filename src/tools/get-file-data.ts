@@ -4,13 +4,12 @@ import type { ApiPage, ImageInfo } from 'mwn';
 import type { Tool } from '../runtime/tool.ts';
 import type { ToolContext } from '../runtime/context.ts';
 import { fileTitle } from '../wikis/fileTitle.ts';
-import { wikiAuthorization } from '../wikis/wikiAuthorization.ts';
+import { downloadFile } from '../wikis/downloadFile.ts';
 
 const DEFAULT_IMAGE_WIDTH = 1024;
 const DEFAULT_TEXT_WIDTH = 512;
 const MAX_WIDTH = 1568;
 const DEFAULT_FILE_DATA_MAX_BYTES = 1_000_000;
-const MAX_REDIRECTS = 5;
 
 // Operator-owned transport/safety backstop on the encoded payload size. Distinct
 // from MCP_CONTENT_MAX_BYTES (a text-body cap) — binary can't be truncated, so
@@ -107,45 +106,24 @@ export const getFileData: Tool<typeof inputSchema> = {
 			);
 		}
 
-		// Fetch via mwn (the same client that read the metadata) so auth and host
-		// trust match: any file imageinfo can describe, this can also download. The
-		// URL comes from the trusted configured wiki's own imageinfo, so — unlike a
-		// user-supplied URL (add-wiki / discovery, which go through httpFetch's
-		// assertPublicDestination guard) — it is intentionally not SSRF-guarded.
-		// maxRedirects caps the hop COUNT only; it does NOT address-validate redirect
-		// targets. Accepted for v1 given the wiki-derived URL; a host-scoped guard
-		// relaxation is a documented future hardening.
-		const axiosResponse = await mwn.rawRequest({
-			url: fetchUrl,
-			method: 'GET',
-			responseType: 'arraybuffer',
-			maxRedirects: MAX_REDIRECTS,
-			headers: wikiAuthorization(mwn, fetchUrl),
-		});
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- axios arraybuffer body at this boundary
-		const buffer = Buffer.from(axiosResponse.data as ArrayBuffer);
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- axios response headers at this boundary
-		const headers = (axiosResponse.headers ?? {}) as Record<string, unknown>;
-		const rawContentType = headers['content-type'];
-		const responseMime =
-			typeof rawContentType === 'string' ? rawContentType.split(';')[0]?.trim() : undefined;
+		const { bytes, contentType } = await downloadFile(mwn, fetchUrl);
 
 		// The block's mime is the fetched bytes' type (a PDF thumb is image/jpeg),
 		// falling back to the original mime for a directly-fetched image. Assert it
 		// really is an image before emitting an image block.
 		const mimeType =
-			responseMime !== undefined && responseMime.startsWith('image/')
-				? responseMime
+			contentType !== undefined && contentType.startsWith('image/')
+				? contentType
 				: isImageMime
 					? info.mime
 					: undefined;
 		if (mimeType === undefined) {
 			return ctx.format.invalidInput(
-				`Fetched data for "${title}" is not an image (${responseMime ?? info.mime ?? 'unknown type'}). Use get-file for its download URL.`,
+				`Fetched data for "${title}" is not an image (${contentType ?? info.mime ?? 'unknown type'}). Use get-file for its download URL.`,
 			);
 		}
 
-		const base64 = buffer.toString('base64');
+		const base64 = bytes.toString('base64');
 		const maxBytes = resolveFileDataMaxBytes();
 		if (base64.length > maxBytes) {
 			return ctx.format.invalidInput(
