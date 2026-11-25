@@ -1,9 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { contextOn } from '../../../helpers/fakeContext.ts';
-import { contextReturning, sentRequest } from '../../../helpers/rawRequest.ts';
+import { describe, it, expect } from 'vitest';
+import { contextFailingWith, contextReturning, sentRequest } from '../../../helpers/rawRequest.ts';
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
-import { httpError } from '../../../helpers/httpError.ts';
+import { noSuchRestPathBody } from '../../../helpers/httpError.ts';
 import { dispatch } from '../../../../src/runtime/dispatcher.ts';
 import { neowikiSparqlQuery } from '../../../../src/tools/extensions/neowiki/neowiki-sparql-query.ts';
 
@@ -17,12 +15,6 @@ function solutions(...names: string[]): unknown {
 			})),
 		},
 	};
-}
-
-function contextFailingWith(status: number, body: unknown): ReturnType<typeof contextOn> {
-	return contextOn(
-		createMockMwn({ rawRequest: vi.fn().mockRejectedValue(httpError(status, body)) }),
-	);
 }
 
 describe('neowiki-sparql-query', () => {
@@ -71,12 +63,7 @@ describe('neowiki-sparql-query', () => {
 	});
 
 	it('says a wiki that cannot answer SPARQL queries has no SPARQL store', async () => {
-		const ctx = contextFailingWith(404, {
-			errorKey: 'rest-no-match',
-			messageTranslations: { en: 'The requested relative path did not match any known handler' },
-			httpCode: 404,
-			httpReason: 'Not Found',
-		});
+		const { ctx } = contextFailingWith(404, noSuchRestPathBody);
 
 		const result = await dispatch(neowikiSparqlQuery, ctx)({ query: 'ASK {}' });
 
@@ -84,7 +71,7 @@ describe('neowiki-sparql-query', () => {
 	});
 
 	it('reports a query the store rejects as invalid input', async () => {
-		const ctx = contextFailingWith(400, {
+		const { ctx } = contextFailingWith(400, {
 			errorType: 'sparqlSyntaxError',
 			message: 'Parse error at line 1',
 		});

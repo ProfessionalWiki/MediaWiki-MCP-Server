@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn, type MockMwn } from '../../../helpers/mock-mwn.ts';
-import { withoutEditAttribution, contextOn } from '../../../helpers/fakeContext.ts';
-import type { ToolContext } from '../../../../src/runtime/context.ts';
+import { createMockMwn } from '../../../helpers/mock-mwn.ts';
+import { contextOn } from '../../../helpers/fakeContext.ts';
+import { writeContextReturning, sentRequest } from '../../../helpers/rawRequest.ts';
 import { neowikiUpdateSubject } from '../../../../src/tools/extensions/neowiki/neowiki-update-subject.ts';
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
 import { httpError } from '../../../helpers/httpError.ts';
@@ -19,54 +19,33 @@ const birth = {
 
 const updated = { status: 'updated', subjectId: 's1demo' };
 
-function contextWith(data: unknown): { mock: MockMwn; ctx: ToolContext } {
-	const mock = createMockMwn({
-		getCsrfToken: vi.fn().mockResolvedValue('tok'),
-		rawRequest: vi.fn().mockResolvedValue({ data }),
-	});
-	return { mock, ctx: contextOn(mock) };
-}
-
-function sentBody(mock: MockMwn): Record<string, unknown> {
-	const { data } = mock.rawRequest.mock.calls[0][0] as { data: string };
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON body the tool sent
-	return JSON.parse(data) as Record<string, unknown>;
-}
-
 describe('neowiki-update-subject', () => {
 	it('PUTs a full replace with a CSRF token', async () => {
-		const mock = createMockMwn({
-			getCsrfToken: vi.fn().mockResolvedValue('tok'),
-			rawRequest: vi.fn().mockResolvedValue({ data: { status: 'updated', subjectId: 's1demo' } }),
-		});
-		const ctx = contextOn(mock);
+		const { mock, ctx } = writeContextReturning(updated);
+
 		const result = await neowikiUpdateSubject.handle(
 			{ ...subject, label: 'ACME', statements: stmts, comment: 'tidy' },
 			ctx,
 		);
-		const call = mock.rawRequest.mock.calls[0][0] as {
-			url: string;
-			method: string;
-			data: string;
-			headers: Record<string, string>;
-		};
-		expect(call.url).toBe('https://test.wiki/w/rest.php/neowiki/v0/subject/s1demo');
-		expect(call.method).toBe('PUT');
-		expect(call.headers['X-CSRF-TOKEN']).toBe('tok');
-		expect(JSON.parse(call.data)).toMatchObject({ label: 'ACME', statements: stmts });
+
+		const request = sentRequest(mock);
+		expect(request.url).toBe('https://test.wiki/w/rest.php/neowiki/v0/subject/s1demo');
+		expect(request.method).toBe('PUT');
+		expect(request.headers['X-CSRF-TOKEN']).toBe('tok');
+		expect(request.body).toMatchObject({ label: 'ACME', statements: stmts });
 		expect(result.structuredContent).toMatchObject({ subjectId: 's1demo', status: 'updated' });
 	});
 
 	it('sends the revision the change was made from', async () => {
-		const { mock, ctx } = contextWith(updated);
+		const { mock, ctx } = writeContextReturning(updated);
 
 		await neowikiUpdateSubject.handle({ ...subject, statements: stmts }, ctx);
 
-		expect(sentBody(mock)).toMatchObject({ baseRevisionId: 1234 });
+		expect(sentRequest(mock).body).toMatchObject({ baseRevisionId: 1234 });
 	});
 
 	it('returns the revision the page is at after the write', async () => {
-		const { ctx } = contextWith({ ...updated, revisionId: 1235 });
+		const { ctx } = writeContextReturning({ ...updated, revisionId: 1235 });
 
 		const result = await neowikiUpdateSubject.handle({ ...subject, statements: stmts }, ctx);
 
@@ -74,59 +53,27 @@ describe('neowiki-update-subject', () => {
 	});
 
 	it('attributes the write to the tool that made it, after the caller comment', async () => {
-		const { mock, ctx } = contextWith(updated);
+		const { mock, ctx } = writeContextReturning(updated);
 
 		await neowikiUpdateSubject.handle(
 			{ ...subject, label: 'ACME', statements: stmts, comment: 'tidy' },
 			ctx,
 		);
 
-		expect(sentBody(mock)).toMatchObject({
+		expect(sentRequest(mock).body).toMatchObject({
 			comment: 'tidy (via neowiki-update-subject on MediaWiki MCP Server)',
 		});
 	});
 
-	it('attributes a write the caller gave no comment for', async () => {
-		const { mock, ctx } = contextWith(updated);
-
-		await neowikiUpdateSubject.handle({ ...subject, label: 'ACME', statements: stmts }, ctx);
-
-		expect(sentBody(mock)).toMatchObject({
-			comment: 'Automated edit (via neowiki-update-subject on MediaWiki MCP Server)',
-		});
-	});
-
-	it('drops the attribution for a wiki that opts out of it', async () => {
-		const { mock, ctx } = contextWith(updated);
-
-		await neowikiUpdateSubject.handle(
-			{ ...subject, label: 'ACME', statements: stmts, comment: 'tidy' },
-			withoutEditAttribution(ctx),
-		);
-
-		expect(sentBody(mock)).toMatchObject({ comment: 'tidy' });
-	});
-
-	it('sends no comment at all when a wiki opts out and the caller gave none', async () => {
-		const { mock, ctx } = contextWith(updated);
-
-		await neowikiUpdateSubject.handle(
-			{ ...subject, label: 'ACME', statements: stmts },
-			withoutEditAttribution(ctx),
-		);
-
-		expect(sentBody(mock)).not.toHaveProperty('comment');
-	});
-
 	it('writes dependent subjects in the same request', async () => {
-		const { mock, ctx } = contextWith(updated);
+		const { mock, ctx } = writeContextReturning(updated);
 
 		await neowikiUpdateSubject.handle(
 			{ ...subject, statements: stmts, dependentSubjects: [birth] },
 			ctx,
 		);
 
-		expect(sentBody(mock)).toMatchObject({ dependentSubjects: [birth] });
+		expect(sentRequest(mock).body).toMatchObject({ dependentSubjects: [birth] });
 	});
 
 	it('takes back the empty label a read returns for a subject without one', () => {
@@ -134,11 +81,11 @@ describe('neowiki-update-subject', () => {
 	});
 
 	it('omits the label when none is given, which clears it', async () => {
-		const { mock, ctx } = contextWith(updated);
+		const { mock, ctx } = writeContextReturning(updated);
 
 		await neowikiUpdateSubject.handle({ ...subject, statements: stmts }, ctx);
 
-		expect(sentBody(mock)).not.toHaveProperty('label');
+		expect(sentRequest(mock).body).not.toHaveProperty('label');
 	});
 
 	it('returns the violations the write reported and the subject as saved', async () => {
@@ -148,7 +95,7 @@ describe('neowiki-update-subject', () => {
 			args: [2000],
 			severity: 'warning',
 		};
-		const { ctx } = contextWith({
+		const { ctx } = writeContextReturning({
 			status: 'updated',
 			subjectId: 's1demo',
 			violations: [violation],

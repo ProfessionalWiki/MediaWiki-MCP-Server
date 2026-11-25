@@ -4,20 +4,20 @@ import { neowikiRequest } from '../../../../src/tools/extensions/neowiki/neowiki
 import { ClassifiedError } from '../../../../src/errors/classifyError.ts';
 import { WikiTimeoutError } from '../../../../src/errors/wikiTimeoutError.ts';
 import { rejectionOf } from '../../../helpers/rejectionOf.ts';
-import { httpError } from '../../../helpers/httpError.ts';
+import { httpError, noSuchRestPathBody } from '../../../helpers/httpError.ts';
 
 describe('neowikiRequest', () => {
 	it('derives the REST base from apiUrl and sends a GET with query string', async () => {
 		const mock = createMockMwn({
-			rawRequest: vi.fn().mockResolvedValue({ data: { schemas: [], totalRows: 0 } }),
+			rawRequest: vi.fn().mockResolvedValue({ data: { schemas: [], nextCursor: null } }),
 		});
 		await neowikiRequest(mock as never, {
 			method: 'GET',
 			path: '/schemas',
-			query: { limit: '500', offset: '0' },
+			query: { limit: '50', cursor: '1462' },
 		});
 		const call = mock.rawRequest.mock.calls[0][0] as Record<string, unknown>;
-		expect(call.url).toBe('https://test.wiki/w/rest.php/neowiki/v0/schemas?limit=500&offset=0');
+		expect(call.url).toBe('https://test.wiki/w/rest.php/neowiki/v0/schemas?limit=50&cursor=1462');
 		expect(call.method).toBe('GET');
 	});
 
@@ -79,20 +79,18 @@ describe('neowikiRequest', () => {
 		).rejects.toMatchObject({ category: 'invalid_input', message: 'Query is not read-only.' });
 	});
 
-	it('maps permission/rate/backend errorTypes', async () => {
-		const cases: Array<[string, string]> = [
-			['permissionDenied', 'permission_denied'],
-			['rateLimitExceeded', 'rate_limited'],
-			['backendUnavailable', 'upstream_failure'],
-		];
-		for (const [errorType, category] of cases) {
-			const mock = createMockMwn({
-				rawRequest: vi.fn().mockRejectedValue(httpError(500, { errorType, message: 'x' })),
-			});
-			await expect(
-				neowikiRequest(mock as never, { method: 'POST', path: '/query/cypher', body: {} }),
-			).rejects.toMatchObject({ category });
-		}
+	it.each([
+		['permissionDenied', 'permission_denied'],
+		['rateLimitExceeded', 'rate_limited'],
+		['backendUnavailable', 'upstream_failure'],
+	])('maps the %s errorType to %s', async (errorType, category) => {
+		const mock = createMockMwn({
+			rawRequest: vi.fn().mockRejectedValue(httpError(500, { errorType, message: 'x' })),
+		});
+
+		await expect(
+			neowikiRequest(mock as never, { method: 'POST', path: '/query/cypher', body: {} }),
+		).rejects.toMatchObject({ category });
 	});
 
 	it('maps a REST param-validation envelope to invalid_input with the English message', async () => {
@@ -196,7 +194,9 @@ describe('neowikiRequest', () => {
 	});
 
 	it('reports an endpoint the wiki does not serve as invalid input, naming it', async () => {
-		const mock = createMockMwn({ rawRequest: vi.fn().mockRejectedValue(noSuchEndpoint()) });
+		const mock = createMockMwn({
+			rawRequest: vi.fn().mockRejectedValue(httpError(404, noSuchRestPathBody)),
+		});
 
 		await expect(
 			neowikiRequest(mock as never, { method: 'GET', path: '/subject-counts' }),
@@ -207,7 +207,9 @@ describe('neowikiRequest', () => {
 	});
 
 	it('words an endpoint the wiki does not serve as the request asks', async () => {
-		const mock = createMockMwn({ rawRequest: vi.fn().mockRejectedValue(noSuchEndpoint()) });
+		const mock = createMockMwn({
+			rawRequest: vi.fn().mockRejectedValue(httpError(404, noSuchRestPathBody)),
+		});
 
 		await expect(
 			neowikiRequest(mock as never, {
@@ -352,34 +354,25 @@ describe('neowikiRequest', () => {
 		expect(noCsrf.getCsrfToken).not.toHaveBeenCalled();
 	});
 
-	it('maps the write {status:error,message} envelope by HTTP status', async () => {
-		const cases: Array<[number, string]> = [
-			[400, 'invalid_input'],
-			[403, 'permission_denied'],
-			[404, 'not_found'],
-			[409, 'conflict'],
-			[429, 'rate_limited'],
-			[500, 'upstream_failure'],
-		];
-		for (const [status, category] of cases) {
+	it.each([
+		[400, 'invalid_input'],
+		[403, 'permission_denied'],
+		[404, 'not_found'],
+		[409, 'conflict'],
+		[429, 'rate_limited'],
+		[500, 'upstream_failure'],
+	])(
+		'maps the write {status:error,message} envelope of an HTTP %i to %s',
+		async (status, category) => {
 			const mock = createMockMwn({
 				rawRequest: vi
 					.fn()
 					.mockRejectedValue(httpError(status, { status: 'error', message: 'bad' })),
 			});
+
 			await expect(
 				neowikiRequest(mock as never, { method: 'PUT', path: '/subject/s1', body: {}, csrf: true }),
 			).rejects.toMatchObject({ category, message: 'bad' });
-		}
-	});
+		},
+	);
 });
-
-/** What MediaWiki answers for a REST path no handler serves. */
-function noSuchEndpoint(): Error {
-	return httpError(404, {
-		errorKey: 'rest-no-match',
-		messageTranslations: { en: 'The requested relative path did not match any known handler' },
-		httpCode: 404,
-		httpReason: 'Not Found',
-	});
-}

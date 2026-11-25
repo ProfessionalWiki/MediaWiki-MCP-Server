@@ -4,3 +4,11 @@ export function httpError(status: number, data: unknown): Error & { response: un
 	err.response = { status, data };
 	return err;
 }
+
+/** What MediaWiki answers for a REST path no handler serves, such as an endpoint the extension lacks. */
+export const noSuchRestPathBody = {
+	errorKey: 'rest-no-match',
+	messageTranslations: { en: 'The requested relative path did not match any known handler' },
+	httpCode: 404,
+	httpReason: 'Not Found',
+};

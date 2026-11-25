@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn, type MockMwn } from '../../../helpers/mock-mwn.ts';
 import { contextOn } from '../../../helpers/fakeContext.ts';
-import { requestedUrl } from '../../../helpers/rawRequest.ts';
+import { requestedUrl, contextReturning } from '../../../helpers/rawRequest.ts';
 import { neowikiGetSubject } from '../../../../src/tools/extensions/neowiki/neowiki-get-subject.ts';
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
 
@@ -20,22 +20,17 @@ function mockReturningSubject(fields: Record<string, unknown>): MockMwn {
 
 describe('neowiki-get-subject', () => {
 	it('unwraps the subject envelope and returns its statements as NeoWiki stores them', async () => {
-		const mock = createMockMwn({
-			rawRequest: vi.fn().mockResolvedValue({
-				data: {
-					requestedId: 's1demo1aaaaaaa1',
-					subjects: {
-						s1demo1aaaaaaa1: {
-							id: 's1demo1aaaaaaa1',
-							label: 'ACME Inc',
-							schema: 'Company',
-							statements: { Status: { propertyType: 'select', value: ['o1demo1aaaaaaa1'] } },
-						},
-					},
+		const { mock, ctx } = contextReturning({
+			requestedId: 's1demo1aaaaaaa1',
+			subjects: {
+				s1demo1aaaaaaa1: {
+					id: 's1demo1aaaaaaa1',
+					label: 'ACME Inc',
+					schema: 'Company',
+					statements: { Status: { propertyType: 'select', value: ['o1demo1aaaaaaa1'] } },
 				},
-			}),
+			},
 		});
-		const ctx = contextOn(mock);
 		const result = await neowikiGetSubject.handle({ id: 's1demo1aaaaaaa1' }, ctx);
 
 		expect((mock.rawRequest.mock.calls[0][0] as { url: string }).url).toContain(
@@ -117,10 +112,7 @@ describe('neowiki-get-subject', () => {
 	});
 
 	it('returns not_found when the subject is absent', async () => {
-		const mock = createMockMwn({
-			rawRequest: vi.fn().mockResolvedValue({ data: { requestedId: 'sX', subjects: {} } }),
-		});
-		const ctx = contextOn(mock);
+		const { ctx } = contextReturning({ requestedId: 'sX', subjects: {} });
 		const result = await neowikiGetSubject.handle({ id: 'sX' }, ctx);
 		assertStructuredError(result, 'not_found');
 	});

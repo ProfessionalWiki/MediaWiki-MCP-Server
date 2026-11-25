@@ -1,30 +1,23 @@
-import { describe, it, expect, vi } from 'vitest';
-import { createMockMwn } from '../../../helpers/mock-mwn.ts';
-import { contextOn } from '../../../helpers/fakeContext.ts';
+import { describe, it, expect } from 'vitest';
 import { contextReturning } from '../../../helpers/rawRequest.ts';
 import { neowikiGetSchema } from '../../../../src/tools/extensions/neowiki/neowiki-get-schema.ts';
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
 
 describe('neowiki-get-schema', () => {
 	it('returns the property definitions keyed by property name, as NeoWiki stores them', async () => {
-		const mock = createMockMwn({
-			rawRequest: vi.fn().mockResolvedValue({
-				data: {
-					schema: {
-						description: 'A company.',
-						propertyDefinitions: {
-							'Main product': {
-								type: 'relation',
-								targetSchemas: ['Product'],
-								multiple: false,
-							},
-							Status: { type: 'select', required: true, options: [{ id: 'o1', label: 'Active' }] },
-						},
+		const { mock, ctx } = contextReturning({
+			schema: {
+				description: 'A company.',
+				propertyDefinitions: {
+					'Main product': {
+						type: 'relation',
+						targetSchemas: ['Product'],
+						multiple: false,
 					},
+					Status: { type: 'select', required: true, options: [{ id: 'o1', label: 'Active' }] },
 				},
-			}),
+			},
 		});
-		const ctx = contextOn(mock);
 		const result = await neowikiGetSchema.handle({ name: 'Company' }, ctx);
 
 		expect((mock.rawRequest.mock.calls[0][0] as { url: string }).url).toContain('/schema/Company');
@@ -74,15 +67,13 @@ describe('neowiki-get-schema', () => {
 	});
 
 	it('returns not_found when the response has no schema', async () => {
-		const mock = createMockMwn({ rawRequest: vi.fn().mockResolvedValue({ data: {} }) });
-		const ctx = contextOn(mock);
+		const { ctx } = contextReturning({});
 		const result = await neowikiGetSchema.handle({ name: 'Nope' }, ctx);
 		assertStructuredError(result, 'not_found');
 	});
 
 	it('URL-encodes the schema name', async () => {
-		const mock = createMockMwn({ rawRequest: vi.fn().mockResolvedValue({ data: { schema: {} } }) });
-		const ctx = contextOn(mock);
+		const { mock, ctx } = contextReturning({ schema: {} });
 		await neowikiGetSchema.handle({ name: 'Schema Name' }, ctx);
 		expect((mock.rawRequest.mock.calls[0][0] as { url: string }).url).toContain(
 			'/schema/Schema%20Name',
