@@ -9,7 +9,7 @@ import { uploadFromUrl } from '../wikis/fileUpload.ts';
 const inputSchema = {
 	url: z.string().url().describe('URL of the file to upload'),
 	title: z.string().describe('File title (with or without the "File:" prefix)'),
-	text: z.string().describe('Wikitext on the file page'),
+	text: z.string().describe('Wikitext of the file description page'),
 	comment: z.string().optional().describe('Reason for uploading the file'),
 } as const;
 

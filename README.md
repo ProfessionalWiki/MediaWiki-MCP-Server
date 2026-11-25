@@ -15,7 +15,7 @@ Every tool that operates on a wiki accepts an optional `wiki` argument naming th
 |---|---|
 | `compare-pages` | Diff two versions of a wiki page by revision, title, or supplied wikitext. |
 | `get-category-members` | List members of a category (up to 500 per call, paginated via `continueFrom`). |
-| `get-file` | Fetch a file page. |
+| `get-file` | Fetch a file's metadata and download URLs. |
 | `get-file-data` | Fetch a file through the server, for clients that can't reach the wiki host: a scaled rendition for visual analysis (set `width`), or with `format: 'original'` the contents of a text-based original file. Audio, video and other binaries error. For metadata or a download URL, use `get-file`. |
 | `get-links-here` | List pages that reference a wiki page — pages that link to it, embed it as a template, or display it as a file (select via `type`), including pages that reach it through a redirect. Up to 500 per call, paginated via `continueFrom`. |
 | `get-page` | Fetch a wiki page. |
