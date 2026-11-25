@@ -28,12 +28,11 @@ export const neowikiMintSubjectIds: Tool<typeof inputSchema> = {
 
 	async handle({ count }, ctx: ToolContext): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /subject-ids response shape; trusted at this boundary
-		const data = (await neowikiRequest(mwn, {
+		const data = await neowikiRequest<MintResponse>(mwn, {
 			method: 'POST',
 			path: '/subject-ids',
 			body: { count },
-		})) as MintResponse;
+		});
 
 		return ctx.format.ok({ subjectIds: Array.isArray(data.subjectIds) ? data.subjectIds : [] });
 	},

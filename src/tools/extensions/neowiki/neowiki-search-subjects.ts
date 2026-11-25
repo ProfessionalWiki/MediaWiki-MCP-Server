@@ -52,8 +52,7 @@ export const neowikiSearchSubjects: Tool<typeof inputSchema> = {
 		}
 
 		const mwn = await ctx.mwn();
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /subject-labels response shape; trusted at this boundary
-		const data = (await neowikiRequest(mwn, {
+		const data = await neowikiRequest<SubjectLabel[]>(mwn, {
 			method: 'GET',
 			path: '/subject-labels',
 			query: {
@@ -61,7 +60,7 @@ export const neowikiSearchSubjects: Tool<typeof inputSchema> = {
 				limit: String(RESULT_LIMIT),
 				...(schema !== undefined ? { schema: schema.join('|') } : {}),
 			},
-		})) as SubjectLabel[];
+		});
 
 		// The endpoint returns the name under `label`, which in NeoWiki is the label a Subject stores.
 		const subjects = (Array.isArray(data) ? data : []).map(({ label, ...row }) => ({

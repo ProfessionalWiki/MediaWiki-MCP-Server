@@ -1,29 +1,18 @@
-import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { neowikiRequest } from './neowikiRequest.ts';
-import { presentSubject, type SubjectData } from './subjects.ts';
-import { resolvePageId, hasOnePageRef } from './pageId.ts';
+import { presentSubject, type SubjectJson } from './subjects.ts';
+import { pageIdOf, pageRefShape } from './pageId.ts';
 
 const inputSchema = {
-	title: z
-		.string()
-		.min(1)
-		.optional()
-		.describe('Wiki page title. Provide this OR pageId, not both.'),
-	pageId: z
-		.number()
-		.int()
-		.positive()
-		.optional()
-		.describe('Numeric MediaWiki page ID. Provide this OR title, not both.'),
+	...pageRefShape('the wiki page whose Subjects to list'),
 } as const;
 
 interface PageSubjectsResponse {
 	pageId?: number;
 	mainSubjectId?: string | null;
-	subjects?: Record<string, SubjectData>;
+	subjects?: Record<string, SubjectJson>;
 }
 
 export const neowikiGetPageSubjects: Tool<typeof inputSchema> = {
@@ -42,25 +31,17 @@ export const neowikiGetPageSubjects: Tool<typeof inputSchema> = {
 	target: (a) => a.title ?? (a.pageId !== undefined ? String(a.pageId) : ''),
 
 	async handle({ title, pageId }, ctx: ToolContext): Promise<CallToolResult> {
-		if (!hasOnePageRef({ title, pageId })) {
-			return ctx.format.invalidInput('Provide exactly one of title or pageId.');
-		}
-
+		const resolvedPageId = await pageIdOf(ctx, { title, pageId });
 		const mwn = await ctx.mwn();
-		const resolvedPageId = await resolvePageId(mwn, { title, pageId });
-		if (resolvedPageId === null) {
-			return ctx.format.notFound(`Page "${title}" not found`);
-		}
 
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /page/{id}/subjects response shape; trusted at this boundary
-		const data = (await neowikiRequest(mwn, {
+		const data = await neowikiRequest<PageSubjectsResponse>(mwn, {
 			method: 'GET',
 			path: `/page/${resolvedPageId}/subjects`,
-		})) as PageSubjectsResponse;
+		});
 
 		const mainSubjectId = data.mainSubjectId ?? null;
 		const subjects = Object.entries(data.subjects ?? {}).map(([id, subject]) => ({
-			...presentSubject(subject, id),
+			...presentSubject(subject),
 			isMain: id === mainSubjectId,
 		}));
 

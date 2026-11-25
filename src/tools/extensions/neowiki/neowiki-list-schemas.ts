@@ -46,15 +46,14 @@ export const neowikiListSchemas: Tool<typeof inputSchema> = {
 
 	async handle({ continueFrom }, ctx: ToolContext): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /schemas response shape; trusted at this boundary
-		const data = (await neowikiRequest(mwn, {
+		const data = await neowikiRequest<ListSchemasResponse>(mwn, {
 			method: 'GET',
 			path: '/schemas',
 			query: {
 				limit: String(PAGE_LIMIT),
 				...(continueFrom !== undefined ? { cursor: continueFrom } : {}),
 			},
-		})) as ListSchemasResponse;
+		});
 
 		const schemas = (Array.isArray(data.schemas) ? data.schemas : []).map(
 			({ subjectsAreDependent, subjectsAreControlled, ...summary }) => ({

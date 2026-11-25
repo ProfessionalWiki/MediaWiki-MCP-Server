@@ -4,22 +4,18 @@ import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { neowikiRequest } from './neowikiRequest.ts';
 import { formatEditComment } from '../../../wikis/utils.ts';
-import { resolvePageId, hasOnePageRef } from './pageId.ts';
-import { writeResult, type SubjectWriteResponse } from './subjects.ts';
-import { dependentSubjectsSchema, statementsSchema } from './statements.ts';
+import { pageIdOf, pageRefShape } from './pageId.ts';
+import {
+	dependentSubjectsSchema,
+	writeResult,
+	type SubjectWriteResponse,
+	CONTROLLED_SUBJECT_RIGHTS,
+	WRITE_VALIDATION,
+} from './subjects.ts';
+import { statementsSchema } from './statements.ts';
 
 const inputSchema = {
-	title: z
-		.string()
-		.min(1)
-		.optional()
-		.describe('Wiki page title to attach the Subject to. Provide this OR pageId.'),
-	pageId: z
-		.number()
-		.int()
-		.positive()
-		.optional()
-		.describe('Numeric MediaWiki page ID. Provide this OR title.'),
+	...pageRefShape('the wiki page to attach the Subject to'),
 	isMain: z
 		.boolean()
 		.optional()
@@ -51,8 +47,7 @@ const inputSchema = {
 
 export const neowikiCreateSubject: Tool<typeof inputSchema> = {
 	name: 'neowiki-create-subject',
-	description:
-		'Creates a new NeoWiki Subject on an existing wiki page and returns its ID, the revision ID the page is at after the write as revisionId (the baseRevisionId for a later write to it), the violations of its Schema it was saved with, and the Subject as saved. Enabled only when the wiki has NeoWiki installed. Set isMain to make it the page\'s Main Subject (a page has at most one); otherwise it joins the page\'s other Subjects. Requires the edit right, and for a Controlled Subject, of a Schema with subjectsAreControlled in neowiki-get-schema, the neowiki-controlled-subject-edit right too. A statement whose value is empty is dropped. A write that breaks a rule for Dependent Subjects is refused; other violations are warnings unless the wiki enforces validation, which refuses a write that introduces an error-severity one. A Dependent Subject, of a Schema with subjectsAreDependent in neowiki-get-schema, is created with the Subject that points at it: its ID comes from neowiki-mint-subject-ids, a relation targets it ({ target: "<id>" }), and the Dependent Subject goes in dependentSubjects. Pre-validate with neowiki-validate-subject.',
+	description: `Creates a new NeoWiki Subject on an existing wiki page and returns its ID, the revision ID the page is at after the write as revisionId (the baseRevisionId for a later write to it), the violations of its Schema it was saved with, and the Subject as saved. Enabled only when the wiki has NeoWiki installed. Set isMain to make it the page's Main Subject (a page has at most one); otherwise it joins the page's other Subjects. ${CONTROLLED_SUBJECT_RIGHTS} A statement whose value is empty is dropped. ${WRITE_VALIDATION} A Dependent Subject, of a Schema with subjectsAreDependent in neowiki-get-schema, is created with the Subject that points at it: its ID comes from neowiki-mint-subject-ids, a relation targets it ({ target: "<id>" }), and the Dependent Subject goes in dependentSubjects. Pre-validate with neowiki-validate-subject.`,
 	inputSchema,
 	annotations: {
 		title: 'Create NeoWiki subject',
@@ -68,20 +63,12 @@ export const neowikiCreateSubject: Tool<typeof inputSchema> = {
 		{ title, pageId, isMain, label, schema, statements, dependentSubjects, comment },
 		ctx: ToolContext,
 	): Promise<CallToolResult> {
-		if (!hasOnePageRef({ title, pageId })) {
-			return ctx.format.invalidInput('Provide exactly one of title or pageId.');
-		}
-
+		const resolvedPageId = await pageIdOf(ctx, { title, pageId });
 		const mwn = await ctx.mwn();
 		const editComment = formatEditComment(ctx, 'neowiki-create-subject', comment);
-		const resolvedPageId = await resolvePageId(mwn, { title, pageId });
-		if (resolvedPageId === null) {
-			return ctx.format.notFound(`Page "${title}" not found`);
-		}
 
 		const segment = isMain === true ? 'mainSubject' : 'subjects';
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki create response shape; trusted at this boundary
-		const data = (await neowikiRequest(mwn, {
+		const data = await neowikiRequest<SubjectWriteResponse>(mwn, {
 			method: 'POST',
 			path: `/page/${resolvedPageId}/${segment}`,
 			csrf: true,
@@ -90,16 +77,10 @@ export const neowikiCreateSubject: Tool<typeof inputSchema> = {
 				schema,
 				statements,
 				dependentSubjects,
-				...(editComment !== undefined ? { comment: editComment } : {}),
+				comment: editComment,
 			},
-		})) as SubjectWriteResponse;
-
-		const subjectId = data.subjectId ?? '';
-		return ctx.format.ok({
-			subjectId,
-			status: data.status ?? 'created',
-			pageId: resolvedPageId,
-			...writeResult(data, subjectId),
 		});
+
+		return ctx.format.ok({ pageId: resolvedPageId, ...writeResult(data) });
 	},
 };

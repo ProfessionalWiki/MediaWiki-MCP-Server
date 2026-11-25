@@ -57,12 +57,11 @@ export const neowikiValidateSubject: Tool<typeof inputSchema> = {
 				? { path: `/subject/${encodeURIComponent(id)}/validate`, body: { statements } }
 				: { path: '/subject/validate', body: { schema, statements } };
 
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki validate response shape; trusted at this boundary
-		const data = (await neowikiRequest(mwn, {
+		const data = await neowikiRequest<ValidateResponse>(mwn, {
 			method: 'POST',
 			path: spec.path,
 			body: spec.body,
-		})) as ValidateResponse;
+		});
 
 		return ctx.format.ok({ violations: Array.isArray(data.violations) ? data.violations : [] });
 	},

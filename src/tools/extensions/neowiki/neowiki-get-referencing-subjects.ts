@@ -4,7 +4,7 @@ import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import type { TruncationInfo } from '../../../results/truncation.ts';
 import { neowikiRequest } from './neowikiRequest.ts';
-import { presentSubject, type SubjectData } from './subjects.ts';
+import { presentSubject, type SubjectJson } from './subjects.ts';
 
 // The /referencingSubjects endpoint caps `limit` at 50 and has no continuation.
 const RESULT_LIMIT = 50;
@@ -19,7 +19,7 @@ const inputSchema = {
 } as const;
 
 interface ReferencingSubjectsResponse {
-	referencingSubjects?: Array<{ subject?: SubjectData; propertyNames?: string[] }>;
+	referencingSubjects?: Array<{ subject: SubjectJson; propertyNames: string[] }>;
 	truncated?: boolean;
 }
 
@@ -40,18 +40,17 @@ export const neowikiGetReferencingSubjects: Tool<typeof inputSchema> = {
 
 	async handle({ id }, ctx: ToolContext): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /referencingSubjects response shape; trusted at this boundary
-		const data = (await neowikiRequest(mwn, {
+		const data = await neowikiRequest<ReferencingSubjectsResponse>(mwn, {
 			method: 'GET',
 			path: `/subject/${encodeURIComponent(id)}/referencingSubjects`,
 			query: { limit: String(RESULT_LIMIT) },
-		})) as ReferencingSubjectsResponse;
+		});
 
 		const referencingSubjects = (
 			Array.isArray(data.referencingSubjects) ? data.referencingSubjects : []
 		).map(({ subject, propertyNames }) => ({
-			subject: presentSubject(subject ?? {}, ''),
-			propertyNames: Array.isArray(propertyNames) ? propertyNames : [],
+			subject: presentSubject(subject),
+			propertyNames,
 		}));
 		const truncation: TruncationInfo | null =
 			data.truncated === true

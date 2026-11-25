@@ -17,11 +17,10 @@ interface SchemaResponse {
 
 /** Null where the Schema does not exist or the caller may not read it. */
 export async function readSchema(mwn: Mwn, name: string): Promise<SchemaJson | null> {
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /schema response shape; trusted at this boundary
-	const data = (await neowikiRequest(mwn, {
+	const data = await neowikiRequest<SchemaResponse>(mwn, {
 		method: 'GET',
 		path: `/schema/${encodeURIComponent(name)}`,
-	})) as SchemaResponse;
+	});
 	return data.schema ?? null;
 }
 
@@ -31,14 +30,13 @@ export async function saveSchema(
 	schema: SchemaJson,
 	comment: string | undefined,
 ): Promise<SchemaJson> {
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /schema response shape; trusted at this boundary
-	const data = (await neowikiRequest(mwn, {
+	const data = await neowikiRequest<{ schema: SchemaJson }>(mwn, {
 		method: 'PUT',
 		path: `/schema/${encodeURIComponent(name)}`,
 		csrf: true,
-		body: { schema, ...(comment !== undefined ? { comment } : {}) },
-	})) as SchemaResponse;
-	return data.schema ?? schema;
+		body: { schema, comment },
+	});
+	return data.schema;
 }
 
 /** The shape neowiki-get-schema returns and the Schema write tools take: NeoWiki's, with the name. */

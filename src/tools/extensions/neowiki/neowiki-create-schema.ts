@@ -15,7 +15,7 @@ export const neowikiCreateSchema: Tool<typeof inputSchema> = {
 		title: 'Create NeoWiki schema',
 		readOnlyHint: false,
 		destructiveHint: false,
-		idempotentHint: false,
+		idempotentHint: true,
 		openWorldHint: true,
 	},
 	failureVerb: 'create NeoWiki schema',

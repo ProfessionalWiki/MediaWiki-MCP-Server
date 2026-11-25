@@ -166,10 +166,10 @@ describe('neowiki-create-subject', () => {
 
 	it('rejects when neither title nor pageId is given', async () => {
 		const ctx = contextOn(createMockMwn());
-		const result = await neowikiCreateSubject.handle(
-			{ label: 'X', schema: 'City', statements: stmts },
+		const result = await dispatch(
+			neowikiCreateSubject,
 			ctx,
-		);
+		)({ label: 'X', schema: 'City', statements: stmts });
 		assertStructuredError(result, 'invalid_input');
 	});
 
@@ -178,10 +178,10 @@ describe('neowiki-create-subject', () => {
 			request: vi.fn().mockResolvedValue({ query: { pages: [{ missing: true, title: 'Nope' }] } }),
 		});
 		const ctx = contextOn(mock);
-		const result = await neowikiCreateSubject.handle(
-			{ title: 'Nope', label: 'X', schema: 'City', statements: stmts },
+		const result = await dispatch(
+			neowikiCreateSubject,
 			ctx,
-		);
+		)({ title: 'Nope', label: 'X', schema: 'City', statements: stmts });
 		assertStructuredError(result, 'not_found');
 	});
 

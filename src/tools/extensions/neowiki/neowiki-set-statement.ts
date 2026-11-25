@@ -4,7 +4,15 @@ import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { neowikiRequest } from './neowikiRequest.ts';
 import { formatEditComment } from '../../../wikis/utils.ts';
-import { baseRevisionIdSchema, writeResult, type SubjectWriteResponse } from './subjects.ts';
+import {
+	baseRevisionIdSchema,
+	writeResult,
+	type SubjectWriteResponse,
+	CONTROLLED_SUBJECT_RIGHTS,
+	WRITE_VALIDATION,
+	STATEMENT_EDIT_CONFLICT,
+	WRITE_RESULT,
+} from './subjects.ts';
 import { VALUE_FORMATS } from './statements.ts';
 
 const inputSchema = {
@@ -32,8 +40,7 @@ const inputSchema = {
 
 export const neowikiSetStatement: Tool<typeof inputSchema> = {
 	name: 'neowiki-set-statement',
-	description:
-		'Sets one Statement of a NeoWiki Subject, leaving its label and other Statements as they are; for a new label or several Statements at once, use neowiki-update-subject. Returns the revision ID the page is at after the write as revisionId, the violations of its Schema the Subject was saved with, and the Subject as saved. Enabled only when the wiki has NeoWiki installed. Where the Statement, or a Dependent Subject it reaches, changed after baseRevisionId, the write is refused as an edit conflict and writes nothing, and neowiki-get-subject returns the Subject as it now is, with the revisionId to base a new write on. A value that is empty for its type removes the Statement, as neowiki-remove-statement does. A Dependent Subject the old relation value targeted and the new one does not is deleted, and adding one takes neowiki-update-subject. For a property whose name contains /, use neowiki-update-subject. Requires the edit right, and for a Controlled Subject, of a Schema with subjectsAreControlled in neowiki-get-schema, the neowiki-controlled-subject-edit right too. A write that breaks a rule for Dependent Subjects is refused; other violations are warnings unless the wiki enforces validation, which refuses a write that introduces an error-severity one.',
+	description: `Sets one Statement of a NeoWiki Subject, leaving its label and other Statements as they are; for a new label or several Statements at once, use neowiki-update-subject. ${WRITE_RESULT} Enabled only when the wiki has NeoWiki installed. ${STATEMENT_EDIT_CONFLICT} A value that is empty for its type removes the Statement, as neowiki-remove-statement does. A Dependent Subject the old relation value targeted and the new one does not is deleted, and adding one takes neowiki-update-subject. For a property whose name contains /, use neowiki-update-subject. ${CONTROLLED_SUBJECT_RIGHTS} ${WRITE_VALIDATION}`,
 	inputSchema,
 	annotations: {
 		title: 'Set NeoWiki statement',
@@ -51,23 +58,17 @@ export const neowikiSetStatement: Tool<typeof inputSchema> = {
 	): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
 		const editComment = formatEditComment(ctx, 'neowiki-set-statement', comment);
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki statement write response shape; trusted at this boundary
-		const data = (await neowikiRequest(mwn, {
+		const data = await neowikiRequest<SubjectWriteResponse>(mwn, {
 			method: 'PUT',
 			path: `/subject/${encodeURIComponent(id)}/statements/${encodeURIComponent(property)}`,
 			csrf: true,
 			body: {
-				statement: { ...(propertyType !== undefined ? { propertyType } : {}), value },
+				statement: { propertyType, value },
 				baseRevisionId,
-				...(editComment !== undefined ? { comment: editComment } : {}),
+				comment: editComment,
 			},
-		})) as SubjectWriteResponse;
-
-		const subjectId = data.subjectId ?? id;
-		return ctx.format.ok({
-			subjectId,
-			status: data.status ?? 'updated',
-			...writeResult(data, subjectId),
 		});
+
+		return ctx.format.ok(writeResult(data));
 	},
 };

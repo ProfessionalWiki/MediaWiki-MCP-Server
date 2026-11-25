@@ -4,7 +4,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { neowikiRequest } from './neowikiRequest.ts';
-import { presentSubject, type SubjectData } from './subjects.ts';
+import { presentSubject, type SubjectJson } from './subjects.ts';
 
 const inputSchema = {
 	id: z
@@ -16,9 +16,8 @@ const inputSchema = {
 } as const;
 
 interface GetSubjectResponse {
-	requestedId?: string;
 	revisionId?: number;
-	subjects?: Record<string, SubjectData>;
+	subjects?: Record<string, SubjectJson>;
 }
 
 async function readSubject(
@@ -26,12 +25,11 @@ async function readSubject(
 	id: string,
 	query: Record<string, string>,
 ): Promise<GetSubjectResponse> {
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /subject response shape; trusted at this boundary
-	return (await neowikiRequest(mwn, {
+	return await neowikiRequest<GetSubjectResponse>(mwn, {
 		method: 'GET',
 		path: `/subject/${encodeURIComponent(id)}`,
 		query,
-	})) as GetSubjectResponse;
+	});
 }
 
 export const neowikiGetSubject: Tool<typeof inputSchema> = {
@@ -55,7 +53,7 @@ export const neowikiGetSubject: Tool<typeof inputSchema> = {
 		const latestSubject = latest.subjects?.[id];
 		if (latestSubject !== undefined) {
 			return ctx.format.ok({
-				...presentSubject(latestSubject, id),
+				...presentSubject(latestSubject),
 				...(typeof latest.revisionId === 'number' ? { revisionId: latest.revisionId } : {}),
 			});
 		}
@@ -66,6 +64,6 @@ export const neowikiGetSubject: Tool<typeof inputSchema> = {
 			return ctx.format.notFound(`NeoWiki subject "${id}" not found`);
 		}
 
-		return ctx.format.ok(presentSubject(published, id));
+		return ctx.format.ok(presentSubject(published));
 	},
 };

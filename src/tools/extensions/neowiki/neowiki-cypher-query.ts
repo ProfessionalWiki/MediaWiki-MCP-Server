@@ -45,14 +45,13 @@ export const neowikiCypherQuery: Tool<typeof inputSchema> = {
 
 	async handle({ cypher, parameters }, ctx: ToolContext): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /query/cypher response shape; trusted at this boundary
-		const data = (await neowikiRequest(mwn, {
+		const data = await neowikiRequest<CypherResponse>(mwn, {
 			method: 'POST',
 			path: '/query/cypher',
-			body: { cypher, ...(parameters !== undefined ? { parameters } : {}) },
+			body: { cypher, parameters },
 			unavailable:
 				'The wiki has no Neo4j store, which Cypher queries need; where it has a SPARQL store, neowiki-sparql-query answers.',
-		})) as CypherResponse;
+		});
 
 		const columns = Array.isArray(data.columns) ? data.columns : [];
 		const rows = Array.isArray(data.rows) ? data.rows : [];

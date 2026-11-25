@@ -82,8 +82,7 @@ export const neowikiListSubjects: Tool<typeof inputSchema> = {
 		ctx: ToolContext,
 	): Promise<CallToolResult> {
 		const mwn = await ctx.mwn();
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki /subjects response shape; trusted at this boundary
-		const data = (await neowikiRequest(mwn, {
+		const data = await neowikiRequest<ListSubjectsResponse>(mwn, {
 			method: 'GET',
 			path: '/subjects',
 			query: {
@@ -94,7 +93,7 @@ export const neowikiListSubjects: Tool<typeof inputSchema> = {
 				...(direction !== undefined ? { direction } : {}),
 				...(continueFrom !== undefined ? { cursor: continueFrom } : {}),
 			},
-		})) as ListSubjectsResponse;
+		});
 
 		const subjects = (Array.isArray(data.subjects) ? data.subjects : []).map(withoutDefaults);
 		const truncation: TruncationInfo | null =
