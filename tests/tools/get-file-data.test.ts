@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import type { ImageContent, TextContent } from '@modelcontextprotocol/server';
-import { createMockMwn } from '../helpers/mock-mwn.ts';
+import { Readable } from 'node:stream';
+import type { CallToolResult, ImageContent, TextContent } from '@modelcontextprotocol/server';
+import { createMockMwn, type MockMwn } from '../helpers/mock-mwn.ts';
 import { contextOn } from '../helpers/fakeContext.ts';
 import { getFileData } from '../../src/tools/get-file-data.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
-import { assertStructuredError } from '../helpers/structuredResult.ts';
+import { assertStructuredData, assertStructuredError } from '../helpers/structuredResult.ts';
+import { rejectionOf } from '../helpers/rejectionOf.ts';
 
 // Build an action=query&prop=imageinfo response. `info` is the imageinfo[0]
 // object; pass `missing: true` for a missing-page response.
@@ -314,5 +316,220 @@ describe('get-file-data', () => {
 
 		const envelope = assertStructuredError(result, 'upstream_failure');
 		expect(envelope.message).toContain('API error');
+	});
+});
+
+const ORIGINAL_URL = 'https://test.wiki/images/a/ab/Diagram.svg';
+
+// A file of `size` bytes whose original, and only its original, downloads as `body`.
+function streamingFileMwn(mime: string, size: number, body: () => Readable): MockMwn {
+	return createMockMwn({
+		request: vi.fn().mockResolvedValue({
+			query: {
+				pages: [
+					{
+						title: 'File:Diagram.svg',
+						imageinfo: [
+							{
+								url: ORIGINAL_URL,
+								mime,
+								size,
+								thumburl: 'https://test.wiki/images/thumb/a/ab/Diagram.svg/200px-Diagram.svg.png',
+							},
+						],
+					},
+				],
+			},
+		}),
+		rawRequest: vi.fn(async ({ url }: { url: string }) => {
+			if (url !== ORIGINAL_URL) {
+				throw new Error(`unexpected download of ${url}`);
+			}
+			return { data: body(), headers: { 'content-type': mime } };
+		}),
+	});
+}
+
+function originalFileMwn(mime: string, bytes: Buffer): MockMwn {
+	return streamingFileMwn(mime, bytes.byteLength, () => Readable.from([bytes]));
+}
+
+function getOriginalFileFrom(mock: MockMwn): Promise<CallToolResult> {
+	return getFileData.handle({ title: 'Diagram.svg', format: 'original' }, contextOn(mock));
+}
+
+function getOriginalFile(mime: string, bytes: Buffer): Promise<CallToolResult> {
+	return getOriginalFileFrom(originalFileMwn(mime, bytes));
+}
+
+describe("get-file-data with format 'original'", () => {
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	it.each([
+		'image/svg+xml',
+		'text/plain',
+		'text/csv',
+		'application/json',
+		'application/ld+json',
+		'application/xml',
+		'text/html',
+	])('returns the original contents of a %s file beside its metadata', async (mime) => {
+		const contents = '<svg xmlns="http://www.w3.org/2000/svg">é</svg>';
+
+		const result = await getOriginalFile(mime, Buffer.from(contents, 'utf8'));
+
+		expect(assertStructuredData(result)).toMatchObject({ mime, originalFile: contents });
+	});
+
+	it.each(['image/png', 'application/pdf', 'font/woff2'])(
+		'refuses the original contents of a %s file, naming its type',
+		async (mime) => {
+			const result = await getOriginalFile(mime, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+
+			expect(assertStructuredError(result, 'invalid_input').message).toContain(mime);
+		},
+	);
+
+	it("points a text file asked for as an image to format 'original'", async () => {
+		const mock = originalFileMwn('application/json', Buffer.from('{}'));
+		mock.request.mockResolvedValue({
+			query: {
+				pages: [
+					{
+						title: 'File:Data.json',
+						imageinfo: [{ url: ORIGINAL_URL, mime: 'application/json', size: 2 }],
+					},
+				],
+			},
+		});
+
+		const result = await getFileData.handle(
+			{ title: 'Data.json', format: 'image' },
+			contextOn(mock),
+		);
+
+		expect(assertStructuredError(result, 'invalid_input').message).toContain("format='original'");
+	});
+
+	it('refuses an HTML page served in place of the file', async () => {
+		const mock = originalFileMwn('image/svg+xml', Buffer.from('<svg/>'));
+		mock.rawRequest.mockResolvedValue({
+			data: Readable.from([Buffer.from('<!DOCTYPE html><title>Log in</title>')]),
+			headers: { 'content-type': 'text/html; charset=utf-8' },
+		});
+
+		const result = await getOriginalFileFrom(mock);
+
+		assertStructuredError(result, 'invalid_input');
+	});
+
+	it('keeps a byte-order mark at the start of the file', async () => {
+		const bytes = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('a,b')]);
+
+		const result = await getOriginalFile('text/csv', bytes);
+
+		expect(assertStructuredData(result).originalFile).toBe('\uFEFFa,b');
+	});
+
+	it('asks the wiki for no rendition when reading the original file', async () => {
+		const mock = originalFileMwn('image/svg+xml', Buffer.from('<svg/>'));
+
+		await getOriginalFileFrom(mock);
+
+		expect(mock.request.mock.calls[0][0]).not.toHaveProperty('iiurlwidth');
+	});
+
+	it('releases the connection of a download the wiki refuses', async () => {
+		const mock = originalFileMwn('image/svg+xml', Buffer.from('<svg/>'));
+		const body = Readable.from([Buffer.from('Forbidden')]);
+		mock.rawRequest.mockRejectedValue(
+			Object.assign(new Error('Request failed with status code 403'), {
+				response: { status: 403, data: body },
+			}),
+		);
+
+		await rejectionOf(getOriginalFileFrom(mock));
+
+		expect(body.destroyed).toBe(true);
+	});
+
+	it('refuses a text file whose bytes are not UTF-8', async () => {
+		const latin1 = Buffer.from('caf\xe9', 'latin1');
+
+		const result = await getOriginalFile('text/plain', latin1);
+
+		assertStructuredError(result, 'invalid_input');
+	});
+
+	it('carries no truncation marker when the contents fit the budget', async () => {
+		const result = await getOriginalFile('text/plain', Buffer.from('short'));
+
+		expect(assertStructuredData(result)).not.toHaveProperty('truncation');
+	});
+
+	it("downloads the original file with the wiki's OAuth token", async () => {
+		const mock = originalFileMwn('image/svg+xml', Buffer.from('<svg/>'));
+		mock.usingOAuth2 = true;
+		mock.options = { apiUrl: 'https://test.wiki/w/api.php', OAuth2AccessToken: 'secret-token' };
+
+		await getOriginalFileFrom(mock);
+
+		expect(mock.rawRequest).toHaveBeenCalledWith(
+			expect.objectContaining({
+				headers: expect.objectContaining({ Authorization: 'Bearer secret-token' }),
+			}),
+		);
+	});
+
+	it('stops downloading once it has more than it can return', async () => {
+		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '10');
+		const body = (): Readable =>
+			Readable.from(
+				(function* () {
+					yield Buffer.from('a'.repeat(15));
+					throw new Error('read past the returned prefix');
+				})(),
+			);
+		const mock = streamingFileMwn('text/plain', 1_000_000, body);
+
+		const result = await getOriginalFileFrom(mock);
+
+		expect(assertStructuredData(result)).toMatchObject({
+			originalFile: 'a'.repeat(10),
+			truncation: { returnedBytes: 10, totalBytes: 1_000_000 },
+		});
+	});
+
+	it('returns the start of a file whose bytes past the cut are not UTF-8', async () => {
+		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '10');
+		const bytes = Buffer.concat([Buffer.from('a'.repeat(20)), Buffer.from([0xff])]);
+
+		const result = await getOriginalFile('text/plain', bytes);
+
+		expect(assertStructuredData(result).originalFile).toBe('a'.repeat(10));
+	});
+
+	it('cuts before a character that straddles the budget', async () => {
+		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '10');
+
+		const result = await getOriginalFile('text/plain', Buffer.from(`${'a'.repeat(9)}é and more`));
+
+		expect(assertStructuredData(result)).toMatchObject({
+			originalFile: 'a'.repeat(9),
+			truncation: { returnedBytes: 9 },
+		});
+	});
+
+	it('cuts contents over the content budget and marks how much was returned', async () => {
+		vi.stubEnv('MCP_CONTENT_MAX_BYTES', '10');
+
+		const result = await getOriginalFile('text/plain', Buffer.from('a'.repeat(25)));
+
+		expect(assertStructuredData(result)).toMatchObject({
+			originalFile: 'a'.repeat(10),
+			truncation: { reason: 'content-truncated', returnedBytes: 10, totalBytes: 25 },
+		});
 	});
 });
