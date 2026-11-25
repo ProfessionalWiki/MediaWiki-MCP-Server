@@ -74,6 +74,21 @@ describe('get-file-data', () => {
 		);
 	});
 
+	it("names the image's type without the response's content-type parameters", async () => {
+		const mock = mwnWith(IMAGE_INFO);
+		mock.rawRequest.mockResolvedValue({
+			data: FAKE_BYTES,
+			headers: { 'content-type': 'image/png; charset=binary' },
+		});
+
+		const result = await getFileData.handle(
+			{ title: 'Example.png', format: 'image' },
+			contextOn(mock),
+		);
+
+		expect((result.content[1] as ImageContent).mimeType).toBe('image/png');
+	});
+
 	it("looks up a title with a File prefix in the wiki's language as given", async () => {
 		const mock = mwnWith(IMAGE_INFO);
 		const ctx = contextOn(mock);
