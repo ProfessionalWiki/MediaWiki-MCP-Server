@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { Readable } from 'node:stream';
 import type { Mwn, RawRequestParams } from 'mwn';
 import { withCallBounds } from '../../src/wikis/abortableMwn.ts';
 import { callDeadline } from '../../src/runtime/callDeadline.ts';
@@ -198,6 +199,37 @@ describe('withCallBounds', () => {
 		expect((err as { disableRetry?: boolean }).disableRetry).toBe(true);
 		// The budget is named so a caller can tell how long it actually waited.
 		expect((err as Error).message).toContain('150 seconds');
+	});
+
+	it('reports an expired deadline as a timeout while a streamed body is read', async () => {
+		const bot = createFakeBot(async () => ({
+			data: Readable.from(
+				(async function* () {
+					yield Buffer.from('a');
+					await new Promise((resolve) => setTimeout(resolve, 50));
+					throw Object.assign(new Error('canceled'), { code: 'ERR_CANCELED' });
+				})(),
+			),
+		}));
+		const view = withCallBounds(bot, {
+			signal: AbortSignal.timeout(5),
+			timeoutMs: 150_000,
+			phase: 'calling',
+		});
+
+		const response = (await view.rawRequest({
+			url: 'https://wiki.example/file.svg',
+			responseType: 'stream',
+		})) as { data: Readable };
+		const err = await rejectionOf(
+			(async () => {
+				for await (const _chunk of response.data) {
+					// read to the end
+				}
+			})(),
+		);
+
+		expect(err).toBeInstanceOf(WikiTimeoutError);
 	});
 
 	it('reports a cancellation as a cancellation, not as a timeout', async () => {
