@@ -244,6 +244,39 @@ describe('neowikiRequest', () => {
 		).rejects.toMatchObject({ category: 'invalid_input', message: 'Add LIMIT to the query.' });
 	});
 
+	it.each([
+		['a REST envelope', { error: 'rest-badtoken', messageTranslations: { en: 'Invalid token.' } }],
+		['a write envelope', { status: 'error', message: 'Invalid token.' }],
+		['no body', ''],
+	])('reads a refused sign-in with %s as authentication', async (_, body) => {
+		const mock = createMockMwn({ rawRequest: vi.fn().mockRejectedValue(httpError(401, body)) });
+
+		await expect(
+			neowikiRequest(mock as never, { method: 'GET', path: '/schemas' }),
+		).rejects.toMatchObject({ category: 'authentication' });
+	});
+
+	it.each([
+		[418, { status: 'error', message: 'No coffee.' }, 'invalid_input'],
+		[
+			503,
+			{ error: 'readonly', messageTranslations: { en: 'The wiki is read-only.' } },
+			'upstream_failure',
+		],
+		[502, '', 'upstream_failure'],
+	])(
+		'reads an unlisted HTTP %i by its class, whatever the body',
+		async (status, body, category) => {
+			const mock = createMockMwn({
+				rawRequest: vi.fn().mockRejectedValue(httpError(status, body)),
+			});
+
+			await expect(
+				neowikiRequest(mock as never, { method: 'GET', path: '/schemas' }),
+			).rejects.toMatchObject({ category });
+		},
+	);
+
 	it('sanitizes an internal-exception body to message only', async () => {
 		const mock = createMockMwn({
 			rawRequest: vi.fn().mockRejectedValue(
