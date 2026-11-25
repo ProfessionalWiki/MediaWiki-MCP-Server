@@ -13,7 +13,7 @@ export interface NeoWikiRequestSpec {
 	/**
 	 * When true, fetch a CSRF token via `mwn.getCsrfToken()` and send it as the
 	 * `X-CSRF-TOKEN` header NeoWiki requires on every mutating endpoint. Omit for
-	 * reads and the `validate` dry-runs, which take no token.
+	 * reads and the endpoints that take no token: the `validate` dry-runs and minting IDs.
 	 */
 	readonly csrf?: boolean;
 	/** What the error says where the wiki serves no such endpoint, as for a store it lacks. */
@@ -63,7 +63,8 @@ function restBaseFrom(apiUrl: string): string {
 	return `${apiUrl.replace(/\/api\.php$/, '/rest.php')}/neowiki/v0`;
 }
 
-export async function neowikiRequest(mwn: Mwn, spec: NeoWikiRequestSpec): Promise<unknown> {
+/** The response body, in the shape `T` the endpoint documents: trusted, not checked. */
+export async function neowikiRequest<T = unknown>(mwn: Mwn, spec: NeoWikiRequestSpec): Promise<T> {
 	const apiUrl = mwn.options.apiUrl;
 	if (typeof apiUrl !== 'string' || !/\/api\.php$/.test(apiUrl)) {
 		throw new ClassifiedError(
@@ -96,8 +97,8 @@ export async function neowikiRequest(mwn: Mwn, spec: NeoWikiRequestSpec): Promis
 			...(spec.body !== undefined ? { data: JSON.stringify(spec.body) } : {}),
 			...(spec.sizeCap !== undefined ? { maxContentLength: spec.sizeCap.bytes } : {}),
 		});
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- axios response body at this boundary
-		return (response as { data: unknown }).data;
+		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the endpoint's documented body, which T names
+		return (response as { data: T }).data;
 	} catch (err: unknown) {
 		// The server's own verdict, not the wiki's: relabelling it as a pack error
 		// would lose the code and, on writes, the dispatcher's caveat.

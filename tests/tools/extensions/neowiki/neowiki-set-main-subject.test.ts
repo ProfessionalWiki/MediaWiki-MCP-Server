@@ -96,7 +96,7 @@ describe('neowiki-set-main-subject', () => {
 
 	it('rejects when neither title nor pageId is given', async () => {
 		const ctx = contextOn(createMockMwn());
-		const result = await neowikiSetMainSubject.handle({ subjectId: 's1' }, ctx);
+		const result = await dispatch(neowikiSetMainSubject, ctx)({ subjectId: 's1' });
 		assertStructuredError(result, 'invalid_input');
 	});
 

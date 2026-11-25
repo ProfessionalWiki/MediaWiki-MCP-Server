@@ -4,26 +4,14 @@ import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { neowikiRequest } from './neowikiRequest.ts';
 import { formatEditComment } from '../../../wikis/utils.ts';
-import { resolvePageId, hasOnePageRef } from './pageId.ts';
+import { pageIdOf, pageRefShape } from './pageId.ts';
 
 const inputSchema = {
 	id: z
 		.string()
 		.min(1)
 		.describe('Subject ID to move (starts with s…). Resolve one with neowiki-search-subjects.'),
-	title: z
-		.string()
-		.min(1)
-		.optional()
-		.describe('Title of the wiki page to move the Subject to. Provide this OR pageId.'),
-	pageId: z
-		.number()
-		.int()
-		.positive()
-		.optional()
-		.describe(
-			'Numeric MediaWiki page ID of the page to move the Subject to. Provide this OR title.',
-		),
+	...pageRefShape('the wiki page to move the Subject to'),
 	isMain: z
 		.boolean()
 		.optional()
@@ -34,7 +22,7 @@ const inputSchema = {
 } as const;
 
 interface MoveSubjectResponse {
-	status?: string;
+	status: string;
 }
 
 export const neowikiMoveSubject: Tool<typeof inputSchema> = {
@@ -45,7 +33,7 @@ export const neowikiMoveSubject: Tool<typeof inputSchema> = {
 	annotations: {
 		title: 'Move NeoWiki subject',
 		readOnlyHint: false,
-		destructiveHint: false,
+		destructiveHint: true,
 		idempotentHint: true,
 		openWorldHint: true,
 	},
@@ -53,32 +41,24 @@ export const neowikiMoveSubject: Tool<typeof inputSchema> = {
 	target: (a) => a.id,
 
 	async handle({ id, title, pageId, isMain, comment }, ctx: ToolContext): Promise<CallToolResult> {
-		if (!hasOnePageRef({ title, pageId })) {
-			return ctx.format.invalidInput('Provide exactly one of title or pageId.');
-		}
-
+		const targetPageId = await pageIdOf(ctx, { title, pageId });
 		const mwn = await ctx.mwn();
-		const targetPageId = await resolvePageId(mwn, { title, pageId });
-		if (targetPageId === null) {
-			return ctx.format.notFound(`Page "${title}" not found`);
-		}
 
 		const editComment = formatEditComment(ctx, 'neowiki-move-subject', comment);
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- NeoWiki move response shape; trusted at this boundary
-		const data = (await neowikiRequest(mwn, {
+		const data = await neowikiRequest<MoveSubjectResponse>(mwn, {
 			method: 'POST',
 			path: `/subject/${encodeURIComponent(id)}/move`,
 			csrf: true,
 			body: {
 				targetPageId,
 				...(isMain === true ? { makeMainSubject: true } : {}),
-				...(editComment !== undefined ? { comment: editComment } : {}),
+				comment: editComment,
 			},
-		})) as MoveSubjectResponse;
+		});
 
 		return ctx.format.ok({
 			subjectId: id,
-			status: data.status ?? 'changed',
+			status: data.status,
 			pageId: targetPageId,
 		});
 	},

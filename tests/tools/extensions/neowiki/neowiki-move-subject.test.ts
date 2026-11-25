@@ -1,3 +1,4 @@
+import { dispatch } from '../../../../src/runtime/dispatcher.ts';
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
 import { contextOn } from '../../../helpers/fakeContext.ts';
@@ -65,7 +66,7 @@ describe('neowiki-move-subject', () => {
 	it('refuses a call that names both a title and a page ID', async () => {
 		const { mock, ctx } = writeContextReturning(changed);
 
-		const result = await neowikiMoveSubject.handle({ ...move, title: 'Berlin' }, ctx);
+		const result = await dispatch(neowikiMoveSubject, ctx)({ ...move, title: 'Berlin' });
 
 		assertStructuredError(result, 'invalid_input');
 		expect(mock.rawRequest).not.toHaveBeenCalled();
@@ -76,10 +77,10 @@ describe('neowiki-move-subject', () => {
 			request: vi.fn().mockResolvedValue({ query: { pages: [{ missing: true, title: 'Nope' }] } }),
 		});
 
-		const result = await neowikiMoveSubject.handle(
-			{ id: 's1demo', title: 'Nope' },
+		const result = await dispatch(
+			neowikiMoveSubject,
 			contextOn(mock),
-		);
+		)({ id: 's1demo', title: 'Nope' });
 
 		assertStructuredError(result, 'not_found');
 	});

@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
 import { neowikiRequest } from './neowikiRequest.ts';
+import { CONTROLLED_SUBJECT_RIGHTS } from './subjects.ts';
 import { formatEditComment } from '../../../wikis/utils.ts';
 
 const inputSchema = {
@@ -15,8 +16,7 @@ const inputSchema = {
 
 export const neowikiDeleteSubject: Tool<typeof inputSchema> = {
 	name: 'neowiki-delete-subject',
-	description:
-		'Deletes one NeoWiki Subject by ID from its page, together with its Dependent Subjects. Enabled only when the wiki has NeoWiki installed. Relations that other Subjects hold to a standalone Subject stay, pointing at a Subject that no longer exists, so list those Subjects first with neowiki-get-referencing-subjects; deleting a Dependent Subject removes the relations to it, editing its Host Subject. Requires the edit right, and for a Controlled Subject, of a Schema with subjectsAreControlled in neowiki-get-schema, the neowiki-controlled-subject-edit right too.',
+	description: `Deletes one NeoWiki Subject by ID from its page, together with its Dependent Subjects. Enabled only when the wiki has NeoWiki installed. Relations that other Subjects hold to a standalone Subject stay, pointing at a Subject that no longer exists, so list those Subjects first with neowiki-get-referencing-subjects; deleting a Dependent Subject removes the relations to it, editing its Host Subject. ${CONTROLLED_SUBJECT_RIGHTS}`,
 	inputSchema,
 	annotations: {
 		title: 'Delete NeoWiki subject',
