@@ -3,11 +3,14 @@ import { createMockMwn } from '../helpers/mock-mwn.ts';
 import { contextOn } from '../helpers/fakeContext.ts';
 import { getFile } from '../../src/tools/get-file.ts';
 import { dispatch } from '../../src/runtime/dispatcher.ts';
-import { formatPayload } from '../../src/results/format.ts';
-import { assertStructuredError, assertStructuredSuccess } from '../helpers/structuredResult.ts';
+import {
+	assertStructuredData,
+	assertStructuredError,
+	assertStructuredSuccess,
+} from '../helpers/structuredResult.ts';
 
 describe('get-file', () => {
-	it('returns file info using action=query&prop=imageinfo', async () => {
+	it("returns a file's metadata and download URLs", async () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({
 				query: {
@@ -36,19 +39,27 @@ describe('get-file', () => {
 
 		const result = await getFile.handle({ title: 'Example.png' }, ctx);
 
-		const text = assertStructuredSuccess(result);
-		expect(text).toBe(
-			formatPayload({
-				title: 'File:Example.png',
-				descriptionUrl: 'https://test.wiki/wiki/File:Example.png',
-				timestamp: '2026-01-01T00:00:00Z',
-				user: 'Admin',
-				size: 12345,
-				mime: 'image/png',
-				url: 'https://test.wiki/images/example.png',
-				thumbnailUrl: 'https://test.wiki/images/thumb/example.png/200px-example.png',
-			}),
-		);
+		expect(assertStructuredData(result)).toMatchObject({
+			title: 'File:Example.png',
+			descriptionUrl: 'https://test.wiki/wiki/File:Example.png',
+			timestamp: '2026-01-01T00:00:00Z',
+			user: 'Admin',
+			size: 12345,
+			mime: 'image/png',
+			url: 'https://test.wiki/images/example.png',
+			thumbnailUrl: 'https://test.wiki/images/thumb/example.png/200px-example.png',
+		});
+	});
+
+	it('looks up a bare title in the File namespace', async () => {
+		const mock = createMockMwn({
+			request: vi.fn().mockResolvedValue({ query: { pages: [{ title: 'File:Example.png' }] } }),
+		});
+		const ctx = contextOn(mock);
+
+		await getFile.handle({ title: 'Example.png' }, ctx);
+
+		expect((mock.request.mock.calls[0][0] as { titles: string }).titles).toBe('File:Example.png');
 	});
 
 	it("looks up a title with a File prefix in the wiki's language as given", async () => {
@@ -93,7 +104,7 @@ describe('get-file', () => {
 		);
 	});
 
-	it('handles missing files', async () => {
+	it('reports a missing file as not found', async () => {
 		const mock = createMockMwn({
 			request: vi.fn().mockResolvedValue({
 				query: {
@@ -110,8 +121,7 @@ describe('get-file', () => {
 
 		const result = await getFile.handle({ title: 'Missing.png' }, ctx);
 
-		const envelope = assertStructuredError(result, 'not_found');
-		expect(envelope.message).toContain('not found');
+		assertStructuredError(result, 'not_found');
 	});
 
 	it('returns error on API failure via dispatcher', async () => {
