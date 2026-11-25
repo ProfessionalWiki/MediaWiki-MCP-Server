@@ -31,7 +31,7 @@ const inputSchema = {
 export const movePage: Tool<typeof inputSchema> = {
 	name: 'move-page',
 	description:
-		'Renames a wiki page, moving it — and by default its talk page — to a new title, and returns the old and new titles plus whether a redirect was left behind. By default leaves a redirect at the old title; set leaveRedirect=false to suppress it (requires the suppressredirect right, otherwise the redirect is left regardless). Fails if the source page does not exist, if the target title already exists (unless it is a redirect and ignoreWarnings is set), or if the authenticated user lacks the move permission. Moving a File page additionally requires the file-move permission.',
+		'Renames a wiki page, moving it — and by default its talk page — to a new title, and returns the old and new titles plus whether a redirect was left behind. By default leaves a redirect at the old title; set leaveRedirect=false to suppress it (requires the suppressredirect right, otherwise the redirect is left regardless). Fails if the source page does not exist, if the target title already exists (unless it is a redirect and ignoreWarnings is set), or if the authenticated user lacks the move permission. Moving a file description page additionally requires the file-move permission.',
 	inputSchema,
 	annotations: {
 		title: 'Move page',

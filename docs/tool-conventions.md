@@ -208,13 +208,15 @@ Use these exact terms in descriptions and parameter docs. Do not introduce synon
 | Namespace identifier (integer) | **namespace ID** | Parameter descriptions state "Namespace ID"; prose may mention the namespace name parenthetically. |
 | Content format (wikitext, javascript, css, etc.) | **content model** | Matches MediaWiki's `contentmodel` API field. |
 | Numeric section identifier | **section number** | 0 is the lead, 1..N are heading sections. A section number addresses the heading together with every subsection nested under it, so replacing section N replaces that whole subtree. |
+| The uploaded file itself, not a thumbnail or other rendition | **original file** | Never "file content" or "file text", which read as the file description page's wikitext. |
+| A file's wiki page in the File namespace | **file description page** | Never "file page" alone, which can also mean the original file. |
 
 #### Page title vs file title
 
 File titles are page titles in the File namespace. The distinction surfaces at the parameter level:
 
-- For tools operating on any page (including file pages): use `"Wiki page title"` in the parameter description.
-- For tools operating specifically on file pages (`get-file`, `upload-file`, `upload-file-from-url`): use `"File title"` in the parameter description for clarity.
+- For tools operating on any page (including file description pages): use `"Wiki page title"` in the parameter description.
+- For tools operating specifically on files (`get-file`, `get-file-data`, `upload-file`, `upload-file-from-url`, `update-file`, `update-file-from-url`): use `"File title"` in the parameter description for clarity.
 
 Do not interchange these.
 

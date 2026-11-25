@@ -10,7 +10,7 @@ const inputSchema = {
 	protections: z
 		.record(z.string(), z.string())
 		.describe(
-			'Protection level for each action, e.g. {"edit": "autoconfirmed", "move": "sysop"}. The actions are edit and move, plus upload on a File page; a page that does not exist takes only create, which limits who can create the title. Levels are the wiki\'s own; MediaWiki\'s defaults are autoconfirmed (semi-protection) and sysop (full protection). "all" lifts the action\'s protection.',
+			'Protection level for each action, e.g. {"edit": "autoconfirmed", "move": "sysop"}. The actions are edit and move, plus upload on a file description page; a page that does not exist takes only create, which limits who can create the title. Levels are the wiki\'s own; MediaWiki\'s defaults are autoconfirmed (semi-protection) and sysop (full protection). "all" lifts the action\'s protection.',
 		),
 	expiry: z
 		.string()
