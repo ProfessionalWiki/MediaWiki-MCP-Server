@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream';
 import type { Mwn, RawRequestParams } from 'mwn';
 import type { CallDeadline } from '../runtime/callDeadline.ts';
 import { WikiTimeoutError } from '../errors/wikiTimeoutError.ts';
@@ -56,6 +57,21 @@ export function instanceBehind(mwn: Mwn): Mwn {
 export function withCallBounds(bot: Mwn, deadline: CallDeadline, cancellation?: AbortSignal): Mwn {
 	const signal =
 		cancellation === undefined ? deadline.signal : AbortSignal.any([deadline.signal, cancellation]);
+	const boundedFailure = (err: unknown): unknown => {
+		if (signal.aborted) {
+			// `AbortSignal.any` forwards the winning signal's own reason
+			// object, so identity says which of the two fired first.
+			if (deadline.signal.aborted && signal.reason === deadline.signal.reason) {
+				return new WikiTimeoutError(deadline.timeoutMs, deadline.phase);
+			}
+			// Best-effort: a frozen error would throw on assignment in strict
+			// mode and replace the real failure with a TypeError.
+			if (typeof err === 'object' && err !== null && Object.isExtensible(err)) {
+				(err as RetryableError).disableRetry = true;
+			}
+		}
+		return err;
+	};
 	const view = new Proxy(bot, {
 		get(target, prop, receiver): unknown {
 			if (prop === 'massQuery') {
@@ -81,25 +97,41 @@ export function withCallBounds(bot: Mwn, deadline: CallDeadline, cancellation?: 
 			}
 			return async (requestOptions: RawRequestParams): Promise<unknown> => {
 				try {
-					return await target.rawRequest({ ...requestOptions, signal });
+					const response = await target.rawRequest({ ...requestOptions, signal });
+					return withBoundedBody(response, boundedFailure);
 				} catch (err: unknown) {
-					if (signal.aborted) {
-						// `AbortSignal.any` forwards the winning signal's own reason
-						// object, so identity says which of the two fired first.
-						if (deadline.signal.aborted && signal.reason === deadline.signal.reason) {
-							throw new WikiTimeoutError(deadline.timeoutMs, deadline.phase);
-						}
-						// Best-effort: a frozen error would throw on assignment in strict
-						// mode and replace the real failure with a TypeError.
-						if (typeof err === 'object' && err !== null && Object.isExtensible(err)) {
-							(err as RetryableError).disableRetry = true;
-						}
-					}
-					throw err;
+					throw boundedFailure(err);
 				}
 			};
 		},
 	});
 	instances.set(view, bot);
 	return view;
+}
+
+// A streamed response resolves once its headers arrive, so its body is read after the request
+// returned; a call stopped mid-body has to be reported from the body as well.
+function withBoundedBody(response: unknown, boundedFailure: (err: unknown) => unknown): unknown {
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- axios response shape at this boundary
+	const body = (response as { data?: unknown } | undefined)?.data;
+	if (!(body instanceof Readable)) {
+		return response;
+	}
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- axios response shape at this boundary
+	return { ...(response as object), data: Readable.from(boundedChunks(body, boundedFailure)) };
+}
+
+async function* boundedChunks(
+	body: Readable,
+	boundedFailure: (err: unknown) => unknown,
+): AsyncGenerator {
+	try {
+		for await (const chunk of body) {
+			yield chunk;
+		}
+	} catch (err: unknown) {
+		throw boundedFailure(err);
+	} finally {
+		body.destroy();
+	}
 }
