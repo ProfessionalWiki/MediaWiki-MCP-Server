@@ -1,5 +1,35 @@
+import { z } from 'zod';
+import { ClassifiedError } from '../errors/classifyError.ts';
 import type { TruncationInfo } from './truncation.ts';
 import { capLinesByBytes } from './truncation.ts';
+
+/** The most rows a SPARQL tool hands back, also where the caller sets no limit. */
+export const SPARQL_ROW_CAP = 1000;
+
+/**
+ * Result bytes read into memory. A store answers an unbounded query with an unbounded result set,
+ * and the row cap applies only once the whole envelope has been parsed, so this is what stands
+ * between a missing LIMIT and the server's heap.
+ */
+export const MAX_SPARQL_RESULT_BYTES = 10 * 1024 * 1024;
+
+/** The `limit` parameter of a SPARQL tool whose queries `computer`, such as "the store", runs. */
+export function sparqlLimitSchema(computer: string): z.ZodOptional<z.ZodNumber> {
+	return z
+		.number()
+		.int()
+		.min(1)
+		.max(SPARQL_ROW_CAP)
+		.optional()
+		.describe(
+			`Maximum rows to return. Caps what is handed back, not what ${computer} computes — add LIMIT to the query itself to spare it the work. Hard cap ${SPARQL_ROW_CAP}, which also applies when omitted.`,
+		);
+}
+
+/** What a SPARQL tool says when `source` answers with more than MAX_SPARQL_RESULT_BYTES. */
+export function sparqlResultsTooLarge(source: string): string {
+	return `${source} returned more than ${MAX_SPARQL_RESULT_BYTES / (1024 * 1024)} MB of results. Add LIMIT to the query, or project fewer variables.`;
+}
 
 /** A line break inside a cell, which `GROUP_CONCAT` puts there routinely. */
 const LINE_BREAK = /\r\n|[\r\n]/g;
@@ -20,8 +50,23 @@ interface SparqlJson {
 	boolean?: unknown;
 }
 
-/** The solutions of a W3C SPARQL JSON results document; null for anything that is not one. */
-export function sparqlResultsFrom(envelope: unknown, maxRows: number): SparqlResults | null {
+/** The solutions of a W3C SPARQL JSON results document that `source` answered with, failing for anything else. */
+export function sparqlResultsOf(envelope: unknown, maxRows: number, source: string): SparqlResults {
+	const results = solutionsOf(envelope, maxRows);
+	if (results === null) {
+		throw notSparqlResults(source);
+	}
+	return results;
+}
+
+export function notSparqlResults(source: string): ClassifiedError {
+	return new ClassifiedError(
+		'upstream_failure',
+		`${source} returned a response that is not SPARQL JSON results.`,
+	);
+}
+
+function solutionsOf(envelope: unknown, maxRows: number): SparqlResults | null {
 	if (typeof envelope !== 'object' || envelope === null) {
 		return null;
 	}
