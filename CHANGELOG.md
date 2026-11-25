@@ -30,6 +30,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - On a wiki whose NeoWiki lacks the endpoint a NeoWiki tool calls, the tool fails as invalid input naming that endpoint, not as not found. `neowiki-cypher-query` says instead that the wiki has no Neo4j store.
 - `neowiki-get-subject` returns a subject as the latest revision of its page holds it, with that revision ID as `revisionId`. Where the latest revision cannot be read, it returns the revision the wiki publishes, without one. `neowiki-create-subject` and `neowiki-update-subject` return the revision ID the page is at after the write as `revisionId`.
 
+### Fixed
+
+- A NeoWiki tool fails as `authentication` on a refused or expired sign-in (HTTP 401), not as invalid input or an upstream failure. A status it does not otherwise name is read by its class, whatever the error body: other 4xx as invalid input, 5xx as an upstream failure.
+
 ## [0.21.0] - 2026-11-05
 
 ### Breaking changes

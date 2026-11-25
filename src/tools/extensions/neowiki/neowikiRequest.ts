@@ -38,26 +38,21 @@ const ERROR_TYPE_TO_CATEGORY: Record<string, ErrorCategory> = {
 	internalError: 'upstream_failure',
 };
 
-// The write endpoints (create/replace/delete/set-main) use a different error
-// envelope than the read endpoints — `{ status: "error", message }` with no
-// `errorType`. Map those by HTTP status; 5xx and unknown fall through to
-// upstream_failure so the internal-exception sanitisation below is preserved.
-function categoryForStatus(status: number | undefined): ErrorCategory | undefined {
+/** What an HTTP status tells the caller, for an error that names no errorType. */
+function categoryForStatus(status: number): ErrorCategory {
 	switch (status) {
-		case 400:
-			return 'invalid_input';
+		case 401:
+			return 'authentication';
 		case 403:
 			return 'permission_denied';
 		case 404:
 			return 'not_found';
 		case 409:
 			return 'conflict';
-		case 422:
-			return 'invalid_input';
 		case 429:
 			return 'rate_limited';
 		default:
-			return undefined;
+			return status >= 400 && status < 500 ? 'invalid_input' : 'upstream_failure';
 	}
 }
 
@@ -123,57 +118,53 @@ function classifyNeoWikiError(err: unknown, spec: NeoWikiRequestSpec): Classifie
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- axios error shape at this boundary
 	const response = (err as { response?: { status?: number; data?: unknown } }).response;
 	const status = response?.status;
-	const data = response?.data;
-
-	if (data !== null && typeof data === 'object') {
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- verified non-null object above; narrow to inspect keys
-		const record = data as Record<string, unknown>;
-
-		// MediaWiki's answer for a path no handler serves: an endpoint this NeoWiki lacks.
-		if (record.errorKey === 'rest-no-match') {
-			const message = spec.unavailable ?? `The wiki's NeoWiki has no ${spec.path} endpoint.`;
-			return new ClassifiedError('invalid_input', message, status);
-		}
-
-		const errorType = record.errorType;
-		if (typeof errorType === 'string') {
-			const category = ERROR_TYPE_TO_CATEGORY[errorType] ?? 'upstream_failure';
-			const message = typeof record.message === 'string' ? record.message : errorType;
-			return new ClassifiedError(category, message, status);
-		}
-
-		// MediaWiki REST envelope, from parameter validation, a read denial, or an
-		// action module a Schema write runs: { error?, messageTranslations?: { en } }.
-		const translations = record.messageTranslations;
-		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- messageTranslations sub-object shape at this boundary
-		const en =
-			translations !== null && typeof translations === 'object'
-				? (translations as { en?: unknown }).en
-				: undefined;
-		const restMessage = typeof en === 'string' ? en : record.error;
-		if (typeof restMessage === 'string') {
-			return new ClassifiedError(categoryForStatus(status) ?? 'invalid_input', restMessage, status);
-		}
-
-		// Internal RuntimeException: { message, exception: {…backtrace…} }.
-		// Surface the message only — never the backtrace. A refused write also
-		// lists its violations, which say what to fix.
-		if (typeof record.message === 'string') {
-			const message = Array.isArray(record.violations)
-				? `${record.message}: ${JSON.stringify(record.violations)}`
-				: record.message;
-			return new ClassifiedError(categoryForStatus(status) ?? 'upstream_failure', message, status);
-		}
+	// A network error, such as a timeout or a refused connection, has no response.
+	if (status === undefined) {
+		return new ClassifiedError('upstream_failure', errorMessage(err));
 	}
 
-	// Bodyless / unrecognised-shape responses: map by HTTP status the same way as
-	// the message-bearing branch above, so the two paths can't disagree.
-	const statusCategory = categoryForStatus(status);
-	if (statusCategory !== undefined) {
-		return new ClassifiedError(statusCategory, `NeoWiki request failed (HTTP ${status}).`, status);
+	const record = recordOf(response?.data);
+
+	// MediaWiki's answer for a path no handler serves: an endpoint this NeoWiki lacks.
+	if (record?.errorKey === 'rest-no-match') {
+		const message = spec.unavailable ?? `The wiki's NeoWiki has no ${spec.path} endpoint.`;
+		return new ClassifiedError('invalid_input', message, status);
 	}
 
-	// Covers both axios network errors (no .response — timeout, ECONNREFUSED) and unrecognised body shapes.
-	const message = errorMessage(err);
-	return new ClassifiedError('upstream_failure', message, status);
+	const errorType = typeof record?.errorType === 'string' ? record.errorType : undefined;
+	const category =
+		(errorType !== undefined ? ERROR_TYPE_TO_CATEGORY[errorType] : undefined) ??
+		categoryForStatus(status);
+	const message = (record !== undefined ? reasonIn(record) : undefined) ?? errorType;
+
+	return new ClassifiedError(
+		category,
+		message ?? `NeoWiki request failed (HTTP ${status}).`,
+		status,
+	);
+}
+
+function recordOf(data: unknown): Record<string, unknown> | undefined {
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- verified non-null object; narrowed to inspect keys
+	return data !== null && typeof data === 'object' ? (data as Record<string, unknown>) : undefined;
+}
+
+/**
+ * The reason an error body gives: MediaWiki REST's English message or error code, else NeoWiki's
+ * message with the violations of a refused write. Never an internal exception's backtrace.
+ */
+function reasonIn(record: Record<string, unknown>): string | undefined {
+	const translations = recordOf(record.messageTranslations);
+	if (typeof translations?.en === 'string') {
+		return translations.en;
+	}
+	if (typeof record.error === 'string') {
+		return record.error;
+	}
+	if (typeof record.message === 'string') {
+		return Array.isArray(record.violations)
+			? `${record.message}: ${JSON.stringify(record.violations)}`
+			: record.message;
+	}
+	return undefined;
 }
