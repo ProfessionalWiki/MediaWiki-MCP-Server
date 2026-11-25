@@ -2,32 +2,22 @@ import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { Tool } from '../../../runtime/tool.ts';
 import type { ToolContext } from '../../../runtime/context.ts';
-import { ClassifiedError } from '../../../errors/classifyError.ts';
-import { sparqlResultsFrom, sparqlToolResult } from '../../../results/sparqlResults.ts';
+import {
+	MAX_SPARQL_RESULT_BYTES,
+	SPARQL_ROW_CAP,
+	sparqlLimitSchema,
+	sparqlResultsOf,
+	sparqlResultsTooLarge,
+	sparqlToolResult,
+} from '../../../results/sparqlResults.ts';
 import { neowikiRequest } from './neowikiRequest.ts';
-
-const HARD_LIMIT = 1000;
-
-/**
- * NeoWiki caps no rows of a SPARQL answer, so this is what stands between a
- * query without LIMIT and the server's heap.
- */
-const MAX_RESULT_BYTES = 10 * 1024 * 1024;
 
 const inputSchema = {
 	query: z
 		.string()
 		.min(1)
 		.describe('SPARQL 1.1 query. SELECT returns rows; ASK returns a boolean.'),
-	limit: z
-		.number()
-		.int()
-		.min(1)
-		.max(HARD_LIMIT)
-		.optional()
-		.describe(
-			`Maximum rows to return. Caps what is handed back, not what the store computes — add LIMIT to the query itself to spare it the work. Hard cap ${HARD_LIMIT}, which also applies when omitted.`,
-		),
+	limit: sparqlLimitSchema('the store'),
 } as const;
 
 export const neowikiSparqlQuery: Tool<typeof inputSchema> = {
@@ -44,7 +34,7 @@ RDF model:
 - A relation is a direct triple from the Subject to the target Subject, and also a <base>/ontology/Relation node with neo:source, neo:target and neo:relationType, where neo: is <base>/ontology/.
 - A page is <base>/page/<page ID>, a neo:Page with neo:pageName, neo:hasSubject, neo:mainSubject, neo:category, dcterms:created and dcterms:modified.
 
-Limits: 30 s per query by default (300 s with the apihighlimits right); up to ${HARD_LIMIT} rows per call and ${MAX_RESULT_BYTES / (1024 * 1024)} MB of results, and the response body is truncated at 75000 bytes by default; add LIMIT and OFFSET to page beyond that. A malformed query returns the store's own message.
+Limits: 30 s per query by default (300 s with the apihighlimits right); up to ${SPARQL_ROW_CAP} rows per call and ${MAX_SPARQL_RESULT_BYTES / (1024 * 1024)} MB of results, and the response body is truncated at 75000 bytes by default; add LIMIT and OFFSET to page beyond that. A malformed query returns the store's own message.
 
 Example, on a wiki whose base is https://wiki.example:
   PREFIX neo-schema: <https://wiki.example/schema/>
@@ -71,19 +61,13 @@ Example, on a wiki whose base is https://wiki.example:
 			unavailable:
 				'The wiki has no SPARQL store, which SPARQL queries need; where it has Neo4j, neowiki-cypher-query answers.',
 			sizeCap: {
-				bytes: MAX_RESULT_BYTES,
-				exceeded: `The store returned more than ${MAX_RESULT_BYTES / (1024 * 1024)} MB of results. Add LIMIT to the query, or project fewer variables.`,
+				bytes: MAX_SPARQL_RESULT_BYTES,
+				exceeded: sparqlResultsTooLarge('The store'),
 			},
 		});
 
-		const effectiveLimit = limit ?? HARD_LIMIT;
-		const results = sparqlResultsFrom(data, effectiveLimit);
-		if (results === null) {
-			throw new ClassifiedError(
-				'upstream_failure',
-				'The SPARQL store returned a response that is not SPARQL JSON results.',
-			);
-		}
+		const effectiveLimit = limit ?? SPARQL_ROW_CAP;
+		const results = sparqlResultsOf(data, effectiveLimit, 'The SPARQL store');
 
 		return ctx.format.ok(sparqlToolResult(results, effectiveLimit, 'neowiki-sparql-query'));
 	},

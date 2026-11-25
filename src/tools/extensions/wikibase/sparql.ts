@@ -3,18 +3,16 @@ import { FileTooLargeError, HttpStatusError, postForm } from '../../../outbound/
 import { RedirectDropsBodyError } from '../../../outbound/requestChain.ts';
 import { getRequestSignal } from '../../../runtime/requestContext.ts';
 import { errorMessage } from '../../../errors/errorMessage.ts';
-import { sparqlResultsFrom, type SparqlResults } from '../../../results/sparqlResults.ts';
+import {
+	MAX_SPARQL_RESULT_BYTES,
+	notSparqlResults,
+	sparqlResultsOf,
+	sparqlResultsTooLarge,
+	type SparqlResults,
+} from '../../../results/sparqlResults.ts';
 
 /** Matches the query timeout most Wikibase query services enforce themselves. */
 const QUERY_TIMEOUT_MS = 60_000;
-
-/**
- * Result bytes read into memory. A query service answers an unbounded query with
- * an unbounded result set, and the row cap applies only once the whole envelope
- * has been parsed, so this is what stands between a missing LIMIT and the
- * server's heap.
- */
-const MAX_RESULT_BYTES = 10 * 1024 * 1024;
 
 /** Characters of a query service's own error text passed back to the caller. */
 const MAX_SERVICE_MESSAGE_CHARS = 500;
@@ -27,6 +25,9 @@ const ABSOLUTE_URL = /https?:\/\/\S+/g;
  * the subject of the sentence a transport error puts it in.
  */
 const QUERY_SERVICE = "the wiki's query service";
+
+/** What answered, as the start of a sentence about its answer. */
+const QUERY_SERVICE_SOURCE = 'The query service';
 
 export async function runSparqlQuery(
 	endpoint: string,
@@ -41,7 +42,7 @@ export async function runSparqlQuery(
 			{
 				headers: { Accept: 'application/sparql-results+json' },
 				signal: querySignal(),
-				maxBytes: MAX_RESULT_BYTES,
+				maxBytes: MAX_SPARQL_RESULT_BYTES,
 			},
 		);
 	} catch (err) {
@@ -63,21 +64,9 @@ function parseResults(body: string, maxRows: number): SparqlResults {
 	try {
 		envelope = JSON.parse(body);
 	} catch {
-		throw notSparqlResults();
+		throw notSparqlResults(QUERY_SERVICE_SOURCE);
 	}
-
-	const results = sparqlResultsFrom(envelope, maxRows);
-	if (results === null) {
-		throw notSparqlResults();
-	}
-	return results;
-}
-
-function notSparqlResults(): ClassifiedError {
-	return new ClassifiedError(
-		'upstream_failure',
-		'The query service returned a response that is not SPARQL JSON results.',
-	);
+	return sparqlResultsOf(envelope, maxRows, QUERY_SERVICE_SOURCE);
 }
 
 function classifyQueryFailure(err: unknown, endpoint: string): ClassifiedError {
@@ -96,10 +85,7 @@ function classifyQueryFailure(err: unknown, endpoint: string): ClassifiedError {
 		);
 	}
 	if (err instanceof FileTooLargeError) {
-		return new ClassifiedError(
-			'invalid_input',
-			`The query service returned more than ${MAX_RESULT_BYTES / (1024 * 1024)} MB of results. Add LIMIT to the query, or project fewer variables.`,
-		);
+		return new ClassifiedError('invalid_input', sparqlResultsTooLarge(QUERY_SERVICE_SOURCE));
 	}
 	if (err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
 		return new ClassifiedError(
