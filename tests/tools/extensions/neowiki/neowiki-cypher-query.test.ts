@@ -1,25 +1,21 @@
+import { contextFailingWith, contextReturning } from '../../../helpers/rawRequest.ts';
 import { describe, it, expect, vi } from 'vitest';
 import { createMockMwn } from '../../../helpers/mock-mwn.ts';
 import { contextOn } from '../../../helpers/fakeContext.ts';
 import { neowikiCypherQuery } from '../../../../src/tools/extensions/neowiki/neowiki-cypher-query.ts';
 import { assertStructuredError } from '../../../helpers/structuredResult.ts';
-import { httpError } from '../../../helpers/httpError.ts';
+import { httpError, noSuchRestPathBody } from '../../../helpers/httpError.ts';
 import { dispatch } from '../../../../src/runtime/dispatcher.ts';
 
 describe('neowiki-cypher-query', () => {
 	it('posts cypher + parameters and returns the result envelope', async () => {
-		const mock = createMockMwn({
-			rawRequest: vi.fn().mockResolvedValue({
-				data: {
-					columns: ['name'],
-					rows: [{ name: 'ACME Inc' }],
-					resultCount: 1,
-					durationMs: 11,
-					truncated: false,
-				},
-			}),
+		const { mock, ctx } = contextReturning({
+			columns: ['name'],
+			rows: [{ name: 'ACME Inc' }],
+			resultCount: 1,
+			durationMs: 11,
+			truncated: false,
 		});
-		const ctx = contextOn(mock);
 		const result = await neowikiCypherQuery.handle(
 			{ cypher: 'MATCH (s:Subject:Company) RETURN s.name AS name', parameters: { x: 1 } },
 			ctx,
@@ -38,24 +34,25 @@ describe('neowiki-cypher-query', () => {
 	});
 
 	it('omits parameters from the body when not provided', async () => {
-		const mock = createMockMwn({
-			rawRequest: vi
-				.fn()
-				.mockResolvedValue({ data: { columns: [], rows: [], resultCount: 0, truncated: false } }),
+		const { mock, ctx } = contextReturning({
+			columns: [],
+			rows: [],
+			resultCount: 0,
+			truncated: false,
 		});
-		const ctx = contextOn(mock);
 		await neowikiCypherQuery.handle({ cypher: 'RETURN 1' }, ctx);
 		const call = mock.rawRequest.mock.calls[0][0] as { data: string };
 		expect(JSON.parse(call.data)).toEqual({ cypher: 'RETURN 1' });
 	});
 
 	it('emits a capped truncation when the server truncated the result', async () => {
-		const mock = createMockMwn({
-			rawRequest: vi.fn().mockResolvedValue({
-				data: { columns: ['n'], rows: [{ n: 1 }], resultCount: 1, durationMs: 5, truncated: true },
-			}),
+		const { ctx } = contextReturning({
+			columns: ['n'],
+			rows: [{ n: 1 }],
+			resultCount: 1,
+			durationMs: 5,
+			truncated: true,
 		});
-		const ctx = contextOn(mock);
 		const result = await neowikiCypherQuery.handle({ cypher: 'MATCH (s) RETURN s.name AS n' }, ctx);
 		expect(result.structuredContent).toMatchObject({
 			truncation: { reason: 'capped-no-continuation' },
@@ -76,19 +73,9 @@ describe('neowiki-cypher-query', () => {
 	});
 
 	it('says a wiki that cannot answer Cypher queries has no Neo4j store', async () => {
-		const mock = createMockMwn({
-			rawRequest: vi.fn().mockRejectedValue(
-				httpError(404, {
-					errorKey: 'rest-no-match',
-					messageTranslations: {
-						en: 'The requested relative path did not match any known handler',
-					},
-					httpCode: 404,
-					httpReason: 'Not Found',
-				}),
-			),
-		});
-		const result = await dispatch(neowikiCypherQuery, contextOn(mock))({ cypher: 'RETURN 1' });
+		const { ctx } = contextFailingWith(404, noSuchRestPathBody);
+
+		const result = await dispatch(neowikiCypherQuery, ctx)({ cypher: 'RETURN 1' });
 
 		expect(assertStructuredError(result, 'invalid_input').message).toContain('Neo4j');
 	});

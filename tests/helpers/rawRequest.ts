@@ -2,6 +2,7 @@ import { vi } from 'vitest';
 import type { ToolContext } from '../../src/runtime/context.ts';
 import { createMockMwn, type MockMwn } from './mock-mwn.ts';
 import { contextOn } from './fakeContext.ts';
+import { httpError } from './httpError.ts';
 
 /** A tool context whose wiki answers every raw request with `data`. */
 export function contextReturning(data: unknown): { mock: MockMwn; ctx: ToolContext } {
@@ -58,4 +59,16 @@ export function sentRequests(mock: MockMwn): SentRequest[] {
 /** The first raw request the tool sent, with its JSON body parsed. */
 export function sentRequest(mock: MockMwn): SentRequest {
 	return sentRequests(mock)[0];
+}
+
+/** A tool context whose wiki hands out a CSRF token and fails every raw request with HTTP `status` and `body`. */
+export function contextFailingWith(
+	status: number,
+	body: unknown,
+): { mock: MockMwn; ctx: ToolContext } {
+	const mock = createMockMwn({
+		getCsrfToken: vi.fn().mockResolvedValue('tok'),
+		rawRequest: vi.fn().mockRejectedValue(httpError(status, body)),
+	});
+	return { mock, ctx: contextOn(mock) };
 }
