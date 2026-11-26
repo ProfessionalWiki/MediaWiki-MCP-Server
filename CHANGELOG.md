@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-11-26
+
 ### Breaking changes
 
 - `neowiki-update-subject` needs NeoWiki with ProfessionalWiki/NeoWiki#1870 (2026-11-24) or later, and takes a required `baseRevisionId`: the revision ID the change was made from. NeoWiki with that change refused every update the tool sent before.
@@ -498,7 +500,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 - Smithery integration.
 
-[Unreleased]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.20.1...v0.21.0
 [0.20.1]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.20.0...v0.20.1
 [0.20.0]: https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/compare/v0.19.0...v0.20.0
