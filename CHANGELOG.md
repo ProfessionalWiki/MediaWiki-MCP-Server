@@ -29,9 +29,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Changed
 
-- `neowiki-move-subject` and `neowiki-set-main-subject` are annotated as destructive, since they can demote or clear a page's main subject, and `neowiki-create-schema` as idempotent, since a repeat is refused without effect.
+- `neowiki-set-main-subject` is annotated as destructive, since it can demote or clear a page's main subject.
 - On a wiki whose NeoWiki lacks the endpoint a NeoWiki tool calls, the tool fails as invalid input naming that endpoint, not as not found. `neowiki-cypher-query` says instead that the wiki has no Neo4j store.
-- `neowiki-get-subject` returns a subject as the latest revision of its page holds it, with that revision ID as `revisionId`. Where the latest revision cannot be read, it returns the revision the wiki publishes, without one. `neowiki-create-subject` and `neowiki-update-subject` return the revision ID the page is at after the write as `revisionId`.
+- `neowiki-get-subject` returns a subject as the latest revision of its page holds it, with that revision ID as `revisionId`. Where the latest revision cannot be read, it returns the revision the wiki publishes, without `revisionId`. `neowiki-create-subject` and `neowiki-update-subject` return the revision ID the page is at after the write as `revisionId`.
 
 ### Fixed
 
