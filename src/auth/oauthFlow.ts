@@ -15,7 +15,12 @@ export interface TokenResponse {
 	token_type?: string;
 }
 
-export type FlowErrorKind = 'invalid_grant' | 'invalid_client' | 'transient' | 'malformed';
+export type FlowErrorKind =
+	| 'invalid_grant'
+	| 'invalid_client'
+	| 'invalid_token'
+	| 'transient'
+	| 'malformed';
 
 export class OAuthFlowError extends Error {
 	constructor(
@@ -102,41 +107,46 @@ export async function refreshTokens(a: RefreshArgs): Promise<TokenResponse> {
 	);
 }
 
-async function post(endpoint: string, body: Record<string, string>): Promise<TokenResponse> {
-	const ctrl = new AbortController();
-	const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+// The wiki user an access token acts for, as Extension:OAuth's profile endpoint reports it.
+export interface WikiProfile {
+	sub: string;
+}
 
-	let res: Response;
-	try {
-		res = await fetch(endpoint, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/x-www-form-urlencoded',
-				'User-Agent': USER_AGENT,
-			},
-			body: new URLSearchParams(body).toString(),
-			signal: ctrl.signal,
-		});
-	} catch (err: unknown) {
-		throw new OAuthFlowError('transient', `Token endpoint request failed: ${String(err)}`);
-	} finally {
-		clearTimeout(timer);
+export async function fetchProfile(endpoint: string, accessToken: string): Promise<WikiProfile> {
+	const res = await send('Profile endpoint', endpoint, {
+		headers: { Authorization: `Bearer ${accessToken}` },
+	});
+	if (res.status === 401 || res.status === 403) {
+		throw new OAuthFlowError('invalid_token', `Profile endpoint refused the token: ${res.status}`);
 	}
+	if (!res.ok) {
+		throw new OAuthFlowError('transient', `Profile endpoint returned ${res.status}`);
+	}
+	const obj = await readJson('Profile endpoint', res);
+	if (typeof obj.sub !== 'string') {
+		throw new OAuthFlowError('malformed', 'Profile response carries no sub');
+	}
+	// A machine token acts as the anonymous user, central id 0; an account with
+	// no central id has an empty one.
+	if (obj.sub === '' || obj.sub === '0') {
+		throw new OAuthFlowError('invalid_token', 'The token acts for no wiki user');
+	}
+	return { sub: obj.sub };
+}
+
+async function post(endpoint: string, body: Record<string, string>): Promise<TokenResponse> {
+	const res = await send('Token endpoint', endpoint, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+		body: new URLSearchParams(body).toString(),
+	});
 
 	// 5xx → transient
 	if (res.status >= 500) {
 		throw new OAuthFlowError('transient', `Token endpoint returned ${res.status}`);
 	}
 
-	let json: unknown;
-	try {
-		json = await res.json();
-	} catch {
-		throw new OAuthFlowError('malformed', 'Token endpoint response is not valid JSON');
-	}
-
-	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON boundary; fields validated immediately below
-	const obj = json as Record<string, unknown>;
+	const obj = await readJson('Token endpoint', res);
 
 	// Any non-2xx below 500: classify by the OAuth error code. MediaWiki returns
 	// 401 invalid_client (not 400) when a public client cannot authenticate for
@@ -165,4 +175,34 @@ async function post(endpoint: string, body: Record<string, string>): Promise<Tok
 		scope: typeof obj.scope === 'string' ? obj.scope : undefined,
 		token_type: typeof obj.token_type === 'string' ? obj.token_type : undefined,
 	};
+}
+
+interface RequestSpec {
+	method?: string;
+	headers: Record<string, string>;
+	body?: string;
+}
+
+// The timeout covers reading the body too, which callers do after this returns.
+async function send(label: string, endpoint: string, init: RequestSpec): Promise<Response> {
+	try {
+		return await fetch(endpoint, {
+			...init,
+			headers: { ...init.headers, 'User-Agent': USER_AGENT },
+			signal: AbortSignal.timeout(TIMEOUT_MS),
+		});
+	} catch (err: unknown) {
+		throw new OAuthFlowError('transient', `${label} request failed: ${String(err)}`);
+	}
+}
+
+async function readJson(label: string, res: Response): Promise<Record<string, unknown>> {
+	let json: unknown;
+	try {
+		json = await res.json();
+	} catch {
+		throw new OAuthFlowError('malformed', `${label} response is not valid JSON`);
+	}
+	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- post-JSON boundary; callers validate the fields they read
+	return json as Record<string, unknown>;
 }

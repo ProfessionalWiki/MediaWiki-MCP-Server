@@ -17,7 +17,7 @@ const PROXY = fakeProxyConfig({
 	wikiKey: 'w',
 	issuer: 'https://mcp.example/mcp',
 	signingKey: 'k'.repeat(32),
-	tokenExchangeBase: 'http://wiki.svc',
+	internalBase: 'http://wiki.svc',
 	upstreamClientId: 'UP',
 });
 

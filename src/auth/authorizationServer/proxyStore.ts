@@ -84,12 +84,16 @@ export interface ProxyStore {
 	putCode(code: string, r: CodeRecord, ttlMs?: number): void;
 	consumeCode(code: string): CodeRecord | undefined;
 	putUpstreamToken(t: UpstreamToken): string;
+	/** Stores the token under a caller-chosen id, replacing any token there. */
+	setUpstreamToken(id: string, t: UpstreamToken): void;
 	getUpstreamToken(id: string): UpstreamToken | undefined;
 	updateUpstreamToken(id: string, t: UpstreamToken): void;
 	setRefreshId(id: string, refreshId: string): void;
 	deleteUpstreamToken(id: string): void;
 	beginRefreshRotation(id: string, expectedRefreshId: string): boolean;
 	finishRefreshRotation(id: string, newRefreshId?: string): void;
+	/** False when the id was already claimed and has not yet expired. */
+	claimAssertionId(id: string, ttlMs: number): boolean;
 	stats(): ProxyStoreStats;
 }
 
@@ -107,6 +111,8 @@ export class InMemoryProxyStore implements ProxyStore {
 	// a concurrent presentation of the same refresh token (reuse) before either
 	// request has committed its rotated id.
 	private refreshing = new Set<string>();
+	// Client assertion ids already accepted, with when each may be forgotten.
+	private assertionIds = new Map<string, number>();
 
 	public constructor(
 		private elapsedNow: () => number = monotonicNow,
@@ -177,6 +183,10 @@ export class InMemoryProxyStore implements ProxyStore {
 		return id;
 	}
 
+	public setUpstreamToken(id: string, t: UpstreamToken): void {
+		this.upstream.set(id, t);
+	}
+
 	public getUpstreamToken(id: string): UpstreamToken | undefined {
 		return this.upstream.get(id);
 	}
@@ -230,6 +240,20 @@ export class InMemoryProxyStore implements ProxyStore {
 		}
 	}
 
+	public claimAssertionId(id: string, ttlMs: number): boolean {
+		const now = this.elapsedNow();
+		for (const [seen, expiresAt] of this.assertionIds) {
+			if (expiresAt < now) {
+				this.assertionIds.delete(seen);
+			}
+		}
+		if (this.assertionIds.has(id)) {
+			return false;
+		}
+		this.assertionIds.set(id, now + ttlMs);
+		return true;
+	}
+
 	public snapshotDurable(): DurableSnapshot {
 		return {
 			version: 1,
@@ -250,6 +274,6 @@ export class InMemoryProxyStore implements ProxyStore {
 		for (const [id, t] of snapshot.upstream) {
 			this.upstream.set(id, t);
 		}
-		// transactions, codes, and the refreshing set are ephemeral: left empty on purpose.
+		// transactions, codes, the refreshing set and assertion ids are ephemeral: left empty on purpose.
 	}
 }

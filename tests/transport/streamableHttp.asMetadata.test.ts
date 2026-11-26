@@ -13,7 +13,7 @@ import { fakeAppDeps } from '../helpers/fakeAppDeps.ts';
 // issuer shows up in the assertions below.
 const PROXY = fakeProxyConfig({
 	issuer: 'https://mcp.example/mcp',
-	tokenExchangeBase: 'https://wiki.svc',
+	internalBase: 'https://wiki.svc',
 	callbackUrl: 'https://mcp.example/mcp/oauth/callback',
 	upstreamClientId: 'client-id',
 });

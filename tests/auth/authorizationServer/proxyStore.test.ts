@@ -162,6 +162,35 @@ describe('InMemoryProxyStore', () => {
 	});
 });
 
+describe('InMemoryProxyStore tokens under a chosen id', () => {
+	it('replaces whatever token the id held, keeping none of its fields', () => {
+		const s = new InMemoryProxyStore();
+		s.setUpstreamToken('chosen', { accessToken: 'WA', expiresAt: 1, refreshId: 'r' });
+
+		s.setUpstreamToken('chosen', { accessToken: 'WB', expiresAt: 2 });
+
+		expect(s.getUpstreamToken('chosen')).toEqual({ accessToken: 'WB', expiresAt: 2 });
+	});
+});
+
+describe('InMemoryProxyStore assertion ids', () => {
+	it('accepts an assertion id once, however long the server has been up', () => {
+		const s = new InMemoryProxyStore(() => 24 * 3600 * 1000);
+		s.claimAssertionId('a', 60_000);
+
+		expect(s.claimAssertionId('a', 60_000)).toBe(false);
+	});
+
+	it('accepts an assertion id again once its time has passed', () => {
+		let now = 0;
+		const s = new InMemoryProxyStore(() => now);
+		s.claimAssertionId('a', 60_000);
+		now = 60_001;
+
+		expect(s.claimAssertionId('a', 60_000)).toBe(true);
+	});
+});
+
 describe('InMemoryProxyStore durable snapshot', () => {
 	it('round-trips clients (order preserved) and upstream tokens', () => {
 		const a = new InMemoryProxyStore();

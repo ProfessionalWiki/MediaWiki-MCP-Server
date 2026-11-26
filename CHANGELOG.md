@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Added
 
+- The hosted OAuth proxy can exchange a wiki access token held by a registered backend for a token the proxy issues (RFC 8693 token exchange), so the backend's users act as themselves without a browser sign-in or bearer passthrough. See [Exchanging wiki tokens from a backend](docs/deployment.md#exchanging-wiki-tokens-from-a-backend).
 - `get-file-data` with `format: 'original'` returns the contents of a text-based original file, such as SVG, JSON or XML, so a client that cannot download the file can still read it. Contents are cut at `MCP_CONTENT_MAX_BYTES` (default 75000 bytes); other file types are refused.
 - `neowiki-sparql-query` runs a read-only SPARQL query against a NeoWiki wiki's SPARQL store, so a wiki without Neo4j, where `neowiki-cypher-query` cannot run, can be queried too.
 - `neowiki-get-referencing-subjects` lists the NeoWiki subjects whose relations point at a subject, on any NeoWiki wiki, with or without a graph store.
@@ -34,6 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Fixed
 
+- The hosted OAuth proxy's token endpoint sends `Cache-Control: no-store`, so no cache keeps the tokens it returns.
 - A NeoWiki tool fails as `authentication` on a refused or expired sign-in (HTTP 401), not as invalid input or an upstream failure. A status it does not otherwise name is read by its class, whatever the error body: other 4xx as invalid input, 5xx as an upstream failure.
 
 ## [0.21.0] - 2026-11-05

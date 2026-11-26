@@ -10,8 +10,8 @@ Which role is active depends on configuration. The proxy path turns on only when
 ## Client side (top level)
 
 - `metadata.ts` — discover an upstream wiki's AS metadata (`.well-known`, pathed, or synthesized). `UpstreamAsMetadata` is the wiki's metadata — not to be confused with the proxy's own `AsMetadataDoc`.
-- `mwOauth2Endpoints.ts` — build a wiki's `rest.php/oauth2/{authorize,access_token}` URLs. Single source of truth for those paths, shared with the proxy side.
-- `oauthFlow.ts` — the low-level token exchange and refresh HTTP calls, plus the error classifier (`invalid_grant` / `invalid_client` / transient / malformed).
+- `mwOauth2Endpoints.ts` — build a wiki's `rest.php/oauth2/{authorize,access_token,resource/profile}` URLs. Single source of truth for those paths, shared with the proxy side.
+- `oauthFlow.ts` — the low-level code exchange, refresh and profile HTTP calls to a wiki, plus the error classifier (`invalid_grant` / `invalid_client` / `invalid_token` / transient / malformed).
 - `upstreamBearer.ts` — resolve a proxy-minted `/mcp` JWT to the stored upstream wiki token it stands for, proactively refreshing near-expiry tokens with per-token coalescing. Used by the HTTP transport's request guard; bridges the two roles.
 - `stdioSignIn.ts` — `StdioSignIn`, created once by the stdio transport: acquire a token for a wiki (stored, refreshed, or by browser login), one acquisition per wiki at a time.
 - `browserAuth.ts` — the interactive login: open the browser, catch the redirect on a loopback listener.
@@ -31,7 +31,9 @@ Which role is active depends on configuration. The proxy path turns on only when
 - `authorize.ts` — plan the `/authorize` step: validate the downstream client and redirect, then produce the upstream authorize URL.
 - `consent.ts` — the consent / cancelled / error pages, plus the CSRF, transaction, and consent cookie plumbing (the consent cookie is signed and verified in `jwt.ts`).
 - `callback.ts` — handle the upstream wiki's callback, exchange the code, mint a downstream client code.
-- `token.ts` — the `/token` endpoint: authorization-code and refresh grants.
+- `token.ts` — the `/token` endpoint: authorization-code and refresh grants, and token exchange when a backend is registered.
+- `tokenExchange.ts` — the RFC 8693 token-exchange grant: confirm a backend's wiki token with the wiki and issue a proxy token for its user, one stored token per user, consumer and grant set.
+- `exchangeClient.ts` — the backend registered for token exchange: read from the environment, and authenticate its signed client assertions (RFC 7523).
 - `jwt.ts` — mint and verify the proxy's own access / refresh JWTs, and sign / verify the consent cookie.
 - `cimd.ts` — client-id metadata documents: resolve a URL `client_id` into a client record, host-gated.
 - `cimdFetch.ts` — fetch a client-id metadata document: https only, SSRF-guarded, no redirects, size- and time-capped.

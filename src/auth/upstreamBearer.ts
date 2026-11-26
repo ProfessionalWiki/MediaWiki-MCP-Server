@@ -66,7 +66,7 @@ async function performUpstreamRefresh(
 	refresh: RefreshFn,
 ): Promise<string> {
 	const r = await refresh({
-		tokenEndpoint: mwOauth2TokenEndpoint(pc.tokenExchangeBase, pc.scriptpath),
+		tokenEndpoint: mwOauth2TokenEndpoint(pc.internalBase, pc.scriptpath),
 		refreshToken: currentRefreshToken,
 		clientId: pc.upstreamClientId,
 		clientSecret: pc.upstreamClientSecret,

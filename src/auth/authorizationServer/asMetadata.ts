@@ -1,5 +1,6 @@
 import type { OAuthMetadata } from '@modelcontextprotocol/server';
 import type { ProxyConfig } from './proxyConfig.ts';
+import { TOKEN_EXCHANGE_GRANT } from './tokenExchange.ts';
 
 // The SDK's RFC 8414 document type, narrowed to the fields this proxy always
 // emits: the spec and its registry extensions make them optional, but clients
@@ -24,7 +25,7 @@ export type AsMetadataDoc = OAuthMetadata &
  * (the slash-free issuer identifier produced by resolveProxyConfig).
  */
 export function buildAsMetadata(pc: ProxyConfig): AsMetadataDoc {
-	return {
+	const metadata: AsMetadataDoc = {
 		issuer: pc.issuer,
 		authorization_endpoint: `${pc.issuer}/authorize`,
 		token_endpoint: `${pc.issuer}/token`,
@@ -35,5 +36,14 @@ export function buildAsMetadata(pc: ProxyConfig): AsMetadataDoc {
 		token_endpoint_auth_methods_supported: ['none'],
 		authorization_response_iss_parameter_supported: true,
 		client_id_metadata_document_supported: true,
+	};
+	if (pc.exchangeClient === null) {
+		return metadata;
+	}
+	// The backend's private_key_jwt goes unadvertised: only the exchange grant checks it,
+	// and a sign-in client choosing it from this list would then fail.
+	return {
+		...metadata,
+		grant_types_supported: [...metadata.grant_types_supported, TOKEN_EXCHANGE_GRANT],
 	};
 }

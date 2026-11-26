@@ -236,7 +236,7 @@ export async function runHostedFlow(opts: FakeMcpClientOptions): Promise<FakeMcp
 		redirect_uri: redirectUri,
 	});
 	if (tokenRes.status !== 200) {
-		throw new FakeMcpClientError('token exchange failed', tokenRes.status, tokenRes.body);
+		throw new FakeMcpClientError('code redemption failed', tokenRes.status, tokenRes.body);
 	}
 	// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- token body is untyped JSON
 	const tokenBody = tokenRes.body as Record<string, unknown>;

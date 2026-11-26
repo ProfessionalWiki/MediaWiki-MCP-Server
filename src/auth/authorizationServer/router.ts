@@ -280,8 +280,8 @@ export function mountAuthorizationServer(app: express.Express, proxy: HostedProx
 	// to the proxy. The `state` param is the proxy-minted transaction id. We verify
 	// the consent cookie against the transaction's client + redirect host (the same
 	// binding authorize set), then hand off to handleCallback, which exchanges the
-	// wiki code on the internal tokenExchangeBase, stores the upstream token, mints a
-	// one-time downstream client code, and 302s back to the client redirect.
+	// wiki code on internalBase, stores the upstream token, mints a one-time
+	// downstream client code, and 302s back to the client redirect.
 	app.get(AUTHORIZATION_SERVER_PATHS.callback, async (req, res) => {
 		const queryError = firstScalar(req.query.error);
 		const q = {
@@ -321,14 +321,13 @@ export function mountAuthorizationServer(app: express.Express, proxy: HostedProx
 		res.redirect(302, plan.location);
 	});
 
-	// POST /mcp/token — the proxy's RFC 6749 token endpoint. handleToken handles
-	// both the authorization_code grant (verify client PKCE, consume the one-time
-	// code, mint proxy JWTs) and the refresh_token grant (verify the proxy refresh
-	// JWT, refresh the upstream token server-to-server, re-mint).
+	// POST /mcp/token — the proxy's RFC 6749 token endpoint.
 	app.post(AUTHORIZATION_SERVER_PATHS.token, formBody, async (req, res) => {
 		// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- form-encoded body is untyped; handleToken reads each field defensively
 		const body = (req.body ?? {}) as Record<string, string>;
 		const result = await handleToken(body, pc, store);
+		// RFC 6749 §5.1: a response carrying tokens must not be cached.
+		res.set('Cache-Control', 'no-store');
 		res.status(result.status).json(result.body);
 	});
 }

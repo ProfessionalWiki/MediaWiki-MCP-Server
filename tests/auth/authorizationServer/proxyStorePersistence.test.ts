@@ -46,6 +46,19 @@ describe('PersistentProxyStore', () => {
 		});
 	});
 
+	it('keeps a token stored under a chosen id across a restart', () => {
+		make(file).setUpstreamToken('chosen', { accessToken: 'at', expiresAt: 111 });
+
+		expect(make(file).getUpstreamToken('chosen')).toEqual({ accessToken: 'at', expiresAt: 111 });
+	});
+
+	it('remembers a claimed assertion id', () => {
+		const s = make(file);
+		s.claimAssertionId('a', 60_000);
+
+		expect(s.claimAssertionId('a', 60_000)).toBe(false);
+	});
+
 	it('records a flush-duration metric on a durable write', async () => {
 		const metrics = liveMetrics();
 		const s = new PersistentProxyStore(new InMemoryProxyStore(), file, KEY, metrics);

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { buildAsMetadata } from '../../../src/auth/authorizationServer/asMetadata.ts';
-import type { ProxyConfig } from '../../../src/auth/authorizationServer/proxyConfig.ts';
+import { fakeProxyConfig } from '../../helpers/fakeProxyConfig.ts';
 
-const pc = { issuer: 'https://wiki.example/mcp' } as ProxyConfig;
+const pc = fakeProxyConfig({ issuer: 'https://wiki.example/mcp' });
 
 describe('buildAsMetadata', () => {
 	it('advertises self endpoints with S256 and none auth', () => {
@@ -31,5 +31,20 @@ describe('buildAsMetadata', () => {
 		const doc = buildAsMetadata(pc);
 		expect(doc.client_id_metadata_document_supported).toBe(true);
 		expect(doc.token_endpoint_auth_methods_supported).toEqual(['none']);
+	});
+
+	describe('with an exchange client', () => {
+		const m = buildAsMetadata({
+			...pc,
+			exchangeClient: { clientId: 'backend', jwks: { keys: [] }, consumers: [] },
+		});
+
+		it('advertises the token-exchange grant', () => {
+			expect(m.grant_types_supported).toContain('urn:ietf:params:oauth:grant-type:token-exchange');
+		});
+
+		it("keeps the sign-in clients' token endpoint authentication as it is", () => {
+			expect(m.token_endpoint_auth_methods_supported).toEqual(['none']);
+		});
 	});
 });

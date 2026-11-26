@@ -66,6 +66,11 @@ export class PersistentProxyStore implements ProxyStore {
 		return id;
 	}
 
+	public setUpstreamToken(id: string, t: UpstreamToken): void {
+		this.inner.setUpstreamToken(id, t);
+		this.flushSync();
+	}
+
 	public updateUpstreamToken(id: string, t: UpstreamToken): void {
 		this.inner.updateUpstreamToken(id, t);
 		this.flushSync();
@@ -126,6 +131,10 @@ export class PersistentProxyStore implements ProxyStore {
 
 	public beginRefreshRotation(id: string, expectedRefreshId: string): boolean {
 		return this.inner.beginRefreshRotation(id, expectedRefreshId);
+	}
+
+	public claimAssertionId(id: string, ttlMs: number): boolean {
+		return this.inner.claimAssertionId(id, ttlMs);
 	}
 
 	// --- persistence internals ---

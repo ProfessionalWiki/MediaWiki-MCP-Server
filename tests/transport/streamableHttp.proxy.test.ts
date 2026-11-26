@@ -24,6 +24,7 @@ import { startFakeAs, type FakeAsHandle } from '../helpers/fakeAuthorizationServ
 import { runHostedFlow, setCookieHeaders } from '../helpers/fakeMcpClient.ts';
 import { readAuthPolicy } from '../../src/runtime/authShape.ts';
 import { fakeAppDeps } from '../helpers/fakeAppDeps.ts';
+import { exchangeClientFixture, wikiAccessToken } from '../helpers/exchangeClient.ts';
 
 const ISSUER = 'https://mcp.example/mcp';
 const SIGNING_KEY = 'k'.repeat(32);
@@ -49,19 +50,32 @@ function appState(fakeAsUrl: string) {
 	});
 }
 
-// A ProxyConfig whose authorize + token-exchange bases both point at the fake AS
+// A ProxyConfig whose authorize and internal bases both point at the fake AS
 // (so the in-process flow reaches it), as the task guidance prescribes.
 function proxyConfig(fakeAsUrl: string): ProxyConfig {
 	return fakeProxyConfig({
 		issuer: ISSUER,
 		authorizeBase: fakeAsUrl,
-		tokenExchangeBase: fakeAsUrl,
+		internalBase: fakeAsUrl,
 		callbackUrl: `${ISSUER}/oauth/callback`,
 		upstreamClientId: 'UPSTREAM-CLIENT',
 		upstreamClientSecret: undefined,
 		signingKey: SIGNING_KEY,
 		consentTtlMs: 60_000,
 		tokenTtlMs: 55 * 60 * 1000,
+	});
+}
+
+const MCP_BODY = { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} };
+
+// Calls the wiki action API with the runtime token resolved for the request,
+// standing in for what mwn would send upstream.
+function apiCallingOnServe(wikiUrl: string) {
+	return vi.fn(async () => {
+		const runtimeToken = getRuntimeToken('test');
+		await fetch(`${wikiUrl}/w/api.php?action=query&meta=tokens`, {
+			headers: runtimeToken ? { Authorization: `Bearer ${runtimeToken}` } : {},
+		});
 	});
 }
 
@@ -226,14 +240,7 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		fakeAs = await startFakeAs({ autoApproveAuthorize: true, captureApi: true });
 		const store = new InMemoryProxyStore();
 		const pc = proxyConfig(fakeAs.url);
-		// The factory seam calls the wiki action API with the request's resolved
-		// runtime token, standing in for what mwn would send to /api.php.
-		const onServe = vi.fn(async () => {
-			const runtimeToken = getRuntimeToken('test');
-			await fetch(`${fakeAs!.url}/w/api.php?action=query&meta=tokens`, {
-				headers: runtimeToken ? { Authorization: `Bearer ${runtimeToken}` } : {},
-			});
-		});
+		const onServe = apiCallingOnServe(fakeAs.url);
 		const { app } = buildApp(makeDeps(fakeAs.url, store, pc, onServe));
 
 		const result = await runHostedFlow({ app });
@@ -273,6 +280,25 @@ describe('hosted OAuth proxy — end-to-end (real buildApp routes)', () => {
 		// The wiki API saw the UPSTREAM wiki token, never the proxy JWT.
 		expect(fakeAs.capturedApiBearers).toContain(upstreamToken);
 		expect(fakeAs.capturedApiBearers).not.toContain(result.accessToken);
+	});
+
+	it('forbids caching a token response', async () => {
+		fakeAs = await startFakeAs({ autoApproveAuthorize: true });
+		const { app } = buildApp(
+			makeDeps(fakeAs.url, new InMemoryProxyStore(), proxyConfig(fakeAs.url)),
+		);
+		const flow = await runFlowUpToCode(app, '127.0.0.1');
+
+		const res = await request(app).post('/mcp/token').type('form').send({
+			grant_type: 'authorization_code',
+			code: flow.clientCode,
+			code_verifier: flow.verifier,
+			client_id: flow.clientId,
+			redirect_uri: flow.redirectUri,
+		});
+
+		expect(res.status).toBe(200);
+		expect(res.headers['cache-control']).toBe('no-store');
 	});
 
 	it('criterion 2: the upstream/wiki token never appears in the /token or /register response bodies', async () => {
@@ -1209,20 +1235,6 @@ describe('hosted OAuth proxy — upstream refresh on the /mcp path (e2e)', () =>
 		return u.accessToken;
 	}
 
-	// Calls the wiki action API with the runtime token resolved for the request,
-	// standing in for what mwn would send upstream. Handed to makeDeps as the
-	// per-request factory seam.
-	function apiCallingOnServe() {
-		return vi.fn(async () => {
-			const runtimeToken = getRuntimeToken('test');
-			await fetch(`${fakeAs!.url}/w/api.php?action=query&meta=tokens`, {
-				headers: runtimeToken ? { Authorization: `Bearer ${runtimeToken}` } : {},
-			});
-		});
-	}
-
-	const MCP_BODY = { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} };
-
 	it('answers 503 (retryable, no re-auth challenge) when an expired token cannot be refreshed', async () => {
 		fakeAs = await startFakeAs({ autoApproveAuthorize: true, token: refreshBlipsToken });
 		const store = new InMemoryProxyStore();
@@ -1250,7 +1262,7 @@ describe('hosted OAuth proxy — upstream refresh on the /mcp path (e2e)', () =>
 		});
 		const store = new InMemoryProxyStore();
 		const pc = proxyConfig(fakeAs.url);
-		const onServe = apiCallingOnServe();
+		const onServe = apiCallingOnServe(fakeAs.url);
 		const { app } = buildApp(makeDeps(fakeAs.url, store, pc, onServe));
 		const result = await runHostedFlow({ app });
 		// Inside the 30s skew but still valid: the refresh runs and blips, and the
@@ -1280,7 +1292,7 @@ describe('hosted OAuth proxy — upstream refresh on the /mcp path (e2e)', () =>
 		fakeAs = await startFakeAs({ autoApproveAuthorize: true, captureApi: true });
 		const store = new InMemoryProxyStore();
 		const pc = proxyConfig(fakeAs.url);
-		const onServe = apiCallingOnServe();
+		const onServe = apiCallingOnServe(fakeAs.url);
 		const { app } = buildApp(makeDeps(fakeAs.url, store, pc, onServe));
 		const result = await runHostedFlow({ app });
 		await setUpstreamExpiry(store, pc, result.accessToken, Date.now() + 10_000);
@@ -1303,12 +1315,48 @@ describe('hosted OAuth proxy — upstream refresh on the /mcp path (e2e)', () =>
 	});
 });
 
+describe('hosted OAuth proxy — token exchange (e2e)', () => {
+	let fakeAs: FakeAsHandle | undefined;
+
+	afterEach(async () => {
+		await fakeAs?.close();
+		fakeAs = undefined;
+	});
+
+	it("serves a backend's user with an exchanged token, sending the user's wiki token to the wiki", async () => {
+		fakeAs = await startFakeAs({
+			captureApi: true,
+			profile: (_req, res) => {
+				res.json({ sub: '42' });
+			},
+		});
+		const fixture = await exchangeClientFixture();
+		const pc = { ...proxyConfig(fakeAs.url), exchangeClient: fixture.client };
+		const onServe = apiCallingOnServe(fakeAs.url);
+		const { app } = buildApp(makeDeps(fakeAs.url, new InMemoryProxyStore(), pc, onServe));
+		const wikiToken = await wikiAccessToken();
+
+		const exchanged = await request(app)
+			.post('/mcp/token')
+			.type('form')
+			.send(await fixture.exchangeBody(ISSUER, wikiToken));
+		await request(app)
+			.post('/mcp')
+			.set('Content-Type', 'application/json')
+			.set('Accept', 'application/json, text/event-stream')
+			.set('Authorization', `Bearer ${String(exchanged.body.access_token)}`)
+			.send(MCP_BODY);
+
+		expect(fakeAs.capturedApiBearers).toEqual([wikiToken]);
+	});
+});
+
 // Drives register -> authorize -> consent -> upstream -> callback and returns the
 // minted (un-redeemed) downstream code, so a test can attempt redemption itself.
 async function runFlowUpToCode(
 	app: ReturnType<typeof buildApp>['app'],
 	host: string,
-): Promise<{ clientId: string; clientCode: string; redirectUri: string }> {
+): Promise<{ clientId: string; clientCode: string; redirectUri: string; verifier: string }> {
 	const redirectUri = `http://${host}:47100/cb`;
 	const reg = await request(app)
 		.post('/mcp/register')
@@ -1348,7 +1396,7 @@ async function runFlowUpToCode(
 		.query({ code: cb.searchParams.get('code'), state: cb.searchParams.get('state') })
 		.set('Cookie', cookie);
 	const clientCode = new URL(cbRes.headers.location).searchParams.get('code')!;
-	return { clientId, clientCode, redirectUri };
+	return { clientId, clientCode, redirectUri, verifier };
 }
 
 // Builds a transaction for client B but presents a consent cookie for client A,

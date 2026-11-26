@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { ProxyConfig } from './proxyConfig.ts';
+import { stripTrailingSlashes } from '../../runtime/trailingSlashes.ts';
 import type { ClientRecord, ProxyStore } from './proxyStore.ts';
 import { randomVerifier, s256 } from '../pkce.ts';
 import { mwOauth2AuthorizeEndpoint } from '../mwOauth2Endpoints.ts';
@@ -112,13 +113,7 @@ export function planAuthorize(
 	if (q.response_type !== undefined && q.response_type !== 'code') {
 		return errRedirect('unsupported_response_type', 'only response_type=code is supported');
 	}
-	// RFC 8707 resource indicator. A spec-compliant client reads `resource` from
-	// the protected-resource document (resolvePublicBase, WITH a trailing slash)
-	// and echoes it here, while pc.issuer is the RFC 8414 issuer (slash-free).
-	// Both forms denote the same resource, so compare with trailing slashes
-	// normalized off rather than rejecting the slash-bearing variant.
-	const stripSlash = (s: string): string => s.replace(/\/+$/, '');
-	if (q.resource && stripSlash(q.resource) !== stripSlash(pc.issuer)) {
+	if (q.resource && !isThisResource(q.resource, pc.issuer)) {
 		// RFC 8707 §2 defines invalid_target for a resource the server does not
 		// serve, which a client can act on by retrying with a corrected value.
 		return errRedirect('invalid_target', 'resource does not match this server');
@@ -196,4 +191,11 @@ export function planDeny(
 			q.state,
 		),
 	};
+}
+
+// A spec-compliant client reads `resource` from the protected-resource document
+// (resolvePublicBase, WITH a trailing slash), while the issuer is the RFC 8414
+// one (slash-free). Both denote this server, so trailing slashes are ignored.
+export function isThisResource(resource: string, issuer: string): boolean {
+	return stripTrailingSlashes(resource) === stripTrailingSlashes(issuer);
 }

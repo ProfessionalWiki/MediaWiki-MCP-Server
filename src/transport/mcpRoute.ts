@@ -21,6 +21,7 @@ import {
 	UpstreamBearerError,
 	type RefreshFn,
 } from '../auth/upstreamBearer.ts';
+import { stripTrailingSlashes } from '../runtime/trailingSlashes.ts';
 
 export function extractBearerToken(req: Request): string | undefined {
 	const raw = req.headers.authorization;
@@ -72,7 +73,7 @@ function emit401Challenge(req: Request, res: Response, hasMetadata: boolean): vo
 	const requestProto = resolveRequestProto(req);
 	const base = resolvePublicBase(req.headers.host ?? undefined, requestProto);
 	// The document is at the origin root (RFC 9728), and the SDK fetches this URL as given.
-	const origin = /^[a-z][a-z0-9+.-]*:\/\/[^/]+/i.exec(base)?.[0] ?? base.replace(/\/+$/, '');
+	const origin = /^[a-z][a-z0-9+.-]*:\/\/[^/]+/i.exec(base)?.[0] ?? stripTrailingSlashes(base);
 	const metadataUrl = `${origin}/.well-known/oauth-protected-resource`;
 	res.set(
 		'WWW-Authenticate',

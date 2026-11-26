@@ -28,6 +28,7 @@ import { createMcpRouteHandler, resolveRequestProto } from './mcpRoute.ts';
 import { createRateLimiter, type RateLimiter } from './rateLimit.ts';
 import { PAYLOAD_TOO_LARGE_ERROR_CODE } from './errorCodes.ts';
 import { sendJsonRpcError } from './jsonRpcError.ts';
+import { stripTrailingSlashes } from '../runtime/trailingSlashes.ts';
 import { mountReadyEndpoint } from './ready.ts';
 import { loadConfigFromFile } from '../config/loadConfig.ts';
 import type { WikiRegistry } from '../wikis/wikiRegistry.ts';
@@ -254,7 +255,7 @@ function dialectFor(req: Request): ErrorDialect {
 	if (isMcpEndpoint(req)) {
 		return 'jsonrpc';
 	}
-	const withoutTrailingSlash = path.length > 1 ? path.replace(/\/+$/, '') : path;
+	const withoutTrailingSlash = path.length > 1 ? stripTrailingSlashes(path) : path;
 	return authorizationServerPaths.has(withoutTrailingSlash) ? 'oauth' : 'plain';
 }
 
