@@ -15,10 +15,10 @@ export type CallbackPlan =
  * authorization-code redirect back to the proxy. Looks up the transaction by
  * `state` (the proxy-minted txn id from planAuthorize), requires the consent
  * cookie to have already been verified by the caller, exchanges the wiki code
- * on the INTERNAL tokenExchangeBase using the txn's own PKCE verifier, stores
- * the resulting upstream token, mints a one-time downstream client code bound to
- * the original client's PKCE challenge/state/scopes, and produces the 302 back
- * to the downstream client's redirect URI.
+ * on internalBase using the txn's own PKCE verifier, stores the resulting
+ * upstream token, mints a one-time downstream client code bound to the original
+ * client's PKCE challenge/state/scopes, and produces the 302 back to the
+ * downstream client's redirect URI.
  *
  * `exchange` is injectable for testing; production passes the real exchangeCode.
  */
@@ -84,11 +84,9 @@ export async function handleCallback(
 	let tokens;
 	try {
 		// redirectUri must be byte-identical to the one sent on /authorize
-		// (pc.callbackUrl) or the upstream rejects the exchange. tokenEndpoint
-		// uses tokenExchangeBase (the internal service URL), distinct from the
-		// public authorizeBase the browser was redirected to.
+		// (pc.callbackUrl) or the upstream rejects the exchange.
 		tokens = await exchange({
-			tokenEndpoint: mwOauth2TokenEndpoint(pc.tokenExchangeBase, pc.scriptpath),
+			tokenEndpoint: mwOauth2TokenEndpoint(pc.internalBase, pc.scriptpath),
 			code: q.code,
 			redirectUri: pc.callbackUrl,
 			clientId: pc.upstreamClientId,
@@ -96,7 +94,7 @@ export async function handleCallback(
 			verifier: txn.proxyVerifier,
 		});
 	} catch {
-		return err('upstream token exchange failed');
+		return err('upstream code exchange failed');
 	}
 
 	const upstreamTokenId = store.putUpstreamToken({

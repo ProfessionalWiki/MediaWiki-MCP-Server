@@ -4,7 +4,12 @@ import { issuedFor, type ProxyStore } from './proxyStore.ts';
 import { s256 } from '../pkce.ts';
 import { mwOauth2TokenEndpoint } from '../mwOauth2Endpoints.ts';
 import { mintAccessToken, mintRefreshToken, verifyRefreshToken } from './jwt.ts';
-import { refreshTokens as defaultRefresh, classifyRefreshError } from '../oauthFlow.ts';
+import {
+	refreshTokens as defaultRefresh,
+	classifyRefreshError,
+	fetchProfile,
+} from '../oauthFlow.ts';
+import { handleTokenExchange, TOKEN_EXCHANGE_GRANT } from './tokenExchange.ts';
 
 type RefreshFn = typeof defaultRefresh;
 
@@ -27,8 +32,9 @@ const REFRESH_JWT_TTL_MS = 30 * 24 * 3600 * 1000;
  *   minted), consumes the one-time code, and mints a proxy access/refresh JWT
  *   pair keyed to the stored upstream token id.
  * - `refresh_token`: verifies the proxy refresh JWT, refreshes the upstream
- *   token server-to-server on the internal tokenExchangeBase, updates the stored
- *   upstream token, and re-mints a fresh proxy pair.
+ *   token server-to-server on internalBase, updates the stored upstream token,
+ *   and re-mints a fresh proxy pair.
+ * - token exchange, when an exchange client is configured: see handleTokenExchange.
  *
  * `refresh` is injectable for testing; production passes the real refreshTokens.
  */
@@ -104,10 +110,8 @@ export async function handleToken(
 		}
 		let refreshed;
 		try {
-			// Server-to-server on the INTERNAL tokenExchangeBase, exactly as the
-			// /oauth/callback exchange does — distinct from the public authorizeBase.
 			refreshed = await refresh({
-				tokenEndpoint: mwOauth2TokenEndpoint(pc.tokenExchangeBase, pc.scriptpath),
+				tokenEndpoint: mwOauth2TokenEndpoint(pc.internalBase, pc.scriptpath),
 				refreshToken: upstream.refreshToken,
 				clientId: pc.upstreamClientId,
 				clientSecret: pc.upstreamClientSecret,
@@ -148,6 +152,10 @@ export async function handleToken(
 		// they are not available here. Re-attaching them (and enforcing scopes) is a
 		// follow-up for when/if scope enforcement lands.
 		return mintPair(pc, claims.upstreamTokenId, [], rotatedRefreshId);
+	}
+
+	if (body.grant_type === TOKEN_EXCHANGE_GRANT && pc.exchangeClient) {
+		return handleTokenExchange(body, pc, pc.exchangeClient, store, fetchProfile);
 	}
 
 	return bad('unsupported_grant_type', `unsupported grant_type: ${body.grant_type}`);

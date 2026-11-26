@@ -161,9 +161,9 @@ describe('consent', () => {
 		expect(cancelled).toContain('Authorization cancelled');
 		expect(cancelled).toContain('Claude Code');
 
-		const err = renderAuthErrorPage({ reason: 'upstream token exchange failed' });
+		const err = renderAuthErrorPage({ reason: 'upstream code exchange failed' });
 		expect(err).toContain('Authorization failed');
-		expect(err).toContain('upstream token exchange failed');
+		expect(err).toContain('upstream code exchange failed');
 
 		// cancelled page with no client name falls back to a generic phrase
 		const cancelledNoName = renderCancelledPage({});

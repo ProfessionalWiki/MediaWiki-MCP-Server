@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
 	classifyRefreshError,
 	exchangeCode,
+	fetchProfile,
 	OAuthFlowError,
 	refreshTokens,
 } from '../../src/auth/oauthFlow.ts';
@@ -337,5 +338,102 @@ describe('classifyRefreshError', () => {
 
 	it('classifies a non-OAuth error as dead', () => {
 		expect(classifyRefreshError(new Error('boom'))).toBe('dead');
+	});
+});
+
+describe('fetchProfile', () => {
+	async function profileAnswering(handler: RequestHandler): Promise<string> {
+		fakeAs = await startFakeAs({ profile: handler });
+		return `${fakeAs.url}/w/rest.php/oauth2/resource/profile`;
+	}
+
+	it('names the user the token acts for', async () => {
+		const endpoint = await profileAnswering((_req, res) => {
+			res.json({ sub: '42', username: 'Alice' });
+		});
+
+		expect(await fetchProfile(endpoint, 'wiki-token')).toEqual({ sub: '42' });
+	});
+
+	it('presents the token as a bearer', async () => {
+		let authorization: string | undefined;
+		const endpoint = await profileAnswering((req, res) => {
+			authorization = req.headers.authorization;
+			res.json({ sub: '42' });
+		});
+
+		await fetchProfile(endpoint, 'wiki-token');
+
+		expect(authorization).toBe('Bearer wiki-token');
+	});
+
+	it('reports a token the wiki refuses as invalid', async () => {
+		const endpoint = await profileAnswering((_req, res) => {
+			res.status(401).json({ error: 'access_denied' });
+		});
+
+		await expect(fetchProfile(endpoint, 'wiki-token')).rejects.toMatchObject({
+			kind: 'invalid_token',
+		});
+	});
+
+	it('reports a token the wiki forbids as invalid', async () => {
+		const endpoint = await profileAnswering((_req, res) => {
+			res.status(403).json({ error: 'access_denied' });
+		});
+
+		await expect(fetchProfile(endpoint, 'wiki-token')).rejects.toMatchObject({
+			kind: 'invalid_token',
+		});
+	});
+
+	it('reports a wiki error as transient', async () => {
+		const endpoint = await profileAnswering((_req, res) => {
+			res.status(503).end();
+		});
+
+		await expect(fetchProfile(endpoint, 'wiki-token')).rejects.toMatchObject({
+			kind: 'transient',
+		});
+	});
+
+	it('gives up on a profile whose body stops arriving', async () => {
+		let stalled: import('node:http').ServerResponse | undefined;
+		const endpoint = await profileAnswering((_req, res) => {
+			stalled = res;
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.write('{"sub":');
+		});
+
+		await expect(fetchProfile(endpoint, 'wiki-token')).rejects.toBeInstanceOf(OAuthFlowError);
+		stalled?.destroy();
+	}, 10_000);
+
+	it('reports a machine token, which acts as the anonymous user, as invalid', async () => {
+		const endpoint = await profileAnswering((_req, res) => {
+			res.json({ sub: '0' });
+		});
+
+		await expect(fetchProfile(endpoint, 'wiki-token')).rejects.toMatchObject({
+			kind: 'invalid_token',
+		});
+	});
+
+	it('reports a token for an account with no central id as invalid', async () => {
+		const endpoint = await profileAnswering((_req, res) => {
+			res.json({ sub: '' });
+		});
+
+		await expect(fetchProfile(endpoint, 'wiki-token')).rejects.toMatchObject({
+			kind: 'invalid_token',
+		});
+	});
+
+	it('reports a profile without sub as malformed', async () => {
+		const endpoint = await profileAnswering((_req, res) => {
+			res.json({ username: 'Alice' });
+		});
+
+		await expect(fetchProfile(endpoint, 'wiki-token')).rejects.toMatchObject({ kind: 'malformed' });
 	});
 });

@@ -3,9 +3,9 @@ import { handleCallback } from '../../../src/auth/authorizationServer/callback.t
 import { InMemoryProxyStore } from '../../../src/auth/authorizationServer/proxyStore.ts';
 import { fakeProxyConfig } from '../../helpers/fakeProxyConfig.ts';
 
-// The exchange asserts the token endpoint is built from tokenExchangeBase, so
+// The exchange asserts the token endpoint is built from internalBase, so
 // that one field is pinned to a value distinct from authorizeBase.
-const pc = fakeProxyConfig({ tokenExchangeBase: 'http://mediawiki.svc:80' });
+const pc = fakeProxyConfig({ internalBase: 'http://mediawiki.svc:80' });
 
 describe('handleCallback', () => {
 	it('exchanges, stores the upstream token, and redirects with a one-time code', async () => {

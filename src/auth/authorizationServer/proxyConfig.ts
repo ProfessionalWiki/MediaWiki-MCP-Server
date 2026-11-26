@@ -1,6 +1,8 @@
 import { parseRedirectAllowlist, type RedirectAllowlist } from './redirectPolicy.ts';
 import { parseCimdAllowedHosts } from './cimd.ts';
+import { parseExchangeClient, type ExchangeClient } from './exchangeClient.ts';
 import { errorMessage } from '../../errors/errorMessage.ts';
+import { stripTrailingSlashes } from '../../runtime/trailingSlashes.ts';
 
 export class ProxyConfigError extends Error {
 	public constructor(message: string) {
@@ -14,7 +16,8 @@ export interface ProxyConfig {
 	wikiKey: string;
 	issuer: string;
 	authorizeBase: string;
-	tokenExchangeBase: string;
+	// The wiki's address for server-to-server calls; authorizeBase is the one browsers reach.
+	internalBase: string;
 	scriptpath: string;
 	callbackUrl: string;
 	upstreamClientId: string;
@@ -28,6 +31,7 @@ export interface ProxyConfig {
 	tokenTtlMs: number;
 	redirectAllowlist: RedirectAllowlist;
 	cimdAllowedHosts: string[];
+	exchangeClient: ExchangeClient | null;
 }
 
 const UPSTREAM_REFRESH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -43,10 +47,6 @@ interface ProxyWikiInput {
 	oauth2ClientId?: string | null;
 	oauth2ClientSecret?: string | null;
 	publicServer?: string | null;
-}
-
-function stripTrailingSlash(u: string): string {
-	return u.replace(/\/+$/, '');
 }
 
 export function resolveProxyConfig(
@@ -86,7 +86,7 @@ export function resolveProxyConfig(
 	// must not carry a trailing slash. Distinct from
 	// protectedResource.ts:resolvePublicBase, which guarantees a trailing slash
 	// for the protected-resource `resource` field.
-	const issuer = stripTrailingSlash(parsed.toString());
+	const issuer = stripTrailingSlashes(parsed.toString());
 
 	if (signingKey.length < 32) {
 		throw new ProxyConfigError('MCP_OAUTH_JWT_SIGNING_KEY must be at least 32 characters.');
@@ -127,11 +127,18 @@ export function resolveProxyConfig(
 		throw new ProxyConfigError(`MCP_OAUTH_CIMD_ALLOWED_HOSTS: ${errorMessage(e)}`);
 	}
 
+	let exchangeClient: ExchangeClient | null;
+	try {
+		exchangeClient = parseExchangeClient(env, clientId);
+	} catch (e) {
+		throw new ProxyConfigError(errorMessage(e));
+	}
+
 	return {
 		wikiKey,
 		issuer,
-		authorizeBase: stripTrailingSlash(wiki.publicServer?.trim() || wiki.server),
-		tokenExchangeBase: stripTrailingSlash(wiki.server),
+		authorizeBase: stripTrailingSlashes(wiki.publicServer?.trim() || wiki.server),
+		internalBase: stripTrailingSlashes(wiki.server),
 		scriptpath: wiki.scriptpath,
 		callbackUrl: `${issuer}/oauth/callback`,
 		upstreamClientId: clientId,
@@ -141,6 +148,7 @@ export function resolveProxyConfig(
 		tokenTtlMs,
 		redirectAllowlist,
 		cimdAllowedHosts,
+		exchangeClient,
 	};
 }
 

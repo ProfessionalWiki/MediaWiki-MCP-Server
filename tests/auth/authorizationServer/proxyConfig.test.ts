@@ -3,6 +3,7 @@ import {
 	resolveProxyConfig,
 	ProxyConfigError,
 } from '../../../src/auth/authorizationServer/proxyConfig.ts';
+import { PUBLIC_EC_JWK } from '../../helpers/exchangeClient.ts';
 
 const wiki = {
 	server: 'http://mediawiki.svc:80',
@@ -28,7 +29,7 @@ describe('resolveProxyConfig', () => {
 		expect(c.issuer).toBe('https://wiki.example/mcp');
 		expect(c.callbackUrl).toBe('https://wiki.example/mcp/oauth/callback');
 		expect(c.authorizeBase).toBe('https://wiki.example');
-		expect(c.tokenExchangeBase).toBe('http://mediawiki.svc:80');
+		expect(c.internalBase).toBe('http://mediawiki.svc:80');
 	});
 	it('populates upstreamClientSecret from the confidential wiki config', () => {
 		const c = resolveProxyConfig('w', { ...wiki, oauth2ClientSecret: 'shh' }, env)!;
@@ -153,5 +154,27 @@ describe('CIMD host allowlist plumbing', () => {
 		expect(() =>
 			resolveProxyConfig('w', wiki, { ...env, MCP_OAUTH_CIMD_ALLOWED_HOSTS: 'bad host' }),
 		).toThrow(/MCP_OAUTH_CIMD_ALLOWED_HOSTS/);
+	});
+});
+
+describe('token exchange plumbing', () => {
+	const exchangeEnv = {
+		...env,
+		MCP_OAUTH_EXCHANGE_CLIENT_ID: 'backend',
+		MCP_OAUTH_EXCHANGE_CLIENT_JWKS: JSON.stringify({
+			keys: [PUBLIC_EC_JWK],
+		}),
+	};
+
+	it("accepts the proxy's own consumer's tokens unless told otherwise", () => {
+		expect(resolveProxyConfig('w', wiki, exchangeEnv)?.exchangeClient?.consumers).toEqual([
+			'abc123',
+		]);
+	});
+
+	it('refuses to start with a misconfigured exchange client', () => {
+		expect(() =>
+			resolveProxyConfig('w', wiki, { ...env, MCP_OAUTH_EXCHANGE_CLIENT_ID: 'backend' }),
+		).toThrow(/MCP_OAUTH_EXCHANGE_CLIENT/);
 	});
 });

@@ -24,6 +24,8 @@ export interface FakeAsOptions {
 	// even for a public consumer (unlike the auth-code+PKCE grant) — the behaviour
 	// the earlier permissive fake masked.
 	refreshRequiresClientSecret?: string;
+	// Answers Extension:OAuth's profile endpoint, which names the user a token acts for.
+	profile?: RequestHandler;
 }
 
 export interface FakeAsHandle {
@@ -111,6 +113,10 @@ export async function startFakeAs(opts: FakeAsOptions = {}): Promise<FakeAsHandl
 		'/w/rest.php/oauth2/authorize',
 		opts.authorize ?? (opts.autoApproveAuthorize ? autoApprove : defaultAuthorize),
 	);
+
+	if (opts.profile) {
+		app.get('/w/rest.php/oauth2/resource/profile', opts.profile);
+	}
 
 	if (opts.captureApi) {
 		const apiHandler: RequestHandler = (req, res) => {

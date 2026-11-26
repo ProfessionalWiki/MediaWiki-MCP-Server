@@ -22,7 +22,7 @@ import { metricsOff } from '../helpers/metrics.ts';
 
 const pc = fakeProxyConfig({
 	signingKey: 'k'.repeat(32),
-	tokenExchangeBase: 'http://mediawiki.svc:80',
+	internalBase: 'http://mediawiki.svc:80',
 	upstreamClientSecret: undefined,
 });
 
@@ -104,7 +104,7 @@ describe('resolveUpstreamBearer', () => {
 		expect(store.getUpstreamToken(id)?.refreshToken).toBe('WR2');
 		expect(refresh).toHaveBeenCalledOnce();
 		// Pin the upstream token endpoint: the proactive-refresh path builds it from
-		// tokenExchangeBase + scriptpath, and this is the only one of the shared
+		// internalBase + scriptpath, and this is the only one of the shared
 		// mwOauth2TokenEndpoint call sites otherwise not asserted by URL.
 		expect(refresh).toHaveBeenCalledWith(
 			expect.objectContaining({

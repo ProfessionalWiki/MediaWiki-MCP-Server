@@ -171,7 +171,7 @@ see [End-to-end testing the hosted OAuth proxy](#end-to-end-testing-the-hosted-o
 ## End-to-end testing the hosted OAuth proxy
 
 A manual, repeatable walkthrough of the full browser sign-in flow — discovery,
-sign-in, upstream consent, token exchange, and an attributed write — against a
+sign-in, upstream consent, code exchange, and an attributed write — against a
 real wiki. It needs no bundled environment: any MediaWiki container with
 Extension:OAuth works.
 

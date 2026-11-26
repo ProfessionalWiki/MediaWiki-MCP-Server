@@ -95,7 +95,7 @@ Copy the resulting consumer **key** into the wiki's `oauth2ClientId` and its **s
 }
 ```
 
-- `server`: the **internal** API address the server uses for tool calls and the confidential token exchange. In Docker this is often a network alias (here `http://mediawiki.svc`) that bypasses your public proxy; list it in `MCP_TRUSTED_HOSTS` so the [outbound SSRF guard](#outbound-ssrf-guard) permits it.
+- `server`: the **internal** API address the server uses for tool calls and the confidential code exchange and refresh. In Docker this is often a network alias (here `http://mediawiki.svc`) that bypasses your public proxy; list it in `MCP_TRUSTED_HOSTS` so the [outbound SSRF guard](#outbound-ssrf-guard) permits it.
 - `publicServer`: the **browser-facing** wiki URL the user is redirected to for the MediaWiki consent screen. Omit it when your wiki has a single URL (no separate internal address); it then falls back to `server`.
 - `oauth2ClientId`: the consumer key from step 1.
 - `oauth2ClientSecret`: the consumer secret from step 1. Keep it out of `config.json` with `${MCP_OAUTH2_CLIENT_SECRET}` substitution or the `MCP_OAUTH2_CLIENT_SECRET` env var.
@@ -143,6 +143,52 @@ Only add callbacks you recognise as the client's official ones — a redirect yo
 Some clients identify themselves by a vendor-hosted URL instead of a callback; verified first-party ones are trusted out of the box. To admit another client that works this way, add its host to `MCP_OAUTH_CIMD_ALLOWED_HOSTS` (comma-separated bare hosts or `host:port`) rather than `MCP_OAUTH_ALLOWED_REDIRECTS`.
 
 The defaults include one callback that is not a web address, `cursor://anysphere.cursor-mcp/oauth/callback`, which any program on the user's own machine could claim.
+
+### Exchanging wiki tokens from a backend
+
+A backend that already holds its users' OAuth 2 access tokens for the default wiki, such as a wiki extension that mints them, can exchange each one for a token the proxy issues ([RFC 8693](https://www.rfc-editor.org/rfc/rfc8693)), so its users act as themselves with no browser sign-in. You can register one backend, and a user's exchanged tokens share a [rate limit](#rate-limiting).
+
+To register it, give the server the backend's client id, its public keys as a one-line JWKS with a `kid` on each key, and the key of the OAuth consumer its wiki tokens are issued to; leave out `MCP_OAUTH_EXCHANGE_CONSUMERS` when that is the proxy's own consumer (see [Hosted OAuth proxy variables](#hosted-oauth-proxy)):
+
+```sh
+MCP_OAUTH_EXCHANGE_CLIENT_ID=wiki-backend
+MCP_OAUTH_EXCHANGE_CLIENT_JWKS='{"keys":[{"kty":"EC","crv":"P-256","kid":"2026-11","x":"<x>","y":"<y>"}]}'
+MCP_OAUTH_EXCHANGE_CONSUMERS=<consumer key>
+```
+
+The backend then POSTs an `application/x-www-form-urlencoded` form to `<MCP_PUBLIC_URL>/token`:
+
+| Field | Value |
+|---|---|
+| `grant_type` | `urn:ietf:params:oauth:grant-type:token-exchange` |
+| `subject_token` | The user's wiki access token |
+| `subject_token_type` | `urn:ietf:params:oauth:token-type:access_token` |
+| `client_assertion_type` | `urn:ietf:params:oauth:client-assertion-type:jwt-bearer` |
+| `client_assertion` | A JWT signed ES256 or RS256 with one of the backend's keys, its `kid` in the header ([RFC 7523](https://www.rfc-editor.org/rfc/rfc7523)). Claims: `iss` and `sub` the client id; `aud` the `issuer` from the proxy's [authorization-server metadata](#4-route-the-oauth-endpoints-through-your-proxy) (`MCP_PUBLIC_URL` without a trailing slash) as its only value, not the token endpoint URL; a unique `jti`; and an `exp` at most five minutes ahead. Each assertion is accepted once while the server runs. |
+| `client_id` | Optional: the client id |
+| `resource`, `audience` | Optional: `MCP_PUBLIC_URL`, with or without a trailing slash |
+
+The reply is a token response without a refresh token:
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiJ9…",
+  "issued_token_type": "urn:ietf:params:oauth:token-type:access_token",
+  "token_type": "Bearer",
+  "expires_in": 599
+}
+```
+
+Send `access_token` as `Authorization: Bearer` to `MCP_PUBLIC_URL`, cache it per user, and exchange again shortly before `expires_in` runs out; it expires no later than the wiki token. Exchange each new wiki token as soon as you have it, including one from a refresh, which revokes the token before it. A refused exchange answers:
+
+| Status | `error` | When |
+|---|---|---|
+| 400 | `invalid_request` | The wiki token is invalid, expired or revoked, acts for no user, or was issued to a consumer not in `MCP_OAUTH_EXCHANGE_CONSUMERS` |
+| 400 | `invalid_scope` | The request has a `scope`: the token has the wiki token's grants |
+| 400 | `invalid_target` | `resource` or `audience` names another server |
+| 400 | `unsupported_grant_type` | No backend is registered |
+| 401 | `invalid_client` | The assertion fails a check |
+| 503 | `temporarily_unavailable` | The wiki could not check the token |
 
 ## Running it with Docker
 
@@ -259,6 +305,9 @@ Set `MCP_TRANSPORT=http` to select this transport (the Docker image defaults to 
 | `MCP_OAUTH_PROXY_STORE_FILE` | `proxy-store.enc` under the config dir | File where the proxy persists sign-in state across restarts (encrypted with a key derived from `MCP_OAUTH_JWT_SIGNING_KEY`). In Docker it defaults to `/app/data/proxy-store.enc` on a declared volume — mount it, or a restart signs everyone out. See [Proxy state persistence](#proxy-state-persistence). |
 | `MCP_OAUTH_ALLOWED_REDIRECTS` | unset | Additional OAuth redirect URIs the proxy accepts at client registration: comma-separated exact URIs and `https://…/*` prefix patterns. Loopback, claude.ai, and verified first-party clients are always allowed. See [Allowing more clients](#allowing-more-clients). |
 | `MCP_OAUTH_CIMD_ALLOWED_HOSTS` | unset | Extra hosts to trust for clients that identify by a vendor-hosted URL (Client ID Metadata Documents): comma-separated bare hosts or `host:port`. The first-party clients are always trusted. See [Allowing more clients](#allowing-more-clients). |
+| `MCP_OAUTH_EXCHANGE_CLIENT_ID` | unset | The client id a backend authenticates as to exchange its users' wiki tokens. Enables token exchange together with `MCP_OAUTH_EXCHANGE_CLIENT_JWKS`; startup fails if only one is set. See [Exchanging wiki tokens from a backend](#exchanging-wiki-tokens-from-a-backend). |
+| `MCP_OAUTH_EXCHANGE_CLIENT_JWKS` | unset | That backend's public signing keys (ES256 or RS256), as a JWKS document on one line (`{"keys":[…]}`), each key with its own `kid`. Startup fails on a private or symmetric key. |
+| `MCP_OAUTH_EXCHANGE_CONSUMERS` | the default wiki's `oauth2ClientId` | Comma-separated keys of the OAuth consumers whose wiki access tokens that backend may exchange. Replaces the default. |
 
 ### How the proxy works
 
@@ -274,9 +323,9 @@ The proxy reads three distinct URLs, which usually differ:
 |---|---|---|
 | Proxy issuer | `MCP_PUBLIC_URL` | The AS identity the client talks to: the host that serves metadata, `/authorize`, `/token`, `/register`, and the fixed `/oauth/callback`. |
 | Upstream authorize host | per-wiki `publicServer` (falls back to `server`) | The **browser-facing** wiki URL the user is redirected to for the upstream MediaWiki consent screen (`…/rest.php/oauth2/authorize`). |
-| Internal API host | per-wiki `server` | The wiki API used for tool calls **and** the server→wiki token exchange/refresh (`…/rest.php/oauth2/access_token`). |
+| Internal API host | per-wiki `server` | The wiki API used for tool calls **and** the server→wiki code exchange and refresh (`…/rest.php/oauth2/access_token`), and for checking exchanged wiki tokens (`…/rest.php/oauth2/resource/profile`). |
 
-The split exists because the browser must reach a **public** authorize URL (the user's browser is redirected there and back), while the server's own API traffic and the confidential token exchange should stay on the **internal** address (e.g. a Docker-network alias that bypasses the public reverse proxy).
+The split exists because the browser must reach a **public** authorize URL (the user's browser is redirected there and back), while the server's own API traffic and the confidential code exchange should stay on the **internal** address (e.g. a Docker-network alias that bypasses the public reverse proxy).
 
 ### Outbound SSRF guard
 
@@ -323,7 +372,7 @@ The limiter is per-process — replicas each enforce their own allowance — and
 
 These apply to the [hosted OAuth sign-in](#hosted-oauth-sign-in) setup:
 
-- **Single instance only.** Run exactly one proxy process. All of its sign-in state — registered clients, stored MediaWiki tokens, and the in-flight sign-in handshakes (authorization transactions, one-time codes, and refresh-rotation guards) — is held in that process's memory and mirrored to a single local file (see [Proxy state persistence](#proxy-state-persistence)). Horizontal scaling and zero-downtime rolling deploys are not yet supported. Supporting more than one instance would need **both** a shared store for that state (replacing the per-process file) **and** session affinity, so every request from a client — including the two browser legs of a single sign-in — reaches the same instance.
+- **Single instance only.** Run exactly one proxy process. All of its sign-in state — registered clients, stored MediaWiki tokens, and the in-flight sign-in handshakes (authorization transactions, one-time codes, and refresh-rotation guards) — is held in that process's memory and mirrored to a single local file (see [Proxy state persistence](#proxy-state-persistence)). The client assertions [token exchange](#exchanging-wiki-tokens-from-a-backend) has accepted are kept in memory only. Horizontal scaling and zero-downtime rolling deploys are not yet supported. Supporting more than one instance would need **both** a shared store for that state (replacing the per-process file) **and** session affinity, so every request from a client — including the two browser legs of a single sign-in — reaches the same instance.
 
 > [!WARNING]
 > Do not run more than one instance against a shared store file. There is no runtime guard against a mis-scaled deployment: each process keeps its own in-memory copy of the sign-in state and rewrites the entire encrypted file on every change, so the instances overwrite one another silently — sign-ins and client registrations are lost with no error logged.
@@ -336,7 +385,7 @@ The proxy persists its sign-in state to a local file so a restart or deploy does
 
 ### Per-request bearer token (HTTP transport, deprecated)
 
-> **Deprecated.** An MCP server must not accept tokens that were not issued for it, so forwarding a caller's MediaWiki token is off by default and will be removed. Use [Hosted OAuth sign-in](#hosted-oauth-sign-in), which gets this server its own tokens. Set `MCP_ALLOW_BEARER_PASSTHROUGH=true` to keep the old behaviour while you migrate; the server logs a warning at startup while it is set.
+> **Deprecated.** An MCP server must not accept tokens that were not issued for it, so forwarding a caller's MediaWiki token is off by default and will be removed. Use [Hosted OAuth sign-in](#hosted-oauth-sign-in), which gets this server its own tokens, or [token exchange](#exchanging-wiki-tokens-from-a-backend) for a backend that holds its users' wiki tokens. Set `MCP_ALLOW_BEARER_PASSTHROUGH=true` to keep the old behaviour while you migrate; the server logs a warning at startup while it is set.
 
 For **programmatic or non-interactive clients that already hold a MediaWiki OAuth2 access token** (a script, a CI job, an automation backend), the HTTP transport can accept the token directly, with no browser flow.
 

@@ -17,7 +17,7 @@ Covers configuration topics beyond the basic `config.json` shape documented in [
 | Field | Required | Description |
 |---|---|---|
 | `sitename` | Yes | Display name for the wiki |
-| `server` | Yes | Base URL the MCP server uses to reach the wiki API. May be an internal hostname (e.g. `http://mediawiki.svc` in Docker). Also the host used for the server→wiki OAuth token exchange in the [hosted OAuth proxy](deployment.md#hosted-oauth-sign-in). |
+| `server` | Yes | Base URL the MCP server uses to reach the wiki API. May be an internal hostname (e.g. `http://mediawiki.svc` in Docker). Also the host used for the server→wiki OAuth code exchange and refresh in the [hosted OAuth proxy](deployment.md#hosted-oauth-sign-in). |
 | `publicServer` | No | The wiki's browser-facing public base URL (e.g. `https://wiki.example.org`), used when it differs from the internal `server`. In the [hosted OAuth proxy](deployment.md#hosted-oauth-sign-in) this is the host the user's browser is redirected to for the upstream consent screen. Falls back to `server` when unset. |
 | `articlepath` | Yes | Path pattern for articles (typically `/wiki`) |
 | `scriptpath` | Yes | Path to MediaWiki scripts (typically `/w`) |

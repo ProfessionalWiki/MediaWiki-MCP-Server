@@ -52,7 +52,7 @@ function proxyConfig(fakeAsUrl: string): ProxyConfig {
 	return fakeProxyConfig({
 		issuer: ISSUER,
 		authorizeBase: fakeAsUrl,
-		tokenExchangeBase: fakeAsUrl,
+		internalBase: fakeAsUrl,
 		callbackUrl: `${ISSUER}/oauth/callback`,
 		upstreamClientId: 'UPSTREAM-CLIENT',
 		upstreamClientSecret: undefined,

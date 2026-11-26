@@ -2,6 +2,7 @@
 import type { OAuthProtectedResourceMetadata } from '@modelcontextprotocol/server';
 import type { UpstreamAsMetadata } from './metadata.ts';
 import { usesOAuthSignIn } from '../runtime/authShape.ts';
+import { stripTrailingSlashes } from '../runtime/trailingSlashes.ts';
 
 const RESOURCE_DOCUMENTATION =
 	'https://github.com/ProfessionalWiki/MediaWiki-MCP-Server/blob/master/docs/configuration.md#oauth';
@@ -74,7 +75,7 @@ export function buildProtectedResource(
 	// URL, so a trailing slash here fails auth ("Protected resource .../mcp/ does
 	// not match expected .../mcp"). resolvePublicBase keeps its trailing slash for
 	// building the resource_metadata URL; strip it for the identifier only.
-	const resource = resolvePublicBase(input.requestHost, input.requestProto).replace(/\/+$/, '');
+	const resource = stripTrailingSlashes(resolvePublicBase(input.requestHost, input.requestProto));
 	const issuers = [...input.authorizationServers];
 	const scopes = [...new Set(input.metadatas.flatMap((m) => m.scopes_supported ?? []))];
 

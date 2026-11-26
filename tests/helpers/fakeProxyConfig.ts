@@ -12,7 +12,7 @@ export function fakeProxyConfig(overrides: Partial<ProxyConfig> = {}): ProxyConf
 		wikiKey: 'test',
 		issuer: 'https://wiki.example/mcp',
 		authorizeBase: 'https://wiki.example',
-		tokenExchangeBase: 'https://wiki.example',
+		internalBase: 'https://wiki.example',
 		scriptpath: '/w',
 		callbackUrl: 'https://wiki.example/mcp/oauth/callback',
 		upstreamClientId: 'UP',
@@ -22,6 +22,7 @@ export function fakeProxyConfig(overrides: Partial<ProxyConfig> = {}): ProxyConf
 		tokenTtlMs: 1000,
 		redirectAllowlist: [],
 		cimdAllowedHosts: [],
+		exchangeClient: null,
 		...overrides,
 	};
 }

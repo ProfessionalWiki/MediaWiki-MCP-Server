@@ -13,11 +13,11 @@ import {
 import { OAuthFlowError } from '../../../src/auth/oauthFlow.ts';
 import { fakeProxyConfig } from '../../helpers/fakeProxyConfig.ts';
 
-// The refresh grant asserts the token endpoint is built from tokenExchangeBase,
+// The refresh grant asserts the token endpoint is built from internalBase,
 // so that field is pinned to a value distinct from authorizeBase. tokenTtlMs
 // backs the `expires_in: 60` assertion.
 const pc = fakeProxyConfig({
-	tokenExchangeBase: 'http://mediawiki.svc:80',
+	internalBase: 'http://mediawiki.svc:80',
 	tokenTtlMs: 60_000,
 });
 
@@ -167,6 +167,15 @@ describe('handleToken authorization_code', () => {
 		const store = new InMemoryProxyStore();
 		const r = await handleToken({ grant_type: 'password' }, pc, store);
 		expect(r.status).toBe(400);
+		expect(r.body.error).toBe('unsupported_grant_type');
+	});
+
+	it('refuses token exchange when no exchange client is configured', async () => {
+		const r = await handleToken(
+			{ grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange' },
+			pc,
+			new InMemoryProxyStore(),
+		);
 		expect(r.body.error).toBe('unsupported_grant_type');
 	});
 });
